@@ -1,11 +1,37 @@
 import { executeQuery } from "@/lib/db";
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
+
+export async function GET(request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id"); // optional
+
+    const connection = await executeQuery();
+    let query = "SELECT * FROM filling_requests";
+    const params = [];
+
+    if (id) {
+      query += " WHERE id = ?";
+      params.push(id);
+    }
+
+    const [results] = await connection.execute(query, params);
+
+    if (id && results.length === 0) {
+      return NextResponse.json({ error: "Record not found" }, { status: 404 });
+    }
+
+    return NextResponse.json({ data: results });
+  } catch (error) {
+    console.error("Error fetching filling requests:", error);
+    return NextResponse.json({ error: "Internal server error", details: error.message }, { status: 500 });
+  }
+}
 
 export async function POST(request) {
   try {
     const formData = await request.formData();
 
-    // Extract form data
     const id = formData.get('id');
     const product_id = formData.get('product');
     const station_id = formData.get('station');
@@ -15,19 +41,16 @@ export async function POST(request) {
     const aqty = Number(formData.get('aqty'));
     const customer_id = formData.get('customer');
 
-    // Files
     const doc1 = formData.get('doc1');
     const doc2 = formData.get('doc2');
     const doc3 = formData.get('doc3');
 
     const connection = await executeQuery();
-
     await connection.beginTransaction();
 
     try {
-      // 1️⃣ Fetch existing record
       const [currentRecord] = await connection.execute(
-        'SELECT aqty, rid, doc1, doc2, doc3 FROM filling_requests WHERE id = ?',
+        'SELECT aqty, rid FROM filling_requests WHERE id = ?',
         [id]
       );
 
@@ -37,9 +60,7 @@ export async function POST(request) {
       }
 
       const old_aqty = currentRecord[0].aqty;
-      const rid = currentRecord[0].rid;
 
-      // 2️⃣ Update filling_requests table
       await connection.execute(
         `UPDATE filling_requests SET 
           product = ?, fs_id = ?, vehicle_number = ?, driver_number = ?, 
@@ -48,7 +69,7 @@ export async function POST(request) {
         [product_id, station_id, vehicle_number, driver_number, qty, aqty, customer_id, id]
       );
 
-      // 3️⃣ Handle qty change -> balance & stock
+      // Adjust balances & stock
       if (aqty !== old_aqty) {
         const [priceData] = await connection.execute(
           'SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ?',
@@ -65,7 +86,6 @@ export async function POST(request) {
               'UPDATE customer_balances SET balance = balance + ?, amtlimit = amtlimit - ? WHERE com_id = ?',
               [amount, amount, customer_id]
             );
-
             await connection.execute(
               'UPDATE filling_station_stocks SET stock = stock - ? WHERE fs_id = ? AND product = ?',
               [qty_diff, station_id, product_id]
@@ -75,7 +95,6 @@ export async function POST(request) {
               'UPDATE customer_balances SET balance = balance - ?, amtlimit = amtlimit + ? WHERE com_id = ?',
               [amount, amount, customer_id]
             );
-
             await connection.execute(
               'UPDATE filling_station_stocks SET stock = stock + ? WHERE fs_id = ? AND product = ?',
               [qty_diff, station_id, product_id]
@@ -84,15 +103,11 @@ export async function POST(request) {
         }
       }
 
-      // 4️⃣ TODO: Handle file uploads (doc1, doc2, doc3)
-      // Save files and update their URLs in filling_requests if uploaded
+      // TODO: Handle file uploads if needed (doc1, doc2, doc3)
 
       await connection.commit();
 
-      return NextResponse.json({
-        success: true,
-        message: 'Record updated successfully',
-      });
+      return NextResponse.json({ success: true, message: 'Record updated successfully' });
 
     } catch (error) {
       await connection.rollback();

@@ -1,3 +1,5 @@
+
+//src/components/sidebar.jsx
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -83,6 +85,7 @@ export default function Sidebar() {
     { name: "Users", icon: <FaUsers />, module: "users", path: "/users" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
    { name: "Retailers", icon: <FaUsers />, module: "retailers", path: "/retailers" },
+    { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
 
     { name: "Customers", icon: <FaUsers />, module: "customers", path: "/customers" },
     { name: "Purchese Request", icon: <FaFileInvoice />, module: "filling_requests", path: "/filling-requests" },

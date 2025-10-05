@@ -53,7 +53,7 @@ export default function LoadingStations() {
           ) : (
             <>
               <a
-                href="/add-station"
+                href="/loading-stations/add-station"
                 className="fixed bottom-16 right-10 bg-purple-700 text-white px-4 py-3 rounded-full shadow-lg hover:bg-purple-800 z-10 flex items-center justify-center"
               >
                 <span className="mr-2">+</span> Add Station
