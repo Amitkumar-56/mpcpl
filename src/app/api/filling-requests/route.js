@@ -1,4 +1,3 @@
-
 //src/app/api/filling-requests/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -125,7 +124,7 @@ export async function GET(request) {
 
     console.log('✅ Processed requests:', processedRequests.length);
 
-    // PURANA RESPONSE FORMAT - jo frontend expect kar raha hai
+    // CORRECTED RESPONSE FORMAT - return the complete object
     const responseData = {
       requests: processedRequests,
       currentPage: page,
@@ -133,8 +132,11 @@ export async function GET(request) {
       totalRecords: totalRecords,
       totalPages: Math.ceil(totalRecords / recordsPerPage)
     };
-   console.log('🚀 API CALL COMPLETED.',responseData);
-    return NextResponse.json(responseData.requests);
+
+    console.log('🚀 API CALL COMPLETED.', responseData);
+    
+    // Return the complete response object, not just the requests array
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('❌ Database error:', error);
