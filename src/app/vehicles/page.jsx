@@ -123,19 +123,19 @@ export default function VehiclesPage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="flex flex-1">
+      <div className="flex flex-1 flex-col sm:flex-row">
         {/* Sidebar */}
-        <div className="w-64 flex-shrink-0">
+        <div className="w-full sm:w-64 flex-shrink-0">
           <Sidebar />
         </div>
 
-        {/* Main content */}
+        {/* Main content area */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Header */}
           <Header />
 
-          {/* Content area */}
-          <main className="flex-1 overflow-hidden p-6">
+          {/* Content area - This will grow and push footer down */}
+          <main className="flex-1 overflow-auto p-4 sm:p-6">
             {/* Breadcrumb and Header */}
             <div className="mb-6">
               <nav className="mb-3 text-sm">
@@ -354,7 +354,7 @@ export default function VehiclesPage() {
             </div>
           </main>
 
-          {/* Footer */}
+          {/* Footer - This will now stick to the bottom */}
           <Footer />
         </div>
       </div>

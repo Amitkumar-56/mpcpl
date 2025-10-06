@@ -1,5 +1,5 @@
 'use server';
-import { getConnection } from '@/lib/database';
+import { executeQuery } from "@/lib/db";
 import { writeFile } from 'fs/promises';
 import { join } from 'path';
 
@@ -43,7 +43,7 @@ export const POST = async (req) => {
       slip_image = filename;
     }
 
-    const connection = await getConnection();
+    const connection = await executeQuery();
     const query = `
       INSERT INTO stock SET 
         invoice_number=?, invoice_date=?, transport_number=?, fs_id=?, 

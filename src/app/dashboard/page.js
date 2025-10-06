@@ -40,13 +40,13 @@ export default function DashboardPage() {
     setUser(JSON.parse(savedUser));
 
     // Fetch stats
-    fetch("/api/stats")
+    fetch("")
       .then((res) => res.json())
       .then((data) => setStats(data))
       .catch((err) => console.error(err));
 
     // Fetch stock data
-    fetch("/api/stocks")
+    fetch("")
       .then((res) => res.json())
       .then((data) => setStockData(data))
       .catch((err) => console.error(err))
@@ -81,7 +81,8 @@ export default function DashboardPage() {
                   Welcome back, {user.name}!
                 </h1>
                 <p className="text-gray-600 mt-2">
-                  Here's what's happening with your business today
+                    Welcome to your dashboard
+
                 </p>
               </div>
               <div className="flex items-center space-x-4 mt-4 lg:mt-0">
