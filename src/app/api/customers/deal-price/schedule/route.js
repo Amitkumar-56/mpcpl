@@ -1,7 +1,7 @@
 //src/app/api/customers/deal-price/schedule/route.js
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
-import db from '../../../../lib/db';
+import { executeQuery } from "@/lib/db";
 
 export async function POST(request) {
   try {
@@ -19,7 +19,7 @@ export async function POST(request) {
     }
 
     // Insert schedule (adjust table name and columns as needed)
-    await db.query(
+    await executeQuery.query(
       'INSERT INTO deal_price_schedule (com_id, schedule_date, schedule_time) VALUES (?, ?, ?)',
       [id, Schedule_Date, Schedule_Time]
     );

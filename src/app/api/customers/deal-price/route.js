@@ -1,7 +1,7 @@
 //src/app/api/customers/deal-price/schedule/route.js
+import { executeQuery } from "@/lib/db";
 import { getServerSession } from 'next-auth';
 import { NextResponse } from 'next/server';
-import db from '../../../lib/db';
 
 export async function GET(request) {
   try {
@@ -19,7 +19,7 @@ export async function GET(request) {
     }
 
     // Fetch customer details
-    const [customer] = await db.query(
+    const [customer] = await executeQuery.query(
       'SELECT name FROM customers WHERE id = ?',
       [id]
     );
@@ -29,17 +29,17 @@ export async function GET(request) {
     }
 
     // Fetch all stations
-    const stations = await db.query(
+    const stations = await executeQuery.query(
       'SELECT id, station_name FROM filling_stations'
     );
 
     // Fetch all products
-    const products = await db.query(
+    const products = await executeQuery.query(
       'SELECT id, pname FROM product'
     );
 
     // Fetch existing deal prices
-    const dealPrices = await db.query(
+    const dealPrices = await executeQuery.query(
       'SELECT station_id, product_id, price FROM deal_price WHERE com_id = ?',
       [id]
     );
@@ -82,11 +82,11 @@ export async function POST(request) {
     }
 
     // Start transaction
-    await db.query('START TRANSACTION');
+    await executeQuery.query('START TRANSACTION');
 
     try {
       // Delete existing prices
-      await db.query('DELETE FROM deal_price WHERE com_id = ?', [com_id]);
+      await executeQuery.query('DELETE FROM deal_price WHERE com_id = ?', [com_id]);
 
       // Insert new prices
       for (const [key, price] of Object.entries(prices)) {
@@ -99,11 +99,11 @@ export async function POST(request) {
         }
       }
 
-      await db.query('COMMIT');
+      await executeQuery.query('COMMIT');
       return NextResponse.json({ success: true, message: 'Prices updated successfully' });
 
     } catch (error) {
-      await db.query('ROLLBACK');
+      await executeQuery.query('ROLLBACK');
       throw error;
     }
 

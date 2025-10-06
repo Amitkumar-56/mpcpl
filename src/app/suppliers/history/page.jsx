@@ -1,20 +1,13 @@
 'use client';
-import { useUser } from '@clerk/nextjs';
-import { Download, Search } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { BiDownload, BiSearch } from "react-icons/bi";
 
 export default function HistoryPage() {
-  const { user, isLoaded } = useUser();
-  const [userRole, setUserRole] = useState('viewer');
+  // Remove Clerk, just use a demo role
+  const [userRole] = useState('viewer');
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('all');
-
-  useEffect(() => {
-    if (user) {
-      setUserRole('viewer'); // Demo role
-    }
-  }, [user]);
 
   // Mock history data
   const historyData = [
@@ -43,13 +36,12 @@ export default function HistoryPage() {
   ];
 
   const filteredData = historyData.filter(item => {
-    const matchesSearch = item.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         item.supplier.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch =
+      item.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      item.supplier.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesFilter = filterType === 'all' || item.type === filterType;
     return matchesSearch && matchesFilter;
   });
-
-  if (!isLoaded) return <div>Loading...</div>;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -79,7 +71,7 @@ export default function HistoryPage() {
               {/* Search */}
               <div className="flex-1">
                 <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <BiSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <input
                     type="text"
                     placeholder="Search by invoice or supplier..."
@@ -105,7 +97,7 @@ export default function HistoryPage() {
 
               {/* Export Button */}
               <button className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 flex items-center">
-                <Download className="h-4 w-4 mr-2" />
+                <BiDownload className="h-4 w-4 mr-2" />
                 Export
               </button>
             </div>
@@ -151,7 +143,7 @@ export default function HistoryPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        item.type === 'sale' 
+                        item.type === 'sale'
                           ? 'bg-purple-100 text-purple-800'
                           : 'bg-orange-100 text-orange-800'
                       }`}>
