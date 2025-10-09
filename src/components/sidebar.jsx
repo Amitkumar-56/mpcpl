@@ -62,6 +62,8 @@ export default function Sidebar() {
      stock: "stock",
     loading_stations: "Loading Station",
     vehicles: "Vehicle",
+    schedule_price: "Schedule Prices",
+
     lr_management: "LR Management",
     history: "Loading History",
     products: "Items & Products",
@@ -92,6 +94,7 @@ export default function Sidebar() {
         { name: "Stock", icon: <FaUsers />, module: "stock", path: "/stock" },
     { name: "Loading Stations", icon: <FaTruck />, module: "loading_stations", path: "/loading-stations" },
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
+    { name: "Schedule Prices", icon: <FaMoneyBill />, module: "schedule_price", path: "/schedule-price" },
     { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-management" },
     { name: "Loading History", icon: <FaHistory />, module: "history", path: "/history" },
     { name: "Tanker History", icon: <FaHistory />, module: "tanker_history", path: "/tanker-history" },

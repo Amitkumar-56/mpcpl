@@ -5,7 +5,7 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BiCoin,
   BiDollar,
@@ -31,51 +31,63 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        // Fetch customers
-        const customersRes = await fetch("/api/customers");
-        if (!customersRes.ok) {
-          throw new Error('Failed to fetch customers');
-        }
-        const customersData = await customersRes.json();
-        setCustomers(customersData);
-
-        // Try to fetch permissions
-        try {
-          const permRes = await fetch("/api/permissions?module=Customers");
-          if (permRes.ok) {
-            const permData = await permRes.json();
-            setPermissions(permData);
-          }
-        } catch (permError) {
-          console.log("Using default permissions");
-          setPermissions({ can_edit: true, can_view: true, can_delete: true });
-        }
-      } catch (err) {
-        console.error("Error fetching customers:", err);
-        setError("Failed to load customers. Please try again.");
-      } finally {
-        setLoading(false);
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Fetch customers with balances
+      const customersRes = await fetch("/api/customers");
+      if (!customersRes.ok) {
+        throw new Error('Failed to fetch customers');
       }
+      const customersData = await customersRes.json();
+      setCustomers(customersData);
+
+      // Try to fetch permissions
+      try {
+        const permRes = await fetch("/api/permissions?module=Customers");
+        if (permRes.ok) {
+          const permData = await permRes.json();
+          setPermissions(permData);
+        }
+      } catch (permError) {
+        console.log("Using default permissions");
+        // Keep default permissions
+      }
+    } catch (err) {
+      console.error("Error fetching customers:", err);
+      setError("Failed to load customers. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    fetchData();
   }, []);
 
-  const filteredCustomers = customers.filter((c) =>
-    `${c.name || ''} ${c.email || ''} ${c.phone || ''} ${c.address || ''} ${c.region || ''}`
-      .toLowerCase()
-      .includes(search.toLowerCase())
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Memoized filtered customers
+  const filteredCustomers = useMemo(() => 
+    customers.filter((c) =>
+      `${c.name || ''} ${c.email || ''} ${c.phone || ''} ${c.address || ''} ${c.region || ''}`
+        .toLowerCase()
+        .includes(search.toLowerCase())
+    ),
+    [customers, search]
   );
 
-  const indexOfLast = currentPage * itemsPerPage;
-  const indexOfFirst = indexOfLast - itemsPerPage;
-  const currentCustomers = filteredCustomers.slice(indexOfFirst, indexOfLast);
-  const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+  // Memoized pagination data
+  const paginationData = useMemo(() => {
+    const indexOfLast = currentPage * itemsPerPage;
+    const indexOfFirst = indexOfLast - itemsPerPage;
+    const currentCustomers = filteredCustomers.slice(indexOfFirst, indexOfLast);
+    const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
+    
+    return { indexOfFirst, indexOfLast, currentCustomers, totalPages };
+  }, [currentPage, itemsPerPage, filteredCustomers]);
+
+  const { indexOfFirst, indexOfLast, currentCustomers, totalPages } = paginationData;
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this customer?")) return;
@@ -103,7 +115,7 @@ export default function CustomersPage() {
     }
   };
 
-  const getBillingType = (type) => {
+  const getBillingType = useCallback((type) => {
     switch (type) {
       case 1:
         return { text: "Billing", color: "bg-green-100 text-green-800 border border-green-200" };
@@ -112,22 +124,32 @@ export default function CustomersPage() {
       default:
         return { text: "Unknown", color: "bg-gray-100 text-gray-800 border border-gray-200" };
     }
-  };
+  }, []);
 
-  const getStatusColor = (balance, limit) => {
+  const getStatusColor = useCallback((balance, limit) => {
     const remaining = limit - balance;
     if (remaining <= 0) return "text-red-600 font-bold";
     if (remaining < limit * 0.3) return "text-yellow-600 font-bold";
     return "text-green-600 font-bold";
-  };
+  }, []);
 
-  // Compact action buttons configuration
-  const actionButtons = [
+  // Function to handle limit click
+  const handleLimitClick = useCallback((customerId, customerName) => {
+    window.location.href = `/credit-limit?id=${customerId}`;
+  }, []);
+
+  // Calculate remaining limit
+  const calculateRemainingLimit = useCallback((balance, limit) => {
+    return Math.max(0, limit - balance);
+  }, []);
+
+  // Memoized action buttons configuration
+  const actionButtons = useMemo(() => [
     {
       key: 'view',
       icon: BiShow,
       label: 'View',
-      href: (id) => `/customers/details/${id}`,
+      href: (id) => `/customers/customer-details?id=${id}`,
       color: 'bg-blue-500 hover:bg-blue-600',
       show: permissions.can_view
     },
@@ -143,7 +165,7 @@ export default function CustomersPage() {
       key: 'recharge-request',
       icon: BiDollar,
       label: 'Recharge',
-      href: (id) => `/customers/recharge-request/${id}`,
+      href: (id) => `/customers/recharge-request?id=${id}`,
       color: 'bg-purple-500 hover:bg-purple-600',
       show: permissions.can_edit
     },
@@ -151,7 +173,7 @@ export default function CustomersPage() {
       key: 'deal-price',
       icon: BiCoin,
       label: 'Deal',
-      href: (id) => `/customers/deal-price/${id}`,
+      href: (id) => `/customers/deal-price?id=${id}`,
       color: 'bg-indigo-500 hover:bg-indigo-600',
       show: permissions.can_edit
     },
@@ -171,12 +193,20 @@ export default function CustomersPage() {
       color: 'bg-red-500 hover:bg-red-600',
       show: permissions.can_delete
     }
-  ];
+  ], [permissions, handleDelete]);
 
   // Reset to first page when search changes
   useEffect(() => {
     setCurrentPage(1);
   }, [search]);
+
+  // Memoized stats
+  const stats = useMemo(() => [
+    { title: 'Total Customers', value: customers.length, color: 'from-blue-500 to-blue-600' },
+    { title: 'Billing Customers', value: customers.filter(c => c.billing_type === 1).length, color: 'from-green-500 to-green-600' },
+    { title: 'Non-Billing', value: customers.filter(c => c.billing_type === 2).length, color: 'from-purple-500 to-purple-600' },
+    { title: 'Over Limit', value: customers.filter(c => c.balance > c.cst_limit).length, color: 'from-orange-500 to-orange-600' },
+  ], [customers]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -256,12 +286,7 @@ export default function CustomersPage() {
 
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              {[
-                { title: 'Total Customers', value: customers.length, color: 'from-blue-500 to-blue-600' },
-                { title: 'Billing Customers', value: customers.filter(c => c.billing_type === 1).length, color: 'from-green-500 to-green-600' },
-                { title: 'Non-Billing', value: customers.filter(c => c.billing_type === 2).length, color: 'from-purple-500 to-purple-600' },
-                { title: 'Over Limit', value: customers.filter(c => c.balance > c.cst_limit).length, color: 'from-orange-500 to-orange-600' },
-              ].map((stat, index) => (
+              {stats.map((stat, index) => (
                 <div key={index} className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200`}>
                   <div className="text-2xl font-bold">{stat.value}</div>
                   <div className="text-opacity-90 text-sm mt-1">{stat.title}</div>
@@ -285,7 +310,7 @@ export default function CustomersPage() {
                   <span className="ml-2">{error}</span>
                 </div>
                 <button 
-                  onClick={() => window.location.reload()}
+                  onClick={fetchData}
                   className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                 >
                   Retry
@@ -314,28 +339,33 @@ export default function CustomersPage() {
 
                   {/* Desktop Table */}
                   <div className="hidden lg:block overflow-x-auto rounded-lg border border-gray-200">
-                    <table className="w-full min-w-[1000px]">
+                    <table className="w-full min-w-[1200px]">
                       <thead>
                         <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">ID</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Customer</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Contact</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Name</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Email</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Phone</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Address</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Region</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Billing Type</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Financials</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Credit Limit</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Outstanding</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Remaining Limit</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {currentCustomers.length === 0 ? (
                           <tr>
-                            <td colSpan="7" className="p-8 text-center text-gray-700 font-semibold">
+                            <td colSpan="11" className="p-8 text-center text-gray-700 font-semibold">
                               {search ? 'No customers found matching your search' : 'No customers found'}
                             </td>
                           </tr>
                         ) : (
                           currentCustomers.map((c) => {
                             const billingInfo = getBillingType(c.billing_type);
+                            const remainingLimit = calculateRemainingLimit(c.balance, c.cst_limit);
                             const statusInfo = getStatusColor(c.balance, c.cst_limit);
                             return (
                               <tr key={c.id} className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200">
@@ -347,18 +377,22 @@ export default function CustomersPage() {
                                     </div>
                                     <div>
                                       <Link 
-                                        href={`/customers/history/${c.id}`} 
+                                        href={`/customers/client-history?id=${c.id}`}
                                         className="font-bold text-gray-900 hover:text-purple-700 transition-colors block"
                                       >
                                         {c.name || 'Unnamed Customer'}
                                       </Link>
-                                      <div className="text-sm text-gray-600 truncate max-w-xs">{c.address}</div>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="p-4">
-                                  <div className="text-gray-900 font-medium">{c.email || 'No email'}</div>
-                                  <div className="text-sm text-gray-600">{c.phone || 'No phone'}</div>
+                                  <div className="text-gray-900 font-medium truncate max-w-[200px]">{c.email || 'No email'}</div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="text-gray-900 font-medium">{c.phone || 'No phone'}</div>
+                                </td>
+                                <td className="p-4">
+                                  <div className="text-gray-600 text-sm truncate max-w-[200px]">{c.address || 'No address'}</div>
                                 </td>
                                 <td className="p-4">
                                   <span className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium border border-blue-200">
@@ -371,27 +405,27 @@ export default function CustomersPage() {
                                   </span>
                                 </td>
                                 <td className="p-4">
-                                  <div className="space-y-1 min-w-[120px]">
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-gray-600">Limit:</span>
-                                      <span className="font-bold">${c.cst_limit || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-gray-600">Balance:</span>
-                                      <span className="font-bold text-red-600">${c.balance || 0}</span>
-                                    </div>
-                                    <div className="flex justify-between text-sm">
-                                      <span className="text-gray-600">Remaining:</span>
-                                      <span className={`font-bold ${statusInfo}`}>${c.amtlimit || 0}</span>
-                                    </div>
-                                  </div>
+                                  <button
+                                    onClick={() => handleLimitClick(c.id, c.name)}
+                                    className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200"
+                                    title="Click to view limit details"
+                                  >
+                                    {c.cst_limit || 0}
+                                  </button>
                                 </td>
                                 <td className="p-4">
-                                  <div className="grid grid-cols-2 gap-1 w-32">
+                                  <span className="font-bold text-red-600">{c.balance || 0}</span>
+                                </td>
+                                <td className="p-4">
+                                  <span className={`font-bold ${statusInfo}`}>{c.amtlimit || 0}</span>
+                                </td>
+                                
+                                <td className="p-4">
+                                  <div className="flex flex-wrap gap-1 w-32">
                                     {actionButtons
                                       .filter(action => action.show)
                                       .map((action) => {
-                                        const commonClasses = `p-1 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
+                                        const commonClasses = `p-2 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
                                         
                                         if (action.key === 'delete') {
                                           return (
@@ -436,6 +470,7 @@ export default function CustomersPage() {
                     ) : (
                       currentCustomers.map((c) => {
                         const billingInfo = getBillingType(c.billing_type);
+                        const remainingLimit = calculateRemainingLimit(c.balance, c.cst_limit);
                         const statusInfo = getStatusColor(c.balance, c.cst_limit);
                         return (
                           <div key={c.id} className="bg-white rounded-xl shadow-lg border border-purple-100 p-4 hover:shadow-xl transition-all duration-200">
@@ -445,54 +480,70 @@ export default function CustomersPage() {
                                   <span className="text-white font-bold">{(c.name?.charAt(0) || 'C').toUpperCase()}</span>
                                 </div>
                                 <div>
-                                  <Link href={`/customers/history/${c.id}`} className="font-bold text-gray-900 text-lg hover:text-purple-700 transition-colors block">
+                                  <Link href={`/customers/client-history?id=${c.id}`} className="font-bold text-gray-900 text-lg hover:text-purple-700 transition-colors block">
                                     {c.name || 'Unnamed Customer'}
                                   </Link>
                                   <p className="text-purple-600 font-mono text-sm">#{c.id}</p>
                                 </div>
                               </div>
                             </div>
-                            <div className="grid grid-cols-2 gap-3 text-sm mb-3">
-                              <div>
-                                <div className="text-gray-600">Email</div>
-                                <div className="font-medium truncate">{c.email || 'No email'}</div>
+                            
+                            <div className="grid grid-cols-1 gap-3 text-sm mb-3">
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <div className="text-gray-600">Email</div>
+                                  <div className="font-medium truncate">{c.email || 'No email'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-gray-600">Phone</div>
+                                  <div className="font-medium">{c.phone || 'No phone'}</div>
+                                </div>
                               </div>
                               <div>
-                                <div className="text-gray-600">Phone</div>
-                                <div className="font-medium">{c.phone || 'No phone'}</div>
+                                <div className="text-gray-600">Address</div>
+                                <div className="font-medium text-sm">{c.address || 'No address'}</div>
                               </div>
-                              <div>
-                                <div className="text-gray-600">Region</div>
-                                <div className="font-medium">{c.region || 'Unknown'}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-600">Type</div>
-                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}>
-                                  {billingInfo.text}
-                                </span>
+                              <div className="grid grid-cols-2 gap-2">
+                                <div>
+                                  <div className="text-gray-600">Region</div>
+                                  <div className="font-medium">{c.region || 'Unknown'}</div>
+                                </div>
+                                <div>
+                                  <div className="text-gray-600">Type</div>
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}>
+                                    {billingInfo.text}
+                                  </span>
+                                </div>
                               </div>
                             </div>
+
                             <div className="bg-gradient-to-r from-gray-50 to-purple-50 rounded-lg p-3 mb-3 border border-gray-200">
                               <div className="grid grid-cols-3 gap-2 text-center">
                                 <div>
-                                  <div className="text-xs text-gray-600">Limit</div>
-                                  <div className="font-bold text-sm">${c.cst_limit || 0}</div>
+                                  <div className="text-xs text-gray-600">Credit Limit</div>
+                                  <button
+                                    onClick={() => handleLimitClick(c.id, c.name)}
+                                    className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                    title="Click to view limit details"
+                                  >
+                                    {c.cst_limit || 0}
+                                  </button>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-gray-600">Balance</div>
-                                  <div className="font-bold text-sm text-red-600">${c.balance || 0}</div>
+                                  <div className="text-xs text-gray-600">Outstanding</div>
+                                  <div className="font-bold text-sm text-red-600">{c.balance || 0}</div>
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-600">Remaining</div>
                                   <div className={`font-bold text-sm ${statusInfo.includes('red') ? 'text-red-600' : statusInfo.includes('yellow') ? 'text-yellow-600' : 'text-green-600'}`}>
-                                    ${c.amtlimit || 0}
+                                    {c.amtlimit || 0}
                                   </div>
                                 </div>
                               </div>
                             </div>
                             
-                            {/* Mobile Action Buttons - Compact Grid */}
-                            <div className="grid grid-cols-2 gap-2 mt-4 pt-4 border-t border-gray-200">
+                            {/* Mobile Action Buttons */}
+                            <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-200">
                               {actionButtons
                                 .filter(action => action.show)
                                 .map((action) => {

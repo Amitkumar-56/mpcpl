@@ -1,114 +1,76 @@
-//src/app/api/customers/deal-price/schedule/route.js
 import { executeQuery } from "@/lib/db";
-import { getServerSession } from 'next-auth';
-import { NextResponse } from 'next/server';
+import { NextResponse } from "next/server";
 
-export async function GET(request) {
+export async function POST(req) {
   try {
-    const session = await getServerSession();
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const body = await req.json();
+    const { priceUpdates } = body;
+
+    if (!priceUpdates || !priceUpdates.length) {
+      return NextResponse.json({ success: false, message: "No price updates provided" }, { status: 400 });
     }
 
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    let inserted = 0;
+    let updated = 0;
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID parameter is required' }, { status: 400 });
-    }
+    for (const update of priceUpdates) {
+      const { type, data } = update;
+      const { com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time } = data;
 
-    // Fetch customer details
-    const [customer] = await executeQuery.query(
-      'SELECT name FROM customers WHERE id = ?',
-      [id]
-    );
+      if (!com_id || !station_id || !product_id || !sub_product_id || price === undefined) continue;
 
-    if (!customer || customer.length === 0) {
-      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-    }
-
-    // Fetch all stations
-    const stations = await executeQuery.query(
-      'SELECT id, station_name FROM filling_stations'
-    );
-
-    // Fetch all products
-    const products = await executeQuery.query(
-      'SELECT id, pname FROM product'
-    );
-
-    // Fetch existing deal prices
-    const dealPrices = await executeQuery.query(
-      'SELECT station_id, product_id, price FROM deal_price WHERE com_id = ?',
-      [id]
-    );
-
-    // Organize deal prices
-    const pricesMap = {};
-    dealPrices.forEach(row => {
-      if (!pricesMap[row.station_id]) {
-        pricesMap[row.station_id] = {};
+      if (type === "INSERT") {
+        await executeQuery(
+          `INSERT INTO deal_price 
+           (com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time, updated_date, is_active)
+           VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1)`,
+          [com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time]
+        );
+        inserted++;
+      } else if (type === "UPDATE") {
+        const result = await executeQuery(
+          `UPDATE deal_price 
+           SET price=?, Schedule_Date=?, Schedule_Time=?, updated_date=NOW()
+           WHERE com_id=? AND station_id=? AND product_id=? AND sub_product_id=?`,
+          [price, Schedule_Date, Schedule_Time, com_id, station_id, product_id, sub_product_id]
+        );
+        if (result.affectedRows > 0) updated++;
       }
-      pricesMap[row.station_id][row.product_id] = row.price;
-    });
+    }
 
     return NextResponse.json({
-      customer: customer[0],
-      stations,
-      products,
-      dealPrices: pricesMap
+      success: true,
+      message: `Processed successfully: ${inserted} inserted, ${updated} updated`,
+      counts: { inserted, updated },
     });
-
   } catch (error) {
-    console.error('Database error:', error);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error("Error saving deal prices:", error);
+    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
   }
 }
 
-export async function POST(request) {
+// ✅ GET - Fetch existing prices
+export async function GET(req) {
   try {
-    const session = await getServerSession();
-    
-    if (!session) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    const customerId = req.nextUrl.searchParams.get("customer_id");
+    if (!customerId) return NextResponse.json([]);
 
-    const body = await request.json();
-    const { com_id, prices } = body;
+    const data = await executeQuery(
+      `SELECT dp.*, 
+              p.pname AS product_name, 
+              pc.pcode AS sub_product_code, 
+              s.station_name
+       FROM deal_price dp
+       LEFT JOIN product_codes pc ON dp.sub_product_id = pc.id
+       LEFT JOIN products p ON dp.product_id = p.id
+       LEFT JOIN filling_stations s ON dp.station_id = s.id
+       WHERE dp.com_id = ? AND dp.is_active = 1`,
+      [customerId]
+    );
 
-    if (!com_id) {
-      return NextResponse.json({ error: 'com_id is required' }, { status: 400 });
-    }
-
-    // Start transaction
-    await executeQuery.query('START TRANSACTION');
-
-    try {
-      // Delete existing prices
-      await executeQuery.query('DELETE FROM deal_price WHERE com_id = ?', [com_id]);
-
-      // Insert new prices
-      for (const [key, price] of Object.entries(prices)) {
-        if (price && price.trim() !== '') {
-          const [stationId, productId] = key.split('_');
-          await db.query(
-            'INSERT INTO deal_price (com_id, station_id, product_id, price) VALUES (?, ?, ?, ?)',
-            [com_id, stationId, productId, price]
-          );
-        }
-      }
-
-      await executeQuery.query('COMMIT');
-      return NextResponse.json({ success: true, message: 'Prices updated successfully' });
-
-    } catch (error) {
-      await executeQuery.query('ROLLBACK');
-      throw error;
-    }
-
+    return NextResponse.json(Array.isArray(data) ? data : []);
   } catch (error) {
-    console.error('Database error:', error);
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+    console.error("Error fetching prices:", error);
+    return NextResponse.json([], { status: 500 });
   }
 }
