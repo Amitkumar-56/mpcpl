@@ -24,24 +24,9 @@ const Icons = ({
         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
         title="View Details"
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
-          />
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
-          />
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
         </svg>
       </button>
 
@@ -51,18 +36,8 @@ const Icons = ({
         className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
         title="Edit Request"
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-          />
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
         </svg>
       </button>
 
@@ -72,18 +47,8 @@ const Icons = ({
         className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
         title="Expand Details"
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-          />
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
         </svg>
       </button>
 
@@ -93,18 +58,8 @@ const Icons = ({
         className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
         title={`Call Driver: ${request.driver_number}`}
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"
-          />
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       </button>
 
@@ -114,18 +69,8 @@ const Icons = ({
         className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
         title="Share Request"
       >
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"
-          />
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
         </svg>
       </button>
 
@@ -136,18 +81,8 @@ const Icons = ({
           className="p-1.5 text-red-600 hover:bg-red-50 rounded-full transition-colors"
           title="Download PDF"
         >
-          <svg
-            className="w-4 h-4"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-            />
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
           </svg>
         </button>
       )}
@@ -162,123 +97,68 @@ const ExpandedDetails = ({ request, onClose }) => {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
         <div className="flex justify-between items-center p-6 border-b">
-          <h3 className="text-lg font-semibold">
-            Request Details - {request.rid}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
+          <h3 className="text-lg font-semibold">Request Details - {request.rid}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-gray-100 rounded-full">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
         <div className="p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Request ID
-              </label>
+              <label className="text-sm font-medium text-gray-600">Request ID</label>
               <p className="font-mono font-semibold">{request.rid}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Status
-              </label>
-              <span
-                className={`px-2 py-1 rounded-full text-xs ${
-                  request.status === "Pending"
-                    ? "bg-yellow-100 text-yellow-800"
-                    : request.status === "Processing"
-                    ? "bg-blue-100 text-blue-800"
-                    : request.status === "Completed"
-                    ? "bg-green-100 text-green-800"
-                    : "bg-red-100 text-red-800"
-                }`}
-              >
+              <label className="text-sm font-medium text-gray-600">Status</label>
+              <span className={`px-2 py-1 rounded-full text-xs ${
+                request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                request.status === "Processing" ? "bg-blue-100 text-blue-800" :
+                request.status === "Completed" ? "bg-green-100 text-green-800" :
+                "bg-red-100 text-red-800"
+              }`}>
                 {request.status}
               </span>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Vehicle Number
-              </label>
+              <label className="text-sm font-medium text-gray-600">Vehicle Number</label>
               <p>{request.vehicle_number}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Driver Phone
-              </label>
+              <label className="text-sm font-medium text-gray-600">Driver Phone</label>
               <p>{request.driver_number}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Client Name
-              </label>
+              <label className="text-sm font-medium text-gray-600">Client Name</label>
               <p>{request.customer_name || "N/A"}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Loading Station
-              </label>
+              <label className="text-sm font-medium text-gray-600">Loading Station</label>
               <p>{request.loading_station || "N/A"}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Product
-              </label>
+              <label className="text-sm font-medium text-gray-600">Product</label>
               <p>{request.product_name || "N/A"}</p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Quantity
-              </label>
+              <label className="text-sm font-medium text-gray-600">Quantity</label>
               <p>{request.qty || "N/A"}</p>
             </div>
           </div>
           {request.loading_station && (
             <div>
-              <label className="text-sm font-medium text-gray-600">
-                Map Location
-              </label>
+              <label className="text-sm font-medium text-gray-600">Map Location</label>
               <div className="mt-1">
                 <a
-                  href={`http://maps.google.com/?q=${encodeURIComponent(
-                    request.loading_station
-                  )}`}
+                  href={`http://maps.google.com/?q=${encodeURIComponent(request.loading_station)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline flex items-center"
                 >
-                  <svg
-                    className="w-4 h-4 mr-1"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"
-                    />
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"
-                    />
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                   </svg>
                   View on Google Maps
                 </a>
@@ -286,27 +166,18 @@ const ExpandedDetails = ({ request, onClose }) => {
             </div>
           )}
           <div className="border-t pt-4">
-            <label className="text-sm font-medium text-gray-600">
-              Timeline
-            </label>
+            <label className="text-sm font-medium text-gray-600">Timeline</label>
             <div className="mt-2 space-y-2">
               <div className="flex justify-between">
                 <span>Created:</span>
-                <span>
-                  {request.created
-                    ? new Date(request.created).toLocaleString("en-GB")
-                    : "N/A"}
-                </span>
+                <span>{request.created ? new Date(request.created).toLocaleString("en-GB") : "N/A"}</span>
               </div>
-              {request.completed_date &&
-                request.completed_date !== "0000-00-00 00:00:00" && (
-                  <div className="flex justify-between">
-                    <span>Completed:</span>
-                    <span>
-                      {new Date(request.completed_date).toLocaleString("en-GB")}
-                    </span>
-                  </div>
-                )}
+              {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
+                <div className="flex justify-between">
+                  <span>Completed:</span>
+                  <span>{new Date(request.completed_date).toLocaleString("en-GB")}</span>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -316,120 +187,68 @@ const ExpandedDetails = ({ request, onClose }) => {
 };
 
 // Request Row Component
-const RequestRow = ({
-  request,
-  index,
-  onView,
-  onEdit,
-  onExpand,
-  onCall,
-  onShare,
-  onPdf,
-}) => {
-  const statusClass =
-    {
-      Pending: "bg-yellow-100 text-yellow-800",
-      Processing: "bg-blue-100 text-blue-800",
-      Completed: "bg-green-100 text-green-800",
-      Cancelled: "bg-red-100 text-red-800",
-    }[request.status] || "bg-gray-100 text-gray-800";
+const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf }) => {
+  const statusClass = {
+    Pending: "bg-yellow-100 text-yellow-800",
+    Processing: "bg-blue-100 text-blue-800",
+    Completed: "bg-green-100 text-green-800",
+    Cancelled: "bg-red-100 text-red-800",
+  }[request.status] || "bg-gray-100 text-gray-800";
 
   return (
     <tr className="hover:bg-gray-50 transition-colors border-b">
       <td className="py-3 px-4 text-center text-sm">{index + 1}</td>
-      <td className="py-3 px-4 font-mono text-sm font-semibold text-blue-600">
-        {request.rid}
-      </td>
+      <td className="py-3 px-4 font-mono text-sm font-semibold text-blue-600">{request.rid}</td>
       <td className="py-3 px-4 text-sm">{request.product_name || "N/A"}</td>
       <td className="py-3 px-4 text-sm">{request.loading_station || "N/A"}</td>
-      <td className="py-3 px-4 text-sm font-medium">
-        {request.vehicle_number}
-      </td>
+      <td className="py-3 px-4 text-sm font-medium">{request.vehicle_number}</td>
       <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
       <td className="py-3 px-4 text-sm">{request.driver_number}</td>
       <td className="py-3 px-4 text-sm">
-        <div>
-          {request.created
-            ? new Date(request.created).toLocaleDateString("en-GB")
-            : "N/A"}
-        </div>
+        <div>{request.created ? new Date(request.created).toLocaleDateString("en-GB") : "N/A"}</div>
         <div className="text-xs text-gray-500">
-          {request.created
-            ? new Date(request.created).toLocaleTimeString("en-GB", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })
-            : ""}
+          {request.created ? new Date(request.created).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}
         </div>
       </td>
       <td className="py-3 px-4 text-sm">
-        {request.completed_date &&
-        request.completed_date !== "0000-00-00 00:00:00"
+        {request.completed_date && request.completed_date !== "0000-00-00 00:00:00"
           ? new Date(request.completed_date).toLocaleDateString("en-GB")
           : "-"}
       </td>
       <td className="py-3 px-4 text-sm">
-        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>
-          {request.status}
-        </span>
+        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
       </td>
       <td className="py-3 px-4 text-sm">
         {request.status === "Pending" && request.eligibility && (
           <div className="flex flex-col items-start">
-            <span
-              className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-              }`}
-            >
+            <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
+              request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+            }`}>
               {request.eligibility}
             </span>
             {request.eligibility_reason && (
-              <div className="text-xs text-gray-500 mt-1 max-w-xs">
-                {request.eligibility_reason}
-              </div>
+              <div className="text-xs text-gray-500 mt-1 max-w-xs">{request.eligibility_reason}</div>
             )}
           </div>
         )}
-        {request.status !== "Pending" && (
-          <span className="text-gray-400 text-xs">N/A</span>
-        )}
+        {request.status !== "Pending" && <span className="text-gray-400 text-xs">N/A</span>}
       </td>
+      <td className="py-3 px-4 text-sm">{request.updated_by_name || "System"}</td>
       <td className="py-3 px-4 text-sm">
-        {request.updated_by_name || "System"}
-      </td>
-      <td className="py-3 px-4 text-sm">
-        <Icons
-          request={request}
-          onView={onView}
-          onEdit={onEdit}
-          onExpand={onExpand}
-          onCall={onCall}
-          onShare={onShare}
-          onPdf={onPdf}
-        />
+        <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
       </td>
     </tr>
   );
 };
 
 // Mobile Request Card Component
-const MobileRequestCard = ({
-  request,
-  index,
-  onView,
-  onEdit,
-  onExpand,
-  onCall,
-  onShare,
-  onPdf,
-}) => {
-  const statusClass =
-    {
-      Pending: "bg-yellow-100 text-yellow-800",
-      Processing: "bg-blue-100 text-blue-800",
-      Completed: "bg-green-100 text-green-800",
-      Cancelled: "bg-red-100 text-red-800",
-    }[request.status] || "bg-gray-100 text-gray-800";
+const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf }) => {
+  const statusClass = {
+    Pending: "bg-yellow-100 text-yellow-800",
+    Processing: "bg-blue-100 text-blue-800",
+    Completed: "bg-green-100 text-green-800",
+    Cancelled: "bg-red-100 text-red-800",
+  }[request.status] || "bg-gray-100 text-gray-800";
 
   return (
     <div className="border rounded-xl p-4 mb-4 bg-white shadow-md hover:shadow-lg transition-all">
@@ -437,17 +256,11 @@ const MobileRequestCard = ({
         <div className="flex items-center">
           <div className="mr-3 text-sm text-gray-500">#{index + 1}</div>
           <div>
-            <div className="font-semibold text-gray-800 font-mono">
-              {request.rid}
-            </div>
-            <div className="text-sm text-gray-600">
-              {request.product_name || "N/A"}
-            </div>
+            <div className="font-semibold text-gray-800 font-mono">{request.rid}</div>
+            <div className="text-sm text-gray-600">{request.product_name || "N/A"}</div>
           </div>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>
-          {request.status}
-        </span>
+        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
       </div>
       <div className="space-y-3 text-sm">
         <div className="grid grid-cols-2 gap-3">
@@ -456,9 +269,7 @@ const MobileRequestCard = ({
             <div className="font-semibold">{request.vehicle_number}</div>
           </div>
           <div>
-            <div className="font-medium text-gray-600 text-xs">
-              Loading Station
-            </div>
+            <div className="font-medium text-gray-600 text-xs">Loading Station</div>
             <div>{request.loading_station || "N/A"}</div>
           </div>
         </div>
@@ -468,9 +279,7 @@ const MobileRequestCard = ({
             <div>{request.customer_name || "N/A"}</div>
           </div>
           <div>
-            <div className="font-medium text-gray-600 text-xs">
-              Driver Phone
-            </div>
+            <div className="font-medium text-gray-600 text-xs">Driver Phone</div>
             <div>{request.driver_number}</div>
           </div>
         </div>
@@ -478,50 +287,32 @@ const MobileRequestCard = ({
           <div>
             <div className="font-medium text-gray-600 text-xs">Date & Time</div>
             <div>
-              {request.created
-                ? new Date(request.created).toLocaleDateString("en-GB")
-                : "N/A"}
+              {request.created ? new Date(request.created).toLocaleDateString("en-GB") : "N/A"}
               <br />
               <span className="text-xs text-gray-500">
-                {request.created
-                  ? new Date(request.created).toLocaleTimeString("en-GB", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })
-                  : ""}
+                {request.created ? new Date(request.created).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}
               </span>
             </div>
           </div>
-          {request.completed_date &&
-            request.completed_date !== "0000-00-00 00:00:00" && (
-              <div>
-                <div className="font-medium text-gray-600 text-xs">
-                  Completed
-                </div>
-                <div>
-                  {new Date(request.completed_date).toLocaleDateString("en-GB")}
-                </div>
-              </div>
-            )}
+          {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
+            <div>
+              <div className="font-medium text-gray-600 text-xs">Completed</div>
+              <div>{new Date(request.completed_date).toLocaleDateString("en-GB")}</div>
+            </div>
+          )}
         </div>
         {request.status === "Pending" && request.eligibility && (
           <div className="bg-gray-50 p-3 rounded-md">
             <div className="flex items-center justify-between">
-              <div className="font-medium text-gray-600 text-xs">
-                Eligibility Check
-              </div>
-              <span
-                className={`px-2 py-1 rounded-full text-xs text-white ${
-                  request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                }`}
-              >
+              <div className="font-medium text-gray-600 text-xs">Eligibility Check</div>
+              <span className={`px-2 py-1 rounded-full text-xs text-white ${
+                request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+              }`}>
                 {request.eligibility}
               </span>
             </div>
             {request.eligibility_reason && (
-              <div className="text-xs mt-1 text-gray-600">
-                {request.eligibility_reason}
-              </div>
+              <div className="text-xs mt-1 text-gray-600">{request.eligibility_reason}</div>
             )}
           </div>
         )}
@@ -534,15 +325,7 @@ const MobileRequestCard = ({
       </div>
       <div className="flex justify-between items-center mt-4 pt-3 border-t">
         <div className="text-xs text-gray-500">Request ID: {request.rid}</div>
-        <Icons
-          request={request}
-          onView={onView}
-          onEdit={onEdit}
-          onExpand={onExpand}
-          onCall={onCall}
-          onShare={onShare}
-          onPdf={onPdf}
-        />
+        <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
       </div>
     </div>
   );
@@ -578,15 +361,12 @@ const StatusFilters = ({ currentStatus, onStatusChange }) => {
           key={option.value}
           onClick={() => onStatusChange(option.value)}
           className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-            currentStatus === option.value
-              ? "bg-blue-600 text-white"
-              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+            currentStatus === option.value ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
           }`}
         >
           {option.label}
         </button>
       ))}
-      {/* Reports Button */}
       <button
         onClick={handleReportsClick}
         className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
@@ -614,10 +394,7 @@ const SearchBar = ({ onSearch, initialValue = "" }) => {
         placeholder="Search by RID, Vehicle, Client, Station..."
         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
       />
-      <button
-        type="submit"
-        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
-      >
+      <button type="submit" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
         🔍
       </button>
     </form>
@@ -673,7 +450,6 @@ export default function FillingRequests() {
           const result = await response.json();
           console.log("📦 Full API response:", result);
 
-          // Handle the corrected API response structure
           let requestsData = [];
           let paginationData = {
             page: 1,
@@ -682,7 +458,6 @@ export default function FillingRequests() {
             totalPages: 1,
           };
 
-          // Check if response has the expected structure
           if (result.requests && Array.isArray(result.requests)) {
             requestsData = result.requests;
             paginationData = {
@@ -692,7 +467,6 @@ export default function FillingRequests() {
               totalPages: result.totalPages || 1,
             };
           } else if (Array.isArray(result)) {
-            // Fallback: if API returns array directly
             requestsData = result;
             paginationData.totalRecords = result.length;
           }
@@ -732,60 +506,42 @@ export default function FillingRequests() {
   }, [searchParams, statusFilter, search, user]);
 
   // Handlers
-  const handleStatusChange = useCallback(
-    (newStatus) => {
-      const params = new URLSearchParams(searchParams);
-      if (newStatus) params.set("status", newStatus);
-      else params.delete("status");
-      params.set("page", "1");
-      router.push(`/filling-requests?${params.toString()}`);
-    },
-    [router, searchParams]
-  );
+  const handleStatusChange = useCallback((newStatus) => {
+    const params = new URLSearchParams(searchParams);
+    if (newStatus) params.set("status", newStatus);
+    else params.delete("status");
+    params.set("page", "1");
+    router.push(`/filling-requests?${params.toString()}`);
+  }, [router, searchParams]);
 
-  const handleSearch = useCallback(
-    (searchTerm) => {
-      const params = new URLSearchParams(searchParams);
-      if (searchTerm) params.set("search", searchTerm);
-      else params.delete("search");
-      params.set("page", "1");
-      router.push(`/filling-requests?${params.toString()}`);
-    },
-    [router, searchParams]
-  );
+  const handleSearch = useCallback((searchTerm) => {
+    const params = new URLSearchParams(searchParams);
+    if (searchTerm) params.set("search", searchTerm);
+    else params.delete("search");
+    params.set("page", "1");
+    router.push(`/filling-requests?${params.toString()}`);
+  }, [router, searchParams]);
 
-  const handleRecordsPerPageChange = useCallback(
-    (value) => {
-      const params = new URLSearchParams(searchParams);
-      params.set("records_per_page", value);
-      params.set("page", "1");
-      router.push(`/filling-requests?${params.toString()}`);
-    },
-    [router, searchParams]
-  );
+  const handleRecordsPerPageChange = useCallback((value) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("records_per_page", value);
+    params.set("page", "1");
+    router.push(`/filling-requests?${params.toString()}`);
+  }, [router, searchParams]);
 
-  const handlePageChange = useCallback(
-    (newPage) => {
-      const params = new URLSearchParams(searchParams);
-      params.set("page", newPage);
-      router.push(`/filling-requests?${params.toString()}`);
-    },
-    [router, searchParams]
-  );
+  const handlePageChange = useCallback((newPage) => {
+    const params = new URLSearchParams(searchParams);
+    params.set("page", newPage);
+    router.push(`/filling-requests?${params.toString()}`);
+  }, [router, searchParams]);
 
-  const handleView = useCallback(
-    (requestId) => {
-      router.push(`/filling-details-admin?id=${requestId}`);
-    },
-    [router]
-  );
+  const handleView = useCallback((requestId) => {
+    router.push(`/filling-details-admin?id=${requestId}`);
+  }, [router]);
 
-  const handleEdit = useCallback(
-    (requestId) => {
-      router.push(`/filling-requests/edit?id=${requestId}`);
-    },
-    [router]
-  );
+  const handleEdit = useCallback((requestId) => {
+    router.push(`/filling-requests/edit?id=${requestId}`);
+  }, [router]);
 
   const handleExpand = useCallback((request) => {
     setExpandedRequest(request);
@@ -825,57 +581,35 @@ export default function FillingRequests() {
   }, []);
 
   // Memoized components
-  const requestItems = useMemo(
-    () =>
-      requests.map((request, index) => (
-        <RequestRow
-          key={request.id}
-          request={request}
-          index={index}
-          onView={handleView}
-          onEdit={handleEdit}
-          onExpand={handleExpand}
-          onCall={handleCall}
-          onShare={handleShare}
-          onPdf={handlePdf}
-        />
-      )),
-    [
-      requests,
-      handleView,
-      handleEdit,
-      handleExpand,
-      handleCall,
-      handleShare,
-      handlePdf,
-    ]
-  );
+  const requestItems = useMemo(() =>
+    requests.map((request, index) => (
+      <RequestRow
+        key={request.id}
+        request={request}
+        index={index}
+        onView={handleView}
+        onEdit={handleEdit}
+        onExpand={handleExpand}
+        onCall={handleCall}
+        onShare={handleShare}
+        onPdf={handlePdf}
+      />
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf]);
 
-  const mobileRequestItems = useMemo(
-    () =>
-      requests.map((request, index) => (
-        <MobileRequestCard
-          key={request.id}
-          request={request}
-          index={index}
-          onView={handleView}
-          onEdit={handleEdit}
-          onExpand={handleExpand}
-          onCall={handleCall}
-          onShare={handleShare}
-          onPdf={handlePdf}
-        />
-      )),
-    [
-      requests,
-      handleView,
-      handleEdit,
-      handleExpand,
-      handleCall,
-      handleShare,
-      handlePdf,
-    ]
-  );
+  const mobileRequestItems = useMemo(() =>
+    requests.map((request, index) => (
+      <MobileRequestCard
+        key={request.id}
+        request={request}
+        index={index}
+        onView={handleView}
+        onEdit={handleEdit}
+        onExpand={handleExpand}
+        onCall={handleCall}
+        onShare={handleShare}
+        onPdf={handlePdf}
+      />
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf]);
 
   if (!user) return <QuickLoading />;
 
@@ -888,12 +622,7 @@ export default function FillingRequests() {
         <main className="flex-1 px-4 py-0 overflow-auto">
           <div className="mb-6">
             <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-              <button
-                onClick={() => router.back()}
-                className="mr-3 text-blue-600 hover:text-blue-800"
-              >
-                ←
-              </button>
+              <button onClick={() => router.back()} className="mr-3 text-blue-600 hover:text-blue-800">←</button>
               Purchase Order Requests
             </h1>
           </div>
@@ -901,10 +630,7 @@ export default function FillingRequests() {
           <div className="bg-white shadow-lg rounded-xl p-6 mb-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
               <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <StatusFilters
-                  currentStatus={statusFilter}
-                  onStatusChange={handleStatusChange}
-                />
+                <StatusFilters currentStatus={statusFilter} onStatusChange={handleStatusChange} />
               </div>
               <div className="md:w-1/3">
                 <SearchBar onSearch={handleSearch} initialValue={search} />
@@ -944,22 +670,15 @@ export default function FillingRequests() {
                         <th className="py-3 px-4 border-b">Date & Time</th>
                         <th className="py-3 px-4 border-b">Completed Date</th>
                         <th className="py-3 px-4 border-b">Status</th>
-                        <th className="py-3 px-4 border-b">
-                          Eligibility Check
-                        </th>
+                        <th className="py-3 px-4 border-b">Eligibility Check</th>
                         <th className="py-3 px-4 border-b">Staff</th>
                         <th className="py-3 px-4 border-b">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {requestItems.length > 0 ? (
-                        requestItems
-                      ) : (
+                      {requestItems.length > 0 ? requestItems : (
                         <tr>
-                          <td
-                            colSpan="13"
-                            className="py-4 text-center text-gray-500"
-                          >
+                          <td colSpan="13" className="py-4 text-center text-gray-500">
                             No requests found
                           </td>
                         </tr>
@@ -969,25 +688,17 @@ export default function FillingRequests() {
                 </div>
 
                 <div className="block md:hidden">
-                  {mobileRequestItems.length > 0 ? (
-                    mobileRequestItems
-                  ) : (
-                    <div className="text-center py-6 text-gray-500">
-                      No requests found
-                    </div>
+                  {mobileRequestItems.length > 0 ? mobileRequestItems : (
+                    <div className="text-center py-6 text-gray-500">No requests found</div>
                   )}
                 </div>
 
                 {pagination.totalPages > 1 && (
                   <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-3">
                     <div className="text-sm text-gray-600">
-                      Showing{" "}
-                      {(pagination.page - 1) * pagination.recordsPerPage + 1} to{" "}
-                      {Math.min(
-                        pagination.page * pagination.recordsPerPage,
-                        pagination.totalRecords
-                      )}{" "}
-                      of {pagination.totalRecords} entries
+                      Showing {(pagination.page - 1) * pagination.recordsPerPage + 1} to{" "}
+                      {Math.min(pagination.page * pagination.recordsPerPage, pagination.totalRecords)} of{" "}
+                      {pagination.totalRecords} entries
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <button
@@ -997,37 +708,29 @@ export default function FillingRequests() {
                       >
                         Previous
                       </button>
-                      {Array.from(
-                        { length: Math.min(5, pagination.totalPages) },
-                        (_, i) => {
-                          let pageNum;
-                          if (pagination.totalPages <= 5) {
-                            pageNum = i + 1;
-                          } else if (pagination.page <= 3) {
-                            pageNum = i + 1;
-                          } else if (
-                            pagination.page >=
-                            pagination.totalPages - 2
-                          ) {
-                            pageNum = pagination.totalPages - 4 + i;
-                          } else {
-                            pageNum = pagination.page - 2 + i;
-                          }
-                          return (
-                            <button
-                              key={pageNum}
-                              onClick={() => handlePageChange(pageNum)}
-                              className={`px-3 py-1 border rounded ${
-                                pagination.page === pageNum
-                                  ? "bg-blue-600 text-white"
-                                  : "hover:bg-gray-50"
-                              }`}
-                            >
-                              {pageNum}
-                            </button>
-                          );
+                      {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                        let pageNum;
+                        if (pagination.totalPages <= 5) {
+                          pageNum = i + 1;
+                        } else if (pagination.page <= 3) {
+                          pageNum = i + 1;
+                        } else if (pagination.page >= pagination.totalPages - 2) {
+                          pageNum = pagination.totalPages - 4 + i;
+                        } else {
+                          pageNum = pagination.page - 2 + i;
                         }
-                      )}
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`px-3 py-1 border rounded ${
+                              pagination.page === pageNum ? "bg-blue-600 text-white" : "hover:bg-gray-50"
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
                       <button
                         onClick={() => handlePageChange(pagination.page + 1)}
                         disabled={pagination.page === pagination.totalPages}
@@ -1042,29 +745,14 @@ export default function FillingRequests() {
             )}
           </div>
 
-          {expandedRequest && (
-            <ExpandedDetails
-              request={expandedRequest}
-              onClose={closeExpanded}
-            />
-          )}
+          {expandedRequest && <ExpandedDetails request={expandedRequest} onClose={closeExpanded} />}
 
           <a
             href="/create-request"
             className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center"
           >
-            <svg
-              className="w-5 h-5 mr-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-              />
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
             Create Request
           </a>
