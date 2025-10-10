@@ -16,8 +16,8 @@ jobs:
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
+        username: ${{ secrets.VPS_USER }}  # Now 'root'
         key: ${{ secrets.SSH_PRIVATE_KEY }}
         port: ${{ secrets.VPS_PORT }}
         script: |
-          /home/ubuntu/deploy.sh
+          /root/deploy.sh  # Changed to /root/deploy.sh
