@@ -1,4 +1,3 @@
-//src/app/filling-requests/page.js
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -558,7 +557,6 @@ const QuickLoading = () => (
 );
 
 // StatusFilters Component
-// src/app/filling-requests/page.js (Only the StatusFilters component part)
 const StatusFilters = ({ currentStatus, onStatusChange }) => {
   const router = useRouter();
 
@@ -598,6 +596,7 @@ const StatusFilters = ({ currentStatus, onStatusChange }) => {
     </div>
   );
 };
+
 // SearchBar Component
 const SearchBar = ({ onSearch, initialValue = "" }) => {
   const [searchTerm, setSearchTerm] = useState(initialValue);
@@ -674,7 +673,7 @@ export default function FillingRequests() {
           const result = await response.json();
           console.log("📦 Full API response:", result);
 
-          // Handle different possible response structures
+          // Handle the corrected API response structure
           let requestsData = [];
           let paginationData = {
             page: 1,
@@ -683,48 +682,19 @@ export default function FillingRequests() {
             totalPages: 1,
           };
 
-          // Check various possible structures
-          if (Array.isArray(result)) {
-            // If response is directly an array
-            requestsData = result;
-            paginationData.totalRecords = result.length;
-          } else if (result.requests && Array.isArray(result.requests)) {
-            // If response has requests array
+          // Check if response has the expected structure
+          if (result.requests && Array.isArray(result.requests)) {
             requestsData = result.requests;
             paginationData = {
               page: result.currentPage || result.page || 1,
               recordsPerPage: result.recordsPerPage || result.perPage || 10,
-              totalRecords:
-                result.totalRecords || result.total || requestsData.length,
-              totalPages:
-                result.totalPages ||
-                Math.ceil(
-                  (result.totalRecords || result.total || requestsData.length) /
-                    (result.recordsPerPage || result.perPage || 10)
-                ),
+              totalRecords: result.totalRecords || result.total || 0,
+              totalPages: result.totalPages || 1,
             };
-          } else if (result.data && Array.isArray(result.data)) {
-            // If response has data array (common pattern)
-            requestsData = result.data;
-            paginationData = {
-              page: result.current_page || result.page || 1,
-              recordsPerPage: result.per_page || result.recordsPerPage || 10,
-              totalRecords:
-                result.total || result.totalRecords || requestsData.length,
-              totalPages: result.last_page || result.totalPages || 1,
-            };
-          } else {
-            // Fallback: try to use the result object directly if it has array-like structure
-            console.warn(
-              "⚠️ Unexpected API response structure, attempting fallback"
-            );
-            const possibleArray = Object.values(result).find((val) =>
-              Array.isArray(val)
-            );
-            if (possibleArray) {
-              requestsData = possibleArray;
-              paginationData.totalRecords = possibleArray.length;
-            }
+          } else if (Array.isArray(result)) {
+            // Fallback: if API returns array directly
+            requestsData = result;
+            paginationData.totalRecords = result.length;
           }
 
           console.log("✅ Processed requests:", requestsData.length);
@@ -733,12 +703,7 @@ export default function FillingRequests() {
           setRequests(requestsData);
           setPagination(paginationData);
         } else {
-          console.error(
-            "❌ Failed to fetch requests:",
-            response.status,
-            response.statusText
-          );
-          // Set empty state on error
+          console.error("❌ Failed to fetch requests:", response.status);
           setRequests([]);
           setPagination({
             page: 1,

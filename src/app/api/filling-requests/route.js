@@ -1,5 +1,3 @@
-
-//src/app/api/filling-requests/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -101,7 +99,7 @@ export async function GET(request) {
 
     console.log('✅ Raw requests from database:', requests.length);
 
-    // Simple processing
+    // Process requests with eligibility check
     const processedRequests = requests.map((request) => {
       let eligibility = 'N/A';
       let eligibility_reason = '';
@@ -109,7 +107,7 @@ export async function GET(request) {
       if (request.status === 'Pending') {
         if (request.customer_balance === 0 || request.customer_balance < (request.qty * 100)) {
           eligibility = 'No';
-          eligibility_reason = 'IB';
+          eligibility_reason = 'Insufficient Balance';
         } else {
           eligibility = 'Yes';
           eligibility_reason = '';
@@ -125,7 +123,7 @@ export async function GET(request) {
 
     console.log('✅ Processed requests:', processedRequests.length);
 
-    // PURANA RESPONSE FORMAT - jo frontend expect kar raha hai
+    // Return the full response object that frontend expects
     const responseData = {
       requests: processedRequests,
       currentPage: page,
@@ -133,8 +131,10 @@ export async function GET(request) {
       totalRecords: totalRecords,
       totalPages: Math.ceil(totalRecords / recordsPerPage)
     };
-   console.log('🚀 API CALL COMPLETED.',responseData);
-    return NextResponse.json(responseData.requests);
+
+    console.log('🚀 API CALL COMPLETED.', responseData);
+    
+    return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('❌ Database error:', error);
