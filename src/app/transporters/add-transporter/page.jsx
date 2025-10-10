@@ -1,13 +1,63 @@
 // src/app/transporters/add-transporter/page.jsx
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 
-export default function AddTransporterPage() {
+// Loading component for Suspense fallback
+function FormLoading() {
+  return (
+    <div className="min-h-screen flex justify-center py-10 px-4">
+      <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-6">
+        <div className="animate-pulse">
+          <div className="h-8 bg-gray-300 rounded w-1/3 mx-auto mb-6"></div>
+          <div className="space-y-5">
+            <div className="h-4 bg-gray-300 rounded w-1/4 mb-1"></div>
+            <div className="h-10 bg-gray-300 rounded"></div>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <div className="h-4 bg-gray-300 rounded w-1/4 mb-1"></div>
+                <div className="h-10 bg-gray-300 rounded"></div>
+              </div>
+              <div>
+                <div className="h-4 bg-gray-300 rounded w-1/4 mb-1"></div>
+                <div className="h-10 bg-gray-300 rounded"></div>
+              </div>
+            </div>
+            
+            <div>
+              <div className="h-4 bg-gray-300 rounded w-1/4 mb-1"></div>
+              <div className="h-24 bg-gray-300 rounded"></div>
+            </div>
+            
+            <div className="grid md:grid-cols-2 gap-4">
+              <div>
+                <div className="h-4 bg-gray-300 rounded w-1/3 mb-1"></div>
+                <div className="h-10 bg-gray-300 rounded"></div>
+              </div>
+              <div>
+                <div className="h-4 bg-gray-300 rounded w-1/3 mb-1"></div>
+                <div className="h-10 bg-gray-300 rounded"></div>
+              </div>
+            </div>
+            
+            <div className="flex justify-center gap-4 mt-6">
+              <div className="h-10 bg-gray-300 rounded w-24"></div>
+              <div className="h-10 bg-gray-300 rounded w-24"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main form component wrapped in Suspense
+function AddTransporterForm() {
   const [formData, setFormData] = useState({
     transporter_name: "",
     email: "",
@@ -107,6 +157,161 @@ export default function AddTransporterPage() {
   };
 
   return (
+    <div className="min-h-screen flex justify-center py-10 px-4">
+      <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-6">
+        <h1 className="text-2xl font-bold text-center text-purple-700 mb-6">
+          Add New Transporter
+        </h1>
+
+        {message && (
+          <div
+            className={`p-3 mb-4 text-center rounded ${
+              message.includes("success") || message.includes("Success")
+                ? "bg-green-100 text-green-700 border border-green-300"
+                : "bg-red-100 text-red-700 border border-red-300"
+            }`}
+          >
+            {message}
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div>
+            <label htmlFor="transporter_name" className="block text-gray-700 mb-1 font-medium">
+              Transporter Name *
+            </label>
+            <input
+              id="transporter_name"
+              type="text"
+              name="transporter_name"
+              value={formData.transporter_name}
+              onChange={handleChange}
+              required
+              disabled={isSubmitting}
+              className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              placeholder="Enter transporter name"
+            />
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="email" className="block text-gray-700 mb-1 font-medium">
+                Email *
+              </label>
+              <input
+                id="email"
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder="Enter email address"
+              />
+            </div>
+            <div>
+              <label htmlFor="phone" className="block text-gray-700 mb-1 font-medium">
+                Phone *
+              </label>
+              <input
+                id="phone"
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                required
+                disabled={isSubmitting}
+                className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+                placeholder="Enter phone number"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="address" className="block text-gray-700 mb-1 font-medium">
+              Address *
+            </label>
+            <textarea
+              id="address"
+              name="address"
+              value={formData.address}
+              onChange={handleChange}
+              required
+              disabled={isSubmitting}
+              rows="4"
+              className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
+              placeholder="Enter complete address"
+            ></textarea>
+          </div>
+
+          <div className="grid md:grid-cols-2 gap-4">
+            <div>
+              <label htmlFor="adhar_front" className="block text-gray-700 mb-1 font-medium">
+                Aadhar Front
+              </label>
+              <input
+                id="adhar_front"
+                type="file"
+                name="adhar_front"
+                onChange={handleChange}
+                disabled={isSubmitting}
+                accept="image/*,.pdf"
+                className="w-full border border-gray-300 rounded-lg p-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              {formData.adhar_front && (
+                <p className="text-sm text-green-600 mt-1">
+                  Selected: {formData.adhar_front.name}
+                </p>
+              )}
+            </div>
+            <div>
+              <label htmlFor="adhar_back" className="block text-gray-700 mb-1 font-medium">
+                Aadhar Back
+              </label>
+              <input
+                id="adhar_back"
+                type="file"
+                name="adhar_back"
+                onChange={handleChange}
+                disabled={isSubmitting}
+                accept="image/*,.pdf"
+                className="w-full border border-gray-300 rounded-lg p-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
+              />
+              {formData.adhar_back && (
+                <p className="text-sm text-green-600 mt-1">
+                  Selected: {formData.adhar_back.name}
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="flex justify-center gap-4 mt-6">
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="bg-purple-700 hover:bg-purple-800 disabled:bg-purple-400 text-white px-6 py-2 rounded-lg transition duration-200 disabled:cursor-not-allowed"
+            >
+              {isSubmitting ? "Submitting..." : "Submit"}
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              disabled={isSubmitting}
+              className="bg-gray-400 hover:bg-gray-500 disabled:bg-gray-300 text-white px-6 py-2 rounded-lg transition duration-200 disabled:cursor-not-allowed"
+            >
+              Reset
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Main page component with Suspense
+export default function AddTransporterPage() {
+  return (
     <div className="flex h-screen bg-gray-100">
       {/* Sidebar */}
       <Sidebar />
@@ -115,157 +320,11 @@ export default function AddTransporterPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
 
-        {/* Scrollable main area */}
+        {/* Scrollable main area with Suspense */}
         <main className="flex-1 overflow-y-auto bg-gray-50">
-          <div className="min-h-screen flex justify-center py-10 px-4">
-            <div className="w-full max-w-3xl bg-white rounded-xl shadow-lg p-6">
-              <h1 className="text-2xl font-bold text-center text-purple-700 mb-6">
-                Add New Transporter
-              </h1>
-
-              {message && (
-                <div
-                  className={`p-3 mb-4 text-center rounded ${
-                    message.includes("success") || message.includes("Success")
-                      ? "bg-green-100 text-green-700 border border-green-300"
-                      : "bg-red-100 text-red-700 border border-red-300"
-                  }`}
-                >
-                  {message}
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div>
-                  <label htmlFor="transporter_name" className="block text-gray-700 mb-1 font-medium">
-                    Transporter Name *
-                  </label>
-                  <input
-                    id="transporter_name"
-                    type="text"
-                    name="transporter_name"
-                    value={formData.transporter_name}
-                    onChange={handleChange}
-                    required
-                    disabled={isSubmitting}
-                    className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    placeholder="Enter transporter name"
-                  />
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="email" className="block text-gray-700 mb-1 font-medium">
-                      Email *
-                    </label>
-                    <input
-                      id="email"
-                      type="email"
-                      name="email"
-                      value={formData.email}
-                      onChange={handleChange}
-                      required
-                      disabled={isSubmitting}
-                      className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      placeholder="Enter email address"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="phone" className="block text-gray-700 mb-1 font-medium">
-                      Phone *
-                    </label>
-                    <input
-                      id="phone"
-                      type="tel"
-                      name="phone"
-                      value={formData.phone}
-                      onChange={handleChange}
-                      required
-                      disabled={isSubmitting}
-                      className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                      placeholder="Enter phone number"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label htmlFor="address" className="block text-gray-700 mb-1 font-medium">
-                    Address *
-                  </label>
-                  <textarea
-                    id="address"
-                    name="address"
-                    value={formData.address}
-                    onChange={handleChange}
-                    required
-                    disabled={isSubmitting}
-                    rows="4"
-                    className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-purple-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    placeholder="Enter complete address"
-                  ></textarea>
-                </div>
-
-                <div className="grid md:grid-cols-2 gap-4">
-                  <div>
-                    <label htmlFor="adhar_front" className="block text-gray-700 mb-1 font-medium">
-                      Aadhar Front
-                    </label>
-                    <input
-                      id="adhar_front"
-                      type="file"
-                      name="adhar_front"
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                      accept="image/*,.pdf"
-                      className="w-full border border-gray-300 rounded-lg p-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                    {formData.adhar_front && (
-                      <p className="text-sm text-green-600 mt-1">
-                        Selected: {formData.adhar_front.name}
-                      </p>
-                    )}
-                  </div>
-                  <div>
-                    <label htmlFor="adhar_back" className="block text-gray-700 mb-1 font-medium">
-                      Aadhar Back
-                    </label>
-                    <input
-                      id="adhar_back"
-                      type="file"
-                      name="adhar_back"
-                      onChange={handleChange}
-                      disabled={isSubmitting}
-                      accept="image/*,.pdf"
-                      className="w-full border border-gray-300 rounded-lg p-2 disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    />
-                    {formData.adhar_back && (
-                      <p className="text-sm text-green-600 mt-1">
-                        Selected: {formData.adhar_back.name}
-                      </p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex justify-center gap-4 mt-6">
-                  <button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="bg-purple-700 hover:bg-purple-800 disabled:bg-purple-400 text-white px-6 py-2 rounded-lg transition duration-200 disabled:cursor-not-allowed"
-                  >
-                    {isSubmitting ? "Submitting..." : "Submit"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleReset}
-                    disabled={isSubmitting}
-                    className="bg-gray-400 hover:bg-gray-500 disabled:bg-gray-300 text-white px-6 py-2 rounded-lg transition duration-200 disabled:cursor-not-allowed"
-                  >
-                    Reset
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
+          <Suspense fallback={<FormLoading />}>
+            <AddTransporterForm />
+          </Suspense>
         </main>
         
         <Footer />

@@ -5,11 +5,12 @@ import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import axios from "axios";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 
-export default function CreditLimitPage() {
+// Wrap the main component content in a separate component
+function CreditLimitContent() {
   const searchParams = useSearchParams();
-  const id = searchParams.get("id"); // ✅ Get query param correctly in Next.js 13
+  const id = searchParams.get("id");
 
   const [customer, setCustomer] = useState({});
   const [balance, setBalance] = useState({});
@@ -296,5 +297,32 @@ export default function CreditLimitPage() {
         </div>
       )}
     </div>
+  );
+}
+
+// Loading component for Suspense fallback
+function CreditLimitLoading() {
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="flex flex-col items-center">
+            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-3"></div>
+            <p className="text-gray-600">Loading page...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main exported component with Suspense
+export default function CreditLimitPage() {
+  return (
+    <Suspense fallback={<CreditLimitLoading />}>
+      <CreditLimitContent />
+    </Suspense>
   );
 }

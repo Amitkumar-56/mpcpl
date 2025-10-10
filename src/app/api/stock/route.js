@@ -1,6 +1,6 @@
 // src/app/api/stock/route.js
-import { NextResponse } from "next/server";
 import { executeQuery } from "@/lib/db";
+import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
@@ -17,6 +17,7 @@ export async function GET() {
     const data = await executeQuery({ query });
     return NextResponse.json(data);
   } catch (error) {
+    console.error("API Error:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
