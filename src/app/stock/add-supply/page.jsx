@@ -22,15 +22,22 @@ function AddSupplyForm() {
   useEffect(() => {
     const fetchFormData = async () => {
       try {
-        const res = await fetch('/api/add-supply-form');
+        const res = await fetch('/api/stock/add-supply');
+        
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        
         const data = await res.json();
         setFormData(data);
       } catch (err) {
-        console.error(err);
+        console.error('Failed to fetch form data:', err);
+        alert('Failed to load form data. Please refresh the page.');
       } finally {
         setLoading(false);
       }
     };
+    
     fetchFormData();
   }, []);
 
@@ -39,7 +46,11 @@ function AddSupplyForm() {
     const data = new FormData(e.target);
 
     try {
-      const res = await fetch('/api/add-supply', { method: 'POST', body: data });
+      const res = await fetch('/api/stock/add-supply', {
+        method: 'POST',
+        body: data
+      });
+      
       const result = await res.json();
 
       if (result.success) {
@@ -69,6 +80,7 @@ function AddSupplyForm() {
   return (
     <form onSubmit={handleSubmit} encType="multipart/form-data" className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        
         {/* Supply Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Supply Type *</label>
@@ -145,17 +157,31 @@ function AddSupplyForm() {
           </select>
         </div>
 
-        {/* Tanker, Driver, Weight */}
+        {/* Tanker Number */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Tanker Number *</label>
-          <input type="text" name="tanker_no" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" required />
+          <input 
+            type="text" 
+            name="tanker_no" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            required 
+          />
         </div>
 
+        {/* Driver Number */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Driver Number *</label>
-          <input type="number" name="driver_no" min="1000000000" max="9999999999" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" required />
+          <input 
+            type="number" 
+            name="driver_no" 
+            min="1000000000" 
+            max="9999999999" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            required 
+          />
         </div>
 
+        {/* Weight Type */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Weight Type *</label>
           <select
@@ -171,72 +197,133 @@ function AddSupplyForm() {
           </select>
         </div>
 
+        {/* KG and Density Fields */}
         {weightType === "kg" && (
           <>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">KG</label>
-              <input type="number" name="kg" step="0.01" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" />
+              <input 
+                type="number" 
+                name="kg" 
+                step="0.01" 
+                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Density</label>
-              <input type="number" name="density" step="0.001" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" />
+              <input 
+                type="number" 
+                name="density" 
+                step="0.001" 
+                className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+              />
             </div>
           </>
         )}
 
+        {/* LTR Field */}
         {weightType === "ltr" && (
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">LTR</label>
-            <input type="number" name="ltr" step="0.01" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" />
+            <input 
+              type="number" 
+              name="ltr" 
+              step="0.01" 
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            />
           </div>
         )}
 
         {/* Supplier Product Name */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Supplier Product Name *</label>
-          <input type="text" name="supplier_product_name" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" required />
+          <input 
+            type="text" 
+            name="supplier_product_name" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            required 
+          />
         </div>
 
-        {/* Invoice */}
+        {/* Invoice Date */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Invoice Date *</label>
-          <input type="date" name="invoice_date" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" required />
+          <input 
+            type="date" 
+            name="invoice_date" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            required 
+          />
         </div>
 
+        {/* Supplier Invoice No */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Supplier Invoice No *</label>
-          <input type="text" name="supplier_invoice_no" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" required />
+          <input 
+            type="text" 
+            name="supplier_invoice_no" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            required 
+          />
         </div>
 
+        {/* Supplier Invoice Value */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Supplier Invoice Value *</label>
-          <input type="number" name="supplier_invoice_value" step="0.01" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" required />
+          <input 
+            type="number" 
+            name="supplier_invoice_value" 
+            step="0.01" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+            required 
+          />
         </div>
 
-        {/* Optional Transporter Invoice */}
+        {/* Transporter Invoice No */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Transporter Invoice No</label>
-          <input type="text" name="transporter_invoice_no" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" />
+          <input 
+            type="text" 
+            name="transporter_invoice_no" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+          />
         </div>
 
+        {/* Transporter Invoice Value */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Transporter Invoice Value</label>
-          <input type="number" name="transporter_invoice_value" step="0.01" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" />
+          <input 
+            type="number" 
+            name="transporter_invoice_value" 
+            step="0.01" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+          />
         </div>
 
         {/* Slip Image */}
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">Slip Image</label>
-          <input type="file" name="slip_image" accept="image/*" className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" />
+          <input 
+            type="file" 
+            name="slip_image" 
+            accept="image/*" 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600" 
+          />
         </div>
       </div>
 
       {/* Buttons */}
       <div className="flex justify-end space-x-3 pt-4">
-        <button type="reset" className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-medium">
+        <button 
+          type="reset" 
+          className="px-6 py-3 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition font-medium"
+        >
           Reset
         </button>
-        <button type="submit" className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium">
+        <button 
+          type="submit" 
+          className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition font-medium"
+        >
           Submit
         </button>
       </div>
@@ -261,7 +348,10 @@ export default function AddSupplyPage() {
         <main className="flex-1 overflow-auto pt-20 pb-20 px-4 sm:px-6">
           <div className="max-w-6xl mx-auto space-y-6">
             <div className="flex justify-start">
-              <Link href="/stock/stock-request" className="inline-flex items-center px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300">
+              <Link 
+                href="/stock/stock-request" 
+                className="inline-flex items-center px-4 py-2 rounded-lg bg-gray-200 text-gray-800 hover:bg-gray-300"
+              >
                 ← Back to Stock Requests
               </Link>
             </div>

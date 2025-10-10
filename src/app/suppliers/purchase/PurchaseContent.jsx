@@ -1,4 +1,3 @@
-// src/app/suppliers/purchase/PurchaseContent.jsx
 'use client';
 import Footer from "components/Footer";
 import Header from "components/Header";
@@ -85,11 +84,36 @@ export default function PurchaseContent() {
         });
         setStatus('on_the_way');
         setQuantityChanged(false);
+      } else {
+        alert('Error submitting purchase data');
       }
     } catch (error) {
       console.error('Error submitting purchase:', error);
       alert('Error submitting purchase data');
     }
+  };
+
+  const resetForm = () => {
+    setPurchaseData({
+      supplierName: '',
+      invoiceNumber: '',
+      invoiceDate: '',
+      productName: '',
+      ewayBillNumber: '',
+      ewayBillExpiryDate: '',
+      density: '',
+      quantityInKg: '',
+      quantityInLtr: '',
+      tankerNumber: '',
+      driverNumber: '',
+      lrNo: '',
+      invoiceAmount: '',
+      debitNote: '',
+      creditNote: '',
+      amount: ''
+    });
+    setStatus('on_the_way');
+    setQuantityChanged(false);
   };
 
   return (
@@ -145,11 +169,266 @@ export default function PurchaseContent() {
           <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             {activeTab === 'sale' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Your form fields for sale */}
+                {/* Purchase for Sale Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supplier Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="supplierName"
+                    value={purchaseData.supplierName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Eway Bill Number
+                  </label>
+                  <input
+                    type="text"
+                    name="ewayBillNumber"
+                    value={purchaseData.ewayBillNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Eway Bill Expiry Date
+                  </label>
+                  <input
+                    type="date"
+                    name="ewayBillExpiryDate"
+                    value={purchaseData.ewayBillExpiryDate}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="invoiceNumber"
+                    value={purchaseData.invoiceNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="invoiceDate"
+                    value={purchaseData.invoiceDate}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Density
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="density"
+                    value={purchaseData.density}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity in Kg
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="quantityInKg"
+                    value={purchaseData.quantityInKg}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity in Ltr
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="quantityInLtr"
+                    value={purchaseData.quantityInLtr}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Product Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="productName"
+                    value={purchaseData.productName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Tanker Number
+                  </label>
+                  <input
+                    type="text"
+                    name="tankerNumber"
+                    value={purchaseData.tankerNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Driver Number
+                  </label>
+                  <input
+                    type="text"
+                    name="driverNumber"
+                    value={purchaseData.driverNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    LR No
+                  </label>
+                  <input
+                    type="text"
+                    name="lrNo"
+                    value={purchaseData.lrNo}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Amount *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="invoiceAmount"
+                    value={purchaseData.invoiceAmount}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Debit Note
+                  </label>
+                  <input
+                    type="text"
+                    name="debitNote"
+                    value={purchaseData.debitNote}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Credit Note
+                  </label>
+                  <input
+                    type="text"
+                    name="creditNote"
+                    value={purchaseData.creditNote}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Your form fields for use */}
+                {/* Purchase for Use Fields */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Supplier Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="supplierName"
+                    value={purchaseData.supplierName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Number *
+                  </label>
+                  <input
+                    type="text"
+                    name="invoiceNumber"
+                    value={purchaseData.invoiceNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Invoice Date *
+                  </label>
+                  <input
+                    type="date"
+                    name="invoiceDate"
+                    value={purchaseData.invoiceDate}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Amount *
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="amount"
+                    value={purchaseData.amount}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
+                <div className="md:col-span-2 lg:col-span-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Product Name *
+                  </label>
+                  <input
+                    type="text"
+                    name="productName"
+                    value={purchaseData.productName}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    required
+                  />
+                </div>
               </div>
             )}
 
@@ -192,9 +471,10 @@ export default function PurchaseContent() {
               </button>
               <button
                 type="button"
+                onClick={resetForm}
                 className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors font-medium"
               >
-                Edit
+                Reset
               </button>
               <button
                 type="button"

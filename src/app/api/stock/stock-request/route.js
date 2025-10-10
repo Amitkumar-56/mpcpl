@@ -1,55 +1,53 @@
-
-// src/app/api/stock/stock-request/route.js
-import { executeQuery } from "@/lib/db"; // your DB helper
+import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request) {
   try {
-    // Fetch all stock requests
-    const stockRequests = await executeQuery({
-      query: "SELECT * FROM stock ORDER BY id DESC",
-    });
+    const query = `
+      SELECT 
+        id,
+        invoice_number,
+        invoice_date,
+        transport_number,
+        fs_id,
+        product_id,
+        product_name,
+        transporter_id,
+        supplier_id,
+        tanker_no,
+        weight_type,
+        kg,
+        ltr,
+        density,
+        driver_no,
+        v_invoice_value,
+        t_invoice_value,
+        dncn,
+        t_dncn,
+        payable,
+        t_payable,
+        payment,
+        t_payment,
+        t_paydate,
+        pay_date,
+        slip_image,
+        status,
+        supply_type,
+        gstr1,
+        gstr3b,
+        staff_id
+      FROM stock
+      ORDER BY id DESC
+    `;
 
-    // For each stock request, fetch related data
-    const enhancedRequests = await Promise.all(
-      stockRequests.map(async (row) => {
-        // Get product name
-        const product = await executeQuery({
-          query: "SELECT pname FROM product WHERE id = ?",
-          values: [row.product_id],
-        });
+    const stockRequests = await executeQuery(query);
 
-        // Get supplier name
-        const supplier = await executeQuery({
-          query: "SELECT name FROM supplier WHERE id = ?",
-          values: [row.supplier_id],
-        });
-
-        // Get transporter name
-        const transporter = await executeQuery({
-          query: "SELECT transporter_name FROM transporters WHERE id = ?",
-          values: [row.transporter_id],
-        });
-
-        // Get station name
-        const station = await executeQuery({
-          query: "SELECT station_name FROM filling_stations WHERE id = ?",
-          values: [row.fs_id],
-        });
-
-        return {
-          ...row,
-          product_name: product[0]?.pname || "Product not found",
-          supplier_name: supplier[0]?.name || "No Supplier",
-          transporter_name: transporter[0]?.transporter_name || "No Transporter",
-          station_name: station[0]?.station_name || "Station not found",
-        };
-      })
-    );
-
-    return NextResponse.json(enhancedRequests);
+    return NextResponse.json({ success: true, data: stockRequests });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Failed to fetch stock requests" }, { status: 500 });
+    console.error("Error fetching stock requests:", error);
+    return NextResponse.json(
+      { success: false, error: "Internal server error" },
+      { status: 500 }
+    );
   }
 }

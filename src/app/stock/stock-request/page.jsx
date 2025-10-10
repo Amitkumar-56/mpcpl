@@ -1,268 +1,300 @@
-// src/app/stock/stock-request/page.jsx
-'use client';
+"use client";
 
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
 import Link from "next/link";
-import { Suspense, useEffect, useState } from 'react';
-import { BiRupee } from "react-icons/bi";
-import { BsChatLeftTextFill, BsEyeFill } from "react-icons/bs";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { BsClockHistory, BsEyeFill } from "react-icons/bs";
 
-import Footer from "components/Footer";
-import Header from "components/Header";
-import Sidebar from "components/sidebar";
+// A sub-component for data rendering inside Suspense
+function StockTable({ stockRequests }) {
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
+  const [filterText, setFilterText] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
 
-// Client component for the stock table
-function StockTableClient() {
-  const [stocks, setStocks] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const getStatusBadge = (status) => {
+    const colorMap = {
+      1: "bg-blue-100 text-blue-800 border border-blue-200",
+      2: "bg-yellow-100 text-yellow-800 border border-yellow-200",
+      3: "bg-green-100 text-green-800 border border-green-200",
+    };
+    return (
+      <span
+        className={`px-3 py-1 rounded-full text-xs font-medium ${
+          colorMap[status] ||
+          "bg-gray-100 text-gray-800 border border-gray-200"
+        }`}
+      >
+        {status === 1
+          ? "Dispatched"
+          : status === 2
+          ? "Processing"
+          : status === 3
+          ? "Completed"
+          : "Unknown"}
+      </span>
+    );
+  };
 
-  useEffect(() => {
-    async function fetchStockData() {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/stock`, {
-          headers: { "Content-Type": "application/json" },
-        });
+  const formatDate = (date) =>
+    date ? new Date(date).toLocaleDateString("en-GB") : "N/A";
 
-        if (!res.ok) {
-          throw new Error(`Error fetching stock data (${res.status})`);
+  const formatCurrency = (amount) =>
+    amount ? `₹${parseFloat(amount).toLocaleString("en-IN")}` : "₹0";
+
+  const handleSort = (key) => {
+    let direction = "asc";
+    if (sortConfig.key === key && sortConfig.direction === "asc")
+      direction = "desc";
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIcon = (key) => {
+    if (sortConfig.key !== key) return "↕️";
+    return sortConfig.direction === "asc" ? "↑" : "↓";
+  };
+
+  const filteredAndSortedData = useMemo(() => {
+    let data = stockRequests.filter((item) => {
+      const matchesSearch =
+        item.product_name?.toLowerCase().includes(filterText.toLowerCase()) ||
+        item.invoice_number?.toLowerCase().includes(filterText.toLowerCase()) ||
+        item.transporter_id?.toLowerCase().includes(filterText.toLowerCase());
+
+      const matchesStatus =
+        statusFilter === "all" || item.status?.toString() === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+
+    if (sortConfig.key) {
+      data.sort((a, b) => {
+        let aVal = a[sortConfig.key];
+        let bVal = b[sortConfig.key];
+        if (sortConfig.key === "invoice_date") {
+          aVal = new Date(aVal);
+          bVal = new Date(bVal);
         }
-
-        const data = await res.json();
-        setStocks(data);
-      } catch (err) {
-        console.error("Error fetching stock:", err);
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
+        if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
+        if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
+        return 0;
+      });
     }
+    return data;
+  }, [stockRequests, filterText, statusFilter, sortConfig]);
 
-    fetchStockData();
-  }, []);
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredAndSortedData.slice(start, start + itemsPerPage);
+  }, [filteredAndSortedData, currentPage, itemsPerPage]);
 
-  if (loading) {
-    return (
-      <div className="bg-white shadow rounded-lg p-8 text-center animate-pulse">
-        <div className="w-12 h-12 mx-auto bg-gray-200 rounded-full mb-4"></div>
-        <div className="h-4 bg-gray-200 rounded w-1/4 mx-auto mb-2"></div>
-        <div className="h-3 bg-gray-200 rounded w-1/3 mx-auto"></div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="bg-white shadow rounded-lg p-8 text-center">
-        <svg
-          className="w-16 h-16 text-red-300 mx-auto mb-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-          />
-        </svg>
-        <p className="text-lg font-medium text-red-600">Error loading stock data</p>
-        <p className="text-sm mt-1 text-gray-500">{error}</p>
-      </div>
-    );
-  }
-
-  if (!stocks || stocks.length === 0) {
-    return (
-      <div className="bg-white shadow rounded-lg p-8 text-center">
-        <svg
-          className="w-16 h-16 text-gray-300 mx-auto mb-4"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-          />
-        </svg>
-        <p className="text-lg font-medium">No stock requests found</p>
-        <p className="text-sm mt-1 text-gray-500">
-          Get started by adding your first supply request
-        </p>
-      </div>
-    );
-  }
+  const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
 
   return (
-    <div className="bg-white shadow rounded-lg overflow-x-auto">
-      <table className="min-w-full text-sm text-left">
-        <thead className="bg-gray-100 text-gray-700">
-          <tr>
-            <th className="px-4 py-2">#</th>
-            <th className="px-4 py-2">Product</th>
-            <th className="px-4 py-2">Supplier</th>
-            <th className="px-4 py-2">Invoice Date</th>
-            <th className="px-4 py-2">Invoice#</th>
-            <th className="px-4 py-2">Transporter</th>
-            <th className="px-4 py-2">Transporter Bill#</th>
-            <th className="px-4 py-2">Station</th>
-            <th className="px-4 py-2">Tanker No</th>
-            <th className="px-4 py-2">Ltr</th>
-            <th className="px-4 py-2">Sup Invoice</th>
-            <th className="px-4 py-2">DNCN</th>
-            <th className="px-4 py-2">Payable</th>
-            <th className="px-4 py-2">Status</th>
-            <th className="px-4 py-2 text-center">Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {stocks.map((row, idx) => (
-            <tr key={row.id || idx} className="border-b hover:bg-gray-50">
-              <td className="px-4 py-2">{idx + 1}</td>
-              <td className="px-4 py-2">{row.product_name || "-"}</td>
-              <td className="px-4 py-2 text-blue-600">
-                <Link href={`/supplierinvoice?id=${row.supplier_id}`}>
-                  {row.supplier_name || "No Supplier"}
-                </Link>
-              </td>
-              <td className="px-4 py-2">
-                {row.invoice_date
-                  ? new Date(row.invoice_date).toLocaleDateString()
-                  : "-"}
-              </td>
-              <td className="px-4 py-2">{row.invoice_number || "-"}</td>
-              <td className="px-4 py-2 text-blue-600">
-                <Link href={`/transportersinvoice?id=${row.transporter_id}`}>
-                  {row.transporter_name || "No Transporter"}
-                </Link>
-              </td>
-              <td className="px-4 py-2">{row.transport_number || "-"}</td>
-              <td className="px-4 py-2">{row.station_name || "-"}</td>
-              <td className="px-4 py-2">{row.tanker_no || "-"}</td>
-              <td className="px-4 py-2">{row.ltr || "-"}</td>
-              <td className="px-4 py-2">{row.v_invoice_value || "-"}</td>
-              <td className="px-4 py-2">{row.dncn || "-"}</td>
-              <td className="px-4 py-2">{row.payable || "-"}</td>
-              <td
-                className={`px-4 py-2 font-medium ${
-                  row.status === 1
-                    ? "text-yellow-600"
-                    : row.status === 2
-                    ? "text-blue-600"
-                    : row.status === 3
-                    ? "text-green-600"
-                    : "text-gray-400"
-                }`}
-              >
-                {row.status === 1
-                  ? "Dispatched"
-                  : row.status === 2
-                  ? "Processing"
-                  : row.status === 3
-                  ? "Completed"
-                  : "Unknown"}
-              </td>
-              <td className="px-4 py-2 flex justify-center gap-3">
-                <Link href={`/supply-details?id=${row.id}`}>
-                  <BsEyeFill
-                    className="text-blue-600 hover:scale-110 transition"
-                    size={18}
-                  />
-                </Link>
-                <button>
-                  <BsChatLeftTextFill
-                    className="text-green-600 hover:scale-110 transition"
-                    size={18}
-                  />
-                </button>
-                <Link href={`/dncn?id=${row.id}`}>
-                  <BiRupee
-                    className="text-red-600 hover:scale-110 transition"
-                    size={20}
-                  />
-                </Link>
-              </td>
+    <>
+      <div className="bg-white p-4 rounded shadow mb-6 flex flex-col sm:flex-row gap-4 justify-between">
+        <input
+          type="text"
+          placeholder="Search..."
+          value={filterText}
+          onChange={(e) => {
+            setFilterText(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="border px-3 py-2 rounded w-full sm:w-64"
+        />
+        <select
+          value={statusFilter}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setCurrentPage(1);
+          }}
+          className="border px-3 py-2 rounded"
+        >
+          <option value="all">All Statuses</option>
+          <option value="1">Dispatched</option>
+          <option value="2">Processing</option>
+          <option value="3">Completed</option>
+        </select>
+      </div>
+
+      <div className="bg-white shadow rounded overflow-x-auto">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              {[
+                "id",
+                "product_name",
+                "invoice_number",
+                "invoice_date",
+                "transporter_id",
+                "tanker_no",
+                "ltr",
+                "DNCN",
+                "payable",
+                "status",
+              ].map((col) => (
+                <th
+                  key={col}
+                  onClick={() => handleSort(col)}
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer"
+                >
+                  <div className="flex items-center space-x-1">
+                    {col.replace("_", " ").toUpperCase()}{" "}
+                    <span className="text-xs">{getSortIcon(col)}</span>
+                  </div>
+                </th>
+              ))}
+              <th className="px-6 py-3 text-center">Actions</th>
             </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {paginatedData.length > 0 ? (
+              paginatedData.map((request) => (
+                <tr key={request.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4">{request.id}</td>
+                  <td className="px-6 py-4">
+                    {request.product_name || `Product ID: ${request.product_id}`}
+                  </td>
+                  <td className="px-6 py-4">
+                    {request.invoice_number || "N/A"}
+                  </td>
+                  <td className="px-6 py-4">
+                    {formatDate(request.invoice_date)}
+                  </td>
+                  <td className="px-6 py-4">{request.transporter_id || "N/A"}</td>
+                  <td className="px-6 py-4">{request.tanker_no || "N/A"}</td>
+                  <td className="px-6 py-4">
+                    {request.ltr ? `${request.ltr}` : "-"}
+                  </td>
+                  <td className="px-6 py-4">{request.dncn || "-"}</td>
+                  <td className="px-6 py-4 text-green-600">
+                    {formatCurrency(request.payable)}
+                  </td>
+                  <td className="px-6 py-4">{getStatusBadge(request.status)}</td>
+                  <td className="px-6 py-4 flex justify-center space-x-2">
+                    <Link
+                      href={`/stock/supply-details/${request.id}`}
+                      className="text-blue-600 hover:text-blue-800"
+                    >
+                      <BsEyeFill size={18} />
+                    </Link>
+                    <Link
+                      href={`/stock/dncn/${request.id}`}
+                      className="text-red-600 hover:text-red-800"
+                    >
+                      <BsClockHistory size={18} />
+                    </Link>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan="11"
+                  className="px-6 py-8 text-center text-gray-500"
+                >
+                  No stock requests found
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {totalPages > 1 && (
+        <div className="mt-4 flex justify-center items-center space-x-2">
+          <button
+            onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Prev
+          </button>
+          {Array.from({ length: totalPages }, (_, i) => (
+            <button
+              key={i}
+              onClick={() => setCurrentPage(i + 1)}
+              className={`px-3 py-1 border rounded ${
+                currentPage === i + 1 ? "bg-blue-600 text-white" : ""
+              }`}
+            >
+              {i + 1}
+            </button>
           ))}
-        </tbody>
-      </table>
-    </div>
+          <button
+            onClick={() =>
+              setCurrentPage((prev) => Math.min(prev + 1, totalPages))
+            }
+            disabled={currentPage === totalPages}
+            className="px-3 py-1 border rounded disabled:opacity-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
-// Main page component
-function StockRequest() {
+// Parent component with Suspense
+export default function StockRequest() {
+  const [stockRequests, setStockRequests] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchStockRequests();
+  }, []);
+
+  const fetchStockRequests = async () => {
+    try {
+      const res = await fetch("/api/stock/stock-request");
+      const result = await res.json();
+      if (result.success) setStockRequests(result.data);
+      else setError("Failed to fetch stock requests");
+    } catch (err) {
+      console.error(err);
+      setError("Error fetching stock requests");
+    }
+  };
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
       <Sidebar />
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
-        <main className="min-h-screen bg-gray-50 p-6">
-          <div className="flex flex-col md:flex-row justify-between items-center mb-6">
-            <div>
-              <h1 className="text-2xl font-semibold text-gray-800">
-                Stock Requests
-              </h1>
-              <nav className="text-sm text-gray-500 mt-1">
-                <Link href="/" className="hover:underline">
-                  Home
-                </Link>{" "}
-                / <span className="mx-1">Stock</span> /{" "}
-                <span className="font-semibold text-gray-700">Requests</span>
-              </nav>
-            </div>
+
+        <div className="min-h-screen bg-gray-50">
+          <div className="max-w-7xl mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 className="text-2xl font-bold">Stock Requests</h1>
             <Link
-              href="/outstanding_history"
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 transition-colors"
+              href="/stock/add-supply"
+              className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
             >
-              Outstanding History
+              Add Supply
             </Link>
           </div>
 
-          {/* Use the client component */}
-          <StockTableClient />
-
-          {/* Floating Add Supply Button */}
-          <Link
-            href="/stock/add-supply"
-            className="fixed bottom-6 right-6 bg-purple-700 text-white px-5 py-3 rounded-full shadow-lg hover:bg-purple-800 transition-all flex items-center gap-2"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
+          <main className="max-w-7xl mx-auto px-4 py-8">
+            {error && (
+              <div className="text-red-600 text-center mb-4">{error}</div>
+            )}
+            <Suspense
+              fallback={
+                <div className="flex items-center justify-center py-20">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+                </div>
+              }
             >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 4v16m8-8H4"
-              />
-            </svg>
-            Add Supply
-          </Link>
-        </main>
+              <StockTable stockRequests={stockRequests} />
+            </Suspense>
+          </main>
+        </div>
         <Footer />
       </div>
     </div>
-  );
-}
-
-// Export with Suspense boundary
-export default function StockRequestPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-        </div>
-      }
-    >
-      <StockRequest />
-    </Suspense>
   );
 }
