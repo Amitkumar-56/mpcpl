@@ -475,7 +475,7 @@ export default function CreateRequestPage() {
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
                   <p className="text-red-700 text-sm font-medium flex items-center">
                     <span className="mr-2">💡</span>
-                    Type "full tank" in Remark to automatically set maximum quantity
+                    Type Full Tank in Remark and Enter Maximum Quantity in Ltr
                   </p>
                 </div>
               </div>
