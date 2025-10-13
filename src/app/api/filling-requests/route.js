@@ -6,13 +6,8 @@ export async function GET(request) {
     console.log('🚀 API CALL STARTED...');
 
     const { searchParams } = new URL(request.url);
-    const safeParseInt = (val, defaultVal) => {
-      const parsed = parseInt(val, 10);
-      return isNaN(parsed) ? defaultVal : parsed;
-    };
-
-    const page = safeParseInt(searchParams.get('page'), 1);
-    const recordsPerPage = Math.min(safeParseInt(searchParams.get('records_per_page'), 10), 100);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const recordsPerPage = Math.min(parseInt(searchParams.get('records_per_page')) || 10, 100);
     const status = searchParams.get('status') || '';
     const search = searchParams.get('search') || '';
     const startDate = searchParams.get('start_date') || '';
@@ -23,7 +18,6 @@ export async function GET(request) {
 
     const offset = (page - 1) * recordsPerPage;
 
-    // Base query
     let query = `
       SELECT 
         fr.*, 
@@ -89,10 +83,8 @@ export async function GET(request) {
       countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
     }
 
-    // ✅ FIX: LIMIT cannot use placeholders, inject directly with safety checks
-    const safeOffset = Math.max(0, offset);
-    const safeRecordsPerPage = Math.min(Math.max(1, recordsPerPage), 100);
-    query += ` ORDER BY fr.id DESC LIMIT ${safeOffset}, ${safeRecordsPerPage}`;
+    query += ' ORDER BY fr.id DESC LIMIT ?, ?';
+    params.push(offset, recordsPerPage);
 
     console.log('📋 Executing queries...');
 
@@ -107,11 +99,11 @@ export async function GET(request) {
 
     console.log('✅ Raw requests from database:', requests.length);
 
-    // Process eligibility
+    // Process requests with eligibility check
     const processedRequests = requests.map((request) => {
       let eligibility = 'N/A';
       let eligibility_reason = '';
-
+      
       if (request.status === 'Pending') {
         if (request.customer_balance === 0 || request.customer_balance < (request.qty * 100)) {
           eligibility = 'No';
@@ -129,6 +121,9 @@ export async function GET(request) {
       };
     });
 
+    console.log('✅ Processed requests:', processedRequests.length);
+
+    // Return the full response object that frontend expects
     const responseData = {
       requests: processedRequests,
       currentPage: page,
@@ -138,14 +133,95 @@ export async function GET(request) {
     };
 
     console.log('🚀 API CALL COMPLETED.', responseData);
-
+    
     return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('❌ Database error:', error);
     return NextResponse.json(
-      { error: 'Internal server error', details: error.message },
+      { 
+        error: 'Internal server error',
+        details: error.message 
+      },
       { status: 500 }
     );
+  }
+}
+
+export async function POST(request) {
+  try {
+    const body = await request.json();
+    const {
+      customer, products_codes, station_id, vehicle_no, driver_no, request_type, qty, remarks
+    } = body;
+
+    // Validate required fields
+    if (!customer || !products_codes || !station_id || !vehicle_no || !driver_no || !qty) {
+      return NextResponse.json({ 
+        error: "All fields are required" 
+      }, { status: 400 });
+    }
+
+    if (parseFloat(qty) <= 0) {
+      return NextResponse.json({ 
+        error: "Quantity must be greater than 0" 
+      }, { status: 400 });
+    }
+
+    // Generate the next RID
+    const ridResult = await executeQuery(
+      "SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1"
+    );
+    
+    let nextRID = "MP000001";
+    if (ridResult.length > 0) {
+      const lastRID = ridResult[0].rid;
+      if (lastRID && lastRID.startsWith('MP')) {
+        const lastNumber = parseInt(lastRID.substring(2));
+        nextRID = `MP${String(lastNumber + 1).padStart(6, '0')}`;
+      }
+    }
+
+    // Get current timestamp
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+    // Get product name
+    const productResult = await executeQuery(
+      "SELECT pcode FROM product_codes WHERE id = ?",
+      [products_codes]
+    );
+    const productName = productResult.length > 0 ? productResult[0].pcode : 'Unknown Product';
+
+    // Insert into filling_requests table
+    const result = await executeQuery(
+      `INSERT INTO filling_requests (
+        rid, fl_id, fs_id, vehicle_number, driver_number, rtype, qty, aqty, 
+        created, cid, status, remark, product
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        nextRID, parseInt(products_codes), parseInt(station_id),
+        vehicle_no, driver_no, request_type, parseFloat(qty), parseFloat(qty),
+        currentDate, parseInt(customer), 'Pending', remarks || '', productName
+      ]
+    );
+
+    if (result.affectedRows > 0) {
+      return NextResponse.json({ 
+        success: true, 
+        message: "Request created successfully",
+        rid: nextRID 
+      });
+    } else {
+      return NextResponse.json({ 
+        error: "Failed to create request" 
+      }, { status: 500 });
+    }
+
+  } catch (error) {
+    console.error("❌ POST API Error:", error);
+    return NextResponse.json({ 
+      error: "Server error",
+      details: error.message 
+    }, { status: 500 });
   }
 }
