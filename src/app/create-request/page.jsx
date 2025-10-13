@@ -138,7 +138,13 @@ export default function CreateRequestPage() {
       setSelectedProduct(product);
       setMaxQuantity(product?.maxQuantity || 0);
 
-      setFormData(prev => ({ ...prev, qty: '', aty: '', request_type: 'Liter' }));
+      // Reset quantity fields when product changes
+      setFormData(prev => ({ 
+        ...prev, 
+        qty: '', 
+        aty: '', 
+        request_type: 'Liter' 
+      }));
       setCalculatedBarrels(0);
       setShowFullTankMessage(false);
     }
@@ -155,8 +161,14 @@ export default function CreateRequestPage() {
         qty = value * selectedProduct.bucketSize;
       }
     } else {
-      qty = value;
-      aty = value;
+      // For liter products (including Industrial Oil 60 (R) - IO60R)
+      if (name === 'aty') {
+        aty = value;
+        qty = value;
+      } else if (name === 'qty') {
+        qty = value;
+        aty = value;
+      }
     }
 
     setFormData(prev => ({ ...prev, [name]: value, qty, aty }));
@@ -429,7 +441,7 @@ export default function CreateRequestPage() {
                   </div>
                 )}
 
-                {/* Barrel Calculation Info */}
+                {/* Barrel Calculation Info - Industrial Oil 60 (R) ke liye bhi show hoga */}
                 {selectedProduct?.barrelSize && calculatedBarrels > 0 && (
                   <div className="md:col-span-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
                     <p className="font-medium text-yellow-800">
