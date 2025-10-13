@@ -216,7 +216,6 @@ export async function POST(request) {
         error: "Failed to create request" 
       }, { status: 500 });
     }
-
   } catch (error) {
     console.error("❌ POST API Error:", error);
     return NextResponse.json({ 
