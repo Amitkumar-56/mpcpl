@@ -6,8 +6,13 @@ export async function GET(request) {
     console.log('🚀 API CALL STARTED...');
 
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const recordsPerPage = Math.min(parseInt(searchParams.get('records_per_page')) || 10, 100);
+    const safeParseInt = (val, defaultVal) => {
+      const parsed = parseInt(val, 10);
+      return isNaN(parsed) ? defaultVal : parsed;
+    };
+
+    const page = safeParseInt(searchParams.get('page'), 1);
+    const recordsPerPage = Math.min(safeParseInt(searchParams.get('records_per_page'), 10), 100);
     const status = searchParams.get('status') || '';
     const search = searchParams.get('search') || '';
     const startDate = searchParams.get('start_date') || '';
@@ -83,8 +88,8 @@ export async function GET(request) {
       countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
     }
 
-    query += ' ORDER BY fr.id DESC LIMIT ?, ?';
-    params.push(offset, recordsPerPage);
+    // FIX: Inject LIMIT directly (cannot use placeholders)
+    query += ` ORDER BY fr.id DESC LIMIT ${offset}, ${recordsPerPage}`;
 
     console.log('📋 Executing queries...');
 
@@ -103,7 +108,7 @@ export async function GET(request) {
     const processedRequests = requests.map((request) => {
       let eligibility = 'N/A';
       let eligibility_reason = '';
-      
+
       if (request.status === 'Pending') {
         if (request.customer_balance === 0 || request.customer_balance < (request.qty * 100)) {
           eligibility = 'No';
@@ -123,7 +128,6 @@ export async function GET(request) {
 
     console.log('✅ Processed requests:', processedRequests.length);
 
-    // Return the full response object that frontend expects
     const responseData = {
       requests: processedRequests,
       currentPage: page,
@@ -133,15 +137,15 @@ export async function GET(request) {
     };
 
     console.log('🚀 API CALL COMPLETED.', responseData);
-    
+
     return NextResponse.json(responseData);
 
   } catch (error) {
     console.error('❌ Database error:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Internal server error',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     );

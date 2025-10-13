@@ -76,11 +76,32 @@ export default function CreateRequestPage() {
     fetchData();
   }, []);
 
+  // CORRECTED BARREL CALCULATION - AAPKE REQUIREMENT KE HISAB SE
   useEffect(() => {
     if (selectedProduct?.barrelSize && formData.qty) {
       const qty = parseInt(formData.qty) || 0;
-      setCalculatedBarrels(Math.ceil(qty / selectedProduct.barrelSize));
-    } else setCalculatedBarrels(0);
+      if (qty === 0) {
+        setCalculatedBarrels(0);
+      } else {
+        // AAPKA REQUIREMENT:
+        // 200-399 = 1 barrel, 400-599 = 2 barrels, 600-799 = 3 barrels
+        // Yani har 200 liters ke range mein ek barrel add hota hai
+        let barrels = 0;
+        if (qty <= 399) {
+          barrels = 1;
+        } else if (qty <= 599) {
+          barrels = 2;
+        } else if (qty <= 799) {
+          barrels = 3;
+        } else {
+          // 800+ ke liye formula
+          barrels = Math.ceil((qty - 600) / 200) + 3;
+        }
+        setCalculatedBarrels(barrels);
+      }
+    } else {
+      setCalculatedBarrels(0);
+    }
   }, [formData.qty, selectedProduct]);
 
   useEffect(() => {
@@ -278,6 +299,9 @@ export default function CreateRequestPage() {
                   <div><strong>Product:</strong> {getProductName(formData.products_codes)}</div>
                   <div><strong>Station:</strong> {getStationName(formData.station_id)}</div>
                   <div><strong>Qty:</strong> {formData.qty} L</div>
+                  {calculatedBarrels > 0 && (
+                    <div><strong>Barrels Required:</strong> {calculatedBarrels}</div>
+                  )}
                   <div><strong>Vehicle:</strong> {formData.vehicle_no}</div>
                   <div><strong>Driver:</strong> {formData.driver_no}</div>
                   {formData.remarks && (
@@ -370,16 +394,28 @@ export default function CreateRequestPage() {
                 )}
               </div>
 
-              {/* Total Liters Display */}
+              {/* Total Liters or Barrel Display */}
               <div className="flex flex-col">
-                <label className="mb-1 font-medium">Total Liters</label>
+                <label className="mb-1 font-medium">
+                  {selectedProduct?.barrelSize ? "Total Barrels" : "Total Liters"}
+                </label>
+
                 <input
-                  type="number"
-                  value={formData.qty}
-                  className="border border-gray-300 rounded p-2 bg-gray-100"
+                  type="text"
+                  value={
+                    selectedProduct?.barrelSize
+                      ? `${calculatedBarrels} Barrel${calculatedBarrels > 1 ? "s" : ""} (${formData.qty}L)`
+                      : `${formData.qty} Liters`
+                  }
+                  className="border border-gray-300 rounded p-2 bg-gray-100 text-center font-medium"
                   disabled
-                  placeholder="Auto-calculated liters"
+                  placeholder="Auto-calculated"
                 />
+                {selectedProduct?.barrelSize && (
+                  <p className="text-xs text-gray-500 mt-1 text-center">
+                    Each barrel holds 200L
+                  </p>
+                )}
               </div>
 
               {/* Full Tank Message */}
@@ -391,10 +427,15 @@ export default function CreateRequestPage() {
                 </div>
               )}
 
-              {/* Barrel Calculation */}
+              {/* Barrel Calculation Info */}
               {selectedProduct?.barrelSize && calculatedBarrels > 0 && (
-                <div className="md:col-span-2 p-3 bg-yellow-50 rounded-lg">
-                  Barrel Required: {calculatedBarrels}
+                <div className="md:col-span-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
+                  <p className="font-medium text-yellow-800">
+                    Barrel Calculation: {formData.qty}L requires {calculatedBarrels} barrel{calculatedBarrels > 1 ? 's' : ''}
+                  </p>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    (200-399L = 1 barrel, 400-599L = 2 barrels, 600-799L = 3 barrels, etc.)
+                  </p>
                 </div>
               )}
 
@@ -428,13 +469,13 @@ export default function CreateRequestPage() {
                   value={formData.remarks} 
                   onChange={handleChange}
                   className={`border border-gray-300 rounded p-2 h-20 ${showFullTankMessage ? 'bg-red-50 border-red-300' : ''}`}
-                  placeholder=" 'full tank'  maximum quantity"
+                  placeholder="Type 'full tank' to set maximum quantity automatically"
                 />
                 {/* RED HIGHLIGHTED TIP MESSAGE */}
                 <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
                   <p className="text-red-700 text-sm font-medium flex items-center">
                     <span className="mr-2">💡</span>
-                    Type "full tank" in remarks  maximum quantity
+                    Type "full tank" in Remark to automatically set maximum quantity
                   </p>
                 </div>
               </div>
