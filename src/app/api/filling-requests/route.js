@@ -23,6 +23,7 @@ export async function GET(request) {
 
     const offset = (page - 1) * recordsPerPage;
 
+    // Base query
     let query = `
       SELECT 
         fr.*, 
@@ -88,8 +89,10 @@ export async function GET(request) {
       countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
     }
 
-    // FIX: Inject LIMIT directly (cannot use placeholders)
-    query += ` ORDER BY fr.id DESC LIMIT ${offset}, ${recordsPerPage}`;
+    // ✅ FIX: LIMIT cannot use placeholders, inject directly with safety checks
+    const safeOffset = Math.max(0, offset);
+    const safeRecordsPerPage = Math.min(Math.max(1, recordsPerPage), 100);
+    query += ` ORDER BY fr.id DESC LIMIT ${safeOffset}, ${safeRecordsPerPage}`;
 
     console.log('📋 Executing queries...');
 
@@ -104,7 +107,7 @@ export async function GET(request) {
 
     console.log('✅ Raw requests from database:', requests.length);
 
-    // Process requests with eligibility check
+    // Process eligibility
     const processedRequests = requests.map((request) => {
       let eligibility = 'N/A';
       let eligibility_reason = '';
@@ -126,8 +129,6 @@ export async function GET(request) {
       };
     });
 
-    console.log('✅ Processed requests:', processedRequests.length);
-
     const responseData = {
       requests: processedRequests,
       currentPage: page,
@@ -143,10 +144,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('❌ Database error:', error);
     return NextResponse.json(
-      {
-        error: 'Internal server error',
-        details: error.message
-      },
+      { error: 'Internal server error', details: error.message },
       { status: 500 }
     );
   }
