@@ -83,8 +83,10 @@ export async function GET(request) {
       countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
     }
 
-    query += ' ORDER BY fr.id DESC LIMIT ?, ?';
-    params.push(offset, recordsPerPage);
+    // query += ' ORDER BY fr.id DESC LIMIT ?, ?';
+    // params.push(offset, recordsPerPage);
+    query += ` ORDER BY fr.id DESC LIMIT ${offset}, ${recordsPerPage}`;
+
 
     console.log('📋 Executing queries...');
 
@@ -99,27 +101,17 @@ export async function GET(request) {
 
     console.log('✅ Raw requests from database:', requests.length);
 
-    // Process requests with eligibility check
-    const processedRequests = requests.map((request) => {
-      let eligibility = 'N/A';
-      let eligibility_reason = '';
-      
-      if (request.status === 'Pending') {
-        if (request.customer_balance === 0 || request.customer_balance < (request.qty * 100)) {
-          eligibility = 'No';
-          eligibility_reason = 'Insufficient Balance';
-        } else {
-          eligibility = 'Yes';
-          eligibility_reason = '';
-        }
-      }
+    if (request.status === 'Pending') {
+  const qty = parseFloat(request.qty) || 0;
+  const balance = parseFloat(request.customer_balance) || 0;
+  if (balance === 0 || balance < qty * 100) {
+    eligibility = 'No';
+    eligibility_reason = 'Insufficient Balance';
+  } else {
+    eligibility = 'Yes';
+  }
+}
 
-      return {
-        ...request,
-        eligibility,
-        eligibility_reason
-      };
-    });
 
     console.log('✅ Processed requests:', processedRequests.length);
 
