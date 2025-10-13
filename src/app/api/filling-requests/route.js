@@ -101,28 +101,52 @@ export async function GET(request) {
 
     console.log('✅ Raw requests from database:', requests.length);
 
-    if (request.status === 'Pending') {
-  const qty = parseFloat(request.qty) || 0;
-  const balance = parseFloat(request.customer_balance) || 0;
-  if (balance === 0 || balance < qty * 100) {
-    eligibility = 'No';
-    eligibility_reason = 'Insufficient Balance';
-  } else {
-    eligibility = 'Yes';
-  }
-}
+let processedRequests = []; // define at the top
 
+if (requests && requests.length > 0) {
+  processedRequests = requests.map((request) => {
+    let eligibility = 'N/A';
+    let eligibility_reason = '';
+
+    const qty = parseFloat(request.qty) || 0;
+    const balance = parseFloat(request.customer_balance) || 0;
+
+    if (request.status === 'Pending') {
+      if (balance === 0 || balance < qty * 100) {
+        eligibility = 'No';
+        eligibility_reason = 'Insufficient Balance';
+      } else {
+        eligibility = 'Yes';
+      }
+    }
+
+    return {
+      ...request,
+      eligibility,
+      eligibility_reason
+    };
+  });
+}
 
     console.log('✅ Processed requests:', processedRequests.length);
 
     // Return the full response object that frontend expects
+    // const responseData = {
+    //   requests: processedRequests,
+    //   currentPage: page,
+    //   recordsPerPage: recordsPerPage,
+    //   totalRecords: totalRecords,
+    //   totalPages: Math.ceil(totalRecords / recordsPerPage)
+    // };
+
     const responseData = {
-      requests: processedRequests,
-      currentPage: page,
-      recordsPerPage: recordsPerPage,
-      totalRecords: totalRecords,
-      totalPages: Math.ceil(totalRecords / recordsPerPage)
-    };
+  requests: processedRequests,
+  currentPage: page,
+  recordsPerPage: recordsPerPage,
+  totalRecords: totalRecords,
+  totalPages: Math.ceil(totalRecords / recordsPerPage)
+};
+
 
     console.log('🚀 API CALL COMPLETED.', responseData);
     
