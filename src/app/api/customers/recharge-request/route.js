@@ -1,6 +1,21 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from 'next/server';
 
+// CORS headers configuration
+const corsHeaders = {
+  'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+}
+
+// Handle CORS preflight requests
+export async function OPTIONS() {
+  return NextResponse.json({}, { 
+    status: 200,
+    headers: corsHeaders 
+  });
+}
+
 export async function POST(request) {
   try {
     const formData = await request.json();
@@ -15,11 +30,19 @@ export async function POST(request) {
       com_id
     } = formData;
 
+    // Validate required fields
+    if (!com_id) {
+      return NextResponse.json(
+        { error: 'Customer ID is required' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     // Validate amount
-    if (amount <= 0) {
+    if (!amount || amount <= 0) {
       return NextResponse.json(
         { error: 'Invalid amount. Amount must be greater than 0.' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -27,7 +50,7 @@ export async function POST(request) {
     if (!payment_date || !/^\d{4}-\d{2}-\d{2}$/.test(payment_date)) {
       return NextResponse.json(
         { error: 'Invalid date format. Use YYYY-MM-DD.' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -40,7 +63,7 @@ export async function POST(request) {
     if (balanceResult.length === 0) {
       return NextResponse.json(
         { error: 'Customer balance not found' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -51,13 +74,13 @@ export async function POST(request) {
     const new_balance = old_balance - amount;
     const status = 'Approved';
 
-    // Start transaction - implement proper transaction handling with your database library
+    // Start transaction
     try {
       // Insert into recharge_wallets
       await executeQuery(
         `INSERT INTO recharge_wallets (status, payment_type, payment_date, amount, transaction_id, utr_no, comments, com_id) 
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [status, payment_type, payment_date, amount, transaction_id, utr_no, comments, com_id]
+        [status, payment_type, payment_date, amount, transaction_id || null, utr_no || null, comments || null, com_id]
       );
 
       // Update customer_balances
@@ -91,23 +114,36 @@ export async function POST(request) {
       }
 
       return NextResponse.json(
-        { success: true, message: 'Recharge added successfully.' },
-        { status: 200 }
+        { 
+          success: true, 
+          message: 'Recharge added successfully.',
+          data: {
+            new_balance,
+            new_limit
+          }
+        },
+        { status: 200, headers: corsHeaders }
       );
 
     } catch (dbError) {
       console.error('Database transaction error:', dbError);
       return NextResponse.json(
-        { error: 'Failed to process recharge request - transaction failed' },
-        { status: 500 }
+        { 
+          error: 'Failed to process recharge request - transaction failed',
+          details: process.env.NODE_ENV === 'development' ? dbError.message : undefined
+        },
+        { status: 500, headers: corsHeaders }
       );
     }
 
   } catch (error) {
     console.error('Request processing error:', error);
     return NextResponse.json(
-      { error: 'Failed to process recharge request' },
-      { status: 500 }
+      { 
+        error: 'Failed to process recharge request',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
+      { status: 500, headers: corsHeaders }
     );
   }
 }
@@ -120,7 +156,16 @@ export async function GET(request) {
     if (!id) {
       return NextResponse.json(
         { error: 'Customer ID is required' },
-        { status: 400 }
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
+    // Validate customer ID
+    const customerId = parseInt(id);
+    if (isNaN(customerId)) {
+      return NextResponse.json(
+        { error: 'Invalid Customer ID' },
+        { status: 400, headers: corsHeaders }
       );
     }
 
@@ -128,18 +173,18 @@ export async function GET(request) {
     const [customerResult, balanceResult] = await Promise.all([
       executeQuery(
         'SELECT name, phone FROM customers WHERE id = ?',
-        [parseInt(id)]
+        [customerId]
       ),
       executeQuery(
         'SELECT balance, amtlimit FROM customer_balances WHERE com_id = ?',
-        [parseInt(id)]
+        [customerId]
       )
     ]);
 
     if (customerResult.length === 0) {
       return NextResponse.json(
         { error: 'Customer not found' },
-        { status: 404 }
+        { status: 404, headers: corsHeaders }
       );
     }
 
@@ -150,21 +195,25 @@ export async function GET(request) {
     };
 
     return NextResponse.json({
+      success: true,
       customer: {
         name: customer.name || 'No name found',
         phone: customer.phone || 'No phone found'
       },
       balance: {
-        current_balance: balance.balance || 0,
-        current_limit: balance.amtlimit || 0
+        current_balance: Number(balance.balance) || 0,
+        current_limit: Number(balance.amtlimit) || 0
       }
-    });
+    }, { headers: corsHeaders });
 
   } catch (error) {
     console.error('Error fetching customer data:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch customer data' },
-      { status: 500 }
+      { 
+        error: 'Failed to fetch customer data',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      },
+      { status: 500, headers: corsHeaders }
     );
   }
 }

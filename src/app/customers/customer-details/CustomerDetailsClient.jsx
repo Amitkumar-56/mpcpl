@@ -1,7 +1,24 @@
 'use client';
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+
+// Status utility function
+const getStatusInfo = (status) => {
+  const activeStatuses = ['Yes', 'yes', 'Active', 'active', 'true', true, 1, '1'];
+  const isActive = activeStatuses.includes(status);
+  
+  return {
+    isActive,
+    displayText: isActive ? 'Active' : 'Inactive',
+    className: isActive 
+      ? 'bg-green-100 text-green-800' 
+      : 'bg-red-100 text-red-800'
+  };
+};
 
 export default function CustomerDetailsClient() {
   const searchParams = useSearchParams();
@@ -18,18 +35,42 @@ export default function CustomerDetailsClient() {
   const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (id) fetchCustomerDetails();
+    if (id) {
+      fetchCustomerDetails();
+    } else {
+      setError('Customer ID is missing');
+      setLoading(false);
+    }
   }, [id]);
 
   const fetchCustomerDetails = async () => {
     try {
       setLoading(true);
+      setError('');
+      
       const res = await fetch(`/api/customers/customer-details?id=${id}`);
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to fetch customer details');
+      
+      if (!res.ok) {
+        throw new Error(data.error || `Failed to fetch customer details: ${res.status}`);
+      }
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (!data.customer) {
+        throw new Error('Customer data not found in response');
+      }
+      
+      // Debugging के लिए
+      console.log('Customer Status from API:', data.customer.status);
+      console.log('Status Type:', typeof data.customer.status);
+      
       setCustomer(data.customer);
     } catch (err) {
-      setError(err.message);
+      console.error('Error in fetchCustomerDetails:', err);
+      setError(err.message || 'Failed to load customer details');
     } finally {
       setLoading(false);
     }
@@ -37,6 +78,7 @@ export default function CustomerDetailsClient() {
 
   const handleClearHoldBalance = async () => {
     if (!confirm('Are you sure you want to clear the holding balance?')) return;
+    
     try {
       setActionLoading(true);
       const res = await fetch('/api/customers/customer-details', {
@@ -44,12 +86,17 @@ export default function CustomerDetailsClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'clear_hold_balance', id }),
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
-      fetchCustomerDetails();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to clear hold balance');
+      }
+      
+      alert(data.message || 'Hold balance cleared successfully');
+      fetchCustomerDetails(); // Refresh data
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Error clearing hold balance');
     } finally {
       setActionLoading(false);
     }
@@ -58,6 +105,7 @@ export default function CustomerDetailsClient() {
   const handleAddUser = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    
     try {
       setActionLoading(true);
       const res = await fetch('/api/customers/customer-details', {
@@ -72,13 +120,18 @@ export default function CustomerDetailsClient() {
           password: formData.get('password'),
         }),
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to add user');
+      }
+      
+      alert(data.message || 'User added successfully');
       setShowAddUserModal(false);
-      fetchCustomerDetails();
+      fetchCustomerDetails(); // Refresh data
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Error adding user');
     } finally {
       setActionLoading(false);
     }
@@ -87,6 +140,7 @@ export default function CustomerDetailsClient() {
   const handleUpdatePassword = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
+    
     try {
       setActionLoading(true);
       const res = await fetch('/api/customers/customer-details', {
@@ -98,172 +152,229 @@ export default function CustomerDetailsClient() {
           newPassword: formData.get('password'),
         }),
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to update password');
+      }
+      
+      alert(data.message || 'Password updated successfully');
       setShowPasswordModal(false);
       setSelectedUser(null);
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Error updating password');
     } finally {
       setActionLoading(false);
     }
   };
 
   const handleDeleteUser = async (userId) => {
-    if (!confirm('Are you sure you want to delete this user?')) return;
+    if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) return;
+    
     try {
       const res = await fetch('/api/customers/customer-details', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete_user', userId }),
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      alert(data.message);
-      fetchCustomerDetails();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to delete user');
+      }
+      
+      alert(data.message || 'User deleted successfully');
+      fetchCustomerDetails(); // Refresh data
     } catch (err) {
-      alert(err.message);
+      alert(err.message || 'Error deleting user');
     }
   };
 
-  if (loading)
+  // Loading state
+  if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-
-  if (error)
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 text-xl mb-4">Error: {error}</div>
-          <button
-            onClick={() => router.back()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Go Back
-          </button>
+      <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading customer details...</p>
+            </div>
+          </div>
+          <Footer />
         </div>
       </div>
     );
+  }
 
-  if (!customer)
+  // Error state
+  if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-gray-600 text-xl mb-4">Customer not found</div>
-          <button
-            onClick={() => router.back()}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-          >
-            Go Back
-          </button>
+      <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-red-600 text-xl mb-4">Error: {error}</div>
+              <div className="space-x-4">
+                <button
+                  onClick={() => router.back()}
+                  className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+                >
+                  Go Back
+                </button>
+                <button
+                  onClick={fetchCustomerDetails}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                >
+                  Try Again
+                </button>
+              </div>
+            </div>
+          </div>
+          <Footer />
         </div>
       </div>
     );
+  }
+
+  // No customer found
+  if (!customer) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-gray-600 text-xl mb-4">Customer not found</div>
+              <button
+                onClick={() => router.back()}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+          </div>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  const statusInfo = getStatusInfo(customer.status);
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center space-x-4">
-              <Link
-                href="/customers"
-                className="text-gray-600 hover:text-gray-900 transition-colors"
-              >
-                <svg
-                  className="w-6 h-6"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
+    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <Sidebar />
+     
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+        
+        {/* Main Content Area - यहाँ scroll होगा */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="min-h-full bg-gray-50">
+            {/* Header */}
+            <div className="bg-white shadow-sm border-b">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex justify-between items-center py-4">
+                  <div className="flex items-center space-x-4">
+                    <Link
+                      href="/customers"
+                      className="text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                        />
+                      </svg>
+                    </Link>
+                    <h1 className="text-2xl font-bold text-gray-900">Customer Details</h1>
+                  </div>
+                  <Link
+                    href={`/customers/update-customer?id=${customer.id}`}
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Edit Customer
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              {/* Customer Summary Card */}
+              <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <h2 className="text-2xl font-bold text-gray-900">{customer.name}</h2>
+                    <p className="text-gray-600 mt-1">ID: {customer.id}</p>
+                  </div>
+                  <div className="mt-4 lg:mt-0 flex flex-wrap gap-2">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.className}`}>
+                      {statusInfo.displayText}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Tabs - अब केवल 2 tabs हैं */}
+              <div className="bg-white rounded-xl shadow-sm border mb-6">
+                <nav className="flex space-x-8 px-6">
+                  {['details', 'users'].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors ${
+                        activeTab === tab
+                          ? 'border-blue-500 text-blue-600'
+                          : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                      }`}
+                    >
+                      {tab.replace('-', ' ')}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Tab Content */}
+              <div className="bg-white rounded-xl shadow-sm border">
+                {activeTab === 'details' && (
+                  <DetailsTab customer={customer} onClearHoldBalance={handleClearHoldBalance} actionLoading={actionLoading} />
+                )}
+                {activeTab === 'users' && (
+                  <UsersTab
+                    customer={customer}
+                    onAddUser={() => setShowAddUserModal(true)}
+                    onEditUser={(user) => {
+                      setSelectedUser(user);
+                      setShowPasswordModal(true);
+                    }}
+                    onDeleteUser={handleDeleteUser}
                   />
-                </svg>
-              </Link>
-              <h1 className="text-2xl font-bold text-gray-900">Customer Details</h1>
-            </div>
-            <Link
-              href={`/customers/update-customer?id=${customer.id}`}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              Edit Customer
-            </Link>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Customer Summary Card */}
-        <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900">{customer.name}</h2>
-              <p className="text-gray-600 mt-1">ID: {customer.id}</p>
-            </div>
-            <div className="mt-4 lg:mt-0 flex flex-wrap gap-2">
-              <span
-                className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                  customer.status === 'Yes'
-                    ? 'bg-green-100 text-green-800'
-                    : 'bg-red-100 text-red-800'
-                }`}
-              >
-                {customer.status === 'Yes' ? 'Active' : 'Inactive'}
-              </span>
-            </div>
+                )}
+              </div>
+            </main>
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="bg-white rounded-xl shadow-sm border mb-6">
-          <nav className="flex space-x-8 px-6">
-            {['details', 'users', 'deal-prices', 'activity'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`py-4 px-1 border-b-2 font-medium text-sm capitalize transition-colors ${
-                  activeTab === tab
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                {tab.replace('-', ' ')}
-              </button>
-            ))}
-          </nav>
-        </div>
+        {/* Footer - यहाँ fixed रहेगा */}
+        <Footer />
+      </div>
 
-        {/* Tab Content */}
-        <div className="bg-white rounded-xl shadow-sm border">
-          {activeTab === 'details' && (
-            <DetailsTab customer={customer} onClearHoldBalance={handleClearHoldBalance} />
-          )}
-          {activeTab === 'users' && (
-            <UsersTab
-              customer={customer}
-              onAddUser={() => setShowAddUserModal(true)}
-              onEditUser={(user) => {
-                setSelectedUser(user);
-                setShowPasswordModal(true);
-              }}
-              onDeleteUser={handleDeleteUser}
-            />
-          )}
-          {activeTab === 'deal-prices' && <DealPricesTab customer={customer} />}
-          {activeTab === 'activity' && <ActivityTab customer={customer} />}
-        </div>
-      </main>
-
-      {/* Modals */}
+      {/* Modals - ये overlay में रहेंगे */}
       {showAddUserModal && (
         <AddUserModal
           onClose={() => setShowAddUserModal(false)}
@@ -288,7 +399,7 @@ export default function CustomerDetailsClient() {
 
 // --- Tab Components ---
 
-function DetailsTab({ customer, onClearHoldBalance }) {
+function DetailsTab({ customer, onClearHoldBalance, actionLoading }) {
   const details = [
     { label: 'Phone', value: customer.phone },
     { label: 'Email', value: customer.email },
@@ -306,15 +417,16 @@ function DetailsTab({ customer, onClearHoldBalance }) {
       label: 'Hold Balance',
       value: (
         <div className="flex items-center space-x-3">
-          <span>
-            ₹{customer.hold_balance?.toLocaleString('en-IN', { minimumFractionDigits: 2 }) || '0.00'}
+          <span className="font-semibold">
+            ₹{(customer.hold_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
           </span>
           {customer.hold_balance > 0 && (
             <button
               onClick={onClearHoldBalance}
-              className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 transition-colors"
+              disabled={actionLoading}
+              className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 disabled:opacity-50 transition-colors"
             >
-              Clear Holding Balance
+              {actionLoading ? 'Clearing...' : 'Clear Holding Balance'}
             </button>
           )}
         </div>
@@ -352,59 +464,49 @@ function UsersTab({ customer, onAddUser, onEditUser, onDeleteUser }) {
         </button>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {customer.users?.map((user, index) => (
-              <tr key={user.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.name}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.phone}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                  <button
-                    onClick={() => onEditUser(user)}
-                    className="text-blue-600 hover:text-blue-900"
-                  >
-                    Update Password
-                  </button>
-                  <button
-                    onClick={() => onDeleteUser(user.id)}
-                    className="text-red-600 hover:text-red-900"
-                  >
-                    Delete
-                  </button>
-                </td>
+      {customer.users && customer.users.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
-}
-
-function DealPricesTab({ customer }) {
-  return (
-    <div className="p-6 text-gray-700">
-      <p>Deal Prices content goes here for customer: {customer.name}</p>
-    </div>
-  );
-}
-
-function ActivityTab({ customer }) {
-  return (
-    <div className="p-6 text-gray-700">
-      <p>Activity content goes here for customer: {customer.name}</p>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {customer.users.map((user, index) => (
+                <tr key={user.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{user.phone}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button
+                      onClick={() => onEditUser(user)}
+                      className="text-blue-600 hover:text-blue-900 transition-colors"
+                    >
+                      Update Password
+                    </button>
+                    <button
+                      onClick={() => onDeleteUser(user.id)}
+                      className="text-red-600 hover:text-red-900 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          No users found for this customer.
+        </div>
+      )}
     </div>
   );
 }
@@ -413,53 +515,64 @@ function ActivityTab({ customer }) {
 
 function AddUserModal({ onClose, onSubmit, loading }) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold mb-4">Add User</h3>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <input 
-            name="client_name" 
-            placeholder="Name" 
-            required 
-            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-          />
-          <input 
-            name="email" 
-            type="email" 
-            placeholder="Email" 
-            required 
-            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-          />
-          <input 
-            name="phone" 
-            placeholder="Phone" 
-            required 
-            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-          />
-          <input 
-            name="password" 
-            type="password" 
-            placeholder="Password" 
-            required 
-            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-          />
-          <div className="flex justify-end space-x-2">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={loading} 
-              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Adding...' : 'Add User'}
-            </button>
-          </div>
-        </form>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Add User</h3>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <input 
+                name="client_name" 
+                placeholder="Full Name" 
+                required 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+            </div>
+            <div>
+              <input 
+                name="email" 
+                type="email" 
+                placeholder="Email Address" 
+                required 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+            </div>
+            <div>
+              <input 
+                name="phone" 
+                placeholder="Phone Number" 
+                required 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+            </div>
+            <div>
+              <input 
+                name="password" 
+                type="password" 
+                placeholder="Password" 
+                required 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button 
+                type="button" 
+                onClick={onClose} 
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Adding...' : 'Add User'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
@@ -467,34 +580,40 @@ function AddUserModal({ onClose, onSubmit, loading }) {
 
 function UpdatePasswordModal({ user, onClose, onSubmit, loading }) {
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6">
-        <h3 className="text-lg font-semibold mb-4">Update Password for {user.name}</h3>
-        <form onSubmit={onSubmit} className="space-y-4">
-          <input 
-            name="password" 
-            type="password" 
-            placeholder="New Password" 
-            required 
-            className="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-          />
-          <div className="flex justify-end space-x-2">
-            <button 
-              type="button" 
-              onClick={onClose} 
-              className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 transition-colors"
-            >
-              Cancel
-            </button>
-            <button 
-              type="submit" 
-              disabled={loading} 
-              className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-            >
-              {loading ? 'Updating...' : 'Update Password'}
-            </button>
-          </div>
-        </form>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Update Password for {user.name}</h3>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <input 
+                name="password" 
+                type="password" 
+                placeholder="New Password" 
+                required 
+                minLength={6}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button 
+                type="button" 
+                onClick={onClose} 
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Updating...' : 'Update Password'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

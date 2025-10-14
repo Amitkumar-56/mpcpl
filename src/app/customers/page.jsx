@@ -8,10 +8,10 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BiCoin,
-  BiDollar,
   BiEdit,
   BiMessage,
   BiPlus,
+  BiRupee,
   BiSearch,
   BiShow,
   BiTrash
@@ -163,7 +163,7 @@ export default function CustomersPage() {
     },
     {
       key: 'recharge-request',
-      icon: BiDollar,
+      icon: BiRupee ,
       label: 'Recharge',
       href: (id) => `/customers/recharge-request?id=${id}`,
       color: 'bg-purple-500 hover:bg-purple-600',

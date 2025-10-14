@@ -1,3 +1,4 @@
+//src/app/customers/client-history/TransactionHistory.jsx
 'use client';
 
 import Footer from "components/Footer";
@@ -12,6 +13,7 @@ export default function TransactionHistory() {
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [customerDetails, setCustomerDetails] = useState(null);
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
@@ -26,8 +28,19 @@ export default function TransactionHistory() {
     if (customerId) {
       fetchClientHistory();
       fetchProducts();
+      fetchCustomerDetails();
     }
   }, [customerId, page, searchQuery, productFilter]);
+
+  const fetchCustomerDetails = async () => {
+    try {
+      const res = await fetch(`/api/customers/${customerId}`);
+      const result = await res.json();
+      if (result.success) setCustomerDetails(result.data);
+    } catch (err) {
+      console.error('Error fetching customer details:', err);
+    }
+  };
 
   const fetchProducts = async () => {
     try {
@@ -95,8 +108,21 @@ export default function TransactionHistory() {
 
   // Calculate outstanding balance safely
   const outstandingBalance = historyData.transactions?.reduce((total, item) => {
-    return total + (parseFloat(item.amount) || 0);
+    return total + (parseFloat(item.outstanding_amount) || 0);
   }, 0) || 0;
+
+  // Calculate total credit limit
+  const totalCreditLimit = customerDetails?.credit_limit || 0;
+
+  // Calculate available limit
+  const availableLimit = totalCreditLimit - outstandingBalance;
+
+  // Check eligibility based on pending invoices and days
+  const isEligible = outstandingBalance === 0 || 
+    (historyData.transactions?.every(transaction => 
+      !transaction.is_pending || 
+      (transaction.pending_days && transaction.pending_days <= customerDetails?.grace_period)
+    ));
 
   if (loading) {
     return (
@@ -114,8 +140,8 @@ export default function TransactionHistory() {
 
   const headers = [
     '#', 'Station', 'Completed Date', 'Product', 'Sub Product', 'Vehicle', 
-    'Type', 'Loading Qty', 'Amount', 'Credit', 'Credit Date', 'Balance', 
-    'Remaining Limit', 'Limit', 'Increase Amount', 'Decrease Amount', 'Updated By'
+    'Type', 'Loading Qty (Ltr)', 'Deal Price', 'Amount', 'Credit', 'Credit Date', 
+    'Outstanding Amount', 'Remaining Limit', 'Limit', 'Pending Days', 'Status', 'Updated By'
   ];
 
   return (
@@ -155,18 +181,62 @@ export default function TransactionHistory() {
               </div>
             </div>
             <div className="flex flex-col md:flex-row md:items-center gap-2">
+              {/* Eligibility Status */}
+              <span className={`px-3 py-1 rounded-md font-medium text-sm ${
+                isEligible 
+                  ? 'bg-green-500 text-white' 
+                  : 'bg-red-500 text-white'
+              }`}>
+                {isEligible ? 'Eligible' : 'Not Eligible'}
+              </span>
+              
+              {/* Outstanding Balance */}
               <span className="bg-blue-500 text-white px-3 py-1 rounded-md font-medium text-sm">
                 Outstanding: ₹{outstandingBalance.toFixed(2)}
               </span>
+              
+              {/* Available Limit */}
+              <span className="bg-green-500 text-white px-3 py-1 rounded-md font-medium text-sm">
+                Available Limit: ₹{availableLimit.toFixed(2)}
+              </span>
+              
               <button 
                 onClick={handleExportCSV}
-                className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors text-sm"
+                className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors text-sm"
               >
                 <span>⬇</span>
                 Export CSV
               </button>
             </div>
           </div>
+
+          {/* Customer Summary Card */}
+          {customerDetails && (
+            <div className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                <div>
+                  <div className="text-gray-500">Customer Name</div>
+                  <div className="font-semibold">{customerDetails.name}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Credit Limit</div>
+                  <div className="font-semibold">₹{customerDetails.credit_limit?.toFixed(2)}</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Grace Period</div>
+                  <div className="font-semibold">{customerDetails.grace_period} days</div>
+                </div>
+                <div>
+                  <div className="text-gray-500">Account Status</div>
+                  <div className={`font-semibold ${
+                    customerDetails.account_status === 'active' ? 'text-green-600' : 'text-red-600'
+                  }`}>
+                    {customerDetails.account_status?.toUpperCase()}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (
@@ -251,7 +321,7 @@ export default function TransactionHistory() {
                           {item.station_name || 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}
+                          {item.completed_date ? new Date(item.completed_date).toLocaleDateString() : 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {item.product_name || 'N/A'}
@@ -264,13 +334,17 @@ export default function TransactionHistory() {
                         </td>
                         <td className="px-4 py-3 text-sm">
                           <span className={`px-2 py-1 rounded-md text-white text-xs font-medium ${
-                            item.trans_type === 'credit' ? 'bg-green-500' : 'bg-yellow-500'
+                            item.trans_type === 'credit' ? 'bg-green-500' : 
+                            item.trans_type === 'inward' ? 'bg-blue-500' : 'bg-yellow-500'
                           }`}>
                             {item.trans_type || 'N/A'}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.quantity || '0'}
+                          {item.quantity || '0'} Ltr
+                        </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          ₹{parseFloat(item.deal_price || 0).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-sm text-blue-600 font-medium">
                           ₹{parseFloat(item.amount || 0).toFixed(2)}
@@ -281,20 +355,26 @@ export default function TransactionHistory() {
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {item.credit_date || 'N/A'}
                         </td>
-                        <td className="px-4 py-3 text-sm font-semibold text-gray-900">
-                          ₹{parseFloat(item.balance || 0).toFixed(2)}
+                        <td className={`px-4 py-3 text-sm font-semibold ${
+                          item.outstanding_amount > 0 ? 'text-red-600' : 'text-green-600'
+                        }`}>
+                          ₹{parseFloat(item.outstanding_amount || 0).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.remaining_limit || 'N/A'}
+                          ₹{parseFloat(item.remaining_limit || 0).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.limit || 'N/A'}
+                          ₹{parseFloat(item.limit || 0).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.increase_amount || 'N/A'}
+                          {item.pending_days || 0} days
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.decrease_amount || 'N/A'}
+                        <td className="px-4 py-3 text-sm">
+                          <span className={`px-2 py-1 rounded-md text-white text-xs font-medium ${
+                            item.is_pending ? 'bg-red-500' : 'bg-green-500'
+                          }`}>
+                            {item.is_pending ? 'Pending' : 'Completed'}
+                          </span>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {item.employee_name || 'System'}
@@ -330,7 +410,7 @@ export default function TransactionHistory() {
                     <div className="flex justify-between">
                       <span className="text-gray-500">Date</span>
                       <span className="font-semibold">
-                        {item.created_at ? new Date(item.created_at).toLocaleDateString() : 'N/A'}
+                        {item.completed_date ? new Date(item.completed_date).toLocaleDateString() : 'N/A'}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -340,10 +420,19 @@ export default function TransactionHistory() {
                     <div className="flex justify-between">
                       <span className="text-gray-500">Type</span>
                       <span className={`px-2 py-1 rounded text-white text-xs ${
-                        item.trans_type === 'credit' ? 'bg-green-500' : 'bg-yellow-500'
+                        item.trans_type === 'credit' ? 'bg-green-500' : 
+                        item.trans_type === 'inward' ? 'bg-blue-500' : 'bg-yellow-500'
                       }`}>
                         {item.trans_type || 'N/A'}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Qty</span>
+                      <span className="font-semibold">{item.quantity || '0'} Ltr</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Deal Price</span>
+                      <span className="font-semibold">₹{parseFloat(item.deal_price || 0).toFixed(2)}</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Amount</span>
@@ -352,10 +441,24 @@ export default function TransactionHistory() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-500">Balance</span>
-                      <span className="font-semibold">
-                        ₹{parseFloat(item.balance || 0).toFixed(2)}
+                      <span className="text-gray-500">Outstanding</span>
+                      <span className={`font-semibold ${
+                        item.outstanding_amount > 0 ? 'text-red-600' : 'text-green-600'
+                      }`}>
+                        ₹{parseFloat(item.outstanding_amount || 0).toFixed(2)}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Status</span>
+                      <span className={`px-2 py-1 rounded text-white text-xs ${
+                        item.is_pending ? 'bg-red-500' : 'bg-green-500'
+                      }`}>
+                        {item.is_pending ? 'Pending' : 'Completed'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-500">Pending Days</span>
+                      <span className="font-semibold">{item.pending_days || 0} days</span>
                     </div>
                     <div className="flex justify-between">
                       <span className="text-gray-500">Updated By</span>
