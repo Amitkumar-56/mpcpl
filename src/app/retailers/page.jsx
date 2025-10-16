@@ -259,7 +259,6 @@ export default function RetailersPage() {
             </div>
           </div>
         </main>
-
         <Footer />
       </div>
     </div>
