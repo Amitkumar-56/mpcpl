@@ -1,5 +1,4 @@
-
-//src/app/customers/recharge-request/RechargeRequestPage.jsx
+// src/app/customers/recharge-request/RechargeRequestPage.jsx
 "use client";
 
 import Footer from "@/components/Footer";
@@ -40,12 +39,19 @@ export default function RechargeRequestPage() {
   const fetchCustomerData = async () => {
     try {
       setPageLoading(true);
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/customers/recharge-request?id=${customerId}`
-      );
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      setError("");
+      
+      const response = await fetch(`/api/customers/recharge-request?id=${customerId}`);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
-      if (data.customer && data.balance) {
+      
+      if (data.success && data.customer && data.balance) {
         setCustomerData({
           customer: {
             name: data.customer.name || "No name found",
@@ -57,11 +63,11 @@ export default function RechargeRequestPage() {
           },
         });
       } else {
-        setError(data.error || "Failed to fetch customer data");
+        throw new Error(data.error || "Failed to fetch customer data");
       }
     } catch (err) {
       console.error("Fetch error:", err);
-      setError("Network error occurred while fetching customer data");
+      setError(err.message || "Network error occurred while fetching customer data");
     } finally {
       setPageLoading(false);
     }
@@ -84,22 +90,34 @@ export default function RechargeRequestPage() {
     }
 
     try {
-      const response = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/customers/recharge-request`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...formData,
-            com_id: parseInt(customerId),
-            amount: parseFloat(formData.amount),
-          }),
-        }
-      );
+      const payload = {
+        ...formData,
+        com_id: parseInt(customerId),
+        amount: parseFloat(formData.amount),
+      };
 
-      const data = await response.json();
+      console.log('Sending payload:', payload);
 
-      if (response.ok) {
+      const response = await fetch('/api/customers/recharge-request', {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const responseText = await response.text();
+      console.log('Raw response:', responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('JSON Parse Error:', parseError);
+        throw new Error('Invalid JSON response from server');
+      }
+
+      if (response.ok && data.success) {
         alert("Recharge added successfully!");
         setShowModal(false);
         setFormData({
@@ -110,13 +128,13 @@ export default function RechargeRequestPage() {
           utr_no: "",
           comments: "",
         });
-        fetchCustomerData();
+        fetchCustomerData(); // Refresh customer data
       } else {
         setError(data.error || "Failed to process recharge");
       }
     } catch (err) {
       console.error("Submit error:", err);
-      setError("Network error occurred while processing recharge");
+      setError(err.message || "Network error occurred while processing recharge");
     } finally {
       setLoading(false);
     }
@@ -162,8 +180,16 @@ export default function RechargeRequestPage() {
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
-        <div className="min-h-screen bg-gray-50 relative">
+        <div className="flex-1 overflow-y-auto bg-gray-50 relative">
           {/* Customer Info Card */}
+                   <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
+            <button
+              onClick={() => router.push("/customers")}
+              className="mb-6 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              ← Back to Customers
+            </button>
+          </div>
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
               <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-indigo-50">
@@ -172,29 +198,51 @@ export default function RechargeRequestPage() {
               <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <div className="text-sm font-medium text-blue-600 mb-1">Customer Name</div>
-                  <div className="text-lg font-semibold text-gray-900">{customerData.customer.name}</div>
+                  <div className="text-lg font-semibold text-gray-900">{customerData?.customer?.name}</div>
                 </div>
                 <div className="text-center p-4 bg-green-50 rounded-lg">
                   <div className="text-sm font-medium text-green-600 mb-1">Phone Number</div>
-                  <div className="text-lg font-semibold text-gray-900">{customerData.customer.phone}</div>
+                  <div className="text-lg font-semibold text-gray-900">{customerData?.customer?.phone}</div>
                 </div>
                 <div className="text-center p-4 bg-purple-50 rounded-lg">
                   <div className="text-sm font-medium text-purple-600 mb-1">Current Balance</div>
-                  <div className="text-lg font-semibold text-gray-900">{formatCurrency(customerData.balance.current_balance)}</div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatCurrency(customerData?.balance?.current_balance)}
+                  </div>
                 </div>
                 <div className="text-center p-4 bg-orange-50 rounded-lg">
                   <div className="text-sm font-medium text-orange-600 mb-1">Current Limit</div>
-                  <div className="text-lg font-semibold text-gray-900">{formatCurrency(customerData.balance.current_limit)}</div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    {formatCurrency(customerData?.balance?.current_limit)}
+                  </div>
                 </div>
               </div>
             </div>
+
+            {error && (
+              <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <div className="mt-1 text-sm text-red-700">
+                      <p>{error}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Floating Recharge Button */}
           <button
             onClick={() => setShowModal(true)}
             disabled={loading}
-            className="fixed top-6 right-6 z-50 inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold text-base rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+            className="fixed bottom-6 right-6 z-50 inline-flex items-center px-6 py-3 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-semibold text-base rounded-full shadow-lg transition-all duration-300 transform hover:scale-105 hover:shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Recharge Wallet
           </button>
@@ -202,7 +250,7 @@ export default function RechargeRequestPage() {
           {/* Modal */}
           {showModal && (
             <div
-              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]"
+              className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60] p-4"
               onClick={() => !loading && setShowModal(false)}
             >
               <div
@@ -211,9 +259,15 @@ export default function RechargeRequestPage() {
               >
                 <div className="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-blue-600 to-indigo-700">
                   <h2 className="text-lg font-semibold text-white">
-                    Recharge Wallet - {customerData.customer.name}
+                    Recharge Wallet - {customerData?.customer?.name}
                   </h2>
-                  <button onClick={() => setShowModal(false)} className="text-white hover:text-gray-200">✕</button>
+                  <button 
+                    onClick={() => setShowModal(false)} 
+                    disabled={loading}
+                    className="text-white hover:text-gray-200 disabled:opacity-50"
+                  >
+                    ✕
+                  </button>
                 </div>
 
                 <form onSubmit={handleSubmit} className="p-6 space-y-6">
@@ -229,8 +283,9 @@ export default function RechargeRequestPage() {
                       required
                       step="0.01"
                       min="0.01"
-                      className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Enter Amount"
+                      disabled={loading}
                     />
                   </div>
 
@@ -241,7 +296,8 @@ export default function RechargeRequestPage() {
                       name="payment_date"
                       value={formData.payment_date}
                       onChange={handleInputChange}
-                      className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
                     />
                   </div>
 
@@ -251,7 +307,8 @@ export default function RechargeRequestPage() {
                       name="payment_type"
                       value={formData.payment_type}
                       onChange={handleInputChange}
-                      className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      disabled={loading}
                     >
                       <option value="2">RTGS</option>
                       <option value="3">NEFT</option>
@@ -261,6 +318,7 @@ export default function RechargeRequestPage() {
                     </select>
                   </div>
 
+
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">Remarks</label>
                     <input
@@ -268,8 +326,9 @@ export default function RechargeRequestPage() {
                       name="comments"
                       value={formData.comments}
                       onChange={handleInputChange}
-                      className="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                       placeholder="Optional"
+                      disabled={loading}
                     />
                   </div>
 
@@ -277,16 +336,24 @@ export default function RechargeRequestPage() {
                     <button
                       type="button"
                       onClick={() => setShowModal(false)}
-                      className="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100"
+                      disabled={loading}
+                      className="px-5 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-100 disabled:opacity-50"
                     >
                       Close
                     </button>
                     <button
                       type="submit"
                       disabled={loading}
-                      className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center"
                     >
-                      {loading ? "Saving..." : "Save Changes"}
+                      {loading ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
+                          Processing...
+                        </>
+                      ) : (
+                        "Save Changes"
+                      )}
                     </button>
                   </div>
                 </form>

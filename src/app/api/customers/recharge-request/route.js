@@ -1,14 +1,13 @@
+// src/app/api/customers/recharge-request/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from 'next/server';
 
-// CORS headers configuration
 const corsHeaders = {
-  'Access-Control-Allow-Origin': process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000',
+  'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-}
+};
 
-// Handle CORS preflight requests
 export async function OPTIONS() {
   return NextResponse.json({}, { 
     status: 200,
@@ -18,8 +17,18 @@ export async function OPTIONS() {
 
 export async function POST(request) {
   try {
+    const contentType = request.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      return NextResponse.json(
+        { error: 'Content-Type must be application/json' },
+        { status: 400, headers: corsHeaders }
+      );
+    }
+
     const formData = await request.json();
     
+    console.log('Received form data:', formData);
+
     const {
       amount,
       payment_date,
@@ -38,7 +47,6 @@ export async function POST(request) {
       );
     }
 
-    // Validate amount
     if (!amount || amount <= 0) {
       return NextResponse.json(
         { error: 'Invalid amount. Amount must be greater than 0.' },
@@ -46,7 +54,6 @@ export async function POST(request) {
       );
     }
 
-    // Validate date
     if (!payment_date || !/^\d{4}-\d{2}-\d{2}$/.test(payment_date)) {
       return NextResponse.json(
         { error: 'Invalid date format. Use YYYY-MM-DD.' },
@@ -70,8 +77,8 @@ export async function POST(request) {
     const { amtlimit: old_limit, balance: old_balance } = balanceResult[0];
     
     // Calculate new values
-    const new_limit = old_limit + amount;
-    const new_balance = old_balance - amount;
+    const new_limit = parseFloat(old_limit) + parseFloat(amount);
+    const new_balance = parseFloat(old_balance) - parseFloat(amount);
     const status = 'Approved';
 
     // Start transaction

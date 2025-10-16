@@ -1,3 +1,4 @@
+//src/app/stock/purchase/page.jsx
 import { Suspense } from "react";
 import PurchaseContent from "./PurchaseContent"; // ✅ Removed extra space
 

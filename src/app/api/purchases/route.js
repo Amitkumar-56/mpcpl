@@ -7,9 +7,53 @@ export async function POST(request) {
     const data = await request.json();
 
     // ✅ Input Validation
-    if (!data.supplierName || !data.invoiceNumber || !data.productName) {
+    if (!data.supplier_id || !data.invoiceNumber || !data.product_id) {
       return NextResponse.json(
-        { success: false, message: 'Missing required fields: supplierName, invoiceNumber, productName' },
+        { success: false, message: 'Missing required fields: supplier_id, invoiceNumber, product_id' },
+        { status: 400 }
+      );
+    }
+
+    // Helper functions to get names from IDs
+    const getSupplierName = async (supplierId) => {
+      try {
+        const result = await executeQuery('SELECT name FROM suppliers WHERE id = ?', [supplierId]);
+        return result[0]?.name || null;
+      } catch (error) {
+        console.error('Error fetching supplier name:', error);
+        return null;
+      }
+    };
+
+    const getProductName = async (productId) => {
+      try {
+        const result = await executeQuery('SELECT pname FROM products WHERE id = ?', [productId]);
+        return result[0]?.pname || null;
+      } catch (error) {
+        console.error('Error fetching product name:', error);
+        return null;
+      }
+    };
+
+    const getStationName = async (stationId) => {
+      try {
+        if (!stationId) return null;
+        const result = await executeQuery('SELECT station_name FROM stations WHERE id = ?', [stationId]);
+        return result[0]?.station_name || null;
+      } catch (error) {
+        console.error('Error fetching station name:', error);
+        return null;
+      }
+    };
+
+    // Get names from IDs
+    const supplierName = await getSupplierName(data.supplier_id);
+    const productName = await getProductName(data.product_id);
+    const stationName = await getStationName(data.station_id);
+
+    if (!supplierName || !productName) {
+      return NextResponse.json(
+        { success: false, message: 'Invalid supplier or product ID' },
         { status: 400 }
       );
     }
@@ -17,10 +61,11 @@ export async function POST(request) {
     // ✅ Destructure with defaults
     const {
       type = 'sale',
-      supplierName,
+      supplier_id,
+      product_id,
+      station_id,
       invoiceNumber,
       invoiceDate,
-      productName,
       ewayBillNumber,
       ewayBillExpiryDate,
       density,
@@ -34,26 +79,33 @@ export async function POST(request) {
       creditNote = 0,
       amount,
       status = 'on_the_way',
-      quantityChanged = false
+      quantityChanged = false,
+      quantity_change_reason = '',
+      quantity,
+      unit
     } = data;
 
-    // ✅ SQL Insert Query (matches your DB table exactly)
+    // ✅ SQL Insert Query (includes all table columns)
     const query = `
       INSERT INTO purchases (
-        purchase_type, supplier_name, invoice_number, invoice_date, product_name,
-        eway_bill_number, eway_bill_expiry_date, density, quantity_kg, quantity_ltr,
-        tanker_number, driver_number, lr_no, invoice_amount, debit_note, credit_note, amount,
-        status, quantity_changed
+        purchase_type, supplier_id, supplier_name, product_id, product_name, station_id,
+        invoice_number, invoice_date, eway_bill_number, eway_bill_expiry_date, 
+        density, quantity_kg, quantity_ltr, tanker_number, driver_number, lr_no, 
+        invoice_amount, debit_note, credit_note, amount, status, quantity_changed, 
+        quantity_change_reason, quantity, unit
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const params = [
       type,
+      supplier_id,
       supplierName,
+      product_id,
+      productName,
+      station_id || null,
       invoiceNumber,
       invoiceDate || null,
-      productName,
       ewayBillNumber || null,
       ewayBillExpiryDate || null,
       density || null,
@@ -67,14 +119,20 @@ export async function POST(request) {
       creditNote,
       amount || null,
       status,
-      quantityChanged ? 1 : 0
+      quantityChanged ? 1 : 0,
+      quantity_change_reason,
+      quantity || null,
+      unit || null
     ];
 
-    await executeQuery(query, params);
+    console.log('Executing query with params:', params);
+
+    const result = await executeQuery(query, params);
 
     return NextResponse.json({
       success: true,
-      message: 'Purchase saved successfully!'
+      message: 'Purchase saved successfully!',
+      data: result
     });
   } catch (error) {
     console.error('Error saving purchase:', error);
@@ -99,10 +157,13 @@ export async function GET(request) {
       SELECT 
         id,
         purchase_type AS type,
+        supplier_id,
         supplier_name AS supplierName,
+        product_id,
+        product_name AS productName,
+        station_id,
         invoice_number AS invoiceNumber,
         invoice_date AS invoiceDate,
-        product_name AS productName,
         eway_bill_number AS ewayBillNumber,
         eway_bill_expiry_date AS ewayBillExpiryDate,
         density,
@@ -117,6 +178,9 @@ export async function GET(request) {
         amount,
         status,
         quantity_changed AS quantityChanged,
+        quantity_change_reason,
+        quantity,
+        unit,
         created_at AS createdAt,
         updated_at AS updatedAt
       FROM purchases

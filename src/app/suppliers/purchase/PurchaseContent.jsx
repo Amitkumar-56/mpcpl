@@ -1,18 +1,20 @@
+//src/app/suppliers/purchase/PurchaseContent.jsx
 'use client';
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function PurchaseContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('sale');
   const [purchaseData, setPurchaseData] = useState({
     // Common fields
-    supplierName: '',
+    supplier_id: '',
+    product_id: '',
+    station_id: '',
     invoiceNumber: '',
     invoiceDate: '',
-    productName: '',
     
     // Purchase for Sale fields
     ewayBillNumber: '',
@@ -28,29 +30,85 @@ export default function PurchaseContent() {
     creditNote: '',
 
     // Purchase for Use fields
-    amount: ''
+    amount: '',
+    unit: '',
+    quantity: '',
+    productName: ''
+  });
+
+  const [formData, setFormData] = useState({
+    suppliers: [],
+    products: [],
+    stations: []
   });
 
   const [status, setStatus] = useState('on_the_way');
   const [quantityChanged, setQuantityChanged] = useState(false);
+  const [quantityChangeReason, setQuantityChangeReason] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchDropdownData = async () => {
+      try {
+        const response = await fetch('/api/dropdown-data');
+        if (response.ok) {
+          const data = await response.json();
+          setFormData({
+            suppliers: data.suppliers || [],
+            products: data.products || [],
+            stations: data.stations || []
+          });
+        } else {
+          console.error('Failed to fetch dropdown data');
+        }
+      } catch (error) {
+        console.error('Error fetching dropdown data:', error);
+      }
+    };
+
+    fetchDropdownData();
+  }, []);
 
   const handleInputChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type } = e.target;
     setPurchaseData(prev => ({
       ...prev,
-      [name]: value
+      [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
     
+    // Validate required fields based on tab
+    const requiredFields = {
+      sale: ['supplier_id', 'product_id', 'station_id', 'invoiceNumber', 'invoiceDate', 'invoiceAmount'],
+      use: ['supplier_id', 'product_id', 'invoiceNumber', 'invoiceDate', 'amount', 'quantity', 'unit']
+    };
+
+    const missingFields = requiredFields[activeTab].filter(field => !purchaseData[field]);
+    
+    if (missingFields.length > 0) {
+      alert(`Please fill all required fields: ${missingFields.join(', ')}`);
+      setLoading(false);
+      return;
+    }
+
     const submitData = {
       type: activeTab,
       ...purchaseData,
       status,
-      quantityChanged
+      quantityChanged,
+      quantity_change_reason: quantityChangeReason,
+      // Ensure numeric fields are properly formatted
+      debitNote: purchaseData.debitNote || 0,
+      creditNote: purchaseData.creditNote || 0,
+      // For purchase for use, set quantity_kg from quantity field
+      quantityInKg: activeTab === 'use' ? purchaseData.quantity : purchaseData.quantityInKg
     };
+
+    console.log('Submitting data:', submitData);
 
     try {
       const response = await fetch('/api/purchases', {
@@ -61,44 +119,30 @@ export default function PurchaseContent() {
         body: JSON.stringify(submitData),
       });
 
+      const result = await response.json();
+
       if (response.ok) {
         alert('Purchase data submitted successfully!');
-        // Reset form
-        setPurchaseData({
-          supplierName: '',
-          invoiceNumber: '',
-          invoiceDate: '',
-          productName: '',
-          ewayBillNumber: '',
-          ewayBillExpiryDate: '',
-          density: '',
-          quantityInKg: '',
-          quantityInLtr: '',
-          tankerNumber: '',
-          driverNumber: '',
-          lrNo: '',
-          invoiceAmount: '',
-          debitNote: '',
-          creditNote: '',
-          amount: ''
-        });
-        setStatus('on_the_way');
-        setQuantityChanged(false);
+        resetForm();
       } else {
-        alert('Error submitting purchase data');
+        alert(`Error: ${result.message || 'Failed to submit purchase data'}`);
+        console.error('Backend error:', result);
       }
     } catch (error) {
       console.error('Error submitting purchase:', error);
-      alert('Error submitting purchase data');
+      alert('Network error: Could not connect to server');
+    } finally {
+      setLoading(false);
     }
   };
 
   const resetForm = () => {
     setPurchaseData({
-      supplierName: '',
+      supplier_id: '',
+      product_id: '',
+      station_id: '',
       invoiceNumber: '',
       invoiceDate: '',
-      productName: '',
       ewayBillNumber: '',
       ewayBillExpiryDate: '',
       density: '',
@@ -110,10 +154,14 @@ export default function PurchaseContent() {
       invoiceAmount: '',
       debitNote: '',
       creditNote: '',
-      amount: ''
+      amount: '',
+      unit: '',
+      quantity: '',
+      productName: ''
     });
     setStatus('on_the_way');
     setQuantityChanged(false);
+    setQuantityChangeReason('');
   };
 
   return (
@@ -169,20 +217,57 @@ export default function PurchaseContent() {
           <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             {activeTab === 'sale' ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Purchase for Sale Fields */}
+                {/* Supplier Dropdown */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Supplier Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="supplierName"
-                    value={purchaseData.supplierName}
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Supplier *</label>
+                  <select
+                    name="supplier_id"
+                    value={purchaseData.supplier_id}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
                     required
-                  />
+                  >
+                    <option value="">Select Supplier</option>
+                    {formData.suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
                 </div>
+
+                {/* Product Dropdown */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Product *</label>
+                  <select
+                    name="product_id"
+                    value={purchaseData.product_id}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                    required
+                  >
+                    <option value="">Select Product</option>
+                    {formData.products.map(p => (
+                      <option key={p.id} value={p.id}>{p.pname}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Station Dropdown */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Station *</label>
+                  <select
+                    name="station_id"
+                    value={purchaseData.station_id}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                    required
+                  >
+                    <option value="">Choose Station</option>
+                    {formData.stations.map(s => (
+                      <option key={s.id} value={s.id}>{s.station_name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Eway Bill Number
@@ -274,19 +359,6 @@ export default function PurchaseContent() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="productName"
-                    value={purchaseData.productName}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Tanker Number
                   </label>
                   <input
@@ -335,47 +407,76 @@ export default function PurchaseContent() {
                     required
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Debit Note
-                  </label>
-                  <input
-                    type="text"
-                    name="debitNote"
-                    value={purchaseData.debitNote}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Credit Note
-                  </label>
-                  <input
-                    type="text"
-                    name="creditNote"
-                    value={purchaseData.creditNote}
-                    onChange={handleInputChange}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  />
-                </div>
+             
+                
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Purchase for Use Fields */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Supplier Dropdown for Purchase for Use */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Supplier *</label>
+                  <select
+                    name="supplier_id"
+                    value={purchaseData.supplier_id}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                    required
+                  >
+                    <option value="">Select Supplier</option>
+                    {formData.suppliers.map(s => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Product Dropdown for Purchase for Use */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Select Product *</label>
+                  <select
+                    name="product_id"
+                    value={purchaseData.product_id}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                    required
+                  >
+                    <option value="">Select Product</option>
+                    {formData.products.map(p => (
+                      <option key={p.id} value={p.id}>{p.pname}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Unit Dropdown - Only KG */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Unit *</label>
+                  <select
+                    name="unit"
+                    value={purchaseData.unit}
+                    onChange={handleInputChange}
+                    className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                    required
+                  >
+                    <option value="">Select Unit</option>
+                    <option value="kg">Kilogram (Kg)</option>
+                  </select>
+                </div>
+
+                {/* Quantity in KG */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Supplier Name *
+                    Quantity (Kg) *
                   </label>
                   <input
-                    type="text"
-                    name="supplierName"
-                    value={purchaseData.supplierName}
+                    type="number"
+                    step="0.01"
+                    name="quantity"
+                    value={purchaseData.quantity}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                     required
                   />
                 </div>
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Invoice Number *
@@ -389,6 +490,7 @@ export default function PurchaseContent() {
                     required
                   />
                 </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Invoice Date *
@@ -402,6 +504,7 @@ export default function PurchaseContent() {
                     required
                   />
                 </div>
+                
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Amount *
@@ -416,9 +519,10 @@ export default function PurchaseContent() {
                     required
                   />
                 </div>
-                <div className="md:col-span-2 lg:col-span-4">
+
+                <div className="md:col-span-3">
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Product Name *
+                    Product Name (Optional)
                   </label>
                   <input
                     type="text"
@@ -426,7 +530,7 @@ export default function PurchaseContent() {
                     value={purchaseData.productName}
                     onChange={handleInputChange}
                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    required
+                    placeholder="Additional product description"
                   />
                 </div>
               </div>
@@ -450,7 +554,7 @@ export default function PurchaseContent() {
 
             {/* Quantity Change Check */}
             <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <label className="flex items-center">
+              <label className="flex items-center mb-3">
                 <input 
                   type="checkbox" 
                   checked={quantityChanged}
@@ -459,26 +563,44 @@ export default function PurchaseContent() {
                 />
                 <span className="ml-3 text-sm font-medium text-gray-700">Is there any change in quantity?</span>
               </label>
+              
+              {quantityChanged && (
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Quantity Change Reason
+                  </label>
+                  <input
+                    type="text"
+                    value={quantityChangeReason}
+                    onChange={(e) => setQuantityChangeReason(e.target.value)}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Reason for quantity change"
+                  />
+                </div>
+              )}
             </div>
 
             {/* Action Buttons */}
             <div className="mt-8 flex gap-4">
               <button
                 type="submit"
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium"
+                disabled={loading}
+                className="px-8 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors font-medium disabled:bg-blue-400 disabled:cursor-not-allowed"
               >
-                Submit Purchase
+                {loading ? 'Submitting...' : 'Submit Purchase'}
               </button>
               <button
                 type="button"
                 onClick={resetForm}
-                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors font-medium"
+                disabled={loading}
+                className="px-8 py-3 bg-gray-500 text-white rounded-lg hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors font-medium disabled:bg-gray-400"
               >
                 Reset
               </button>
               <button
                 type="button"
-                className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors font-medium"
+                disabled={loading}
+                className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors font-medium disabled:bg-green-400"
               >
                 Payment
               </button>
