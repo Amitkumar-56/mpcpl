@@ -1,4 +1,3 @@
-// src/app/filling-details-admin/page.jsx
 'use client';
 
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -32,6 +31,7 @@ export default function FillingDetailsAdmin() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelRemarks, setCancelRemarks] = useState('');
 
+  // No authentication check - login constraint removed
   useEffect(() => {
     if (id) fetchRequestDetails();
   }, [id]);
@@ -41,63 +41,23 @@ export default function FillingDetailsAdmin() {
       setLoading(true);
       setError('');
 
-      // Get token from localStorage
-      const userData = localStorage.getItem('user');
-      let token = '';
-      
-      if (userData) {
-        try {
-          const user = JSON.parse(userData);
-          token = user.token || '';
-          console.log('🔐 Token from localStorage:', token ? 'Found' : 'Missing');
-        } catch (parseError) {
-          console.error('❌ Error parsing user data:', parseError);
-          localStorage.removeItem('user');
-          router.push('/login');
-          return;
-        }
-      } else {
-        console.log('❌ No user data found in localStorage');
-        router.push('/login');
-        return;
-      }
-
       console.log('🔍 Fetching request details for ID:', id);
 
       const response = await fetch(`/api/filling-details-admin?id=${id}`, {
         method: 'GET',
-        credentials: 'include',
         headers: {
-          'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         }
       });
 
       console.log('📡 Response status:', response.status);
-      console.log('📡 Response ok:', response.ok);
-
-      // Better error handling for non-OK responses
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Response error text:', errorText);
-        
-        if (response.status === 401) {
-          // Token expired or invalid
-          console.log('🔐 Authentication failed, redirecting to login');
-          localStorage.removeItem('user');
-          router.push('/login');
-          return;
-        } else if (response.status === 403) {
-          throw new Error('Access denied. You do not have permission to view this request.');
-        } else if (response.status === 404) {
-          throw new Error('Request not found. The requested filling request does not exist.');
-        } else {
-          throw new Error(`Server error: ${response.status} - ${errorText}`);
-        }
-      }
 
       const data = await response.json();
-      console.log('✅ API response data:', data);
+      console.log('✅ API response:', data);
+
+      if (!response.ok) {
+        throw new Error(data.error || `Request failed with status ${response.status}`);
+      }
 
       if (data.success && data.data) {
         setRequestData(data.data);
@@ -108,19 +68,11 @@ export default function FillingDetailsAdmin() {
           remarks: data.data.remark || ''
         }));
       } else {
-        setError(data.error || 'Failed to fetch request details');
+        throw new Error(data.error || 'Failed to fetch request details');
       }
     } catch (err) {
       console.error('❌ Fetch error:', err);
-      
-      // Don't show authentication errors - just redirect
-      if (err.message.includes('Authentication') || err.message.includes('401')) {
-        localStorage.removeItem('user');
-        router.push('/login');
-        return;
-      }
-      
-      setError(err.message || 'Failed to fetch request details. Please try again.');
+      setError(err.message || 'Failed to fetch request details');
     } finally {
       setLoading(false);
     }
@@ -186,19 +138,6 @@ export default function FillingDetailsAdmin() {
     setSubmitting(true);
     
     try {
-      // Get token from localStorage
-      const userData = localStorage.getItem('user');
-      let token = '';
-      
-      if (userData) {
-        const user = JSON.parse(userData);
-        token = user.token || '';
-      } else {
-        alert('Please login again');
-        router.push('/login');
-        return;
-      }
-
       const submitData = new FormData();
       
       // Append files only if they exist
@@ -221,46 +160,14 @@ export default function FillingDetailsAdmin() {
       submitData.append('hold_balance', requestData.hold_balance || 0);
       submitData.append('price', requestData.fuel_price || 0);
 
-      console.log('📤 Submitting form data with fields:');
-      for (let [key, value] of submitData.entries()) {
-        if (key.startsWith('doc')) {
-          console.log(`  ${key}:`, value.name, `(${value.size} bytes)`);
-        } else {
-          console.log(`  ${key}:`, value);
-        }
-      }
+      console.log('📤 Submitting form data with status:', formData.status);
 
       const response = await fetch('/api/filling-details-admin', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: submitData
       });
       
       console.log('📨 Submit response status:', response.status);
-
-      // Better error handling for submit
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ Submit error response:', errorText);
-        
-        if (response.status === 401) {
-          localStorage.removeItem('user');
-          router.push('/login');
-          return;
-        }
-        
-        let errorMessage = `Submit failed: ${response.status}`;
-        try {
-          const errorData = JSON.parse(errorText);
-          errorMessage = errorData.error || errorMessage;
-        } catch (e) {
-          errorMessage = errorText || errorMessage;
-        }
-        
-        throw new Error(errorMessage);
-      }
 
       const result = await response.json();
       console.log('✅ Submit result:', result);
@@ -268,8 +175,15 @@ export default function FillingDetailsAdmin() {
       if (result.success) {
         alert(result.message || 'Request updated successfully!');
         await fetchRequestDetails(); // Refresh data
+        
+        // Redirect if completed
+        if (formData.status === 'Completed') {
+          setTimeout(() => {
+            router.push('/filling-requests-admin');
+          }, 1500);
+        }
       } else {
-        alert('Error: ' + (result.error || result.message || 'Unknown error'));
+        throw new Error(result.error || result.message || 'Unknown error');
       }
     } catch (err) {
       console.error('❌ Submit error:', err);
@@ -287,19 +201,6 @@ export default function FillingDetailsAdmin() {
 
     setSubmitting(true);
     try {
-      // Get token from localStorage
-      const userData = localStorage.getItem('user');
-      let token = '';
-      
-      if (userData) {
-        const user = JSON.parse(userData);
-        token = user.token || '';
-      } else {
-        alert('Please login again');
-        router.push('/login');
-        return;
-      }
-
       const submitData = new FormData();
       submitData.append('id', id);
       submitData.append('rid', requestData.rid);
@@ -308,20 +209,8 @@ export default function FillingDetailsAdmin() {
 
       const response = await fetch('/api/filling-details-admin', {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        },
         body: submitData
       });
-      
-      if (!response.ok) {
-        if (response.status === 401) {
-          localStorage.removeItem('user');
-          router.push('/login');
-          return;
-        }
-        throw new Error(`Cancel failed: ${response.status}`);
-      }
       
       const result = await response.json();
       
@@ -331,7 +220,7 @@ export default function FillingDetailsAdmin() {
         setCancelRemarks('');
         await fetchRequestDetails();
       } else {
-        alert('Error: ' + (result.error || result.message || 'Unknown error'));
+        throw new Error(result.error || result.message);
       }
     } catch (err) {
       console.error('❌ Cancel error:', err);
@@ -341,7 +230,7 @@ export default function FillingDetailsAdmin() {
     }
   };
 
-  // Better loading component
+  // Loading component
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -360,7 +249,7 @@ export default function FillingDetailsAdmin() {
     );
   }
 
-  // Better error component
+  // Error component
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">

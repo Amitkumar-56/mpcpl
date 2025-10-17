@@ -1,8 +1,6 @@
-// src/app/api/filling-details-admin/route.js
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import path from 'path';
-import { checkPermissions, verifyToken } from '../../../lib/auth';
 import { executeQuery } from '../../../lib/db';
 
 export const config = {
@@ -11,7 +9,7 @@ export const config = {
   },
 };
 
-// GET - Fetch request details
+// GET - Fetch request details (LOGIN CONSTRAINT REMOVED)
 export async function GET(req) {
   try {
     console.log('🚀 /filling-details-admin GET called');
@@ -21,8 +19,7 @@ export async function GET(req) {
     console.log('🔹 Received ID:', id);
 
     if (!id) {
-      console.warn('⚠️ ID missing in request');
-      return new Response(JSON.stringify({ success: false, error: 'ID is required' }), { status: 400 });
+      return NextResponse.json({ success: false, error: 'ID is required' }, { status: 400 });
     }
 
     let data;
@@ -45,85 +42,61 @@ export async function GET(req) {
         LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
         LEFT JOIN customers c ON fr.cid = c.id
         LEFT JOIN customer_balances cb ON c.id = cb.com_id
-        LEFT JOIN filling_station_stocks fss ON fr.fs_id = fss.fs_id AND fr.product = fss.product
+        LEFT JOIN filling_station_stocks fss ON (fr.fs_id = fss.fs_id AND fr.product = fss.product)
         WHERE fr.id = ?
       `;
+      
+      console.log('🔍 Executing query for ID:', id);
       const rows = await executeQuery(query, [id]);
-      console.log('🔹 DB rows:', rows);
 
       if (rows.length === 0) {
-        console.warn('⚠️ No request found for ID:', id);
-        return new Response(JSON.stringify({ success: false, error: 'Request not found' }), { status: 404 });
+        return NextResponse.json({ success: false, error: 'Request not found' }, { status: 404 });
       }
 
       data = rows[0];
-      console.log('✅ Request data:', data);
+      
+      // Handle null stock
+      if (data.station_stock === null || data.station_stock === undefined) {
+        const altQuery = `
+          SELECT stock as station_stock 
+          FROM filling_station_stocks 
+          WHERE fs_id = ? AND product = ?
+        `;
+        
+        const stockRows = await executeQuery(altQuery, [data.fs_id, data.product]);
+        data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
+      }
+
+      console.log('✅ Final data with stock:', data.station_stock);
 
     } catch (dbErr) {
-      console.error('❌ DB function error:', dbErr);
-      return new Response(JSON.stringify({ success: false, error: 'Database error' }), { status: 500 });
+      console.error('❌ DB error:', dbErr);
+      return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
     }
 
-    return new Response(JSON.stringify({ success: true, data }));
+    return NextResponse.json({ success: true, data });
 
   } catch (err) {
-    console.error('❌ API error:', err);
-    return new Response(JSON.stringify({ success: false, error: 'Server error' }), { status: 500 });
+    console.error('❌ GET API error:', err);
+    return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
   }
 }
 
-// POST - Update request with FIXED permission checking
+// POST - Update request (FIXED TRANSACTION ISSUE)
 export async function POST(request) {
+  let userId = 1; // Default user ID since login constraint removed
+  
   try {
     console.log('🚀 /filling-details-admin POST called');
-    
-    // Verify authentication
-    const token = request.cookies?.get('token')?.value;
-    console.log('🔐 Token present:', !!token);
-    
-    const decoded = verifyToken(token);
-    console.log('🔐 Decoded token:', decoded);
-    
-    if (!decoded) {
-      console.error('❌ Not authenticated');
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Not authenticated' 
-      }, { status: 401 });
-    }
 
-    console.log('✅ User authenticated:', decoded.userId);
+    // Login constraint removed - no token verification needed
+    console.log('✅ No authentication required');
 
-    // Check general module access - FIXED: Use can_edit for updates
-    const hasModuleAccess = await checkPermissions(decoded.userId, 'Filling Requests', 'can_edit');
-    if (!hasModuleAccess) {
-      console.error(`❌ User ${decoded.userId} lacks edit permission for Filling Requests`);
-      return NextResponse.json({ 
-        success: false, 
-        error: 'Access denied. You do not have permission to update filling requests.' 
-      }, { status: 403 });
-    }
-
-    console.log('✅ User has edit permission for Filling Requests');
-
-    return await handlePostRequest(request, decoded.userId);
-
-  } catch (error) {
-    console.error('❌ POST Error:', error);
-    return NextResponse.json({ 
-      success: false, 
-      error: 'Internal server error' 
-    }, { status: 500 });
-  }
-}
-
-async function handlePostRequest(request, userId) {
-  try {
-    console.log('🔍 Starting to parse form data...');
+    // Parse form data and process request
     const formData = await request.formData();
     console.log('✅ Form data parsed successfully');
     
-    // Extract and validate all fields with better error handling
+    // Extract all fields
     const id = formData.get('id');
     const rid = formData.get('rid');
     const fs_id = formData.get('fs_id');
@@ -140,111 +113,96 @@ async function handlePostRequest(request, userId) {
 
     console.log('🔹 Extracted Form Data:', {
       id, rid, fs_id, cl_id, product_id, billing_type, oldstock, 
-      amtlimit, hold_balance, price, aqty, status, remarks, userId
+      amtlimit, hold_balance, price, aqty, status, remarks
     });
 
     // Validate required fields
     if (!id || !rid) {
-      console.error('❌ Missing required fields:', { id, rid });
+      console.error('❌ Missing required fields');
       return NextResponse.json({ 
         success: false,
-        error: 'Missing required fields: id and rid are required' 
+        error: 'Missing required fields' 
       }, { status: 400 });
     }
 
-    // Handle file uploads with better error handling
+    if (aqty <= 0) {
+      console.error('❌ Invalid actual quantity');
+      return NextResponse.json({ 
+        success: false,
+        error: 'Actual quantity must be greater than 0' 
+      }, { status: 400 });
+    }
+
+    // Handle file uploads
     let doc1Path = null, doc2Path = null, doc3Path = null;
     
-    try {
-      const doc1File = formData.get('doc1');
-      const doc2File = formData.get('doc2');
-      const doc3File = formData.get('doc3');
+    const doc1File = formData.get('doc1');
+    const doc2File = formData.get('doc2');
+    const doc3File = formData.get('doc3');
 
-      console.log('📁 File uploads:', {
-        doc1: doc1File ? `${doc1File.name} (${doc1File.size} bytes)` : 'No file',
-        doc2: doc2File ? `${doc2File.name} (${doc2File.size} bytes)` : 'No file',
-        doc3: doc3File ? `${doc3File.name} (${doc3File.size} bytes)` : 'No file'
-      });
+    console.log('📁 File uploads:', {
+      doc1: doc1File ? `${doc1File.name} (${doc1File.size} bytes)` : 'No file',
+      doc2: doc2File ? `${doc2File.name} (${doc2File.size} bytes)` : 'No file',
+      doc3: doc3File ? `${doc3File.name} (${doc3File.size} bytes)` : 'No file'
+    });
 
-      if (doc1File && doc1File.size > 0) {
-        doc1Path = await handleFileUpload(doc1File);
-        console.log('✅ doc1 uploaded:', doc1Path);
-      }
-      if (doc2File && doc2File.size > 0) {
-        doc2Path = await handleFileUpload(doc2File);
-        console.log('✅ doc2 uploaded:', doc2Path);
-      }
-      if (doc3File && doc3File.size > 0) {
-        doc3Path = await handleFileUpload(doc3File);
-        console.log('✅ doc3 uploaded:', doc3Path);
-      }
-    } catch (fileError) {
-      console.error('❌ File upload error:', fileError);
-      return NextResponse.json({ 
-        success: false,
-        error: `File upload failed: ${fileError.message}` 
-      }, { status: 400 });
+    if (doc1File && doc1File.size > 0) {
+      doc1Path = await handleFileUpload(doc1File);
+    }
+    if (doc2File && doc2File.size > 0) {
+      doc2Path = await handleFileUpload(doc2File);
+    }
+    if (doc3File && doc3File.size > 0) {
+      doc3Path = await handleFileUpload(doc3File);
     }
 
-    console.log('🔁 Starting database transaction...');
-    await executeQuery('START TRANSACTION');
+    console.log('🔁 Starting database operations...');
 
-    try {
-      let resultMessage = '';
+    let resultMessage = '';
 
-      if (status === 'Processing') {
-        console.log('🔄 Handling Processing status...');
-        resultMessage = await handleProcessingStatus({
-          cl_id, hold_balance, price, aqty, rid, userId
-        });
-      } else if (status === 'Completed') {
-        console.log('🔄 Handling Completed status...');
-        resultMessage = await handleCompletedStatus({
-          id, rid, fs_id, cl_id, product_id, billing_type,
-          oldstock, amtlimit, hold_balance, price, aqty,
-          doc1Path, doc2Path, doc3Path, remarks, userId
-        });
-      } else if (status === 'Cancel') {
-        console.log('🔄 Handling Cancel status...');
-        resultMessage = await handleCancelStatus({
-          id, remarks, doc1Path, doc2Path, doc3Path, userId
-        });
-      } else {
-        console.log('🔄 Handling generic status update...');
-        await updateFillingRequest({
-          id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId
-        });
-        resultMessage = 'Request updated successfully';
-      }
-
-      console.log('✅ Transaction completed, committing...');
-      await executeQuery('COMMIT');
-
-      console.log('✅ Update successful:', resultMessage);
-      return NextResponse.json({ 
-        success: true, 
-        message: resultMessage,
-        status: status
+    if (status === 'Processing') {
+      console.log('🔄 Handling Processing status...');
+      resultMessage = await handleProcessingStatus({
+        cl_id, hold_balance, price, aqty, rid, userId
       });
-
-    } catch (error) {
-      console.error('❌ Transaction error, rolling back...', error);
-      await executeQuery('ROLLBACK');
-      return NextResponse.json({ 
-        success: false,
-        error: 'Transaction failed: ' + error.message 
-      }, { status: 500 });
+    } else if (status === 'Completed') {
+      console.log('🔄 Handling Completed status...');
+      resultMessage = await handleCompletedStatus({
+        id, rid, fs_id, cl_id, product_id, billing_type,
+        oldstock, amtlimit, hold_balance, price, aqty,
+        doc1Path, doc2Path, doc3Path, remarks, userId
+      });
+    } else if (status === 'Cancel') {
+      console.log('🔄 Handling Cancel status...');
+      resultMessage = await handleCancelStatus({
+        id, remarks, doc1Path, doc2Path, doc3Path, userId
+      });
+    } else {
+      console.log('🔄 Handling generic status update...');
+      await updateFillingRequest({
+        id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId
+      });
+      resultMessage = 'Request updated successfully';
     }
+
+    console.log('✅ Update successful:', resultMessage);
+    return NextResponse.json({ 
+      success: true, 
+      message: resultMessage,
+      status: status
+    });
 
   } catch (error) {
-    console.error('❌ Error updating request:', error);
+    console.error('❌ POST Error:', error);
+    
     return NextResponse.json({ 
-      success: false,
-      error: 'Error updating request: ' + error.message 
+      success: false, 
+      error: error.message || 'Internal server error' 
     }, { status: 500 });
   }
 }
 
+// Helper functions (TRANSACTIONS REMOVED)
 async function handleProcessingStatus(data) {
   const { cl_id, hold_balance, price, aqty, rid, userId } = data;
   
@@ -292,9 +250,17 @@ async function handleCompletedStatus(data) {
   console.log('📊 Completion calculations:', {
     calculatedHoldBalance,
     newStock,
-    c_balance
+    c_balance,
+    oldstock,
+    aqty
   });
 
+  // Validate stock availability
+  if (newStock < 0) {
+    throw new Error(`Insufficient stock. Available: ${oldstock} Ltr, Requested: ${aqty} Ltr`);
+  }
+
+  // Update filling request first
   await updateFillingRequest({
     id, aqty, status: 'Completed', remarks, 
     doc1Path, doc2Path, doc3Path, userId,
@@ -386,9 +352,8 @@ async function updateFillingRequest(data) {
   updateQuery += ` WHERE id = ?`;
   queryParams.push(id);
 
-  console.log('📝 Executing update query:', updateQuery, queryParams);
+  console.log('📝 Executing update query');
   await executeQuery(updateQuery, queryParams);
-  console.log('✅ Filling request updated successfully');
 }
 
 async function handleNonBillingStocks(station_id, product_id, aqty) {
@@ -411,18 +376,22 @@ async function handleNonBillingStocks(station_id, product_id, aqty) {
 }
 
 async function updateCustomerBalances(cl_id, hold_balance, rid, old_balance) {
+  // Update hold balance and amtlimit
   await executeQuery(
     `UPDATE customer_balances SET hold_balance = hold_balance - ?, amtlimit = amtlimit - ? WHERE com_id = ?`,
     [hold_balance, hold_balance, cl_id]
   );
 
   const c_balance = old_balance - hold_balance;
+  
+  // Insert wallet history
   await executeQuery(
     `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type) 
      VALUES (?, ?, ?, ?, ?, NOW(), 4)`,
     [cl_id, rid, old_balance, hold_balance, c_balance]
   );
 
+  // Update main balance
   await executeQuery(
     `UPDATE customer_balances SET balance = balance + ? WHERE com_id = ?`,
     [hold_balance, cl_id]
@@ -433,10 +402,9 @@ async function handleFileUpload(file) {
   if (!file || file.size === 0) return null;
 
   try {
-    // Add file size validation (5MB limit)
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      throw new Error(`File size exceeds 5MB limit: ${(file.size / (1024 * 1024)).toFixed(2)}MB`);
+      throw new Error(`File size exceeds 5MB limit`);
     }
 
     const uploadDir = './public/uploads';
@@ -446,7 +414,6 @@ async function handleFileUpload(file) {
 
     const timestamp = Date.now();
     const originalName = file.name || 'document';
-    const fileExtension = path.extname(originalName) || '.jpg';
     const filename = `${timestamp}_${originalName.replace(/\s+/g, '_')}`;
     const filepath = path.join(uploadDir, filename);
 
@@ -454,7 +421,6 @@ async function handleFileUpload(file) {
     const buffer = Buffer.from(arrayBuffer);
     fs.writeFileSync(filepath, buffer);
 
-    console.log('✅ File uploaded successfully:', `/uploads/${filename}`);
     return `/uploads/${filename}`;
   } catch (error) {
     console.error('❌ File upload error:', error);

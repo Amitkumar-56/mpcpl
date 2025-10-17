@@ -1,3 +1,4 @@
+//src/app/customers/customer-details/page.jsx
 import { Suspense } from "react";
 import CustomerDetailsClient from "./CustomerDetailsClient";
 
