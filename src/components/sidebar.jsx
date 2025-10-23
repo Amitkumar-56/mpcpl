@@ -93,7 +93,7 @@ export default function Sidebar() {
     { name: "Employees", icon: <FaUserTie />, module: "employees", path: "/employees" },
     { name: "Suppliers", icon: <FaBuilding />, module: "suppliers", path: "/suppliers" },
     { name: "Transporters", icon: <FaTruck />, module: "transporters", path: "/transporters" },
-    { name: "NB Accounts", icon: <FaClipboard />, module: "nb_management", path: "/nb-management" },
+    { name: "NB Accounts", icon: <FaClipboard />, module: "nb_balance", path: "/nb-balance" },
     { name: "NB Expenses", icon: <FaMoneyBill />, module: "nb_expenses", path: "/nb-expenses" },
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock", path: "/stock" },

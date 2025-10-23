@@ -31,7 +31,6 @@ export default function FillingDetailsAdmin() {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelRemarks, setCancelRemarks] = useState('');
 
-  // No authentication check - login constraint removed
   useEffect(() => {
     if (id) fetchRequestDetails();
   }, [id]);
@@ -43,16 +42,10 @@ export default function FillingDetailsAdmin() {
 
       console.log('🔍 Fetching request details for ID:', id);
 
-      const response = await fetch(`/api/filling-details-admin?id=${id}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await fetch(`/api/filling-details-admin?id=${id}`);
+      const data = await response.json();
 
       console.log('📡 Response status:', response.status);
-
-      const data = await response.json();
       console.log('✅ API response:', data);
 
       if (!response.ok) {
@@ -153,12 +146,16 @@ export default function FillingDetailsAdmin() {
       submitData.append('rid', requestData.rid);
       submitData.append('fs_id', requestData.fs_id);
       submitData.append('cl_id', requestData.cid);
+      submitData.append('com_id', requestData.cid);
       submitData.append('product_id', requestData.product);
       submitData.append('billing_type', requestData.billing_type);
       submitData.append('oldstock', requestData.station_stock || 0);
       submitData.append('amtlimit', requestData.amtlimit || 0);
       submitData.append('hold_balance', requestData.hold_balance || 0);
-      submitData.append('price', requestData.fuel_price || 0);
+      submitData.append('balance', requestData.balance || 0);
+      submitData.append('outstanding', requestData.outstanding || 0);
+      submitData.append('cst_limit', requestData.cst_limit || 0);
+      submitData.append('price', requestData.fuel_price || requestData.price || 0);
 
       console.log('📤 Submitting form data with status:', formData.status);
 
@@ -176,8 +173,8 @@ export default function FillingDetailsAdmin() {
         alert(result.message || 'Request updated successfully!');
         await fetchRequestDetails(); // Refresh data
         
-        // Redirect if completed
-        if (formData.status === 'Completed') {
+        // Redirect if completed or cancelled
+        if (formData.status === 'Completed' || formData.status === 'Cancel') {
           setTimeout(() => {
             router.push('/filling-requests-admin');
           }, 1500);
@@ -219,6 +216,11 @@ export default function FillingDetailsAdmin() {
         setShowCancelModal(false);
         setCancelRemarks('');
         await fetchRequestDetails();
+        
+        // Redirect back after cancellation
+        setTimeout(() => {
+          router.push('/filling-requests-admin');
+        }, 1500);
       } else {
         throw new Error(result.error || result.message);
       }
@@ -308,11 +310,18 @@ export default function FillingDetailsAdmin() {
   const getStatusClass = (status) => {
     switch (status) {
       case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      case 'Cancel': 
       case 'Cancelled': return 'bg-red-100 text-red-800 border-red-200';
       case 'Processing': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
+  };
+
+  const calculateAmount = () => {
+    const aqty = parseFloat(formData.aqty) || 0;
+    const price = requestData.fuel_price || requestData.price || 0;
+    return (aqty * price).toFixed(2);
   };
 
   return (
@@ -382,7 +391,7 @@ export default function FillingDetailsAdmin() {
                         </tr>
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Billing Type</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 capitalize">{requestData.billing_type}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 capitalize">{requestData.billing_type == 1 ? 'Billing' : 'Non-Billing'}</td>
                         </tr>
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Requested Quantity</td>
@@ -396,6 +405,16 @@ export default function FillingDetailsAdmin() {
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Stock</td>
                           <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.station_stock || 0} Ltr</td>
                         </tr>
+                        <tr>
+                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Price</td>
+                          <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.fuel_price || requestData.price || 0}/Ltr</td>
+                        </tr>
+                        {formData.aqty && (
+                          <tr>
+                            <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Calculated Amount</td>
+                            <td className="px-4 py-3 text-sm text-green-600 font-bold">₹{calculateAmount()}</td>
+                          </tr>
+                        )}
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Request Date & Time</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
@@ -463,13 +482,13 @@ export default function FillingDetailsAdmin() {
                             </div>
                           </td>
                         </tr>
-                        {requestData.status !== 'Cancelled' && requestData.status !== 'Completed' && (
+                        {requestData.status !== 'Cancel' && requestData.status !== 'Cancelled' && requestData.status !== 'Completed' && (
                           <tr>
                             <td className="px-4 py-3 bg-gray-50"></td>
                             <td className="px-4 py-3">
                               <button 
                                 onClick={() => setShowCancelModal(true)}
-                                className='bg-red-500 hover:bg-red-600 text-white p-2 rounded transition-colors'
+                                className='bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors'
                               >
                                 Cancel This Request
                               </button>
@@ -482,12 +501,12 @@ export default function FillingDetailsAdmin() {
                 </div>
               </div>
 
-              {requestData.status !== 'Cancelled' && (
+              {requestData.status !== 'Cancel' && requestData.status !== 'Cancelled' && requestData.status !== 'Completed' && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
-                      <span>Available Stock</span>
-                      <span className='bg-yellow-400 text-black rounded px-2 py-1 text-sm font-medium'>{requestData.station_stock || 0} Ltr</span>
+                      <span>Update Request</span>
+                      <span className='bg-yellow-400 text-black rounded px-2 py-1 text-sm font-medium'>Available Stock: {requestData.station_stock || 0} Ltr</span>
                     </h2>
                   </div>
                   <div className="p-6">
@@ -568,6 +587,11 @@ export default function FillingDetailsAdmin() {
                                 <p className="mt-1 text-sm text-gray-500">
                                   Available stock: <span className="font-medium">{requestData.station_stock || 0} Ltr</span>
                                 </p>
+                                {formData.aqty && (
+                                  <p className="mt-1 text-sm text-green-600">
+                                    Calculated Amount: <span className="font-bold">₹{calculateAmount()}</span>
+                                  </p>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -586,7 +610,7 @@ export default function FillingDetailsAdmin() {
                                 >
                                   <option value="Processing">Processing</option>
                                   <option value="Completed">Completed</option>
-                                  <option value="Cancel">Cancelled</option>
+                                  <option value="Cancel">Cancel</option>
                                 </select>
                               </div>
                             </td>
