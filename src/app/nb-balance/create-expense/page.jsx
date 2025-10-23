@@ -363,7 +363,6 @@ function CreateExpenseContent() {
     </div>
   );
 }
-
 // Main page component with Suspense
 export default function CreateExpense() {
   return (
