@@ -10,7 +10,7 @@ export default function CreateRequestPage() {
   const router = useRouter();
 
   const [customers, setCustomers] = useState([]);
-  const [products, setProducts] = useState([]);
+  const [productCodes, setProductCodes] = useState([]);
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -20,7 +20,7 @@ export default function CreateRequestPage() {
 
   const [formData, setFormData] = useState({
     customer: '',
-    products_codes: '',
+    products_codes: '', // This is product_codes.id
     station_id: '',
     vehicle_no: '',
     driver_no: '',
@@ -34,15 +34,12 @@ export default function CreateRequestPage() {
   const [calculatedBarrels, setCalculatedBarrels] = useState(0);
   const [maxQuantity, setMaxQuantity] = useState(0);
 
+  // Product configuration based on product_id
   const productConfig = {
-    1: { name: "Industrial Oil 40 (R)", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
-    2: { name: "Industrial Oil 40 (B)", type: "liter", min: 1500, barrelSize: 200, maxQuantity: 8000 },
-    3: { name: "Industrial Oil 60 (R)", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
-    4: { name: "Industrial Oil 60 (B)", type: "liter", min: 1500, barrelSize: 200, maxQuantity: 8000 },
-    5: { name: "DEF Lose (R)", type: "liter", min: 1, maxQuantity: 10000 },
-    6: { name: "DEF Lose (B)", type: "liter", min: 1000, maxQuantity: 15000 },
-    7: { name: "DEF Bucket (R)", type: "bucket", bucketSize: 20, min: 1, maxQuantity: 100 },
-    8: { name: "DEF Bucket (B)", type: "bucket", bucketSize: 10, min: 10, maxQuantity: 200 },
+    2: { name: "Industrial Oil 40", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
+    3: { name: "Industrial Oil 60", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
+    4: { name: "DEF Lose", type: "liter", min: 1, maxQuantity: 10000 },
+    5: { name: "DEF Bucket", type: "bucket", bucketSize: 20, min: 1, maxQuantity: 100 },
   };
 
   useEffect(() => {
@@ -50,24 +47,28 @@ export default function CreateRequestPage() {
       try {
         setLoading(true);
         setError('');
-        const [customersRes, productsRes, stationsRes] = await Promise.all([
+        const [customersRes, productCodesRes, stationsRes] = await Promise.all([
           fetch('/api/customers'),
-          fetch('/api/create-request'),
+          fetch('/api/create-request'), // This returns product_codes
           fetch('/api/stations')
         ]);
 
-        if (!customersRes.ok || !productsRes.ok || !stationsRes.ok) throw new Error();
+        if (!customersRes.ok) throw new Error('Failed to fetch customers');
+        if (!productCodesRes.ok) throw new Error('Failed to fetch product codes');
+        if (!stationsRes.ok) throw new Error('Failed to fetch stations');
 
-        const [customersData, productsData, stationsData] = await Promise.all([
+        const [customersData, productCodesData, stationsData] = await Promise.all([
           customersRes.json(),
-          productsRes.json(),
+          productCodesRes.json(),
           stationsRes.json(),
         ]);
 
+        console.log('📦 Product codes data:', productCodesData);
         setCustomers(customersData);
-        setProducts(productsData);
+        setProductCodes(productCodesData);
         setStations(stationsData);
-      } catch {
+      } catch (err) {
+        console.error('❌ Fetch error:', err);
         setError('Error loading data. Please refresh the page.');
       } finally {
         setLoading(false);
@@ -76,15 +77,13 @@ export default function CreateRequestPage() {
     fetchData();
   }, []);
 
-  // CORRECTED BARREL CALCULATION - 200 LITERS PER BARREL
+  // Barrel calculation - 200 liters per barrel
   useEffect(() => {
     if (selectedProduct?.barrelSize && formData.qty) {
       const qty = parseInt(formData.qty) || 0;
       if (qty === 0) {
         setCalculatedBarrels(0);
       } else {
-        // CORRECTED LOGIC: Exactly 200 liters per barrel
-        // 1-200L = 1 barrel, 201-400L = 2 barrels, 401-600L = 3 barrels, etc.
         let barrels = Math.ceil(qty / 200);
         setCalculatedBarrels(barrels);
       }
@@ -94,7 +93,6 @@ export default function CreateRequestPage() {
   }, [formData.qty, selectedProduct]);
 
   useEffect(() => {
-    // Check if quantity equals maximum quantity
     const currentQty = parseInt(formData.qty) || 0;
     if (selectedProduct?.maxQuantity && currentQty === selectedProduct.maxQuantity) {
       setShowFullTankMessage(true);
@@ -103,12 +101,11 @@ export default function CreateRequestPage() {
     }
   }, [formData.qty, selectedProduct]);
 
-  // New useEffect to handle "full tank" in remarks
+  // Handle "full tank" in remarks
   useEffect(() => {
     if (selectedProduct?.maxQuantity) {
       const remarks = formData.remarks.toLowerCase().trim();
       if (remarks === 'full tank' || remarks === 'fulltank') {
-        // Auto-set maximum quantity when user types "full tank" in remarks
         if (selectedProduct.type === 'bucket') {
           const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
           setFormData(prev => ({
@@ -133,12 +130,25 @@ export default function CreateRequestPage() {
     setFormData(prev => ({ ...prev, [name]: value }));
 
     if (name === 'products_codes') {
-      const prodId = parseInt(value);
-      const product = productConfig[prodId] || null;
-      setSelectedProduct(product);
-      setMaxQuantity(product?.maxQuantity || 0);
+      const productCodeId = parseInt(value);
+      console.log('🔍 Selected product code ID:', productCodeId);
+      
+      // Find the selected product code from productCodes array
+      const selectedProductCode = productCodes.find(p => p.id === productCodeId);
+      console.log('📋 Selected product code:', selectedProductCode);
+      
+      if (selectedProductCode) {
+        const productId = selectedProductCode.product_id;
+        const product = productConfig[productId] || null;
+        console.log('🎯 Product config for product_id', productId, ':', product);
+        
+        setSelectedProduct(product);
+        setMaxQuantity(product?.maxQuantity || 0);
+      } else {
+        setSelectedProduct(null);
+        setMaxQuantity(0);
+      }
 
-      // Reset quantity fields when product changes
       setFormData(prev => ({ 
         ...prev, 
         qty: '', 
@@ -158,10 +168,9 @@ export default function CreateRequestPage() {
     if (selectedProduct?.type === 'bucket') {
       if (name === 'aty') {
         aty = value;
-        qty = value * selectedProduct.bucketSize;
+        qty = (parseInt(value) || 0) * selectedProduct.bucketSize;
       }
     } else {
-      // For liter products (including Industrial Oil 60 (R) - IO60R)
       if (name === 'aty') {
         aty = value;
         qty = value;
@@ -173,7 +182,6 @@ export default function CreateRequestPage() {
 
     setFormData(prev => ({ ...prev, [name]: value, qty, aty }));
 
-    // Clear full tank message if user manually changes quantity
     if (name === 'aty' || name === 'qty') {
       const currentQty = parseInt(qty) || 0;
       if (selectedProduct?.maxQuantity && currentQty !== selectedProduct.maxQuantity) {
@@ -229,11 +237,23 @@ export default function CreateRequestPage() {
       setSubmitting(true);
       setShowConfirmation(false);
 
+      // Find the selected product code to get product_id
+      const selectedProductCode = productCodes.find(p => p.id === parseInt(formData.products_codes));
+      
+      if (!selectedProductCode) {
+        alert('Invalid product selection');
+        return;
+      }
+
       const submitData = {
         ...formData,
         product_name: selectedProduct?.name || '',
-        barrels_required: calculatedBarrels
+        barrels_required: calculatedBarrels,
+        // We only need products_codes (which is product_codes.id)
+        products_codes: parseInt(formData.products_codes)
       };
+
+      console.log('📤 Submitting data:', submitData);
 
       const res = await fetch('/api/submit-request', {
         method: 'POST',
@@ -242,11 +262,16 @@ export default function CreateRequestPage() {
       });
 
       const data = await res.json();
-      if (res.ok) {
+      console.log('📨 Response:', data);
+      
+      if (res.ok && data.success) {
         alert(`Request created successfully! RID: ${data.rid}`);
         router.push('/filling-requests');
-      } else alert(data.error || 'Failed to create request.');
-    } catch {
+      } else {
+        alert(data.error || 'Failed to create request.');
+      }
+    } catch (err) {
+      console.error('❌ Submit error:', err);
       alert('An error occurred while creating request.');
     } finally {
       setSubmitting(false);
@@ -273,7 +298,7 @@ export default function CreateRequestPage() {
   };
 
   const getCustomerName = id => customers.find(c => c.id == id)?.name || `Customer ${id}`;
-  const getProductName = id => products.find(p => p.id == id)?.pcode || `Product ${id}`;
+  const getProductName = id => productCodes.find(p => p.id == id)?.pcode || `Product ${id}`;
   const getStationName = id => stations.find(s => s.id == id)?.station_name || `Station ${id}`;
 
   return (
@@ -302,7 +327,6 @@ export default function CreateRequestPage() {
             </div>
           )}
 
-          {/* Confirmation Popup - Same Page Par */}
           {showConfirmation && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white rounded-lg p-6 max-w-2xl w-full mx-4">
@@ -346,7 +370,6 @@ export default function CreateRequestPage() {
             <div className="bg-white shadow-md rounded-lg p-6">
               <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleSubmitClick}>
                 
-                {/* Customer */}
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Customer *</label>
                   <select name="customer" value={formData.customer} onChange={handleChange}
@@ -356,17 +379,19 @@ export default function CreateRequestPage() {
                   </select>
                 </div>
 
-                {/* Product */}
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Product *</label>
                   <select name="products_codes" value={formData.products_codes} onChange={handleChange}
                     className="border border-gray-300 rounded p-2" required>
                     <option value="">Select Product</option>
-                    {products.map(p => <option key={p.id} value={p.id}>{p.pcode}</option>)}
+                    {productCodes.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.pcode} {p.product_name ? `(${p.product_name})` : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
-                {/* Quantity Fields */}
                 <div className="flex flex-col">
                   <div className="flex justify-between items-center mb-1">
                     <label className="font-medium">
@@ -380,9 +405,9 @@ export default function CreateRequestPage() {
                       <button
                         type="button"
                         onClick={handleFullTank}
-                        className="text-sm bg-blue-100 text-blue-700 px-2 py-1 rounded hover:bg-blue-200"
+                        className="text-sm bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
                       >
-                        Full Tank ({selectedProduct.maxQuantity}L)
+                        Full Tank
                       </button>
                     )}
                   </div>
@@ -401,19 +426,12 @@ export default function CreateRequestPage() {
                     max={selectedProduct?.maxQuantity || undefined}
                     required
                   />
-                  {selectedProduct?.maxQuantity && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      Max: {selectedProduct.maxQuantity} liters
-                    </p>
-                  )}
                 </div>
 
-                {/* Total Liters or Barrel Display */}
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">
                     {selectedProduct?.barrelSize ? "Total Barrels" : "Total Liters"}
                   </label>
-
                   <input
                     type="text"
                     value={
@@ -432,7 +450,6 @@ export default function CreateRequestPage() {
                   )}
                 </div>
 
-                {/* Full Tank Message */}
                 {showFullTankMessage && (
                   <div className="md:col-span-2 p-3 bg-red-100 border border-red-300 rounded-lg">
                     <p className="text-red-700 font-semibold text-center">
@@ -441,19 +458,6 @@ export default function CreateRequestPage() {
                   </div>
                 )}
 
-                {/* Barrel Calculation Info - Industrial Oil 60 (R) ke liye bhi show hoga */}
-                {selectedProduct?.barrelSize && calculatedBarrels > 0 && (
-                  <div className="md:col-span-2 p-3 bg-yellow-50 rounded-lg border border-yellow-200">
-                    <p className="font-medium text-yellow-800">
-                      Barrel Calculation: {formData.qty}L requires {calculatedBarrels} barrel{calculatedBarrels > 1 ? 's' : ''}
-                    </p>
-                    <p className="text-sm text-yellow-700 mt-1">
-                      (1-200L = 1 barrel, 201-400L = 2 barrels, 401-600L = 3 barrels, etc.)
-                    </p>
-                  </div>
-                )}
-
-                {/* Other fields */}
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Station *</label>
                   <select name="station_id" value={formData.station_id} onChange={handleChange}
@@ -485,7 +489,6 @@ export default function CreateRequestPage() {
                     className={`border border-gray-300 rounded p-2 h-20 ${showFullTankMessage ? 'bg-red-50 border-red-300' : ''}`}
                     placeholder="Type 'full tank' to set maximum quantity automatically"
                   />
-                  {/* RED HIGHLIGHTED TIP MESSAGE */}
                   <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
                     <p className="text-red-700 text-sm font-medium flex items-center">
                       <span className="mr-2">💡</span>

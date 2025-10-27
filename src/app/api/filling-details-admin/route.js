@@ -1,7 +1,7 @@
+import { executeQuery } from "@/lib/db";
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import path from 'path';
-import { executeQuery } from '../../../lib/db';
 
 export const config = {
   api: {
@@ -9,7 +9,7 @@ export const config = {
   },
 };
 
-// GET - Fetch request details (LOGIN CONSTRAINT REMOVED)
+// GET - Fetch request details
 export async function GET(req) {
   try {
     console.log('🚀 /filling-details-admin GET called');
@@ -28,6 +28,7 @@ export async function GET(req) {
         SELECT 
           fr.*,
           p.pname as product_name,
+          p.id as product_id,
           fs.station_name,
           c.name as client_name,
           c.phone as client_phone,
@@ -35,18 +36,20 @@ export async function GET(req) {
           cb.amtlimit,
           cb.hold_balance,
           cb.balance,
+          cb.cst_limit,
           fss.stock as station_stock,
-          fr.price as fuel_price
+          pc.pcode as sub_product_code
         FROM filling_requests fr
         LEFT JOIN products p ON fr.product = p.id
         LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
         LEFT JOIN customers c ON fr.cid = c.id
         LEFT JOIN customer_balances cb ON c.id = cb.com_id
         LEFT JOIN filling_station_stocks fss ON (fr.fs_id = fss.fs_id AND fr.product = fss.product)
+        LEFT JOIN product_codes pc ON fr.sub_product_id = pc.id
         WHERE fr.id = ?
       `;
       
-      console.log('🔍 Executing query for ID:', id);
+      console.log('🔍 Executing main query for ID:', id);
       const rows = await executeQuery(query, [id]);
 
       if (rows.length === 0) {
@@ -55,6 +58,28 @@ export async function GET(req) {
 
       data = rows[0];
       
+      // Get available sub-products for this product
+      const availableSubProductsQuery = `
+        SELECT id, pcode 
+        FROM product_codes 
+        WHERE product_id = ?
+      `;
+      const availableSubProducts = await executeQuery(availableSubProductsQuery, [data.product_id]);
+      data.available_sub_products = availableSubProducts;
+      
+      console.log('📦 Available sub-products:', availableSubProducts);
+
+      // Get price from deal_price table
+      let sub_product_id = data.sub_product_id;
+      
+      console.log('🔍 Sub-product details:', {
+        from_request: data.sub_product_id,
+        product_id: data.product_id
+      });
+
+      // Get fuel price with proper fallback logic
+      data.fuel_price = await getFuelPrice(data.fs_id, data.product_id, sub_product_id, data.cid, 0);
+
       // Handle null stock
       if (data.station_stock === null || data.station_stock === undefined) {
         const altQuery = `
@@ -63,36 +88,38 @@ export async function GET(req) {
           WHERE fs_id = ? AND product = ?
         `;
         
-        const stockRows = await executeQuery(altQuery, [data.fs_id, data.product]);
+        const stockRows = await executeQuery(altQuery, [data.fs_id, data.product_id]);
         data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
       }
 
-      console.log('✅ Final data with stock:', data.station_stock);
+      console.log('✅ Final data:', {
+        price: data.fuel_price,
+        stock: data.station_stock,
+        sub_product_id: data.sub_product_id,
+        sub_product_code: data.sub_product_code,
+        status: data.status
+      });
 
     } catch (dbErr) {
       console.error('❌ DB error:', dbErr);
-      return NextResponse.json({ success: false, error: 'Database error' }, { status: 500 });
+      return NextResponse.json({ success: false, error: 'Database error: ' + dbErr.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, data });
 
   } catch (err) {
     console.error('❌ GET API error:', err);
-    return NextResponse.json({ success: false, error: 'Server error' }, { status: 500 });
+    return NextResponse.json({ success: false, error: 'Server error: ' + err.message }, { status: 500 });
   }
 }
 
-// POST - Update request (FIXED TRANSACTION ISSUE)
+// POST - Update request
 export async function POST(request) {
-  let userId = 1; // Default user ID since login constraint removed
+  let userId = 1; // Default user ID
   
   try {
     console.log('🚀 /filling-details-admin POST called');
 
-    // Login constraint removed - no token verification needed
-    console.log('✅ No authentication required');
-
-    // Parse form data and process request
     const formData = await request.formData();
     console.log('✅ Form data parsed successfully');
     
@@ -102,6 +129,7 @@ export async function POST(request) {
     const fs_id = formData.get('fs_id');
     const cl_id = formData.get('cl_id');
     const product_id = formData.get('product_id');
+    const sub_product_id = formData.get('sub_product_id');
     const billing_type = formData.get('billing_type');
     const oldstock = parseFloat(formData.get('oldstock')) || 0;
     const amtlimit = parseFloat(formData.get('amtlimit')) || 0;
@@ -112,7 +140,7 @@ export async function POST(request) {
     const remarks = formData.get('remarks');
 
     console.log('🔹 Extracted Form Data:', {
-      id, rid, fs_id, cl_id, product_id, billing_type, oldstock, 
+      id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type, oldstock, 
       amtlimit, hold_balance, price, aqty, status, remarks
     });
 
@@ -122,14 +150,6 @@ export async function POST(request) {
       return NextResponse.json({ 
         success: false,
         error: 'Missing required fields' 
-      }, { status: 400 });
-    }
-
-    if (aqty <= 0) {
-      console.error('❌ Invalid actual quantity');
-      return NextResponse.json({ 
-        success: false,
-        error: 'Actual quantity must be greater than 0' 
       }, { status: 400 });
     }
 
@@ -160,27 +180,30 @@ export async function POST(request) {
 
     let resultMessage = '';
 
+    // First, update or create filling_logs entry
+    await updateFillingLogs(rid, status, userId);
+
     if (status === 'Processing') {
       console.log('🔄 Handling Processing status...');
       resultMessage = await handleProcessingStatus({
-        cl_id, hold_balance, price, aqty, rid, userId
+        id, rid, cl_id, hold_balance, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
       });
     } else if (status === 'Completed') {
       console.log('🔄 Handling Completed status...');
       resultMessage = await handleCompletedStatus({
-        id, rid, fs_id, cl_id, product_id, billing_type,
+        id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
         oldstock, amtlimit, hold_balance, price, aqty,
         doc1Path, doc2Path, doc3Path, remarks, userId
       });
     } else if (status === 'Cancel') {
       console.log('🔄 Handling Cancel status...');
       resultMessage = await handleCancelStatus({
-        id, remarks, doc1Path, doc2Path, doc3Path, userId
+        id, rid, remarks, doc1Path, doc2Path, doc3Path, userId
       });
     } else {
       console.log('🔄 Handling generic status update...');
       await updateFillingRequest({
-        id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId
+        id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
       });
       resultMessage = 'Request updated successfully';
     }
@@ -202,83 +225,190 @@ export async function POST(request) {
   }
 }
 
-// Helper functions (TRANSACTIONS REMOVED)
-async function handleProcessingStatus(data) {
-  const { cl_id, hold_balance, price, aqty, rid, userId } = data;
+// Helper functions
+
+// Get current Indian time in MySQL datetime format
+function getIndianTime() {
+  const now = new Date();
+  const offset = 5.5 * 60 * 60 * 1000; // IST offset in milliseconds
+  const istTime = new Date(now.getTime() + offset);
   
-  const calculatedHoldBalance = price * aqty;
-  console.log('💰 Calculated hold balance:', calculatedHoldBalance);
+  return istTime.toISOString().slice(0, 19).replace('T', ' ');
+}
+
+// Update or create filling_logs entry
+async function updateFillingLogs(request_id, status, userId) {
+  try {
+    // Check if log entry already exists
+    const checkQuery = `SELECT id FROM filling_logs WHERE request_id = ?`;
+    const existingLogs = await executeQuery(checkQuery, [request_id]);
+    
+    const now = getIndianTime();
+    
+    if (existingLogs.length > 0) {
+      // Update existing log entry
+      let updateQuery = '';
+      let queryParams = [];
+      
+      switch (status) {
+        case 'Processing':
+          updateQuery = `
+            UPDATE filling_logs 
+            SET processed_by = ?, processed_date = ? 
+            WHERE request_id = ?
+          `;
+          queryParams = [userId, now, request_id];
+          break;
+          
+        case 'Completed':
+          updateQuery = `
+            UPDATE filling_logs 
+            SET completed_by = ?, completed_date = ? 
+            WHERE request_id = ?
+          `;
+          queryParams = [userId, now, request_id];
+          break;
+          
+        case 'Cancel':
+          updateQuery = `
+            UPDATE filling_logs 
+            SET cancelled_by = ?, cancelled_date = ? 
+            WHERE request_id = ?
+          `;
+          queryParams = [userId, now, request_id];
+          break;
+          
+        default:
+          // For other status updates, just update the basic info
+          updateQuery = `
+            UPDATE filling_logs 
+            SET updated_by = ?, updated_date = ? 
+            WHERE request_id = ?
+          `;
+          queryParams = [userId, now, request_id];
+      }
+      
+      await executeQuery(updateQuery, queryParams);
+      console.log(`✅ Updated filling_logs for ${status} status`);
+    } else {
+      // Create new log entry
+      const insertQuery = `
+        INSERT INTO filling_logs 
+        (request_id, created_by, created_date) 
+        VALUES (?, ?, ?)
+      `;
+      await executeQuery(insertQuery, [request_id, userId, now]);
+      console.log('✅ Created new filling_logs entry');
+    }
+  } catch (error) {
+    console.error('❌ Error updating filling_logs:', error);
+    // Don't throw error here as it's not critical for main functionality
+  }
+}
+
+async function handleProcessingStatus(data) {
+  const { id, rid, cl_id, hold_balance, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id } = data;
+  
+  console.log('💰 Hold balance:', hold_balance);
 
   // Check customer limit
   const customerQuery = `SELECT cst_limit FROM customer_balances WHERE com_id = ?`;
   const customerRows = await executeQuery(customerQuery, [cl_id]);
   
-  if (customerRows.length === 0 || customerRows[0].cst_limit <= 0) {
+  if (customerRows.length === 0 || customerRows[0].cst_limit > 0) {
     throw new Error("Customer doesn't have limit to process this request");
   }
 
   // Update customer balance
   const updateBalanceQuery = `
-    UPDATE customer_balances 
-    SET amtlimit = amtlimit - ?, hold_balance = hold_balance + ? 
+    UPDATE customer_balances  
+    SET amtlimit = amtlimit - ?, hold_balance = ? 
     WHERE com_id = ?
   `;
-  await executeQuery(updateBalanceQuery, [calculatedHoldBalance, calculatedHoldBalance, cl_id]);
+  await executeQuery(updateBalanceQuery, [hold_balance, hold_balance, cl_id]);
 
-  // Update request status
+  // Update request status with current Indian time for pdate
+  const now = getIndianTime();
   const updateRequestQuery = `
     UPDATE filling_requests 
-    SET status = 'Processing', pdate = NOW(), pcid = ?
-    WHERE rid = ?
+    SET status = 'Processing', 
+        pdate = ?,
+        pcid = ?,
+        remark = ?,
+        doc1 = COALESCE(?, doc1),
+        doc2 = COALESCE(?, doc2),
+        doc3 = COALESCE(?, doc3),
+        status_updated_by = ?,
+        sub_product_id = COALESCE(?, sub_product_id)
+    WHERE id = ? AND rid = ?
   `;
-  await executeQuery(updateRequestQuery, [userId, rid]);
+  
+  await executeQuery(updateRequestQuery, [
+    now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
+  ]);
 
+  console.log('✅ Filling request status updated to Processing');
   return 'Status updated to Processing';
 }
 
 async function handleCompletedStatus(data) {
   const {
-    id, rid, fs_id, cl_id, product_id, billing_type,
+    id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
     oldstock, amtlimit, hold_balance, price, aqty,
     doc1Path, doc2Path, doc3Path, remarks, userId
   } = data;
 
-  const calculatedHoldBalance = price * aqty;
+  // Get price from deal_price table with proper fallback logic
+  let finalPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, price);
+  
+  console.log('💰 Final price to use:', finalPrice);
+
+  // Calculate amount = aqty * price
+  const calculatedAmount = finalPrice * aqty;
   const newStock = oldstock - aqty;
-  const c_balance = amtlimit - calculatedHoldBalance;
+  const c_balance = amtlimit - calculatedAmount;
 
   console.log('📊 Completion calculations:', {
-    calculatedHoldBalance,
+    finalPrice,
+    calculatedAmount,
     newStock,
     c_balance,
     oldstock,
     aqty
   });
 
-  // Validate stock availability
-  if (newStock < 0) {
-    throw new Error(`Insufficient stock. Available: ${oldstock} Ltr, Requested: ${aqty} Ltr`);
-  }
+  // Update filling request with documents, status, and sub_product_id with Indian time
+  const now = getIndianTime();
+  const updateRequestQuery = `
+    UPDATE filling_requests 
+    SET status = 'Completed', 
+        aqty = ?,
+        completed_date = ?,
+        ccid = ?,
+        remark = ?,
+        doc1 = COALESCE(?, doc1),
+        doc2 = COALESCE(?, doc2),
+        doc3 = COALESCE(?, doc3),
+        status_updated_by = ?,
+        sub_product_id = COALESCE(?, sub_product_id),
+        price = ?,
+        totalamt = ?
+    WHERE id = ? AND rid = ?
+  `;
+  
+  await executeQuery(updateRequestQuery, [
+    aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, 
+    sub_product_id, finalPrice, calculatedAmount, id, rid
+  ]);
 
-  // Update filling request first
-  await updateFillingRequest({
-    id, aqty, status: 'Completed', remarks, 
-    doc1Path, doc2Path, doc3Path, userId,
-    additionalFields: {
-      completed_date: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      cdate: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      ccid: userId
-    }
-  });
-
-  // Insert into history
+  // Insert into filling_history (only for Completed status)
   const insertHistoryQuery = `
     INSERT INTO filling_history 
     (rid, fs_id, product_id, trans_type, current_stock, filling_qty, amount, available_stock, filling_date, cl_id, created_by, remaining_limit) 
-    VALUES (?, ?, ?, 'Outward', ?, ?, ?, ?, NOW(), ?, ?, ?)
+    VALUES (?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?)
   `;
   await executeQuery(insertHistoryQuery, [
-    rid, fs_id, product_id, oldstock, aqty, calculatedHoldBalance, newStock, cl_id, userId, c_balance
+    rid, fs_id, product_id, oldstock, aqty, calculatedAmount, newStock, now, cl_id, userId, c_balance
   ]);
 
   // Update station stock
@@ -295,107 +425,245 @@ async function handleCompletedStatus(data) {
   }
 
   // Update customer balances
-  await updateCustomerBalances(cl_id, calculatedHoldBalance, rid, amtlimit);
+  await updateCustomerBalances(cl_id, calculatedAmount, rid, amtlimit);
 
+  console.log('✅ Filling request completed successfully');
   return 'Request Completed Successfully';
 }
 
-async function handleCancelStatus(data) {
-  const { id, remarks, doc1Path, doc2Path, doc3Path, userId } = data;
-
-  await updateFillingRequest({
-    id, 
-    aqty: null, 
-    status: 'Cancel', 
-    remarks, 
-    doc1Path, 
-    doc2Path, 
-    doc3Path, 
-    userId,
-    additionalFields: {
-      cadate: new Date().toISOString().slice(0, 19).replace('T', ' '),
-      cacid: userId,
-      cancel_remark: remarks
-    }
+// Dedicated function to get fuel price with proper fallback logic
+async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
+  console.log('🔍 Getting fuel price with params:', {
+    station_id, product_id, sub_product_id, com_id, defaultPrice
   });
 
+  let finalPrice = defaultPrice;
+
+  // Priority 1: Exact match with all parameters
+  if (sub_product_id) {
+    const exactPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ?
+        AND com_id = ?
+        AND is_active = 1
+      LIMIT 1
+    `;
+    
+    const exactPriceRows = await executeQuery(exactPriceQuery, [
+      station_id, product_id, sub_product_id, com_id
+    ]);
+    
+    if (exactPriceRows.length > 0) {
+      finalPrice = parseFloat(exactPriceRows[0].price);
+      console.log('✅ Price found with exact match:', finalPrice);
+      return finalPrice;
+    }
+  }
+
+  // Priority 2: Station-level price with sub_product_id
+  if (sub_product_id) {
+    const stationPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ?
+        AND is_active = 1
+      LIMIT 1
+    `;
+    
+    const stationPriceRows = await executeQuery(stationPriceQuery, [
+      station_id, product_id, sub_product_id
+    ]);
+    
+    if (stationPriceRows.length > 0) {
+      finalPrice = parseFloat(stationPriceRows[0].price);
+      console.log('✅ Price found with station-level match:', finalPrice);
+      return finalPrice;
+    }
+  }
+
+  // Priority 3: Customer-specific price without sub_product_id
+  const customerPriceQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND com_id = ?
+      AND is_active = 1
+    LIMIT 1
+  `;
+  
+  const customerPriceRows = await executeQuery(customerPriceQuery, [
+    station_id, product_id, com_id
+  ]);
+  
+  if (customerPriceRows.length > 0) {
+    finalPrice = parseFloat(customerPriceRows[0].price);
+    console.log('✅ Price found with customer match:', finalPrice);
+    return finalPrice;
+  }
+
+  // Priority 4: Station-level price without sub_product_id
+  const productPriceQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND is_active = 1
+    LIMIT 1
+  `;
+  
+  const productPriceRows = await executeQuery(productPriceQuery, [
+    station_id, product_id
+  ]);
+  
+  if (productPriceRows.length > 0) {
+    finalPrice = parseFloat(productPriceRows[0].price);
+    console.log('✅ Price found with product match:', finalPrice);
+    return finalPrice;
+  }
+
+  console.log('⚠️ No price found in deal_price, using default:', defaultPrice);
+  return defaultPrice;
+}
+
+async function handleCancelStatus(data) {
+  const { id, rid, remarks, doc1Path, doc2Path, doc3Path, userId } = data;
+
+  const now = getIndianTime();
+  const updateRequestQuery = `
+    UPDATE filling_requests 
+    SET status = 'Cancel', 
+        cdate = ?,
+        ccid = ?,
+        cancel_remark = ?,
+        doc1 = COALESCE(?, doc1),
+        doc2 = COALESCE(?, doc2),
+        doc3 = COALESCE(?, doc3),
+        status_updated_by = ?
+    WHERE id = ? AND rid = ?
+  `;
+  
+  await executeQuery(updateRequestQuery, [
+    now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, id, rid
+  ]);
+
+  console.log('✅ Filling request cancelled successfully');
   return 'Request Cancelled Successfully';
 }
 
 async function updateFillingRequest(data) {
   const {
-    id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId,
-    additionalFields = {}
+    id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
   } = data;
 
-  let updateQuery = `
-    UPDATE filling_requests 
-    SET status = ?, remark = COALESCE(?, remark),
-        status_updated_by = ?,
-        doc1 = COALESCE(?, doc1),
-        doc2 = COALESCE(?, doc2),
-        doc3 = COALESCE(?, doc3)
-  `;
-
-  const queryParams = [status, remarks, userId, doc1Path, doc2Path, doc3Path];
-
-  if (aqty !== null && aqty !== undefined) {
-    updateQuery += `, aqty = ?`;
-    queryParams.push(aqty);
+  const now = getIndianTime();
+  
+  // Update based on status to set appropriate timestamps
+  let updateQuery = '';
+  let queryParams = [];
+  
+  if (status === 'Processing') {
+    updateQuery = `
+      UPDATE filling_requests 
+      SET doc1 = COALESCE(?, doc1), 
+          doc2 = COALESCE(?, doc2), 
+          doc3 = COALESCE(?, doc3), 
+          aqty = ?, 
+          status = ?, 
+          remark = ?, 
+          sub_product_id = COALESCE(?, sub_product_id),
+          pdate = ?,
+          pcid = ?,
+          status_updated_by = ?
+      WHERE id = ?
+    `;
+    queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, now, userId, userId, id];
+  } else {
+    updateQuery = `
+      UPDATE filling_requests 
+      SET doc1 = COALESCE(?, doc1), 
+          doc2 = COALESCE(?, doc2), 
+          doc3 = COALESCE(?, doc3), 
+          aqty = ?, 
+          status = ?, 
+          remark = ?, 
+          sub_product_id = COALESCE(?, sub_product_id),
+          status_updated_by = ?
+      WHERE id = ?
+    `;
+    queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, userId, id];
   }
-
-  Object.keys(additionalFields).forEach(field => {
-    updateQuery += `, ${field} = ?`;
-    queryParams.push(additionalFields[field]);
-  });
-
-  updateQuery += ` WHERE id = ?`;
-  queryParams.push(id);
-
-  console.log('📝 Executing update query');
+  
   await executeQuery(updateQuery, queryParams);
+  console.log('📝 Filling request updated with status:', status);
 }
 
 async function handleNonBillingStocks(station_id, product_id, aqty) {
-  const checkQuery = `SELECT stock FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
-  const result = await executeQuery(checkQuery, [station_id, product_id]);
+  try {
+    const checkQuery = `SELECT stock FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
+    const result = await executeQuery(checkQuery, [station_id, product_id]);
 
-  if (result.length > 0) {
-    const existingStock = result[0].stock;
-    const updatedStock = existingStock + aqty;
-    await executeQuery(
-      `UPDATE non_billing_stocks SET stock = ? WHERE station_id = ? AND product_id = ?`,
-      [updatedStock, station_id, product_id]
-    );
-  } else {
-    await executeQuery(
-      `INSERT INTO non_billing_stocks (station_id, product_id, stock) VALUES (?, ?, ?)`,
-      [station_id, product_id, aqty]
-    );
+    if (result.length > 0) {
+      const existingStock = result[0].stock;
+      const updatedStock = existingStock + aqty;
+      await executeQuery(
+        `UPDATE non_billing_stocks SET stock = ? WHERE station_id = ? AND product_id = ?`,
+        [updatedStock, station_id, product_id]
+      );
+    } else {
+      await executeQuery(
+        `INSERT INTO non_billing_stocks (station_id, product_id, stock) VALUES (?, ?, ?)`,
+        [station_id, product_id, aqty]
+      );
+    }
+  } catch (error) {
+    console.error('❌ Error in handleNonBillingStocks:', error);
   }
 }
 
 async function updateCustomerBalances(cl_id, hold_balance, rid, old_balance) {
-  // Update hold balance and amtlimit
-  await executeQuery(
-    `UPDATE customer_balances SET hold_balance = hold_balance - ?, amtlimit = amtlimit - ? WHERE com_id = ?`,
-    [hold_balance, hold_balance, cl_id]
-  );
+  try {
+    await executeQuery(
+      `UPDATE customer_balances SET hold_balance = hold_balance - ?, amtlimit = amtlimit - ? WHERE com_id = ?`,
+      [hold_balance, hold_balance, cl_id]
+    );
 
-  const c_balance = old_balance - hold_balance;
-  
-  // Insert wallet history
-  await executeQuery(
-    `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type) 
-     VALUES (?, ?, ?, ?, ?, NOW(), 4)`,
-    [cl_id, rid, old_balance, hold_balance, c_balance]
-  );
+    const c_balance = old_balance - hold_balance;
+    
+    await executeQuery(
+      `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type) 
+       VALUES (?, ?, ?, ?, ?, NOW(), 4)`,
+      [cl_id, rid, old_balance, hold_balance, c_balance]
+    );
 
-  // Update main balance
-  await executeQuery(
-    `UPDATE customer_balances SET balance = balance + ? WHERE com_id = ?`,
-    [hold_balance, cl_id]
-  );
+    await executeQuery(
+      `UPDATE customer_balances SET balance = balance + ? WHERE com_id = ?`,
+      [hold_balance, cl_id]
+    );
+
+    const fetchQuery = `SELECT cst_limit, balance, amtlimit FROM customer_balances WHERE com_id = ?`;
+    const fetchRows = await executeQuery(fetchQuery, [cl_id]);
+    
+    if (fetchRows.length > 0) {
+      const { cst_limit, balance, amtlimit: currentAmtLimit } = fetchRows[0];
+      const currentAmtLimitValue = currentAmtLimit || 0;
+      const newamtlimit = currentAmtLimitValue - hold_balance;
+      
+      await executeQuery(
+        `UPDATE customer_balances SET amtlimit = ? WHERE com_id = ?`,
+        [newamtlimit, cl_id]
+      );
+    }
+
+  } catch (error) {
+    console.error('❌ Error in updateCustomerBalances:', error);
+    throw error;
+  }
 }
 
 async function handleFileUpload(file) {

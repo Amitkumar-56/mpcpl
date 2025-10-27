@@ -4,118 +4,141 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get("id"); // optional
-
-    const connection = await executeQuery();
-    let query = "SELECT * FROM filling_requests";
-    const params = [];
-
-    if (id) {
-      query += " WHERE id = ?";
-      params.push(id);
+    const id = searchParams.get("id");
+    
+    if (!id) {
+      return NextResponse.json({ error: "Request ID is required" }, { status: 400 });
     }
 
-    const [results] = await connection.execute(query, params);
+    console.log('🔍 Fetching request with ID:', id);
+    
+    const query = `
+      SELECT 
+        fr.*, 
+        c.name as customer_name, 
+        c.phone as customer_phone,
+        fs.station_name as loading_station,
+        pc.pcode as product_name,
+        ep.name as updated_by_name,
+        cb.amtlimit as customer_balance
+      FROM filling_requests fr
+      LEFT JOIN customers c ON c.id = fr.cid
+      LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
+      LEFT JOIN product_codes pc ON pc.id = fr.fl_id
+      LEFT JOIN employee_profile ep ON ep.id = fr.status_updated_by
+      LEFT JOIN customer_balances cb ON cb.com_id = fr.cid
+      WHERE fr.id = ?
+    `;
 
-    if (id && results.length === 0) {
-      return NextResponse.json({ error: "Record not found" }, { status: 404 });
+    const requestData = await executeQuery(query, [id]);
+    
+    console.log('📦 Database result:', requestData);
+    
+    if (requestData.length === 0) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ data: results });
+    return NextResponse.json({ request: requestData[0] });
   } catch (error) {
-    console.error("Error fetching filling requests:", error);
-    return NextResponse.json({ error: "Internal server error", details: error.message }, { status: 500 });
+    console.error('❌ Database error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error', details: error.message },
+      { status: 500 }
+    );
   }
 }
 
-export async function POST(request) {
+export async function PUT(request) {
   try {
-    const formData = await request.formData();
-
-    const id = formData.get('id');
-    const product_id = formData.get('product');
-    const station_id = formData.get('station');
-    const vehicle_number = formData.get('vehicle_number');
-    const driver_number = formData.get('driver_number');
-    const qty = Number(formData.get('qty'));
-    const aqty = Number(formData.get('aqty'));
-    const customer_id = formData.get('customer');
-
-    const doc1 = formData.get('doc1');
-    const doc2 = formData.get('doc2');
-    const doc3 = formData.get('doc3');
-
-    const connection = await executeQuery();
-    await connection.beginTransaction();
-
-    try {
-      const [currentRecord] = await connection.execute(
-        'SELECT aqty, rid FROM filling_requests WHERE id = ?',
-        [id]
-      );
-
-      if (currentRecord.length === 0) {
-        await connection.rollback();
-        return NextResponse.json({ error: 'Record not found' }, { status: 404 });
-      }
-
-      const old_aqty = currentRecord[0].aqty;
-
-      await connection.execute(
-        `UPDATE filling_requests SET 
-          product = ?, fs_id = ?, vehicle_number = ?, driver_number = ?, 
-          qty = ?, aqty = ?, cid = ? 
-         WHERE id = ?`,
-        [product_id, station_id, vehicle_number, driver_number, qty, aqty, customer_id, id]
-      );
-
-      // Adjust balances & stock
-      if (aqty !== old_aqty) {
-        const [priceData] = await connection.execute(
-          'SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ?',
-          [station_id, product_id, customer_id]
-        );
-
-        if (priceData.length > 0) {
-          const price = priceData[0].price;
-          const qty_diff = Math.abs(aqty - old_aqty);
-          const amount = qty_diff * price;
-
-          if (aqty > old_aqty) {
-            await connection.execute(
-              'UPDATE customer_balances SET balance = balance + ?, amtlimit = amtlimit - ? WHERE com_id = ?',
-              [amount, amount, customer_id]
-            );
-            await connection.execute(
-              'UPDATE filling_station_stocks SET stock = stock - ? WHERE fs_id = ? AND product = ?',
-              [qty_diff, station_id, product_id]
-            );
-          } else {
-            await connection.execute(
-              'UPDATE customer_balances SET balance = balance - ?, amtlimit = amtlimit + ? WHERE com_id = ?',
-              [amount, amount, customer_id]
-            );
-            await connection.execute(
-              'UPDATE filling_station_stocks SET stock = stock + ? WHERE fs_id = ? AND product = ?',
-              [qty_diff, station_id, product_id]
-            );
-          }
-        }
-      }
-
-      // TODO: Handle file uploads if needed (doc1, doc2, doc3)
-
-      await connection.commit();
-
-      return NextResponse.json({ success: true, message: 'Record updated successfully' });
-
-    } catch (error) {
-      await connection.rollback();
-      throw error;
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get("id");
+    
+    if (!id) {
+      return NextResponse.json({ error: "Request ID is required" }, { status: 400 });
     }
 
+    const body = await request.json();
+    const { status, qty, vehicle_number, driver_number, remark } = body;
+
+    console.log('💾 Updating request:', { id, ...body });
+
+    // Check if request exists
+    const checkQuery = "SELECT * FROM filling_requests WHERE id = ?";
+    const existingRequest = await executeQuery(checkQuery, [id]);
+    
+    if (existingRequest.length === 0) {
+      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+    }
+
+    let updateQuery = "UPDATE filling_requests SET ";
+    const updateParams = [];
+    const updateFields = [];
+
+    if (status) {
+      updateFields.push("status = ?");
+      updateParams.push(status);
+      
+      // If status is being updated to Completed, set completed_date
+      if (status === "Completed") {
+        updateFields.push("completed_date = NOW()");
+      }
+    }
+
+    if (qty !== undefined) {
+      updateFields.push("qty = ?");
+      updateFields.push("aqty = ?"); // Also update aqty
+      updateParams.push(parseFloat(qty));
+      updateParams.push(parseFloat(qty));
+    }
+
+    if (vehicle_number) {
+      updateFields.push("vehicle_number = ?");
+      updateParams.push(vehicle_number);
+    }
+
+    if (driver_number) {
+      updateFields.push("driver_number = ?");
+      updateParams.push(driver_number);
+    }
+
+    if (remark !== undefined) {
+      updateFields.push("remark = ?");
+      updateParams.push(remark);
+    }
+
+    // Add updated timestamp
+    updateFields.push("updated = NOW()");
+
+    if (updateFields.length === 0) {
+      return NextResponse.json({ error: "No fields to update" }, { status: 400 });
+    }
+
+    updateQuery += updateFields.join(", ");
+    updateQuery += " WHERE id = ?";
+    updateParams.push(id);
+
+    console.log('📝 Update query:', updateQuery);
+    console.log('📝 Update params:', updateParams);
+
+    const result = await executeQuery(updateQuery, updateParams);
+
+    console.log('✅ Update result:', result);
+
+    if (result.affectedRows > 0) {
+      return NextResponse.json({ 
+        success: true, 
+        message: "Request updated successfully" 
+      });
+    } else {
+      return NextResponse.json({ 
+        error: "Failed to update request" 
+      }, { status: 500 });
+    }
   } catch (error) {
-    console.error('Error updating record:', error);
-    return NextResponse.json({ error: 'Internal server error', details: error.message }, { status: 500 });
+    console.error("❌ PUT API Error:", error);
+    return NextResponse.json({ 
+      error: "Server error",
+      details: error.message 
+    }, { status: 500 });
   }
 }

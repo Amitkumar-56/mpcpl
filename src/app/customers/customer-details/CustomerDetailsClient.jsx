@@ -34,6 +34,22 @@ const getEligibilityInfo = (eligibility) => {
   };
 };
 
+// Overdue check function
+const checkOverdueAndShowMessage = (customer) => {
+  if (customer.eligibility?.hasOverdue) {
+    const overdueAmount = customer.eligibility.totalOverdue || 0;
+    const message = `OVERDUE ALERT: You have overdue invoices totaling ₹${overdueAmount.toLocaleString('en-IN')}. 
+    Your account has been blocked. Please make payment to automatically unblock your account. 
+    After payment, your account will be automatically activated.`;
+    
+    // Show alert
+    alert(message);
+    
+    return true;
+  }
+  return false;
+};
+
 export default function CustomerDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -49,6 +65,7 @@ export default function CustomerDetailsClient() {
   const [showBillingModal, setShowBillingModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showCreditDaysModal, setShowCreditDaysModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -82,6 +99,12 @@ export default function CustomerDetailsClient() {
       }
       
       setCustomer(data.customer);
+      
+      // Check for overdue and show message
+      setTimeout(() => {
+        checkOverdueAndShowMessage(data.customer);
+      }, 1000);
+      
     } catch (err) {
       console.error('Error in fetchCustomerDetails:', err);
       setError(err.message || 'Failed to load customer details');
@@ -323,6 +346,40 @@ export default function CustomerDetailsClient() {
     }
   };
 
+  const handleProcessPayment = async (paymentData) => {
+    try {
+      setActionLoading(true);
+      const res = await fetch('/api/customers/customer-details', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'process_payment',
+          id,
+          ...paymentData
+        }),
+      });
+      
+      const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to process payment');
+      }
+      
+      if (data.unblocked) {
+        alert(`Payment processed successfully! Your account has been unblocked. New limit: ₹${data.newLimit.toLocaleString('en-IN')}`);
+      } else {
+        alert('Payment processed successfully!');
+      }
+      
+      setShowPaymentModal(false);
+      fetchCustomerDetails();
+    } catch (err) {
+      alert(err.message || 'Error processing payment');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -400,6 +457,7 @@ export default function CustomerDetailsClient() {
 
   const statusInfo = getStatusInfo(customer.status);
   const eligibilityInfo = getEligibilityInfo(customer.eligibility);
+  const isOverdue = customer.eligibility?.hasOverdue;
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -427,6 +485,14 @@ export default function CustomerDetailsClient() {
                     <h1 className="text-2xl font-bold text-gray-900">Customer Details</h1>
                   </div>
                   <div className="flex flex-wrap gap-2">
+                    {isOverdue && (
+                      <button
+                        onClick={() => setShowPaymentModal(true)}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      >
+                        Make Payment
+                      </button>
+                    )}
                     <button
                       onClick={() => setShowCreditDaysModal(true)}
                       className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
@@ -457,6 +523,22 @@ export default function CustomerDetailsClient() {
             </div>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              {/* Overdue Alert */}
+              {isOverdue && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                    </svg>
+                    <h3 className="text-red-800 font-semibold">Account Blocked Due to Overdue Invoices</h3>
+                  </div>
+                  <p className="text-red-700 mt-2">
+                    Total Overdue: ₹{(customer.eligibility.totalOverdue || 0).toLocaleString('en-IN')} | 
+                    Please make payment to automatically unblock your account.
+                  </p>
+                </div>
+              )}
+
               {/* Customer Summary Card */}
               <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
                 <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
@@ -479,12 +561,16 @@ export default function CustomerDetailsClient() {
                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${eligibilityInfo.className}`}>
                       {eligibilityInfo.reason}
                     </span>
+                    {isOverdue && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                        Overdue: ₹{(customer.eligibility.totalOverdue || 0).toLocaleString('en-IN')}
+                      </span>
+                    )}
                   </div>
                 </div>
 
                 {/* Quick Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
-                  
                   <div className={`rounded-lg p-4 ${
                     (customer.cst_limit || 0) >= 0 ? 'bg-green-50' : 'bg-red-50'
                   }`}>
@@ -508,6 +594,18 @@ export default function CustomerDetailsClient() {
                   <div className="bg-yellow-50 rounded-lg p-4">
                     <div className="text-sm font-medium text-yellow-600">Hold Balance</div>
                     <div className="text-2xl font-bold text-yellow-900">₹{(customer.hold_balance || 0).toLocaleString('en-IN')}</div>
+                  </div>
+                  <div className={`rounded-lg p-4 ${
+                    isOverdue ? 'bg-red-50' : 'bg-blue-50'
+                  }`}>
+                    <div className={`text-sm font-medium ${
+                      isOverdue ? 'text-red-600' : 'text-blue-600'
+                    }`}>Available Balance</div>
+                    <div className={`text-2xl font-bold ${
+                      isOverdue ? 'text-red-900' : 'text-blue-900'
+                    }`}>
+                      ₹{((customer.amtlimit || 0) - (customer.hold_balance || 0)).toLocaleString('en-IN')}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -620,6 +718,14 @@ export default function CustomerDetailsClient() {
           customer={customer}
           onClose={() => setShowCreditDaysModal(false)}
           onSubmit={handleUpdateCreditDays}
+          loading={actionLoading}
+        />
+      )}
+      {showPaymentModal && (
+        <PaymentModal
+          customer={customer}
+          onClose={() => setShowPaymentModal(false)}
+          onSubmit={handleProcessPayment}
           loading={actionLoading}
         />
       )}
@@ -791,6 +897,19 @@ function BalanceTab({ customer, onClearHoldBalance, actionLoading }) {
             <div className="text-xs text-gray-400">{item.description}</div>
           </div>
         ))}
+        <div className={`rounded-lg p-6 ${
+          availableBalance >= 0 ? 'bg-green-50' : 'bg-red-50'
+        }`}>
+          <div className={`text-sm font-medium ${
+            availableBalance >= 0 ? 'text-green-600' : 'text-red-600'
+          }`}>Available Balance</div>
+          <div className={`text-2xl font-bold ${
+            availableBalance >= 0 ? 'text-green-900' : 'text-red-900'
+          }`}>
+            ₹{availableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          </div>
+          <div className="text-xs text-gray-400">Remaining Limit - Hold Balance</div>
+        </div>
       </div>
 
       {/* Eligibility Information */}
@@ -809,6 +928,14 @@ function BalanceTab({ customer, onClearHoldBalance, actionLoading }) {
                 <div className="flex justify-between">
                   <span className="text-gray-600">Reason:</span>
                   <span className="text-red-600 font-semibold">{customer.eligibility.reason}</span>
+                </div>
+              )}
+              {customer.eligibility.hasOverdue && (
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Overdue Amount:</span>
+                  <span className="text-red-600 font-semibold">
+                    ₹{(customer.eligibility.totalOverdue || 0).toLocaleString('en-IN')}
+                  </span>
                 </div>
               )}
             </div>
@@ -1473,6 +1600,84 @@ function CreditDaysModal({ customer, onClose, onSubmit, loading }) {
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Updating...' : 'Update Credit Days'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentModal({ customer, onClose, onSubmit, loading }) {
+  const [paymentAmount, setPaymentAmount] = useState('');
+  const totalOverdue = customer.eligibility?.totalOverdue || 0;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+      alert('Please enter a valid payment amount');
+      return;
+    }
+    
+    onSubmit({
+      paymentAmount: parseFloat(paymentAmount)
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Process Payment</h3>
+          
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <svg className="w-5 h-5 text-red-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+              </svg>
+              <h4 className="text-red-800 font-semibold">Account Blocked Due to Overdue</h4>
+            </div>
+            <p className="text-red-700 mt-2">
+              Total Overdue Amount: ₹{totalOverdue.toLocaleString('en-IN')}
+            </p>
+            <p className="text-green-600 text-sm mt-2">
+              After payment, your account will be automatically unblocked and limit restored.
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Payment Amount (₹)</label>
+              <input 
+                type="number"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter payment amount"
+                required 
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Recommended: ₹{totalOverdue.toLocaleString('en-IN')} (total overdue amount)
+              </p>
+            </div>
+            
+            <div className="flex justify-end space-x-3 pt-4">
+              <button 
+                type="button" 
+                onClick={onClose} 
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                type="submit" 
+                disabled={loading} 
+                className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? 'Processing...' : 'Process Payment'}
               </button>
             </div>
           </form>

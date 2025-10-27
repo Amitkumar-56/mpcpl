@@ -12,9 +12,102 @@ async function hashPassword(password) {
     .join('');
 }
 
-// Helper function to check customer eligibility
+// Helper function to check and handle overdue customers
+async function checkAndHandleOverdueCustomer(customerId) {
+  try {
+    const customerQuery = `
+      SELECT c.id, c.billing_type, c.credit_days, c.status,
+             cb.cst_limit, cb.amtlimit, cb.hold_balance
+      FROM customers c 
+      LEFT JOIN customer_balances cb ON c.id = cb.com_id 
+      WHERE c.id = ?
+    `;
+    const customerData = await executeQuery(customerQuery, [customerId]);
+    
+    if (customerData.length === 0) {
+      return { hasOverdue: false };
+    }
+
+    const customer = customerData[0];
+    
+    // Only check for postpaid customers
+    if (customer.billing_type != 1) {
+      return { hasOverdue: false };
+    }
+
+    const creditDaysValue = parseInt(customer.credit_days) || 7;
+    
+    // Check for overdue invoices
+    const overdueQuery = `
+      SELECT COUNT(*) as overdue_count, 
+             SUM(remaining_amount) as total_overdue
+      FROM invoices 
+      WHERE customer_id = ? 
+      AND status IN ('pending', 'partially_paid')
+      AND due_date < DATE_SUB(NOW(), INTERVAL ? DAY)
+    `;
+    const overdueResult = await executeQuery(overdueQuery, [customerId, creditDaysValue]);
+    
+    const hasOverdue = overdueResult[0].overdue_count > 0;
+    const totalOverdue = parseFloat(overdueResult[0].total_overdue) || 0;
+
+    if (hasOverdue) {
+      // Auto-block customer by setting remaining limit to 0
+      const currentAmtLimit = parseFloat(customer.amtlimit) || 0;
+      const currentCstLimit = parseFloat(customer.cst_limit) || 0;
+      
+      // Only block if not already blocked
+      if (currentAmtLimit > 0) {
+        const updateQuery = 'UPDATE customer_balances SET amtlimit = 0 WHERE com_id = ?';
+        await executeQuery(updateQuery, [customerId]);
+        
+        // Log this action
+        const now = new Date();
+        await executeQuery(
+          `INSERT INTO filling_history 
+           (trans_type, credit_date, remaining_limit, filling_date, cl_id, created_by, created_at, in_amount, d_amount, limit_type, remarks)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            "auto_block_overdue",
+            now,
+            0,
+            now,
+            customerId,
+            1, // system user
+            now,
+            0,
+            currentAmtLimit,
+            "decrease",
+            `Auto-blocked due to overdue invoices. Total overdue: ₹${totalOverdue}`
+          ]
+        );
+        
+        // Update customer status to inactive
+        await executeQuery('UPDATE customers SET status = 0 WHERE id = ?', [customerId]);
+      }
+      
+      return { 
+        hasOverdue: true, 
+        totalOverdue,
+        overdueCount: overdueResult[0].overdue_count,
+        wasBlocked: currentAmtLimit > 0
+      };
+    }
+
+    return { hasOverdue: false };
+
+  } catch (error) {
+    console.error('Error checking overdue customer:', error);
+    return { hasOverdue: false };
+  }
+}
+
+// Helper function to check customer eligibility with overdue handling
 async function checkCustomerEligibility(customerId) {
   try {
+    // First check and handle overdue
+    const overdueCheck = await checkAndHandleOverdueCustomer(customerId);
+    
     const balanceQuery = `
       SELECT cb.cst_limit, cb.amtlimit, cb.hold_balance, c.billing_type, c.status, c.credit_days
       FROM customer_balances cb 
@@ -24,7 +117,12 @@ async function checkCustomerEligibility(customerId) {
     const balanceData = await executeQuery(balanceQuery, [customerId]);
     
     if (balanceData.length === 0) {
-      return { eligible: false, reason: 'Customer balance not found' };
+      return { 
+        eligible: false, 
+        reason: 'Customer balance not found',
+        hasOverdue: overdueCheck.hasOverdue,
+        totalOverdue: overdueCheck.totalOverdue || 0
+      };
     }
 
     const { 
@@ -41,7 +139,21 @@ async function checkCustomerEligibility(customerId) {
     const currentHold = parseFloat(hold_balance) || 0;
     const availableBalance = remainingLimit - currentHold;
 
-    // Check available balance - ALLOW NEGATIVE VALUES
+    // Check if customer is inactive
+    if (status == 0) {
+      return { 
+        eligible: false, 
+        reason: 'Customer account is inactive',
+        availableBalance,
+        totalLimit,
+        remainingLimit,
+        currentHold,
+        hasOverdue: overdueCheck.hasOverdue,
+        totalOverdue: overdueCheck.totalOverdue || 0
+      };
+    }
+
+    // Check available balance
     if (availableBalance <= 0) {
       return { 
         eligible: false, 
@@ -49,35 +161,25 @@ async function checkCustomerEligibility(customerId) {
         availableBalance,
         totalLimit,
         remainingLimit,
-        currentHold
+        currentHold,
+        hasOverdue: overdueCheck.hasOverdue,
+        totalOverdue: overdueCheck.totalOverdue || 0
       };
     }
 
     // For postpaid customers, check overdue invoices
-    if (billing_type == 1) {
-      const creditDaysValue = parseInt(credit_days) || 7;
-      
-      const overdueQuery = `
-        SELECT COUNT(*) as overdue_count, 
-               SUM(remaining_amount) as total_overdue
-        FROM invoices 
-        WHERE customer_id = ? 
-        AND status IN ('pending', 'partially_paid')
-        AND due_date < DATE_SUB(NOW(), INTERVAL ? DAY)
-      `;
-      const overdueResult = await executeQuery(overdueQuery, [customerId, creditDaysValue]);
-      
-      if (overdueResult[0].overdue_count > 0) {
-        return { 
-          eligible: false, 
-          reason: `Overdue invoices exist (${creditDaysValue} days credit period)`,
-          availableBalance,
-          totalLimit,
-          remainingLimit,
-          currentHold,
-          overdueAmount: overdueResult[0].total_overdue || 0
-        };
-      }
+    if (billing_type == 1 && overdueCheck.hasOverdue) {
+      return { 
+        eligible: false, 
+        reason: `Overdue invoices exist (${credit_days} days credit period)`,
+        availableBalance,
+        totalLimit,
+        remainingLimit,
+        currentHold,
+        hasOverdue: true,
+        totalOverdue: overdueCheck.totalOverdue || 0,
+        overdueCount: overdueCheck.overdueCount || 0
+      };
     }
 
     return { 
@@ -86,12 +188,74 @@ async function checkCustomerEligibility(customerId) {
       totalLimit,
       remainingLimit,
       currentHold,
-      billing_type 
+      billing_type,
+      hasOverdue: overdueCheck.hasOverdue,
+      totalOverdue: overdueCheck.totalOverdue || 0
     };
 
   } catch (error) {
     console.error('Error checking eligibility:', error);
-    return { eligible: false, reason: 'Error checking eligibility' };
+    return { 
+      eligible: false, 
+      reason: 'Error checking eligibility',
+      hasOverdue: false
+    };
+  }
+}
+
+// Helper function to handle payment and auto-unblock
+async function handlePaymentAndUnblock(customerId, paymentAmount) {
+  try {
+    // Get current balance
+    const balanceQuery = 'SELECT cst_limit, amtlimit, hold_balance FROM customer_balances WHERE com_id = ?';
+    const balanceData = await executeQuery(balanceQuery, [customerId]);
+    
+    if (balanceData.length === 0) return { unblocked: false };
+    
+    const currentCstLimit = parseFloat(balanceData[0].cst_limit) || 0;
+    const currentAmtLimit = parseFloat(balanceData[0].amtlimit) || 0;
+    const currentHold = parseFloat(balanceData[0].hold_balance) || 0;
+    
+    // If customer was blocked (amtlimit = 0) and payment is made, restore limit
+    if (currentAmtLimit === 0 && paymentAmount > 0) {
+      const newAmtLimit = currentCstLimit;
+      
+      await executeQuery(
+        'UPDATE customer_balances SET amtlimit = ? WHERE com_id = ?',
+        [newAmtLimit, customerId]
+      );
+      
+      // Activate customer
+      await executeQuery('UPDATE customers SET status = 1 WHERE id = ?', [customerId]);
+      
+      // Log the unblock action
+      const now = new Date();
+      await executeQuery(
+        `INSERT INTO filling_history 
+         (trans_type, credit_date, remaining_limit, filling_date, cl_id, created_by, created_at, in_amount, d_amount, limit_type, remarks)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          "auto_unblock_payment",
+          now,
+          newAmtLimit,
+          now,
+          customerId,
+          1, // system user
+          now,
+          newAmtLimit,
+          0,
+          "increase",
+          `Auto-unblocked after payment of ₹${paymentAmount}. Limit restored to ₹${newAmtLimit}`
+        ]
+      );
+      
+      return { unblocked: true, newLimit: newAmtLimit };
+    }
+    
+    return { unblocked: false };
+  } catch (error) {
+    console.error('Error handling payment unblock:', error);
+    return { unblocked: false };
   }
 }
 
@@ -103,6 +267,9 @@ export async function GET(request) {
     if (!id) {
       return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
     }
+
+    // First, check and handle any overdue situation
+    await checkAndHandleOverdueCustomer(id);
 
     // Fetch customer details
     const customerQuery = `
@@ -652,6 +819,31 @@ export async function POST(request) {
 
         await executeQuery('DELETE FROM customers WHERE id = ?', [deleteUserId]);
         return NextResponse.json({ message: 'User deleted successfully' });
+
+      case 'process_payment':
+        // NEW: Handle payment processing and auto-unblock
+        const { paymentAmount } = data;
+        
+        if (!id || !paymentAmount) {
+          return NextResponse.json({ error: 'Customer ID and payment amount are required' }, { status: 400 });
+        }
+
+        const paymentCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
+        if (paymentCustCheck.length === 0) {
+          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+        }
+
+        // Process payment logic here (update invoices, transactions, etc.)
+        // This is a simplified version - implement your actual payment processing
+        
+        // After payment processing, check if we need to unblock the customer
+        const unblockResult = await handlePaymentAndUnblock(id, parseFloat(paymentAmount));
+        
+        return NextResponse.json({ 
+          message: 'Payment processed successfully',
+          unblocked: unblockResult.unblocked || false,
+          newLimit: unblockResult.newLimit || 0
+        });
 
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });

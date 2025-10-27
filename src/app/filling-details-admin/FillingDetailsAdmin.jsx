@@ -20,7 +20,8 @@ export default function FillingDetailsAdmin() {
     doc3: null,
     aqty: '',
     status: 'Processing',
-    remarks: ''
+    remarks: '',
+    sub_product_id: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState({
@@ -58,7 +59,8 @@ export default function FillingDetailsAdmin() {
           ...prev,
           aqty: data.data.aqty || data.data.qty || '',
           status: data.data.status || 'Processing',
-          remarks: data.data.remark || ''
+          remarks: data.data.remark || '',
+          sub_product_id: data.data.sub_product_id || ''
         }));
       } else {
         throw new Error(data.error || 'Failed to fetch request details');
@@ -73,6 +75,8 @@ export default function FillingDetailsAdmin() {
 
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
+    
+    console.log('🔄 Input changed:', name, value);
     
     if (files) {
       setFormData(prev => ({
@@ -118,13 +122,20 @@ export default function FillingDetailsAdmin() {
     }
     
     // Validate actual quantity
-    if (!formData.aqty || parseFloat(formData.aqty) <= 0) {
+    const aqtyValue = parseFloat(formData.aqty);
+    
+    if (!formData.aqty || formData.aqty === '' || isNaN(aqtyValue)) {
       alert('Please enter a valid actual quantity');
       return;
     }
 
-    if (parseFloat(formData.aqty) > (requestData.station_stock || 0)) {
-      alert(`Actual quantity cannot exceed available stock: ${requestData.station_stock || 0} Ltr`);
+    if (aqtyValue <= 0) {
+      alert('Actual quantity must be greater than 0');
+      return;
+    }
+
+    if (aqtyValue > (requestData.station_stock || 0)) {
+      alert(`Actual quantity cannot exceed available stock (${requestData.station_stock || 0} Ltr)`);
       return;
     }
     
@@ -148,6 +159,12 @@ export default function FillingDetailsAdmin() {
       submitData.append('cl_id', requestData.cid);
       submitData.append('com_id', requestData.cid);
       submitData.append('product_id', requestData.product);
+      
+      // Add sub_product_id if selected
+      if (formData.sub_product_id) {
+        submitData.append('sub_product_id', formData.sub_product_id);
+      }
+      
       submitData.append('billing_type', requestData.billing_type);
       submitData.append('oldstock', requestData.station_stock || 0);
       submitData.append('amtlimit', requestData.amtlimit || 0);
@@ -158,6 +175,7 @@ export default function FillingDetailsAdmin() {
       submitData.append('price', requestData.fuel_price || requestData.price || 0);
 
       console.log('📤 Submitting form data with status:', formData.status);
+      console.log('🔹 Sub-product ID:', formData.sub_product_id);
 
       const response = await fetch('/api/filling-details-admin', {
         method: 'POST',
@@ -171,12 +189,27 @@ export default function FillingDetailsAdmin() {
       
       if (result.success) {
         alert(result.message || 'Request updated successfully!');
-        await fetchRequestDetails(); // Refresh data
+        
+        // Immediately update the local state to reflect the new status
+        if (result.status) {
+          setFormData(prev => ({
+            ...prev,
+            status: result.status
+          }));
+          
+          // Also update the requestData status immediately
+          setRequestData(prev => ({
+            ...prev,
+            status: result.status
+          }));
+        }
+        
+        await fetchRequestDetails(); // Refresh complete data from server
         
         // Redirect if completed or cancelled
         if (formData.status === 'Completed' || formData.status === 'Cancel') {
           setTimeout(() => {
-            router.push('/filling-requests-admin');
+            router.push('/filling-requests');
           }, 1500);
         }
       } else {
@@ -213,13 +246,20 @@ export default function FillingDetailsAdmin() {
       
       if (result.success) {
         alert('Request cancelled successfully!');
+        
+        // Immediately update local state
+        setRequestData(prev => ({
+          ...prev,
+          status: 'Cancel'
+        }));
+        
         setShowCancelModal(false);
         setCancelRemarks('');
         await fetchRequestDetails();
         
         // Redirect back after cancellation
         setTimeout(() => {
-          router.push('/filling-requests-admin');
+          router.push('/filling-requests');
         }, 1500);
       } else {
         throw new Error(result.error || result.message);
@@ -377,6 +417,12 @@ export default function FillingDetailsAdmin() {
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Product</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{requestData.product_name}</td>
                         </tr>
+                        {requestData.sub_product_code && (
+                          <tr>
+                            <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Sub-Product</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{requestData.sub_product_code}</td>
+                          </tr>
+                        )}
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Station</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{requestData.station_name}</td>
@@ -390,10 +436,6 @@ export default function FillingDetailsAdmin() {
                           <td className="px-4 py-3 text-sm text-gray-900">{requestData.client_phone}</td>
                         </tr>
                         <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Billing Type</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 capitalize">{requestData.billing_type == 1 ? 'Billing' : 'Non-Billing'}</td>
-                        </tr>
-                        <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Requested Quantity</td>
                           <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.qty} Ltr</td>
                         </tr>
@@ -401,20 +443,6 @@ export default function FillingDetailsAdmin() {
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Actual Quantity</td>
                           <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.aqty || 'Not set'} Ltr</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Stock</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.station_stock || 0} Ltr</td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Price</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.fuel_price || requestData.price || 0}/Ltr</td>
-                        </tr>
-                        {formData.aqty && (
-                          <tr>
-                            <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Calculated Amount</td>
-                            <td className="px-4 py-3 text-sm text-green-600 font-bold">₹{calculateAmount()}</td>
-                          </tr>
-                        )}
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Request Date & Time</td>
                           <td className="px-4 py-3 text-sm text-gray-900">
@@ -482,19 +510,6 @@ export default function FillingDetailsAdmin() {
                             </div>
                           </td>
                         </tr>
-                        {requestData.status !== 'Cancel' && requestData.status !== 'Cancelled' && requestData.status !== 'Completed' && (
-                          <tr>
-                            <td className="px-4 py-3 bg-gray-50"></td>
-                            <td className="px-4 py-3">
-                              <button 
-                                onClick={() => setShowCancelModal(true)}
-                                className='bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors'
-                              >
-                                Cancel This Request
-                              </button>
-                            </td>
-                          </tr>
-                        )}
                       </tbody>
                     </table>
                   </div>
@@ -562,6 +577,32 @@ export default function FillingDetailsAdmin() {
                             </td>
                           </tr>
 
+                          {/* Sub-Product Selection */}
+                          {requestData.available_sub_products && requestData.available_sub_products.length > 0 && (
+                            <tr>
+                              <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900">
+                                <label className="block">Sub-Product</label>
+                              </td>
+                              <td className="px-4 py-4">
+                                <div className="max-w-xs">
+                                  <select 
+                                    name="sub_product_id"
+                                    value={formData.sub_product_id || ''}
+                                    onChange={handleInputChange}
+                                    className="block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                  >
+                                    <option value="">Select Sub-Product</option>
+                                    {requestData.available_sub_products.map((subProduct) => (
+                                      <option key={subProduct.id} value={subProduct.id}>
+                                        {subProduct.pcode}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+
                           <tr>
                             <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900">
                               <label className="block">Actual Quantity (Ltr) *</label>
@@ -587,7 +628,7 @@ export default function FillingDetailsAdmin() {
                                 <p className="mt-1 text-sm text-gray-500">
                                   Available stock: <span className="font-medium">{requestData.station_stock || 0} Ltr</span>
                                 </p>
-                                {formData.aqty && (
+                                {formData.aqty && !isNaN(parseFloat(formData.aqty)) && (
                                   <p className="mt-1 text-sm text-green-600">
                                     Calculated Amount: <span className="font-bold">₹{calculateAmount()}</span>
                                   </p>
@@ -638,11 +679,14 @@ export default function FillingDetailsAdmin() {
                               <div className="flex justify-end space-x-4">
                                 <button 
                                   type="button"
-                                  onClick={() => router.back()}
-                                  className="bg-gray-200 hover:bg-gray-300 text-gray-800 font-medium py-2 px-6 rounded-lg shadow-sm transition-colors"
+                                  onClick={() => setShowCancelModal(true)}
+                                  className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                                   disabled={submitting}
                                 >
-                                  Cancel
+                                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                  </svg>
+                                  Cancel Request
                                 </button>
                                 <button 
                                   type="submit" 

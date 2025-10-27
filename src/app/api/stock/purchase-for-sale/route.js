@@ -77,8 +77,8 @@ export async function POST(request) {
       dncn
     });
 
-    // CORRECTED INSERT QUERY - Removed supply_type column
-    const query = `
+    // Insert into stock table
+    const stockQuery = `
       INSERT INTO stock (
         supplier_id,
         product_id,
@@ -103,7 +103,7 @@ export async function POST(request) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
 
-    const values = [
+    const stockValues = [
       supplier_id,
       product_id,
       fs_id,
@@ -125,15 +125,43 @@ export async function POST(request) {
       quantityChanged ? "changed" : "normal"
     ];
 
-    console.log("Executing query with values:", values);
+    console.log("Executing stock query with values:", stockValues);
 
-    const result = await executeQuery(query, values);
-    console.log("Database insert successful:", result);
+    const stockResult = await executeQuery(stockQuery, stockValues);
+    console.log("Stock database insert successful:", stockResult);
+
+    // Insert into filling_station_stocks table
+    const insertStockQuery = `
+      INSERT INTO filling_station_stocks (
+        fs_id,
+        product,
+        stock,
+        msg,
+        remark,
+        created_at
+      ) VALUES (?, ?, ?, ?, ?, NOW())
+    `;
+
+    const stockValuesForFS = [
+      fs_id,
+      product_id, // product_id directly as product
+      quantityInLtrNum, // UI se jo Quantity in Ltr aaya wahi stock mein jayega
+      `New purchase - Invoice: ${invoiceNumber}`,
+      `Tanker: ${tankerNumber || 'N/A'}`
+    ];
+
+    console.log("Executing filling_station_stocks query with values:", stockValuesForFS);
+
+    const fsStockResult = await executeQuery(insertStockQuery, stockValuesForFS);
+    console.log("Filling station stocks insert successful:", fsStockResult);
 
     return NextResponse.json({ 
       success: true, 
-      message: "Purchase saved into stock table successfully",
-      data: result 
+      message: "Purchase saved into both tables successfully",
+      data: {
+        stockInsert: stockResult,
+        fsStockInsert: fsStockResult
+      }
     });
 
   } catch (error) {

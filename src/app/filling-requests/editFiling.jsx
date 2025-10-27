@@ -1,4 +1,3 @@
-//src/app/filling-requests/editFiling.jsx
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
@@ -17,6 +16,9 @@ const Icons = ({
   onShare,
   onPdf,
 }) => {
+  const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
+  const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
+
   return (
     <div className="flex items-center space-x-1">
       {/* View Icon */}
@@ -53,22 +55,40 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* Call Icon */}
+      {/* Call Icon - STATION PHONE */}
       <button
-        onClick={() => onCall(request.driver_number)}
-        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-        title={`Call Driver: ${request.driver_number}`}
+        onClick={() => onCall(request.station_phone, request.loading_station)}
+        disabled={!stationPhone}
+        className={`p-1.5 rounded-full transition-colors ${
+          stationPhone 
+            ? "text-green-600 hover:bg-green-50" 
+            : "text-gray-400 cursor-not-allowed"
+        }`}
+        title={
+          stationPhone 
+            ? `Call Station: ${request.loading_station || "Station"} - ${stationPhone}` 
+            : "No phone number available for this station"
+        }
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       </button>
 
-      {/* Share Icon */}
+      {/* Share Icon - STATION MAP LINK */}
       <button
         onClick={() => onShare(request)}
-        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-        title="Share Request"
+        disabled={!hasMapLink}
+        className={`p-1.5 rounded-full transition-colors ${
+          hasMapLink 
+            ? "text-blue-600 hover:bg-blue-50" 
+            : "text-gray-400 cursor-not-allowed"
+        }`}
+        title={
+          hasMapLink 
+            ? `Share Station Location: ${request.loading_station || "Station"}` 
+            : "No map location available for this station"
+        }
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -80,7 +100,7 @@ const Icons = ({
         <button
           onClick={() => onPdf(request.id)}
           className="p-1.5 text-red-600 hover:bg-red-50 rounded-full transition-colors"
-          title="Download PDF"
+          title="Download PDF Invoice"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -94,6 +114,12 @@ const Icons = ({
 // Expanded Details Component
 const ExpandedDetails = ({ request, onClose }) => {
   if (!request) return null;
+  
+  const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
+  const stationEmail = request.station_email && request.station_email !== "NULL" ? request.station_email : null;
+  const stationManager = request.station_manager && request.station_manager !== "NULL" ? request.station_manager : null;
+  const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -147,12 +173,44 @@ const ExpandedDetails = ({ request, onClose }) => {
               <p>{request.qty || "N/A"}</p>
             </div>
           </div>
-          {request.loading_station && (
+
+          {/* Station Contact Information */}
+          {(stationPhone || stationEmail || stationManager) && (
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium text-gray-600">Station Contact Information</label>
+              <div className="mt-2 space-y-2">
+                {stationManager && (
+                  <div className="flex justify-between">
+                    <span>Manager:</span>
+                    <span className="font-medium">{stationManager}</span>
+                  </div>
+                )}
+                {stationPhone && (
+                  <div className="flex justify-between">
+                    <span>Station Phone:</span>
+                    <a href={`tel:${stationPhone}`} className="text-blue-600 hover:underline">
+                      {stationPhone}
+                    </a>
+                  </div>
+                )}
+                {stationEmail && (
+                  <div className="flex justify-between">
+                    <span>Station Email:</span>
+                    <a href={`mailto:${stationEmail}`} className="text-blue-600 hover:underline">
+                      {stationEmail}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {stationMapLink && (
             <div>
               <label className="text-sm font-medium text-gray-600">Map Location</label>
               <div className="mt-1">
                 <a
-                  href={`http://maps.google.com/?q=${encodeURIComponent(request.loading_station)}`}
+                  href={stationMapLink}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:underline flex items-center"
@@ -166,6 +224,7 @@ const ExpandedDetails = ({ request, onClose }) => {
               </div>
             </div>
           )}
+          
           <div className="border-t pt-4">
             <label className="text-sm font-medium text-gray-600">Timeline</label>
             <div className="mt-2 space-y-2">
@@ -251,6 +310,9 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
     Cancelled: "bg-red-100 text-red-800",
   }[request.status] || "bg-gray-100 text-gray-800";
 
+  const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
+  const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
+
   return (
     <div className="border rounded-xl p-4 mb-4 bg-white shadow-md hover:shadow-lg transition-all">
       <div className="flex justify-between items-start mb-3">
@@ -302,6 +364,19 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             </div>
           )}
         </div>
+        
+        {/* Station Contact Info in Mobile */}
+        {stationPhone && (
+          <div className="bg-blue-50 p-3 rounded-md">
+            <div className="flex items-center justify-between">
+              <div className="font-medium text-blue-600 text-xs">Station Phone</div>
+              <a href={`tel:${stationPhone}`} className="text-blue-700 font-semibold">
+                {stationPhone}
+              </a>
+            </div>
+          </div>
+        )}
+
         {request.status === "Pending" && request.eligibility && (
           <div className="bg-gray-50 p-3 rounded-md">
             <div className="flex items-center justify-between">
@@ -548,34 +623,111 @@ export default function FillingRequests() {
     setExpandedRequest(request);
   }, []);
 
-  const handleCall = useCallback((phoneNumber) => {
-    window.open(`tel:${phoneNumber}`);
-  }, []);
-
-  const handleShare = useCallback(async (request) => {
-    const shareText = `Request Details:\nRequest ID: ${request.rid}\nVehicle: ${request.vehicle_number}\nClient: ${request.customer_name}\nStation: ${request.loading_station}\nStatus: ${request.status}\nDriver: ${request.driver_number}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Request ${request.rid}`,
-          text: shareText,
-        });
-      } catch (error) {
-        console.log("Sharing cancelled");
-      }
+  // Phone Handler - STATION KE PHONE NUMBER PAR CALL KAREGA
+  const handleCall = useCallback((stationPhone, stationName = "") => {
+    console.log("📞 Calling station:", { stationName, stationPhone });
+    
+    if (!stationPhone || stationPhone === "NULL" || stationPhone.trim() === "") {
+      alert(`📞 No phone number available for station: ${stationName || "Unknown Station"}`);
+      return;
+    }
+    
+    // Clean phone number (remove spaces, dashes, etc.)
+    const cleanPhoneNumber = stationPhone.trim().replace(/[\s\-\(\)]/g, '');
+    
+    // Check if it's a valid Indian phone number (10 digits starting with 6-9)
+    const isValidIndianNumber = /^[6-9]\d{9}$/.test(cleanPhoneNumber);
+    
+    if (isValidIndianNumber) {
+      console.log("🇮🇳 Calling Indian number:", cleanPhoneNumber);
+      window.open(`tel:+91${cleanPhoneNumber}`);
+    } else if (cleanPhoneNumber.length >= 10) {
+      // If it's a valid length but doesn't match Indian pattern, try direct dial
+      console.log("📞 Calling international number:", cleanPhoneNumber);
+      window.open(`tel:${cleanPhoneNumber}`);
     } else {
-      try {
-        await navigator.clipboard.writeText(shareText);
-        alert("Request details copied to clipboard!");
-      } catch (error) {
-        prompt("Copy to clipboard:", shareText);
-      }
+      alert(`❌ Invalid phone number for station "${stationName}": ${stationPhone}`);
     }
   }, []);
 
-  const handlePdf = useCallback((requestId) => {
-    window.open(`/api/generate-pdf?request_id=${requestId}`, "_blank");
+  // Share Handler - STATION KA GOOGLE MAPS LOCATION SHARE KAREGA
+  const handleShare = useCallback(async (request) => {
+    try {
+      const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
+      
+      if (!stationMapLink) {
+        alert("🗺️ No Google Maps location available for this station");
+        return;
+      }
+
+      let shareText = `⛽ Filling Request Details\n\n` +
+                     `📋 Request ID: ${request.rid}\n` +
+                     `🚚 Vehicle: ${request.vehicle_number}\n` +
+                     `👤 Client: ${request.customer_name || "N/A"}\n` +
+                     `⛽ Product: ${request.product_name || "N/A"}\n` +
+                     `📦 Quantity: ${request.qty} liters\n` +
+                     `🏭 Station: ${request.loading_station || "N/A"}\n` +
+                     `📍 Location: ${stationMapLink}\n` +
+                     `🔄 Status: ${request.status}\n\n` +
+                     `📅 Created: ${request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A"}`;
+
+      if (request.completed_date && request.completed_date !== "0000-00-00 00:00:00") {
+        shareText += `\n✅ Completed: ${new Date(request.completed_date).toLocaleString("en-IN")}`;
+      }
+
+      console.log("📤 Sharing station location:", shareText);
+
+      // Check if Web Share API is available
+      if (navigator.share) {
+        try {
+          await navigator.share({
+            title: `Station Location - ${request.loading_station}`,
+            text: shareText,
+            url: stationMapLink,
+          });
+          console.log("✅ Shared successfully via Web Share API");
+        } catch (error) {
+          if (error.name !== 'AbortError') {
+            // Fallback to clipboard if sharing fails
+            await navigator.clipboard.writeText(shareText);
+            alert("📋 Station location copied to clipboard!");
+          }
+        }
+      } else {
+        // Fallback for browsers without Web Share API
+        try {
+          await navigator.clipboard.writeText(shareText);
+          alert("📋 Station location copied to clipboard!\n\nYou can paste it in WhatsApp or any messaging app.");
+        } catch (error) {
+          // Final fallback
+          const textArea = document.createElement('textarea');
+          textArea.value = shareText;
+          document.body.appendChild(textArea);
+          textArea.select();
+          document.execCommand('copy');
+          document.body.removeChild(textArea);
+          alert("📋 Station location copied to clipboard!");
+        }
+      }
+    } catch (error) {
+      console.error("❌ Error sharing station location:", error);
+      alert("Error sharing station location");
+    }
   }, []);
+
+  // PDF Handler
+  const handlePdf = useCallback((requestId) => {
+    // Check if request is completed before allowing PDF generation
+    const request = requests.find(req => req.id === requestId);
+    
+    if (request && request.status !== "Completed") {
+      alert("PDF can only be generated for completed requests");
+      return;
+    }
+    
+    // Navigate to PDF generation page
+    router.push(`/filling-requests/pdf?id=${requestId}`);
+  }, [requests, router]);
 
   const closeExpanded = useCallback(() => {
     setExpandedRequest(null);
