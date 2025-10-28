@@ -61,10 +61,7 @@ export default function CustomerDetailsClient() {
   const [activeTab, setActiveTab] = useState('details');
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [showBalanceModal, setShowBalanceModal] = useState(false);
-  const [showBillingModal, setShowBillingModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [showCreditDaysModal, setShowCreditDaysModal] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [actionLoading, setActionLoading] = useState(false);
@@ -110,120 +107,6 @@ export default function CustomerDetailsClient() {
       setError(err.message || 'Failed to load customer details');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleClearHoldBalance = async () => {
-    if (!confirm('Are you sure you want to clear the holding balance?')) return;
-    
-    try {
-      setActionLoading(true);
-      const res = await fetch('/api/customers/customer-details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'clear_hold_balance', id }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to clear hold balance');
-      }
-      
-      alert(data.message || 'Hold balance cleared successfully');
-      fetchCustomerDetails();
-    } catch (err) {
-      alert(err.message || 'Error clearing hold balance');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleUpdateBalance = async (formData) => {
-    try {
-      setActionLoading(true);
-      const res = await fetch('/api/customers/customer-details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_balance',
-          id,
-          ...formData
-        }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to update balance');
-      }
-      
-      alert(data.message || 'Balance updated successfully');
-      setShowBalanceModal(false);
-      fetchCustomerDetails();
-    } catch (err) {
-      alert(err.message || 'Error updating balance');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleUpdateBillingType = async (billingType, creditDays) => {
-    try {
-      setActionLoading(true);
-      const res = await fetch('/api/customers/customer-details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_billing_type',
-          id,
-          billing_type: billingType,
-          credit_days: creditDays
-        }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to update billing type');
-      }
-      
-      alert(data.message || 'Billing type updated successfully');
-      setShowBillingModal(false);
-      fetchCustomerDetails();
-    } catch (err) {
-      alert(err.message || 'Error updating billing type');
-    } finally {
-      setActionLoading(false);
-    }
-  };
-
-  const handleUpdateCreditDays = async (creditDays) => {
-    try {
-      setActionLoading(true);
-      const res = await fetch('/api/customers/customer-details', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'update_credit_days',
-          id,
-          credit_days: creditDays
-        }),
-      });
-      
-      const data = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(data.error || 'Failed to update credit days');
-      }
-      
-      alert(data.message || 'Credit days updated successfully');
-      setShowCreditDaysModal(false);
-      fetchCustomerDetails();
-    } catch (err) {
-      alert(err.message || 'Error updating credit days');
-    } finally {
-      setActionLoading(false);
     }
   };
 
@@ -494,24 +377,6 @@ export default function CustomerDetailsClient() {
                       </button>
                     )}
                     <button
-                      onClick={() => setShowCreditDaysModal(true)}
-                      className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm"
-                    >
-                      Credit Days
-                    </button>
-                    <button
-                      onClick={() => setShowBillingModal(true)}
-                      className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm"
-                    >
-                      Billing Type
-                    </button>
-                    <button
-                      onClick={() => setShowBalanceModal(true)}
-                      className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm"
-                    >
-                      Manage Limit
-                    </button>
-                    <button
                       onClick={() => setShowEditModal(true)}
                       className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
                     >
@@ -547,11 +412,6 @@ export default function CustomerDetailsClient() {
                     <p className="text-gray-600 mt-1">ID: {customer.id}</p>
                     <p className="text-gray-600">
                       Billing Type: <span className="font-semibold capitalize">{customer.payment_type}</span>
-                      {customer.billing_type == 1 && customer.credit_days && (
-                        <span className="text-sm text-gray-500 ml-2">
-                          (Credit Days: {customer.credit_days})
-                        </span>
-                      )}
                     </p>
                   </div>
                   <div className="mt-4 lg:mt-0 flex flex-wrap gap-2">
@@ -569,8 +429,8 @@ export default function CustomerDetailsClient() {
                   </div>
                 </div>
 
-                {/* Quick Stats */}
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-6">
+                {/* Quick Stats - Only Basic Info */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div className={`rounded-lg p-4 ${
                     (customer.cst_limit || 0) >= 0 ? 'bg-green-50' : 'bg-red-50'
                   }`}>
@@ -591,10 +451,6 @@ export default function CustomerDetailsClient() {
                       (customer.amtlimit || 0) >= 0 ? 'text-purple-900' : 'text-red-900'
                     }`}>₹{(customer.amtlimit || 0).toLocaleString('en-IN')}</div>
                   </div>
-                  <div className="bg-yellow-50 rounded-lg p-4">
-                    <div className="text-sm font-medium text-yellow-600">Hold Balance</div>
-                    <div className="text-2xl font-bold text-yellow-900">₹{(customer.hold_balance || 0).toLocaleString('en-IN')}</div>
-                  </div>
                   <div className={`rounded-lg p-4 ${
                     isOverdue ? 'bg-red-50' : 'bg-blue-50'
                   }`}>
@@ -613,7 +469,7 @@ export default function CustomerDetailsClient() {
               {/* Navigation Tabs */}
               <div className="bg-white rounded-xl shadow-sm border mb-6">
                 <nav className="flex overflow-x-auto">
-                  {['details', 'users', 'balance', 'outstanding', 'history', 'activity'].map((tab) => (
+                  {['details', 'users', 'outstanding', 'history', 'activity'].map((tab) => (
                     <button
                       key={tab}
                       onClick={() => setActiveTab(tab)}
@@ -632,7 +488,7 @@ export default function CustomerDetailsClient() {
               {/* Tab Content */}
               <div className="bg-white rounded-xl shadow-sm border">
                 {activeTab === 'details' && (
-                  <DetailsTab customer={customer} onClearHoldBalance={handleClearHoldBalance} actionLoading={actionLoading} />
+                  <DetailsTab customer={customer} />
                 )}
                 {activeTab === 'users' && (
                   <UsersTab
@@ -643,13 +499,6 @@ export default function CustomerDetailsClient() {
                       setShowPasswordModal(true);
                     }}
                     onDeleteUser={handleDeleteUser}
-                  />
-                )}
-                {activeTab === 'balance' && (
-                  <BalanceTab 
-                    customer={customer} 
-                    onClearHoldBalance={handleClearHoldBalance}
-                    actionLoading={actionLoading}
                   />
                 )}
                 {activeTab === 'outstanding' && (
@@ -689,35 +538,11 @@ export default function CustomerDetailsClient() {
           loading={actionLoading}
         />
       )}
-      {showBalanceModal && (
-        <ManageBalanceModal
-          customer={customer}
-          onClose={() => setShowBalanceModal(false)}
-          onSubmit={handleUpdateBalance}
-          loading={actionLoading}
-        />
-      )}
-      {showBillingModal && (
-        <BillingTypeModal
-          customer={customer}
-          onClose={() => setShowBillingModal(false)}
-          onSubmit={handleUpdateBillingType}
-          loading={actionLoading}
-        />
-      )}
       {showEditModal && (
         <EditProfileModal
           customer={customer}
           onClose={() => setShowEditModal(false)}
           onSubmit={handleUpdateProfile}
-          loading={actionLoading}
-        />
-      )}
-      {showCreditDaysModal && (
-        <CreditDaysModal
-          customer={customer}
-          onClose={() => setShowCreditDaysModal(false)}
-          onSubmit={handleUpdateCreditDays}
           loading={actionLoading}
         />
       )}
@@ -735,7 +560,7 @@ export default function CustomerDetailsClient() {
 
 // --- Tab Components ---
 
-function DetailsTab({ customer, onClearHoldBalance, actionLoading }) {
+function DetailsTab({ customer }) {
   const details = [
     { label: 'Phone', value: customer.phone },
     { label: 'Email', value: customer.email },
@@ -753,24 +578,13 @@ function DetailsTab({ customer, onClearHoldBalance, actionLoading }) {
         : 'No block locations',
     },
     {
-      label: 'Hold Balance',
-      value: (
-        <div className="flex items-center space-x-3">
-          <span className="font-semibold">
-            ₹{(customer.hold_balance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-          </span>
-          {customer.hold_balance > 0 && (
-            <button
-              onClick={onClearHoldBalance}
-              disabled={actionLoading}
-              className="bg-yellow-500 text-white px-3 py-1 rounded text-sm hover:bg-yellow-600 disabled:opacity-50 transition-colors"
-            >
-              {actionLoading ? 'Clearing...' : 'Clear Holding Balance'}
-            </button>
-          )}
-        </div>
-      ),
+      label: 'Limit Expiry Date',
+      value: customer.limit_expiry ? new Date(customer.limit_expiry).toLocaleDateString('en-IN') : 'Not set'
     },
+    {
+      label: 'Validity Days',
+      value: customer.validity_days || 'Not set'
+    }
   ];
 
   return (
@@ -844,120 +658,6 @@ function UsersTab({ customer, onAddUser, onEditUser, onDeleteUser }) {
       ) : (
         <div className="text-center py-8 text-gray-500">
           No users found for this customer.
-        </div>
-      )}
-    </div>
-  );
-}
-
-function BalanceTab({ customer, onClearHoldBalance, actionLoading }) {
-  const availableBalance = (customer.amtlimit || 0) - (customer.hold_balance || 0);
-  
-  const balanceItems = [
-    { 
-      label: 'Total Limit (cst_limit)', 
-      value: customer.cst_limit || 0, 
-      color: customer.cst_limit >= 0 ? 'text-blue-600' : 'text-red-600',
-      description: 'Maximum credit limit set for customer'
-    },
-    { 
-      label: 'Remaining Limit (amtlimit)', 
-      value: customer.amtlimit || 0, 
-      color: customer.amtlimit >= 0 ? 'text-green-600' : 'text-red-600',
-      description: 'Remaining available limit (can be negative)'
-    },
-    { 
-      label: 'Hold Balance', 
-      value: customer.hold_balance || 0, 
-      color: 'text-yellow-600',
-      description: 'Amount currently on hold'
-    },
-  ];
-
-  return (
-    <div className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <h3 className="text-lg font-semibold text-gray-900">Balance Information</h3>
-        <button
-          onClick={onClearHoldBalance}
-          disabled={actionLoading}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {actionLoading ? 'Clearing...' : 'Clear Hold Balance'}
-        </button>
-      </div>
-      
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {balanceItems.map((item, index) => (
-          <div key={index} className="bg-gray-50 rounded-lg p-6">
-            <div className="text-sm font-medium text-gray-500 mb-2">{item.label}</div>
-            <div className={`text-2xl font-bold ${item.color} mb-2`}>
-              ₹{item.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </div>
-            <div className="text-xs text-gray-400">{item.description}</div>
-          </div>
-        ))}
-        <div className={`rounded-lg p-6 ${
-          availableBalance >= 0 ? 'bg-green-50' : 'bg-red-50'
-        }`}>
-          <div className={`text-sm font-medium ${
-            availableBalance >= 0 ? 'text-green-600' : 'text-red-600'
-          }`}>Available Balance</div>
-          <div className={`text-2xl font-bold ${
-            availableBalance >= 0 ? 'text-green-900' : 'text-red-900'
-          }`}>
-            ₹{availableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-          </div>
-          <div className="text-xs text-gray-400">Remaining Limit - Hold Balance</div>
-        </div>
-      </div>
-
-      {/* Eligibility Information */}
-      {customer.eligibility && (
-        <div className="bg-gray-50 rounded-lg p-6">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">Eligibility Status</h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Eligible for Orders:</span>
-                <span className={customer.eligibility.eligible ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                  {customer.eligibility.eligible ? 'Yes' : 'No'}
-                </span>
-              </div>
-              {!customer.eligibility.eligible && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Reason:</span>
-                  <span className="text-red-600 font-semibold">{customer.eligibility.reason}</span>
-                </div>
-              )}
-              {customer.eligibility.hasOverdue && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Overdue Amount:</span>
-                  <span className="text-red-600 font-semibold">
-                    ₹{(customer.eligibility.totalOverdue || 0).toLocaleString('en-IN')}
-                  </span>
-                </div>
-              )}
-            </div>
-            <div className="space-y-2">
-              {customer.eligibility.availableBalance !== undefined && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Available Balance:</span>
-                  <span className={customer.eligibility.availableBalance >= 0 ? 'text-blue-600 font-semibold' : 'text-red-600 font-semibold'}>
-                    ₹{customer.eligibility.availableBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-              {customer.eligibility.totalLimit !== undefined && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Total Limit:</span>
-                  <span className={customer.eligibility.totalLimit >= 0 ? 'text-green-600 font-semibold' : 'text-red-600 font-semibold'}>
-                    ₹{customer.eligibility.totalLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                  </span>
-                </div>
-              )}
-            </div>
-          </div>
         </div>
       )}
     </div>
@@ -1215,202 +915,6 @@ function UpdatePasswordModal({ user, onClose, onSubmit, loading }) {
   );
 }
 
-function ManageBalanceModal({ customer, onClose, onSubmit, loading }) {
-  const [formData, setFormData] = useState({
-    balance_type: 'cst_limit',
-    operation: 'increase',
-    amount: ''
-  });
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (!formData.amount || parseFloat(formData.amount) <= 0) {
-      alert('Please enter a valid amount');
-      return;
-    }
-    
-    onSubmit(formData);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Manage Customer Limit</h3>
-          
-          <div className="bg-gray-50 rounded-lg p-4 mb-6">
-            <h4 className="font-medium text-gray-900 mb-2">Current Balance</h4>
-            <div className="space-y-1 text-sm">
-              <div className="flex justify-between">
-                <span>Total Limit (cst_limit):</span>
-                <span className={`font-semibold ${(customer.cst_limit || 0) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ₹{(customer.cst_limit || 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-              <div className="flex justify-between">
-                <span>Remaining Limit (amtlimit):</span>
-                <span className={`font-semibold ${(customer.amtlimit || 0) >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                  ₹{(customer.amtlimit || 0).toLocaleString('en-IN')}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Balance Type</label>
-              <select 
-                value={formData.balance_type}
-                onChange={(e) => setFormData({...formData, balance_type: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="cst_limit">Total Limit (cst_limit)</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Operation</label>
-              <select 
-                value={formData.operation}
-                onChange={(e) => setFormData({...formData, operation: e.target.value})}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              >
-                <option value="increase">Increase</option>
-                <option value="decrease">Decrease</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Amount (₹)</label>
-              <input 
-                type="number"
-                step="0.01"
-                value={formData.amount}
-                onChange={(e) => setFormData({...formData, amount: e.target.value})}
-                placeholder="Enter amount"
-                required 
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Note: Limit can go negative when decreasing
-              </p>
-            </div>
-            
-            <div className="flex justify-end space-x-3 pt-4">
-              <button 
-                type="button" 
-                onClick={onClose} 
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                disabled={loading} 
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Updating...' : 'Update Limit'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function BillingTypeModal({ customer, onClose, onSubmit, loading }) {
-  const [billingType, setBillingType] = useState(customer.billing_type || 2);
-  const [creditDays, setCreditDays] = useState(customer.credit_days || 7);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    onSubmit(billingType, creditDays);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Update Billing Type</h3>
-          
-          <form onSubmit={handleSubmit} className="space-y-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-3">Select Billing Type</label>
-              <div className="space-y-3">
-                <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input 
-                    type="radio" 
-                    name="billingType" 
-                    value={1} 
-                    checked={billingType == 1}
-                    onChange={(e) => setBillingType(parseInt(e.target.value))}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">Postpaid</div>
-                    <div className="text-sm text-gray-500">Credit facility with payment terms</div>
-                  </div>
-                </label>
-                
-                <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
-                  <input 
-                    type="radio" 
-                    name="billingType" 
-                    value={2} 
-                    checked={billingType == 2}
-                    onChange={(e) => setBillingType(parseInt(e.target.value))}
-                    className="text-blue-600 focus:ring-blue-500"
-                  />
-                  <div>
-                    <div className="font-medium text-gray-900">Prepaid</div>
-                    <div className="text-sm text-gray-500">Customer pays in advance</div>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {billingType == 1 && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Credit Days</label>
-                <input 
-                  type="number"
-                  min="1"
-                  max="90"
-                  value={creditDays}
-                  onChange={(e) => setCreditDays(parseInt(e.target.value))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Enter credit days"
-                />
-                <p className="text-xs text-gray-500 mt-1">Number of days allowed for payment after invoice</p>
-              </div>
-            )}
-            
-            <div className="flex justify-end space-x-3 pt-4">
-              <button 
-                type="button" 
-                onClick={onClose} 
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                disabled={loading} 
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Updating...' : 'Update Billing Type'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function EditProfileModal({ customer, onClose, onSubmit, loading }) {
   const [formData, setFormData] = useState({
     name: customer.name || '',
@@ -1540,66 +1044,6 @@ function EditProfileModal({ customer, onClose, onSubmit, loading }) {
                 className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
               >
                 {loading ? 'Updating...' : 'Update Profile'}
-              </button>
-            </div>
-          </form>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CreditDaysModal({ customer, onClose, onSubmit, loading }) {
-  const [creditDays, setCreditDays] = useState(customer.credit_days || 7);
-
-  const handleSubmit = (e) => {
-    e.preventDefault();
-    if (creditDays < 1 || creditDays > 90) {
-      alert('Credit days must be between 1 and 90');
-      return;
-    }
-    onSubmit(creditDays);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-        <div className="p-6">
-          <h3 className="text-lg font-semibold mb-4">Update Credit Days</h3>
-          
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Credit Days</label>
-              <input 
-                type="number"
-                min="1"
-                max="90"
-                value={creditDays}
-                onChange={(e) => setCreditDays(parseInt(e.target.value))}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                required
-              />
-              <p className="text-xs text-gray-500 mt-1">
-                Number of days allowed for payment after invoice generation. 
-                Customer will be automatically blocked if payment is not received within these days.
-              </p>
-            </div>
-            
-            <div className="flex justify-end space-x-3 pt-4">
-              <button 
-                type="button" 
-                onClick={onClose} 
-                disabled={loading}
-                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                type="submit" 
-                disabled={loading} 
-                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
-              >
-                {loading ? 'Updating...' : 'Update Credit Days'}
               </button>
             </div>
           </form>

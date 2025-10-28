@@ -12,12 +12,12 @@ async function hashPassword(password) {
     .join('');
 }
 
-// Helper function to check and handle overdue customers
+// Helper function to check and handle overdue customers using validity_days from customer_balances
 async function checkAndHandleOverdueCustomer(customerId) {
   try {
     const customerQuery = `
-      SELECT c.id, c.billing_type, c.credit_days, c.status,
-             cb.cst_limit, cb.amtlimit, cb.hold_balance
+      SELECT c.id, c.billing_type, c.status,
+             cb.cst_limit, cb.amtlimit, cb.hold_balance, cb.validity_days
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
       WHERE c.id = ?
@@ -35,7 +35,8 @@ async function checkAndHandleOverdueCustomer(customerId) {
       return { hasOverdue: false };
     }
 
-    const creditDaysValue = parseInt(customer.credit_days) || 7;
+    // Use validity_days from customer_balances table, fallback to 7 days
+    const creditDaysValue = parseInt(customer.validity_days) || 7;
     
     // Check for overdue invoices
     const overdueQuery = `
@@ -109,7 +110,7 @@ async function checkCustomerEligibility(customerId) {
     const overdueCheck = await checkAndHandleOverdueCustomer(customerId);
     
     const balanceQuery = `
-      SELECT cb.cst_limit, cb.amtlimit, cb.hold_balance, c.billing_type, c.status, c.credit_days
+      SELECT cb.cst_limit, cb.amtlimit, cb.hold_balance, c.billing_type, c.status, cb.validity_days
       FROM customer_balances cb 
       JOIN customers c ON cb.com_id = c.id 
       WHERE cb.com_id = ?
@@ -131,7 +132,7 @@ async function checkCustomerEligibility(customerId) {
       hold_balance, 
       billing_type, 
       status,
-      credit_days 
+      validity_days 
     } = balanceData[0];
     
     const totalLimit = parseFloat(cst_limit) || 0;
@@ -171,7 +172,7 @@ async function checkCustomerEligibility(customerId) {
     if (billing_type == 1 && overdueCheck.hasOverdue) {
       return { 
         eligible: false, 
-        reason: `Overdue invoices exist (${credit_days} days credit period)`,
+        reason: `Overdue invoices exist (${validity_days || 7} days credit period)`,
         availableBalance,
         totalLimit,
         remainingLimit,
@@ -271,9 +272,9 @@ export async function GET(request) {
     // First, check and handle any overdue situation
     await checkAndHandleOverdueCustomer(id);
 
-    // Fetch customer details
+    // Fetch customer details with limit_expiry and validity_days from customer_balances
     const customerQuery = `
-      SELECT c.*, cb.hold_balance, cb.cst_limit, cb.amtlimit
+      SELECT c.*, cb.hold_balance, cb.cst_limit, cb.amtlimit, cb.validity_days, cb.limit_expiry
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
       WHERE c.id = ?
@@ -452,6 +453,8 @@ export async function GET(request) {
         hold_balance: customer[0].hold_balance || 0,
         cst_limit: customer[0].cst_limit || 0,
         amtlimit: customer[0].amtlimit || 0,
+        validity_days: customer[0].validity_days || 7, // Use validity_days from customer_balances
+        limit_expiry: customer[0].limit_expiry, // Use limit_expiry from customer_balances
         payment_type: customer[0].billing_type == 1 ? 'postpaid' : 'prepaid'
       }
     };
@@ -477,240 +480,6 @@ export async function POST(request) {
     }
 
     switch (action) {
-      case 'clear_hold_balance':
-        if (!id) {
-          return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
-        }
-
-        const customerCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
-        if (customerCheck.length === 0) {
-          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        const balanceQuery = 'SELECT hold_balance, amtlimit, cst_limit FROM customer_balances WHERE com_id = ?';
-        const balance = await executeQuery(balanceQuery, [id]);
-        
-        if (balance.length === 0) {
-          return NextResponse.json({ error: 'Customer balance not found' }, { status: 404 });
-        }
-
-        const { hold_balance, amtlimit, cst_limit } = balance[0];
-        const currentHoldBalance = parseFloat(hold_balance) || 0;
-        const currentAmtLimit = parseFloat(amtlimit) || 0;
-        const currentCstLimit = parseFloat(cst_limit) || 0;
-        
-        if (currentHoldBalance > 0) {
-          // When clearing hold balance, add it back to remaining limit (amtlimit)
-          const newAmtLimit = currentAmtLimit + currentHoldBalance;
-          const updateQuery = 'UPDATE customer_balances SET amtlimit = ?, hold_balance = 0 WHERE com_id = ?';
-          await executeQuery(updateQuery, [newAmtLimit, id]);
-          
-          // Insert into filling_history with required fields only
-          const now = new Date();
-          await executeQuery(
-            `INSERT INTO filling_history
-             (trans_type, credit_date, remaining_limit, filling_date, cl_id, created_by, created_at, in_amount, d_amount, limit_type)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              "credit_limit_update",
-              now,
-              newAmtLimit,
-              now,
-              id,
-              1, // created_by (you can get from session/auth)
-              now,
-              currentHoldBalance,
-              0,
-              "increase",
-            ]
-          );
-          
-          return NextResponse.json({ message: 'Holding balance cleared successfully' });
-        } else {
-          return NextResponse.json({ error: 'Hold balance is already 0' }, { status: 400 });
-        }
-
-      case 'update_balance':
-        const { balance_type, amount, operation } = data;
-        
-        if (!id || !balance_type || !amount || !operation) {
-          return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
-        }
-
-        const custCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
-        if (custCheck.length === 0) {
-          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        const currentBalanceQuery = 'SELECT cst_limit, amtlimit, hold_balance FROM customer_balances WHERE com_id = ?';
-        const currentBalance = await executeQuery(currentBalanceQuery, [id]);
-        
-        if (currentBalance.length === 0) {
-          return NextResponse.json({ error: 'Customer balance not found' }, { status: 404 });
-        }
-
-        const existingCstLimit = parseFloat(currentBalance[0].cst_limit) || 0;
-        const existingAmtLimit = parseFloat(currentBalance[0].amtlimit) || 0;
-        const existingHoldBalance = parseFloat(currentBalance[0].hold_balance) || 0;
-        const amountNum = parseFloat(amount);
-
-        let updatedCstLimit = existingCstLimit;
-        let updatedAmtLimit = existingAmtLimit;
-        let updatedHoldBalance = existingHoldBalance;
-        let in_amount = 0;
-        let d_amount = 0;
-        let limit_type = "increase";
-
-        if (balance_type === 'cst_limit') {
-          // Update TOTAL LIMIT (cst_limit)
-          if (operation === 'increase') {
-            updatedCstLimit = existingCstLimit + amountNum;
-            // Also increase remaining limit (amtlimit) by same amount
-            updatedAmtLimit = existingAmtLimit + amountNum;
-            in_amount = amountNum;
-            limit_type = "increase";
-          } else if (operation === 'decrease') {
-            // ALLOW NEGATIVE VALUES - NO VALIDATION
-            updatedCstLimit = existingCstLimit - amountNum;
-            // Also decrease remaining limit (amtlimit) by same amount
-            updatedAmtLimit = existingAmtLimit - amountNum;
-            d_amount = amountNum;
-            limit_type = "decrease";
-          } else if (operation === 'set') {
-            const difference = amountNum - existingCstLimit;
-            updatedCstLimit = amountNum;
-            // Adjust remaining limit accordingly
-            updatedAmtLimit = existingAmtLimit + difference;
-            if (difference >= 0) {
-              in_amount = difference;
-              limit_type = "increase";
-            } else {
-              d_amount = Math.abs(difference);
-              limit_type = "decrease";
-            }
-          }
-        } else if (balance_type === 'amtlimit') {
-          // Update REMAINING LIMIT (amtlimit) only
-          if (operation === 'increase') {
-            updatedAmtLimit = existingAmtLimit + amountNum;
-            in_amount = amountNum;
-            limit_type = "increase";
-          } else if (operation === 'decrease') {
-            // ALLOW NEGATIVE VALUES - NO VALIDATION
-            updatedAmtLimit = existingAmtLimit - amountNum;
-            d_amount = amountNum;
-            limit_type = "decrease";
-          } else if (operation === 'set') {
-            updatedAmtLimit = amountNum;
-            const difference = amountNum - existingAmtLimit;
-            if (difference >= 0) {
-              in_amount = difference;
-              limit_type = "increase";
-            } else {
-              d_amount = Math.abs(difference);
-              limit_type = "decrease";
-            }
-          }
-        } else if (balance_type === 'hold_balance') {
-          if (operation === 'increase') {
-            updatedHoldBalance = existingHoldBalance + amountNum;
-            in_amount = amountNum;
-            limit_type = "increase";
-          } else if (operation === 'decrease') {
-            if (existingHoldBalance < amountNum) {
-              return NextResponse.json({ error: 'Insufficient hold balance to decrease' }, { status: 400 });
-            }
-            updatedHoldBalance = existingHoldBalance - amountNum;
-            d_amount = amountNum;
-            limit_type = "decrease";
-          } else if (operation === 'set') {
-            updatedHoldBalance = amountNum;
-            const difference = amountNum - existingHoldBalance;
-            if (difference >= 0) {
-              in_amount = difference;
-              limit_type = "increase";
-            } else {
-              d_amount = Math.abs(difference);
-              limit_type = "decrease";
-            }
-          }
-        }
-
-        const updateBalanceQuery = 'UPDATE customer_balances SET cst_limit = ?, amtlimit = ?, hold_balance = ? WHERE com_id = ?';
-        await executeQuery(updateBalanceQuery, [updatedCstLimit, updatedAmtLimit, updatedHoldBalance, id]);
-
-        // Insert into filling_history with required fields only
-        const now = new Date();
-        await executeQuery(
-          `INSERT INTO filling_history
-           (trans_type, credit_date, remaining_limit, filling_date, cl_id, created_by, created_at, in_amount, d_amount, limit_type)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            "credit_limit_update",
-            now,
-            updatedAmtLimit,
-            now,
-            id,
-            1, // created_by (you can get from session/auth)
-            now,
-            in_amount,
-            d_amount,
-            limit_type,
-          ]
-        );
-
-        return NextResponse.json({ 
-          message: 'Balance updated successfully',
-          newCstLimit: updatedCstLimit,
-          newAmtLimit: updatedAmtLimit,
-          newHoldBalance: updatedHoldBalance
-        });
-
-      case 'update_billing_type':
-        const { billing_type, credit_days } = data;
-        
-        if (!id || billing_type === undefined) {
-          return NextResponse.json({ error: 'Customer ID and billing type are required' }, { status: 400 });
-        }
-
-        const billingCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
-        if (billingCustCheck.length === 0) {
-          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        if (credit_days !== undefined) {
-          await executeQuery(
-            'UPDATE customers SET billing_type = ?, credit_days = ? WHERE id = ?', 
-            [billing_type, credit_days, id]
-          );
-        } else {
-          await executeQuery(
-            'UPDATE customers SET billing_type = ? WHERE id = ?', 
-            [billing_type, id]
-          );
-        }
-        
-        return NextResponse.json({ message: 'Billing type updated successfully' });
-
-      case 'update_credit_days':
-        const { credit_days: new_credit_days } = data;
-        
-        if (!id || !new_credit_days) {
-          return NextResponse.json({ error: 'Customer ID and credit days are required' }, { status: 400 });
-        }
-
-        const creditCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
-        if (creditCustCheck.length === 0) {
-          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        await executeQuery(
-          'UPDATE customers SET credit_days = ? WHERE id = ?', 
-          [new_credit_days, id]
-        );
-        
-        return NextResponse.json({ message: 'Credit days updated successfully' });
-
       case 'update_customer_profile':
         const { name, phone, email, address, gst_name, gst_number, status } = data;
         
@@ -821,7 +590,7 @@ export async function POST(request) {
         return NextResponse.json({ message: 'User deleted successfully' });
 
       case 'process_payment':
-        // NEW: Handle payment processing and auto-unblock
+        // Handle payment processing and auto-unblock
         const { paymentAmount } = data;
         
         if (!id || !paymentAmount) {

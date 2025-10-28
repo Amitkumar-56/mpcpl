@@ -31,6 +31,9 @@ export default function FillingDetailsAdmin() {
   });
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelRemarks, setCancelRemarks] = useState('');
+  const [showLimitModal, setShowLimitModal] = useState(false);
+  const [limitMessage, setLimitMessage] = useState('');
+  const [showRenewModal, setShowRenewModal] = useState(false);
 
   useEffect(() => {
     if (id) fetchRequestDetails();
@@ -188,6 +191,14 @@ export default function FillingDetailsAdmin() {
       console.log('✅ Submit result:', result);
       
       if (result.success) {
+        if (result.limitOverdue) {
+          // Show limit overdue modal with renew option
+          setLimitMessage(result.message || 'Your limit is over. Please recharge your account.');
+          setShowLimitModal(true);
+          setSubmitting(false);
+          return;
+        }
+        
         alert(result.message || 'Request updated successfully!');
         
         // Immediately update the local state to reflect the new status
@@ -272,6 +283,19 @@ export default function FillingDetailsAdmin() {
     }
   };
 
+  const handleRenewLimit = () => {
+    // Redirect to credit limit page for this customer
+    router.push(`/credit-limit?id=${requestData.cid}`);
+  };
+
+  // Check if limit is expired
+  const isLimitExpired = () => {
+    if (!requestData?.limit_expiry) return false;
+    const expiryDate = new Date(requestData.limit_expiry);
+    const now = new Date();
+    return expiryDate < now;
+  };
+
   // Loading component
   if (loading) {
     return (
@@ -349,9 +373,7 @@ export default function FillingDetailsAdmin() {
 
   const getStatusClass = (status) => {
     switch (status) {
-      case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'Cancel': 
-      case 'Cancelled': return 'bg-red-100 text-red-800 border-red-200';
+      case 'Cancel': return 'bg-red-100 text-red-800 border-red-200';
       case 'Processing': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -363,6 +385,8 @@ export default function FillingDetailsAdmin() {
     const price = requestData.fuel_price || requestData.price || 0;
     return (aqty * price).toFixed(2);
   };
+
+  const expired = isLimitExpired();
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -390,12 +414,38 @@ export default function FillingDetailsAdmin() {
                   <h1 className="text-2xl font-bold text-gray-900">
                     Filling Request: <span className="text-blue-600">{requestData.rid}</span>
                   </h1>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
-                    {requestData.status}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
+                      {requestData.status}
+                    </span>
+                    {expired && (
+                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
+                        Limit Expired
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
+              {/* Limit Expiry Alert */}
+              {expired && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-red-700 font-medium">Credit Limit Expired</p>
+                      <p className="text-red-600 text-sm">
+                        This customer's credit limit expired on {new Date(requestData.limit_expiry).toLocaleDateString('en-IN')}. 
+                        Please renew the credit limit to complete this request.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Request Information Section */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                   <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -434,6 +484,32 @@ export default function FillingDetailsAdmin() {
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Phone</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{requestData.client_phone}</td>
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
+                          <td className="px-4 py-3 text-sm font-medium">
+                            <span className={expired ? 'text-red-600' : 'text-green-600'}>
+                              ₹{requestData.cst_limit || 0}
+                              {expired && <span className="text-xs ml-2">(Expired)</span>}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
+                          <td className="px-4 py-3 text-sm font-medium">
+                            <span className={expired ? 'text-red-600' : 'text-green-600'}>
+                              ₹{requestData.amtlimit || 0}
+                            </span>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Expiry</td>
+                          <td className="px-4 py-3 text-sm font-medium">
+                            <span className={expired ? 'text-red-600' : 'text-gray-900'}>
+                              {requestData.limit_expiry ? new Date(requestData.limit_expiry).toLocaleDateString('en-IN') : 'No expiry'}
+                              {expired && <span className="text-xs ml-2">(Expired)</span>}
+                            </span>
+                          </td>
                         </tr>
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Requested Quantity</td>
@@ -522,6 +598,10 @@ export default function FillingDetailsAdmin() {
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
                       <span>Update Request</span>
                       <span className='bg-yellow-400 text-black rounded px-2 py-1 text-sm font-medium'>Available Stock: {requestData.station_stock || 0} Ltr</span>
+                      <span className={`px-2 py-1 text-sm font-medium rounded ${expired ? 'bg-red-100 text-red-800' : requestData.amtlimit <= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        Balance: ₹{requestData.amtlimit || 0}
+                        {expired && <span className="ml-1">(Expired)</span>}
+                      </span>
                     </h2>
                   </div>
                   <div className="p-6">
@@ -720,6 +800,7 @@ export default function FillingDetailsAdmin() {
                 </div>
               )}
 
+              {/* Cancel Modal */}
               {showCancelModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                   <div className="bg-white rounded-lg p-6 w-96">
@@ -745,6 +826,30 @@ export default function FillingDetailsAdmin() {
                         disabled={submitting}
                       >
                         {submitting ? 'Cancelling...' : 'Confirm Cancel'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Limit Overdue Modal */}
+              {showLimitModal && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 w-96">
+                    <h3 className="text-lg font-semibold mb-4 text-red-600">Limit Overdue</h3>
+                    <p className="mb-6 text-gray-700">{limitMessage}</p>
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => setShowLimitModal(false)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={handleRenewLimit}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                      >
+                        Renew Limit
                       </button>
                     </div>
                   </div>

@@ -36,6 +36,8 @@ export async function GET(req) {
           cb.amtlimit,
           cb.balance,
           cb.cst_limit,
+          cb.limit_expiry,
+          cb.validity_days,
           fss.stock as station_stock,
           pc.pcode as sub_product_code
         FROM filling_requests fr
@@ -56,6 +58,10 @@ export async function GET(req) {
       }
 
       data = rows[0];
+      
+      // Check if limit is expired
+      const isLimitExpired = checkLimitExpiry(data);
+      data.is_limit_expired = isLimitExpired;
       
       // Get available sub-products for this product
       const availableSubProductsQuery = `
@@ -96,7 +102,10 @@ export async function GET(req) {
         stock: data.station_stock,
         sub_product_id: data.sub_product_id,
         sub_product_code: data.sub_product_code,
-        status: data.status
+        status: data.status,
+        is_limit_expired: data.is_limit_expired,
+        limit_expiry: data.limit_expiry,
+        validity_days: data.validity_days
       });
 
     } catch (dbErr) {
@@ -152,6 +161,19 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Check customer balance and limit expiry before proceeding
+    if (status === 'Completed') {
+      const balanceCheck = await checkCustomerBalanceAndExpiry(cl_id, aqty, price, fs_id, product_id, sub_product_id);
+      
+      if (!balanceCheck.sufficient) {
+        return NextResponse.json({ 
+          success: false,
+          limitOverdue: true,
+          message: balanceCheck.message || 'Your limit is over. Please recharge your account.'
+        });
+      }
+    }
+
     // Handle file uploads
     let doc1Path = null, doc2Path = null, doc3Path = null;
     
@@ -189,6 +211,7 @@ export async function POST(request) {
       });
     } else if (status === 'Completed') {
       console.log('🔄 Handling Completed status...');
+      
       resultMessage = await handleCompletedStatus({
         id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
         oldstock, amtlimit, price, aqty,
@@ -223,7 +246,84 @@ export async function POST(request) {
   }
 }
 
-// Helper functions
+// Check customer balance AND expiry before completing request
+async function checkCustomerBalanceAndExpiry(cl_id, aqty, defaultPrice, fs_id, product_id, sub_product_id) {
+  try {
+    // Get current balance and expiry details
+    const balanceQuery = `
+      SELECT amtlimit, cst_limit, limit_expiry, validity_days 
+      FROM customer_balances 
+      WHERE com_id = ?
+    `;
+    const balanceRows = await executeQuery(balanceQuery, [cl_id]);
+    
+    if (balanceRows.length === 0) {
+      return { 
+        sufficient: false, 
+        message: 'Customer balance not found. Please set credit limit first.' 
+      };
+    }
+    
+    const currentBalance = parseFloat(balanceRows[0].amtlimit) || 0;
+    const currentCstLimit = parseFloat(balanceRows[0].cst_limit) || 0;
+    const limitExpiry = balanceRows[0].limit_expiry;
+    const validityDays = balanceRows[0].validity_days || 0;
+    
+    // Check if limit is expired
+    const isExpired = checkLimitExpiry(balanceRows[0]);
+    
+    if (isExpired) {
+      return { 
+        sufficient: false, 
+        message: `Credit limit has expired on ${new Date(limitExpiry).toLocaleDateString('en-IN')}. Please renew your credit limit to continue.`
+      };
+    }
+    
+    // Get actual price
+    const actualPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, defaultPrice);
+    const calculatedAmount = actualPrice * aqty;
+    
+    console.log('💰 Balance and expiry check:', {
+      currentBalance,
+      currentCstLimit,
+      calculatedAmount,
+      actualPrice,
+      aqty,
+      limitExpiry,
+      validityDays,
+      isExpired
+    });
+    
+    // Check if balance is sufficient
+    if (currentBalance < calculatedAmount) {
+      return { 
+        sufficient: false, 
+        message: `Insufficient balance. Required: ₹${calculatedAmount.toFixed(2)}, Available: ₹${currentBalance.toFixed(2)}. Please recharge your account.`
+      };
+    }
+    
+    return { sufficient: true };
+  } catch (error) {
+    console.error('❌ Error checking customer balance and expiry:', error);
+    return { 
+      sufficient: false, 
+      message: 'Error checking balance and limit status' 
+    };
+  }
+}
+
+// Helper function to check if limit is expired
+function checkLimitExpiry(balanceData) {
+  if (!balanceData.limit_expiry) {
+    return false; // No expiry set, so not expired
+  }
+  
+  const now = new Date();
+  const expiryDate = new Date(balanceData.limit_expiry);
+  
+  // Check if expiry date is in past
+  return expiryDate < now;
+}
 
 // Get current Indian time in MySQL datetime format
 function getIndianTime() {
@@ -234,7 +334,7 @@ function getIndianTime() {
   return istTime.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-// Update or create filling_logs entry - FIXED VERSION
+// Update or create filling_logs entry
 async function updateFillingLogs(request_id, status, userId) {
   try {
     // Check if log entry already exists
@@ -287,7 +387,7 @@ async function updateFillingLogs(request_id, status, userId) {
         console.log(`✅ Updated filling_logs for ${status} status`);
       }
     } else {
-      // Create new log entry - only include fields that actually exist
+      // Create new log entry
       const insertQuery = `
         INSERT INTO filling_logs 
         (request_id, created_by, created_date) 
@@ -308,9 +408,6 @@ async function handleProcessingStatus(data) {
   
   console.log('💰 Processing - Only status change, no balance operations');
 
-  // NO BALANCE VALIDATION - Allow even with negative balance
-  // Processing में सिर्फ status change, कोई balance check नहीं
-  
   const now = getIndianTime();
   const updateRequestQuery = `
     UPDATE filling_requests 
@@ -334,7 +431,7 @@ async function handleProcessingStatus(data) {
   return 'Status updated to Processing';
 }
 
-// Complete Status - ONLY AMTLIMIT DEDUCTION, NO HOLD BALANCE
+// Complete Status - WITH BALANCE CHECK AND DEDUCTION
 async function handleCompletedStatus(data) {
   const {
     id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
@@ -360,16 +457,70 @@ async function handleCompletedStatus(data) {
     currentAmtLimit: amtlimit
   });
 
-  // NO BALANCE CHECK - Allow even with negative/in-sufficient balance
-  // Complete में हमेशा deduct करें, चाहे balance कुछ भी हो
+  // ✅ GET LATEST NEW_AMOUNT FROM PREVIOUS TRANSACTION FOR THIS USER
+  const getLatestAmountQuery = `
+    SELECT new_amount 
+    FROM filling_history 
+    WHERE cl_id = ? 
+    ORDER BY id DESC 
+    LIMIT 1
+  `;
+  
+  const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
+  
+  let old_amount = 0;
+  
+  if (latestAmountRows.length > 0) {
+    // ✅ Agar previous transaction hai, to uska new_amount current old_amount banega
+    old_amount = parseFloat(latestAmountRows[0].new_amount) || 0;
+    console.log('📈 Found previous transaction, using new_amount as old_amount:', old_amount);
+  } else {
+    // ✅ Agar pehli transaction hai, to 0 se start hoga
+    old_amount = 0;
+    console.log('📈 First transaction for this user, starting from 0');
+  }
 
-  // COMPLETE में सिर्फ amtlimit से deduct हो
+  // ✅ CORRECTED: Calculate amounts for filling_history - old_amount + amount = new_amount
+  const new_amount = old_amount + calculatedAmount; // ✅ old_amount + amount = new_amount
+  
+  // Get current credit limit
+  const balanceQuery = `SELECT cst_limit FROM customer_balances WHERE com_id = ?`;
+  const balanceRows = await executeQuery(balanceQuery, [cl_id]);
+  const currentLimit = balanceRows.length > 0 ? parseFloat(balanceRows[0].cst_limit) : 0;
+  
+  const remaining_limit = currentLimit - new_amount;
+
+  console.log('💰 Filling history amounts (SEQUENTIAL):', {
+    old_amount,
+    new_amount,
+    remaining_limit,
+    calculatedAmount,
+    formula: 'old_amount + amount = new_amount',
+    note: 'Each new transaction uses previous new_amount as old_amount'
+  });
+
+  // ✅ CORRECTION: Deduct from amtlimit AND ADD to balance
   const updateBalanceQuery = `
     UPDATE customer_balances  
-    SET amtlimit = amtlimit - ?
+    SET 
+      amtlimit = amtlimit - ?,  -- Available balance decrease
+      balance = balance + ?,     -- Total balance INCREASE (outward amount ADD)
+      updated_at = ?
     WHERE com_id = ?
   `;
-  await executeQuery(updateBalanceQuery, [calculatedAmount, cl_id]);
+  
+  await executeQuery(updateBalanceQuery, [
+    calculatedAmount, 
+    calculatedAmount, 
+    getIndianTime(), 
+    cl_id
+  ]);
+
+  console.log('💰 Customer balance UPDATED:', {
+    deducted_from_amtlimit: calculatedAmount,
+    added_to_balance: calculatedAmount,
+    com_id: cl_id
+  });
 
   // Update filling request
   const now = getIndianTime();
@@ -395,15 +546,20 @@ async function handleCompletedStatus(data) {
     sub_product_id, finalPrice, calculatedAmount, id, rid
   ]);
 
-  // Insert into filling_history
+  // ✅ CORRECTED: Insert into filling_history with SEQUENTIAL amount calculation
   const insertHistoryQuery = `
     INSERT INTO filling_history 
-    (rid, fs_id, product_id, trans_type, current_stock, filling_qty, amount, available_stock, filling_date, cl_id, created_by) 
-    VALUES (?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?)
+    (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
+     available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit) 
+    VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `;
+  
   await executeQuery(insertHistoryQuery, [
-    rid, fs_id, product_id, oldstock, aqty, calculatedAmount, newStock, now, cl_id, userId
+    rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount, 
+    newStock, now, cl_id, userId, old_amount, new_amount, remaining_limit
   ]);
+
+  console.log('✅ Filling history inserted with SEQUENTIAL amount logic');
 
   // Update station stock
   const updateStockQuery = `
@@ -649,7 +805,7 @@ async function handleFileUpload(file) {
   if (!file || file.size === 0) return null;
 
   try {
-    const maxSize = 5 * 1024 * 1024;
+    const maxSize = 5 * 1024 * 1000;
     if (file.size > maxSize) {
       throw new Error(`File size exceeds 5MB limit`);
     }
