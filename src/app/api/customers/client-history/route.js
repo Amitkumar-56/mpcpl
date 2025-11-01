@@ -5,117 +5,177 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
+    const cid = parseInt(searchParams.get('id'));
+    const pname = searchParams.get('pname') || '';
 
-    const customerId = searchParams.get('customer_id');
-    const productFilter = searchParams.get('product');
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
-    const offset = (page - 1) * limit;
-
-    if (!customerId) {
-      return NextResponse.json({ success: false, message: 'Customer ID is required' }, { status: 400 });
+    if (!cid) {
+      return NextResponse.json({ error: 'Customer ID required' }, { status: 400 });
     }
 
-    // Get customer details including credit limit and grace period
-    const customerSql = `SELECT credit_limit, grace_period, account_status FROM customers WHERE id = ?`;
-    const customerResult = await executeQuery({ query: customerSql, values: [customerId] });
-    const customer = customerResult[0];
-
-    if (!customer) {
-      return NextResponse.json({ success: false, message: 'Customer not found' }, { status: 404 });
-    }
-
-    // Enhanced SQL with outstanding amount calculation
+    // Fetch distinct products
+    const products = await executeQuery('SELECT DISTINCT pname FROM products');
+    
+    // Build main query
     let sql = `
       SELECT 
-        ch.*,
-        p.name AS product_name,
-        s.station_name,
-        fr.vehicle_number,
-        e.name AS employee_name,
-        -- Calculate outstanding amount
-        (ch.amount - COALESCE(ch.credit, 0)) AS outstanding_amount,
-        -- Calculate pending days
-        CASE 
-          WHEN (ch.amount - COALESCE(ch.credit, 0)) > 0 THEN 
-            DATEDIFF(CURDATE(), ch.created_at)
-          ELSE 0 
-        END AS pending_days,
-        -- Check if transaction is pending
-        CASE 
-          WHEN (ch.amount - COALESCE(ch.credit, 0)) > 0 THEN 1 
-          ELSE 0 
-        END AS is_pending,
-        -- Calculate remaining limit considering outstanding
-        (?.credit_limit - (SELECT COALESCE(SUM(amount - COALESCE(credit, 0)), 0) 
-          FROM client_history ch2 
-          WHERE ch2.cl_id = ch.cl_id AND ch2.id <= ch.id)
-        ) AS remaining_limit
-      FROM client_history AS ch
-      LEFT JOIN products AS p ON ch.product_id = p.id
-      LEFT JOIN filling_stations AS s ON ch.fs_id = s.id
-      LEFT JOIN filling_requests AS fr ON ch.rid = fr.rid
-      LEFT JOIN employee_profile AS e ON ch.created_by = e.id
-      WHERE ch.cl_id = ?
+        fh.*,
+        p.pname, 
+        fs.station_name, 
+        fr.vehicle_number, 
+        ep.name AS updated_by_name
+      FROM filling_history AS fh
+      LEFT JOIN products AS p ON fh.product_id = p.id
+      LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
+      LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
+      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
+      WHERE fh.cl_id = ?
     `;
-
-    const values = [customer, customerId];
-
-    // Apply product filter if provided
-    if (productFilter) {
-      sql += ' AND p.name = ?';
-      values.push(productFilter);
+    
+    const params = [cid];
+    
+    if (pname) {
+      sql += ' AND p.pname = ?';
+      params.push(pname);
     }
-
-    // Sorting + Pagination
-    sql += ' ORDER BY ch.created_at DESC LIMIT ? OFFSET ?';
-    values.push(limit, offset);
-
-    // Execute query
-    const rows = await executeQuery({ query: sql, values });
-
-    // Get total count for pagination
-    const countSql = `
-      SELECT COUNT(*) AS total
-      FROM client_history AS ch
-      LEFT JOIN products AS p ON ch.product_id = p.id
-      WHERE ch.cl_id = ?
-      ${productFilter ? 'AND p.name = ?' : ''}
-    `;
-    const countValues = productFilter ? [customerId, productFilter] : [customerId];
-    const countResult = await executeQuery({ query: countSql, values: countValues });
-    const totalCount = countResult[0]?.total || 0;
-
-    // Calculate total outstanding
-    const outstandingSql = `
-      SELECT COALESCE(SUM(amount - COALESCE(credit, 0)), 0) AS total_outstanding
-      FROM client_history 
-      WHERE cl_id = ?
-    `;
-    const outstandingResult = await executeQuery({ query: outstandingSql, values: [customerId] });
-    const totalOutstanding = outstandingResult[0]?.total_outstanding || 0;
+    
+    sql += ' ORDER BY fh.id DESC';
+    
+    const transactions = await executeQuery(sql, params);
+    
+    // Calculate balance
+    const balanceResult = await executeQuery(
+      'SELECT balance FROM customer_balances WHERE com_id = ?',
+      [cid]
+    );
+    
+    const balance = balanceResult.length > 0 ? Math.round(balanceResult[0].balance) : 0;
 
     return NextResponse.json({
       success: true,
       data: {
-        transactions: rows,
-        customer: {
-          ...customer,
-          total_outstanding: totalOutstanding,
-          available_limit: customer.credit_limit - totalOutstanding
-        },
-        pagination: {
-          currentPage: page,
-          totalPages: Math.ceil(totalCount / limit),
-          totalCount,
-          hasNext: page < Math.ceil(totalCount / limit),
-          hasPrev: page > 1
-        }
+        transactions,
+        products: products.map(p => p.pname),
+        balance,
+        filter: pname
       }
     });
 
   } catch (error) {
-    console.error('Error fetching client history:', error);
-    return NextResponse.json({ success: false, message: 'Internal server error' }, { status: 500 });
+    console.error('API Error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request) {
+  try {
+    const formData = await request.formData();
+    const cid = parseInt(formData.get('id'));
+    const pname = formData.get('pname') || '';
+
+    if (!cid) {
+      return NextResponse.json({ error: 'Customer ID required' }, { status: 400 });
+    }
+
+    // Build export query
+    let sql = `
+      SELECT 
+        fh.*,
+        p.pname, 
+        fs.station_name, 
+        fr.vehicle_number, 
+        ep.name AS updated_by_name
+      FROM filling_history AS fh
+      LEFT JOIN products AS p ON fh.product_id = p.id
+      LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
+      LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
+      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
+      WHERE fh.cl_id = ?
+    `;
+    
+    const params = [cid];
+    
+    if (pname) {
+      sql += ' AND p.pname = ?';
+      params.push(pname);
+    }
+    
+    sql += ' ORDER BY fh.id DESC';
+    
+    const rows = await executeQuery(sql, params);
+
+    if (rows.length === 0) {
+      return NextResponse.json({ error: 'No records found' }, { status: 404 });
+    }
+
+    // Prepare CSV data manually
+    const csvHeaders = [
+      'Station',
+      'Completed Date',
+      'Product',
+      'Vehicle #',
+      'Trans Type',
+      'Loading Qty',
+      'Amount',
+      'Credit',
+      'Credit Date',
+      'Balance',
+      'Remaining Limit',
+      'Limit',
+      'In Amount',
+      'Dec Amount',
+      'Updated By'
+    ];
+
+    // Convert data to CSV format manually
+    const csvRows = rows.map(row => [
+      row.station_name || '',
+      row.filling_date || '',
+      row.pname || '',
+      row.vehicle_number || '',
+      row.trans_type || '',
+      row.filling_qty || '',
+      row.amount || '',
+      row.credit || '',
+      row.credit_date || '',
+      row.new_amount || '',
+      row.remaining_limit || '',
+      row.limit_type || '',
+      row.in_amount || '',
+      row.d_amount || '',
+      row.updated_by_name || ''
+    ]);
+
+    // Create CSV content manually
+    let csvContent = csvHeaders.join(',') + '\n';
+    
+    csvRows.forEach(row => {
+      // Escape fields that might contain commas or quotes
+      const escapedRow = row.map(field => {
+        if (field === null || field === undefined) return '';
+        const stringField = String(field);
+        if (stringField.includes(',') || stringField.includes('"') || stringField.includes('\n')) {
+          return `"${stringField.replace(/"/g, '""')}"`;
+        }
+        return stringField;
+      });
+      csvContent += escapedRow.join(',') + '\n';
+    });
+
+    return new Response(csvContent, {
+      headers: {
+        'Content-Type': 'text/csv',
+        'Content-Disposition': `attachment; filename="transaction_history_${cid}.csv"`
+      }
+    });
+
+  } catch (error) {
+    console.error('Export Error:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 }

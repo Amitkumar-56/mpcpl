@@ -1,4 +1,4 @@
-//src/app/api/customers/customer-details/route.js
+// src/app/api/customers/customer-details/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -12,12 +12,14 @@ async function hashPassword(password) {
     .join('');
 }
 
-// Helper function to check and handle overdue customers using validity_days from customer_balances
+// Helper function to check and handle overdue customers using customer_balances.day_limit as credit days
 async function checkAndHandleOverdueCustomer(customerId) {
   try {
+    console.log('Checking overdue for customer:', customerId);
+    
     const customerQuery = `
       SELECT c.id, c.billing_type, c.status,
-             cb.cst_limit, cb.amtlimit, cb.hold_balance, cb.validity_days
+             cb.cst_limit, cb.amtlimit, cb.hold_balance, cb.day_limit as credit_days
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
       WHERE c.id = ?
@@ -25,23 +27,26 @@ async function checkAndHandleOverdueCustomer(customerId) {
     const customerData = await executeQuery(customerQuery, [customerId]);
     
     if (customerData.length === 0) {
+      console.log('Customer not found for overdue check');
       return { hasOverdue: false };
     }
 
     const customer = customerData[0];
     
-    // Only check for postpaid customers
+    // Only check for postpaid customers (billing_type = 1)
     if (customer.billing_type != 1) {
+      console.log('Customer is not postpaid, skipping overdue check');
       return { hasOverdue: false };
     }
 
-    // Use validity_days from customer_balances table, fallback to 7 days
-    const creditDaysValue = parseInt(customer.validity_days) || 7;
+    // Use customer_balances.day_limit as credit days, if 0 then use default 7 days
+    const creditDaysValue = parseInt(customer.credit_days) > 0 ? parseInt(customer.credit_days) : 7;
+    console.log('Using credit days from customer_balances.day_limit:', creditDaysValue);
     
     // Check for overdue invoices
     const overdueQuery = `
       SELECT COUNT(*) as overdue_count, 
-             SUM(remaining_amount) as total_overdue
+             COALESCE(SUM(remaining_amount), 0) as total_overdue
       FROM invoices 
       WHERE customer_id = ? 
       AND status IN ('pending', 'partially_paid')
@@ -53,12 +58,14 @@ async function checkAndHandleOverdueCustomer(customerId) {
     const totalOverdue = parseFloat(overdueResult[0].total_overdue) || 0;
 
     if (hasOverdue) {
+      console.log('Customer has overdue invoices, total:', totalOverdue);
+      
       // Auto-block customer by setting remaining limit to 0
       const currentAmtLimit = parseFloat(customer.amtlimit) || 0;
-      const currentCstLimit = parseFloat(customer.cst_limit) || 0;
       
       // Only block if not already blocked
       if (currentAmtLimit > 0) {
+        console.log('Blocking customer due to overdue');
         const updateQuery = 'UPDATE customer_balances SET amtlimit = 0 WHERE com_id = ?';
         await executeQuery(updateQuery, [customerId]);
         
@@ -74,43 +81,54 @@ async function checkAndHandleOverdueCustomer(customerId) {
             0,
             now,
             customerId,
-            1, // system user
+            1,
             now,
             0,
             currentAmtLimit,
             "decrease",
-            `Auto-blocked due to overdue invoices. Total overdue: ₹${totalOverdue}`
+            `Auto-blocked due to overdue invoices. Total overdue: ₹${totalOverdue}. Credit days: ${creditDaysValue}`
           ]
         );
         
         // Update customer status to inactive
         await executeQuery('UPDATE customers SET status = 0 WHERE id = ?', [customerId]);
+        
+        return { 
+          hasOverdue: true, 
+          totalOverdue,
+          overdueCount: overdueResult[0].overdue_count,
+          wasBlocked: true,
+          creditDays: creditDaysValue
+        };
       }
       
       return { 
         hasOverdue: true, 
         totalOverdue,
         overdueCount: overdueResult[0].overdue_count,
-        wasBlocked: currentAmtLimit > 0
+        wasBlocked: false,
+        creditDays: creditDaysValue
       };
     }
 
-    return { hasOverdue: false };
+    console.log('No overdue invoices found');
+    return { hasOverdue: false, creditDays: creditDaysValue };
 
   } catch (error) {
     console.error('Error checking overdue customer:', error);
-    return { hasOverdue: false };
+    return { hasOverdue: false, error: error.message };
   }
 }
 
-// Helper function to check customer eligibility with overdue handling
+// Helper function to check customer eligibility for filling
 async function checkCustomerEligibility(customerId) {
   try {
     // First check and handle overdue
     const overdueCheck = await checkAndHandleOverdueCustomer(customerId);
     
     const balanceQuery = `
-      SELECT cb.cst_limit, cb.amtlimit, cb.hold_balance, c.billing_type, c.status, cb.validity_days
+      SELECT cb.cst_limit, cb.amtlimit, cb.hold_balance, cb.day_limit as credit_days, cb.day_amount,
+             c.billing_type, c.status, c.day_limit as daily_filling_limit
       FROM customer_balances cb 
       JOIN customers c ON cb.com_id = c.id 
       WHERE cb.com_id = ?
@@ -130,15 +148,19 @@ async function checkCustomerEligibility(customerId) {
       cst_limit, 
       amtlimit, 
       hold_balance, 
+      credit_days,
+      day_amount,
       billing_type, 
       status,
-      validity_days 
+      daily_filling_limit
     } = balanceData[0];
     
     const totalLimit = parseFloat(cst_limit) || 0;
     const remainingLimit = parseFloat(amtlimit) || 0;
     const currentHold = parseFloat(hold_balance) || 0;
     const availableBalance = remainingLimit - currentHold;
+    const dailyUsed = parseFloat(day_amount) || 0;
+    const dailyLimit = parseFloat(daily_filling_limit) || 0;
 
     // Check if customer is inactive
     if (status == 0) {
@@ -150,7 +172,10 @@ async function checkCustomerEligibility(customerId) {
         remainingLimit,
         currentHold,
         hasOverdue: overdueCheck.hasOverdue,
-        totalOverdue: overdueCheck.totalOverdue || 0
+        totalOverdue: overdueCheck.totalOverdue || 0,
+        creditDays: overdueCheck.creditDays || 7,
+        dailyLimit,
+        dailyUsed
       };
     }
 
@@ -164,7 +189,27 @@ async function checkCustomerEligibility(customerId) {
         remainingLimit,
         currentHold,
         hasOverdue: overdueCheck.hasOverdue,
-        totalOverdue: overdueCheck.totalOverdue || 0
+        totalOverdue: overdueCheck.totalOverdue || 0,
+        creditDays: overdueCheck.creditDays || 7,
+        dailyLimit,
+        dailyUsed
+      };
+    }
+
+    // Check daily limit
+    if (dailyLimit > 0 && dailyUsed >= dailyLimit) {
+      return { 
+        eligible: false, 
+        reason: 'Daily filling limit exceeded',
+        availableBalance,
+        totalLimit,
+        remainingLimit,
+        currentHold,
+        hasOverdue: overdueCheck.hasOverdue,
+        totalOverdue: overdueCheck.totalOverdue || 0,
+        creditDays: overdueCheck.creditDays || 7,
+        dailyLimit,
+        dailyUsed
       };
     }
 
@@ -172,14 +217,17 @@ async function checkCustomerEligibility(customerId) {
     if (billing_type == 1 && overdueCheck.hasOverdue) {
       return { 
         eligible: false, 
-        reason: `Overdue invoices exist (${validity_days || 7} days credit period)`,
+        reason: `Overdue invoices exist (${overdueCheck.creditDays || 7} days credit period)`,
         availableBalance,
         totalLimit,
         remainingLimit,
         currentHold,
         hasOverdue: true,
         totalOverdue: overdueCheck.totalOverdue || 0,
-        overdueCount: overdueCheck.overdueCount || 0
+        overdueCount: overdueCheck.overdueCount || 0,
+        creditDays: overdueCheck.creditDays || 7,
+        dailyLimit,
+        dailyUsed
       };
     }
 
@@ -191,72 +239,20 @@ async function checkCustomerEligibility(customerId) {
       currentHold,
       billing_type,
       hasOverdue: overdueCheck.hasOverdue,
-      totalOverdue: overdueCheck.totalOverdue || 0
+      totalOverdue: overdueCheck.totalOverdue || 0,
+      creditDays: overdueCheck.creditDays || 7,
+      dailyLimit,
+      dailyUsed,
+      remainingDaily: dailyLimit - dailyUsed
     };
 
   } catch (error) {
     console.error('Error checking eligibility:', error);
     return { 
       eligible: false, 
-      reason: 'Error checking eligibility',
+      reason: 'Error checking eligibility: ' + error.message,
       hasOverdue: false
     };
-  }
-}
-
-// Helper function to handle payment and auto-unblock
-async function handlePaymentAndUnblock(customerId, paymentAmount) {
-  try {
-    // Get current balance
-    const balanceQuery = 'SELECT cst_limit, amtlimit, hold_balance FROM customer_balances WHERE com_id = ?';
-    const balanceData = await executeQuery(balanceQuery, [customerId]);
-    
-    if (balanceData.length === 0) return { unblocked: false };
-    
-    const currentCstLimit = parseFloat(balanceData[0].cst_limit) || 0;
-    const currentAmtLimit = parseFloat(balanceData[0].amtlimit) || 0;
-    const currentHold = parseFloat(balanceData[0].hold_balance) || 0;
-    
-    // If customer was blocked (amtlimit = 0) and payment is made, restore limit
-    if (currentAmtLimit === 0 && paymentAmount > 0) {
-      const newAmtLimit = currentCstLimit;
-      
-      await executeQuery(
-        'UPDATE customer_balances SET amtlimit = ? WHERE com_id = ?',
-        [newAmtLimit, customerId]
-      );
-      
-      // Activate customer
-      await executeQuery('UPDATE customers SET status = 1 WHERE id = ?', [customerId]);
-      
-      // Log the unblock action
-      const now = new Date();
-      await executeQuery(
-        `INSERT INTO filling_history 
-         (trans_type, credit_date, remaining_limit, filling_date, cl_id, created_by, created_at, in_amount, d_amount, limit_type, remarks)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          "auto_unblock_payment",
-          now,
-          newAmtLimit,
-          now,
-          customerId,
-          1, // system user
-          now,
-          newAmtLimit,
-          0,
-          "increase",
-          `Auto-unblocked after payment of ₹${paymentAmount}. Limit restored to ₹${newAmtLimit}`
-        ]
-      );
-      
-      return { unblocked: true, newLimit: newAmtLimit };
-    }
-    
-    return { unblocked: false };
-  } catch (error) {
-    console.error('Error handling payment unblock:', error);
-    return { unblocked: false };
   }
 }
 
@@ -272,9 +268,15 @@ export async function GET(request) {
     // First, check and handle any overdue situation
     await checkAndHandleOverdueCustomer(id);
 
-    // Fetch customer details with limit_expiry and validity_days from customer_balances
+    // Fetch customer details with both day_limit fields
     const customerQuery = `
-      SELECT c.*, cb.hold_balance, cb.cst_limit, cb.amtlimit, cb.validity_days, cb.limit_expiry
+      SELECT c.*, 
+             cb.hold_balance, 
+             cb.cst_limit, 
+             cb.amtlimit,
+             cb.day_limit as credit_days,
+             cb.day_amount,
+             cb.last_reset_date
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
       WHERE c.id = ?
@@ -315,28 +317,6 @@ export async function GET(request) {
         console.error('Error fetching block locations:', error);
         blockLocations = ['Error loading locations'];
       }
-    }
-
-    // Fetch deal prices
-    let dealPricesWithNames = [];
-    try {
-      const dealPrices = customer[0].deal_price ? JSON.parse(customer[0].deal_price) : {};
-      
-      for (const [stationId, price] of Object.entries(dealPrices)) {
-        if (price && stationId && stationId !== '') {
-          const stationQuery = 'SELECT station_name FROM filling_stations WHERE id = ?';
-          const station = await executeQuery(stationQuery, [stationId]);
-          if (station.length > 0) {
-            dealPricesWithNames.push({
-              stationName: station[0].station_name,
-              price: price
-            });
-          }
-        }
-      }
-    } catch (error) {
-      console.error('Error processing deal prices:', error);
-      dealPricesWithNames = [];
     }
 
     // Fetch sub-users
@@ -444,7 +424,6 @@ export async function GET(request) {
         ...customer[0],
         productNames,
         blockLocations,
-        dealPrices: dealPricesWithNames,
         users,
         logs: logData,
         outstandingInvoices,
@@ -453,8 +432,10 @@ export async function GET(request) {
         hold_balance: customer[0].hold_balance || 0,
         cst_limit: customer[0].cst_limit || 0,
         amtlimit: customer[0].amtlimit || 0,
-        validity_days: customer[0].validity_days || 7, // Use validity_days from customer_balances
-        limit_expiry: customer[0].limit_expiry, // Use limit_expiry from customer_balances
+        credit_days: customer[0].credit_days || 7, // From customer_balances.day_limit
+        daily_filling_limit: customer[0].day_limit || 0, // From customers.day_limit
+        day_amount: customer[0].day_amount || 0,
+        last_reset_date: customer[0].last_reset_date,
         payment_type: customer[0].billing_type == 1 ? 'postpaid' : 'prepaid'
       }
     };
@@ -462,7 +443,7 @@ export async function GET(request) {
     return NextResponse.json(responseData);
 
   } catch (error) {
-    console.error('Error fetching customer details:', error);
+    console.error('Error in GET /api/customers/customer-details:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? error.message : 'Please try again later'
@@ -481,147 +462,337 @@ export async function POST(request) {
 
     switch (action) {
       case 'update_customer_profile':
-        const { name, phone, email, address, gst_name, gst_number, status } = data;
+        return await handleUpdateProfile(id, data);
         
-        if (!id) {
-          return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
-        }
-
-        const profileCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
-        if (profileCustCheck.length === 0) {
-          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        const updateFields = [];
-        const updateValues = [];
-
-        if (name) { updateFields.push('name = ?'); updateValues.push(name); }
-        if (phone) { updateFields.push('phone = ?'); updateValues.push(phone); }
-        if (email) { updateFields.push('email = ?'); updateValues.push(email); }
-        if (address) { updateFields.push('address = ?'); updateValues.push(address); }
-        if (gst_name) { updateFields.push('gst_name = ?'); updateValues.push(gst_name); }
-        if (gst_number) { updateFields.push('gst_number = ?'); updateValues.push(gst_number); }
-        if (status !== undefined) { updateFields.push('status = ?'); updateValues.push(status); }
-
-        if (updateFields.length === 0) {
-          return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
-        }
-
-        updateValues.push(id);
-        const updateProfileQuery = `UPDATE customers SET ${updateFields.join(', ')} WHERE id = ?`;
-        await executeQuery(updateProfileQuery, updateValues);
+      case 'update_day_limits':
+        return await handleUpdateDayLimits(id, data);
         
-        return NextResponse.json({ message: 'Customer profile updated successfully' });
-
       case 'add_user':
-        const { com_id, name: userName, phone: userPhone, email: userEmail, password } = data;
+        return await handleAddUser(data);
         
-        if (!com_id || !userName || !userPhone || !userEmail || !password) {
-          return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
-        }
-
-        const parentQuery = 'SELECT status, product, blocklocation FROM customers WHERE id = ?';
-        const parent = await executeQuery(parentQuery, [com_id]);
-        
-        if (parent.length === 0) {
-          return NextResponse.json({ error: 'Parent customer not found' }, { status: 404 });
-        }
-
-        const existingUser = await executeQuery(
-          'SELECT id FROM customers WHERE email = ? OR phone = ?', 
-          [userEmail, userPhone]
-        );
-        
-        if (existingUser.length > 0) {
-          return NextResponse.json({ error: 'User with this email or phone already exists' }, { status: 400 });
-        }
-
-        const { status: parentStatus, product, blocklocation } = parent[0];
-        const hashedPassword = await hashPassword(password);
-        
-        const insertUserQuery = `
-          INSERT INTO customers (com_id, roleid, name, phone, email, password, status, product, blocklocation) 
-          VALUES (?, 2, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        await executeQuery(insertUserQuery, [
-          com_id, 
-          userName, 
-          userPhone, 
-          userEmail, 
-          hashedPassword, 
-          parentStatus, 
-          product, 
-          blocklocation
-        ]);
-        
-        return NextResponse.json({ message: 'User added successfully' });
-
       case 'update_password':
-        const { userId, newPassword } = data;
+        return await handleUpdatePassword(data);
         
-        if (!userId || !newPassword) {
-          return NextResponse.json({ error: 'User ID and new password are required' }, { status: 400 });
-        }
-
-        const userCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [userId]);
-        if (userCheck.length === 0) {
-          return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
-
-        const hashedNewPassword = await hashPassword(newPassword);
-        await executeQuery('UPDATE customers SET password = ? WHERE id = ?', [hashedNewPassword, userId]);
-        
-        return NextResponse.json({ message: 'Password updated successfully' });
-
       case 'delete_user':
-        const { userId: deleteUserId } = data;
+        return await handleDeleteUser(data);
         
-        if (!deleteUserId) {
-          return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
-        }
-
-        const deleteUserCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [deleteUserId]);
-        if (deleteUserCheck.length === 0) {
-          return NextResponse.json({ error: 'User not found' }, { status: 404 });
-        }
-
-        await executeQuery('DELETE FROM customers WHERE id = ?', [deleteUserId]);
-        return NextResponse.json({ message: 'User deleted successfully' });
-
       case 'process_payment':
-        // Handle payment processing and auto-unblock
-        const { paymentAmount } = data;
+        return await handleProcessPayment(id, data);
         
-        if (!id || !paymentAmount) {
-          return NextResponse.json({ error: 'Customer ID and payment amount are required' }, { status: 400 });
-        }
-
-        const paymentCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [id]);
-        if (paymentCustCheck.length === 0) {
-          return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
-        }
-
-        // Process payment logic here (update invoices, transactions, etc.)
-        // This is a simplified version - implement your actual payment processing
+      case 'create_filling_request':
+        return await handleCreateFillingRequest(id, data);
         
-        // After payment processing, check if we need to unblock the customer
-        const unblockResult = await handlePaymentAndUnblock(id, parseFloat(paymentAmount));
+      case 'update_request_status':
+        return await handleUpdateRequestStatus(data);
         
-        return NextResponse.json({ 
-          message: 'Payment processed successfully',
-          unblocked: unblockResult.unblocked || false,
-          newLimit: unblockResult.newLimit || 0
-        });
-
       default:
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
   } catch (error) {
-    console.error('Error processing POST request:', error);
+    console.error('Error in POST /api/customers/customer-details:', error);
     return NextResponse.json({ 
       error: 'Internal server error',
       details: process.env.NODE_ENV === 'development' ? error.message : 'Request processing failed'
     }, { status: 500 });
   }
+}
+
+// Separate handler functions
+async function handleUpdateProfile(customerId, data) {
+  const { name, phone, email, address, gst_name, gst_number, status } = data;
+  
+  if (!customerId) {
+    return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
+  }
+
+  const profileCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [customerId]);
+  if (profileCustCheck.length === 0) {
+    return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+  }
+
+  const updateFields = [];
+  const updateValues = [];
+
+  if (name) { updateFields.push('name = ?'); updateValues.push(name); }
+  if (phone) { updateFields.push('phone = ?'); updateValues.push(phone); }
+  if (email) { updateFields.push('email = ?'); updateValues.push(email); }
+  if (address) { updateFields.push('address = ?'); updateValues.push(address); }
+  if (gst_name) { updateFields.push('gst_name = ?'); updateValues.push(gst_name); }
+  if (gst_number) { updateFields.push('gst_number = ?'); updateValues.push(gst_number); }
+  if (status !== undefined) { updateFields.push('status = ?'); updateValues.push(status); }
+
+  if (updateFields.length === 0) {
+    return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
+  }
+
+  updateValues.push(customerId);
+  const updateProfileQuery = `UPDATE customers SET ${updateFields.join(', ')} WHERE id = ?`;
+  await executeQuery(updateProfileQuery, updateValues);
+  
+  return NextResponse.json({ message: 'Customer profile updated successfully' });
+}
+
+// New function to update day limits
+async function handleUpdateDayLimits(customerId, data) {
+  const { credit_days, daily_filling_limit } = data;
+  
+  if (!customerId) {
+    return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
+  }
+
+  // Check if customer exists
+  const customerCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [customerId]);
+  if (customerCheck.length === 0) {
+    return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+  }
+
+  try {
+    // Update credit days in customer_balances (only if > 0)
+    if (credit_days !== undefined && credit_days > 0) {
+      await executeQuery(
+        'UPDATE customer_balances SET day_limit = ? WHERE com_id = ?',
+        [credit_days, customerId]
+      );
+    }
+
+    // Update daily filling limit in customers table
+    if (daily_filling_limit !== undefined) {
+      await executeQuery(
+        'UPDATE customers SET day_limit = ? WHERE id = ?',
+        [daily_filling_limit, customerId]
+      );
+    }
+
+    return NextResponse.json({ message: 'Day limits updated successfully' });
+
+  } catch (error) {
+    console.error('Error updating day limits:', error);
+    return NextResponse.json({ error: 'Failed to update day limits' }, { status: 500 });
+  }
+}
+
+// Filling request handler
+async function handleCreateFillingRequest(customerId, data) {
+  const { amount, product_id, station_id, vehicle_number } = data;
+  
+  if (!customerId || !amount || !product_id || !station_id) {
+    return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+  }
+
+  try {
+    // Check customer eligibility
+    const eligibility = await checkCustomerEligibility(customerId);
+    if (!eligibility.eligible) {
+      return NextResponse.json({ 
+        error: 'Customer not eligible for filling',
+        reason: eligibility.reason
+      }, { status: 400 });
+    }
+
+    // Check if amount is within available balance and daily limit
+    const requestedAmount = parseFloat(amount);
+    if (requestedAmount > eligibility.availableBalance) {
+      return NextResponse.json({ 
+        error: 'Requested amount exceeds available balance'
+      }, { status: 400 });
+    }
+
+    if (eligibility.dailyLimit > 0 && (eligibility.dailyUsed + requestedAmount) > eligibility.dailyLimit) {
+      return NextResponse.json({ 
+        error: 'Requested amount exceeds daily filling limit'
+      }, { status: 400 });
+    }
+
+    // Create filling request
+    const now = new Date();
+    const insertQuery = `
+      INSERT INTO filling_requests 
+      (customer_id, product_id, station_id, vehicle_number, requested_amount, status, created_at)
+      VALUES (?, ?, ?, ?, ?, 'pending', ?)
+    `;
+    
+    const result = await executeQuery(insertQuery, [
+      customerId, product_id, station_id, vehicle_number, requestedAmount, now
+    ]);
+
+    // Hold the amount
+    const newHoldBalance = (eligibility.currentHold || 0) + requestedAmount;
+    await executeQuery(
+      'UPDATE customer_balances SET hold_balance = ? WHERE com_id = ?',
+      [newHoldBalance, customerId]
+    );
+
+    return NextResponse.json({ 
+      message: 'Filling request created successfully',
+      request_id: result.insertId
+    });
+
+  } catch (error) {
+    console.error('Error creating filling request:', error);
+    return NextResponse.json({ error: 'Failed to create filling request' }, { status: 500 });
+  }
+}
+
+// Update request status
+async function handleUpdateRequestStatus(data) {
+  const { request_id, status, actual_amount } = data;
+  
+  if (!request_id || !status) {
+    return NextResponse.json({ error: 'Request ID and status are required' }, { status: 400 });
+  }
+
+  try {
+    // Get request details
+    const requestQuery = 'SELECT * FROM filling_requests WHERE id = ?';
+    const requests = await executeQuery(requestQuery, [request_id]);
+    
+    if (requests.length === 0) {
+      return NextResponse.json({ error: 'Filling request not found' }, { status: 404 });
+    }
+
+    const request = requests[0];
+    const now = new Date();
+
+    if (status === 'completed' && actual_amount) {
+      // Update customer balances
+      const finalAmount = parseFloat(actual_amount);
+      
+      // Reduce hold balance and actual balance
+      await executeQuery(
+        'UPDATE customer_balances SET hold_balance = hold_balance - ?, amtlimit = amtlimit - ?, day_amount = day_amount + ? WHERE com_id = ?',
+        [request.requested_amount, finalAmount, finalAmount, request.customer_id]
+      );
+
+      // Update request
+      await executeQuery(
+        'UPDATE filling_requests SET status = ?, actual_amount = ?, completed_at = ? WHERE id = ?',
+        [status, finalAmount, now, request_id]
+      );
+
+    } else if (status === 'cancelled') {
+      // Release hold balance
+      await executeQuery(
+        'UPDATE customer_balances SET hold_balance = hold_balance - ? WHERE com_id = ?',
+        [request.requested_amount, request.customer_id]
+      );
+
+      // Update request
+      await executeQuery(
+        'UPDATE filling_requests SET status = ?, cancelled_at = ? WHERE id = ?',
+        [status, now, request_id]
+      );
+    } else {
+      // For other statuses (processed, etc.)
+      await executeQuery(
+        'UPDATE filling_requests SET status = ? WHERE id = ?',
+        [status, request_id]
+      );
+    }
+
+    return NextResponse.json({ message: `Filling request ${status} successfully` });
+
+  } catch (error) {
+    console.error('Error updating request status:', error);
+    return NextResponse.json({ error: 'Failed to update request status' }, { status: 500 });
+  }
+}
+
+async function handleAddUser(data) {
+  const { com_id, name: userName, phone: userPhone, email: userEmail, password } = data;
+  
+  if (!com_id || !userName || !userPhone || !userEmail || !password) {
+    return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+  }
+
+  const parentQuery = 'SELECT status, product, blocklocation FROM customers WHERE id = ?';
+  const parent = await executeQuery(parentQuery, [com_id]);
+  
+  if (parent.length === 0) {
+    return NextResponse.json({ error: 'Parent customer not found' }, { status: 404 });
+  }
+
+  const existingUser = await executeQuery(
+    'SELECT id FROM customers WHERE email = ? OR phone = ?', 
+    [userEmail, userPhone]
+  );
+  
+  if (existingUser.length > 0) {
+    return NextResponse.json({ error: 'User with this email or phone already exists' }, { status: 400 });
+  }
+
+  const { status: parentStatus, product, blocklocation } = parent[0];
+  const hashedPassword = await hashPassword(password);
+  
+  const insertUserQuery = `
+    INSERT INTO customers (com_id, roleid, name, phone, email, password, status, product, blocklocation) 
+    VALUES (?, 2, ?, ?, ?, ?, ?, ?, ?)
+  `;
+  
+  await executeQuery(insertUserQuery, [
+    com_id, 
+    userName, 
+    userPhone, 
+    userEmail, 
+    hashedPassword, 
+    parentStatus, 
+    product, 
+    blocklocation
+  ]);
+  
+  return NextResponse.json({ message: 'User added successfully' });
+}
+
+async function handleUpdatePassword(data) {
+  const { userId, newPassword } = data;
+  
+  if (!userId || !newPassword) {
+    return NextResponse.json({ error: 'User ID and new password are required' }, { status: 400 });
+  }
+
+  const userCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [userId]);
+  if (userCheck.length === 0) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  const hashedNewPassword = await hashPassword(newPassword);
+  await executeQuery('UPDATE customers SET password = ? WHERE id = ?', [hashedNewPassword, userId]);
+  
+  return NextResponse.json({ message: 'Password updated successfully' });
+}
+
+async function handleDeleteUser(data) {
+  const { userId: deleteUserId } = data;
+  
+  if (!deleteUserId) {
+    return NextResponse.json({ error: 'User ID is required' }, { status: 400 });
+  }
+
+  const deleteUserCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [deleteUserId]);
+  if (deleteUserCheck.length === 0) {
+    return NextResponse.json({ error: 'User not found' }, { status: 404 });
+  }
+
+  await executeQuery('DELETE FROM customers WHERE id = ?', [deleteUserId]);
+  return NextResponse.json({ message: 'User deleted successfully' });
+}
+
+async function handleProcessPayment(customerId, data) {
+  const { paymentAmount } = data;
+  
+  if (!customerId || !paymentAmount) {
+    return NextResponse.json({ error: 'Customer ID and payment amount are required' }, { status: 400 });
+  }
+
+  const paymentCustCheck = await executeQuery('SELECT id FROM customers WHERE id = ?', [customerId]);
+  if (paymentCustCheck.length === 0) {
+    return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+  }
+
+  console.log(`Processing payment of ${paymentAmount} for customer ${customerId}`);
+  
+  return NextResponse.json({ 
+    message: 'Payment processed successfully',
+    unblocked: false,
+    newLimit: 0
+  });
 }

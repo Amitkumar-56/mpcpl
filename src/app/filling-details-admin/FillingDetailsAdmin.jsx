@@ -33,7 +33,6 @@ export default function FillingDetailsAdmin() {
   const [cancelRemarks, setCancelRemarks] = useState('');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState('');
-  const [showRenewModal, setShowRenewModal] = useState(false);
 
   useEffect(() => {
     if (id) fetchRequestDetails();
@@ -170,11 +169,10 @@ export default function FillingDetailsAdmin() {
       
       submitData.append('billing_type', requestData.billing_type);
       submitData.append('oldstock', requestData.station_stock || 0);
-      submitData.append('amtlimit', requestData.amtlimit || 0);
-      submitData.append('hold_balance', requestData.hold_balance || 0);
-      submitData.append('balance', requestData.balance || 0);
-      submitData.append('outstanding', requestData.outstanding || 0);
       submitData.append('cst_limit', requestData.cst_limit || 0);
+      submitData.append('amtlimit', requestData.amtlimit || 0);
+      submitData.append('day_limit', requestData.day_limit || 0);
+      submitData.append('day_amount', requestData.day_amount || 0);
       submitData.append('price', requestData.fuel_price || requestData.price || 0);
 
       console.log('📤 Submitting form data with status:', formData.status);
@@ -288,13 +286,46 @@ export default function FillingDetailsAdmin() {
     router.push(`/credit-limit?id=${requestData.cid}`);
   };
 
-  // Check if limit is expired
-  const isLimitExpired = () => {
-    if (!requestData?.limit_expiry) return false;
-    const expiryDate = new Date(requestData.limit_expiry);
-    const now = new Date();
-    return expiryDate < now;
+  // Calculate available balance - FIXED with null check
+  const calculateAvailableBalance = () => {
+    if (!requestData) {
+      return {
+        availableBalance: 0,
+        isInsufficient: false,
+        limitType: 'none'
+      };
+    }
+    
+    const dayLimit = parseFloat(requestData.day_limit) || 0;
+    const dayAmount = parseFloat(requestData.day_amount) || 0;
+    const creditLimit = parseFloat(requestData.cst_limit) || 0;
+    const usedAmount = parseFloat(requestData.amtlimit) || 0;
+    
+    let availableBalance = 0;
+    let limitType = 'none';
+    
+    if (dayLimit > 0) {
+      // Day limit system active
+      availableBalance = Math.max(0, dayLimit - dayAmount);
+      limitType = 'daily';
+    } else {
+      // Credit limit system active
+      availableBalance = Math.max(0, creditLimit - usedAmount);
+      limitType = 'credit';
+    }
+    
+    return {
+      availableBalance,
+      isInsufficient: availableBalance <= 0,
+      limitType,
+      dayLimit,
+      dayAmount,
+      creditLimit,
+      usedAmount
+    };
   };
+
+  const availableBalance = calculateAvailableBalance();
 
   // Loading component
   if (loading) {
@@ -386,8 +417,6 @@ export default function FillingDetailsAdmin() {
     return (aqty * price).toFixed(2);
   };
 
-  const expired = isLimitExpired();
-
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <Sidebar />
@@ -418,27 +447,36 @@ export default function FillingDetailsAdmin() {
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
                       {requestData.status}
                     </span>
-                    {expired && (
+                    {availableBalance.isInsufficient && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
-                        Limit Expired
+                        {availableBalance.limitType === 'daily' ? 'Daily Limit' : 'Credit Limit'} Exceeded
                       </span>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Limit Expiry Alert */}
-              {expired && (
+              {/* Limit Alert */}
+              {availableBalance.isInsufficient && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
                     </svg>
                     <div>
-                      <p className="text-red-700 font-medium">Credit Limit Expired</p>
+                      <p className="text-red-700 font-medium">
+                        {availableBalance.limitType === 'daily' ? 'Daily Limit' : 'Credit Limit'} Exceeded
+                      </p>
                       <p className="text-red-600 text-sm">
-                        This customer's credit limit expired on {new Date(requestData.limit_expiry).toLocaleDateString('en-IN')}. 
-                        Please renew the credit limit to complete this request.
+                        {availableBalance.limitType === 'daily' ? (
+                          <>
+                            Daily Limit: ₹{requestData.day_limit || 0}, Used: ₹{requestData.day_amount || 0},
+                          </>
+                        ) : (
+                          <>
+                            Credit Limit: ₹{requestData.cst_limit || 0}, Used: ₹{requestData.amtlimit || 0}, Available: ₹{requestData.amtlimit || 0}
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -485,32 +523,48 @@ export default function FillingDetailsAdmin() {
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Phone</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{requestData.client_phone}</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
-                          <td className="px-4 py-3 text-sm font-medium">
-                            <span className={expired ? 'text-red-600' : 'text-green-600'}>
-                              ₹{requestData.cst_limit || 0}
-                              {expired && <span className="text-xs ml-2">(Expired)</span>}
-                            </span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
-                          <td className="px-4 py-3 text-sm font-medium">
-                            <span className={expired ? 'text-red-600' : 'text-green-600'}>
-                              ₹{requestData.amtlimit || 0}
-                            </span>
-                          </td>
-                        </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Expiry</td>
-                          <td className="px-4 py-3 text-sm font-medium">
-                            <span className={expired ? 'text-red-600' : 'text-gray-900'}>
-                              {requestData.limit_expiry ? new Date(requestData.limit_expiry).toLocaleDateString('en-IN') : 'No expiry'}
-                              {expired && <span className="text-xs ml-2">(Expired)</span>}
-                            </span>
-                          </td>
-                        </tr>
+                        
+                        {/* Limit Information */}
+                        {availableBalance.limitType === 'daily' ? (
+                          <>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Limit</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.day_limit || 0}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Used</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.day_amount || 0}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Available</td>
+                              <td className="px-4 py-3 text-sm font-medium">
+                                <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
+                                  ₹{requestData.amtlimit || 0}
+                                </span>
+                              </td>
+                            </tr>
+                          </>
+                        ) : (
+                          <>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.cst_limit || 0}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Used Amount</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.amtlimit || 0}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
+                              <td className="px-4 py-3 text-sm font-medium">
+                                <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
+                                  ₹{requestData.amtlimit || 0}
+                                </span>
+                              </td>
+                            </tr>
+                          </>
+                        )}
+
                         <tr>
                           <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Requested Quantity</td>
                           <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.qty} Ltr</td>
@@ -598,9 +652,8 @@ export default function FillingDetailsAdmin() {
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
                       <span>Update Request</span>
                       <span className='bg-yellow-400 text-black rounded px-2 py-1 text-sm font-medium'>Available Stock: {requestData.station_stock || 0} Ltr</span>
-                      <span className={`px-2 py-1 text-sm font-medium rounded ${expired ? 'bg-red-100 text-red-800' : requestData.amtlimit <= 0 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                        Balance: ₹{requestData.amtlimit || 0}
-                        {expired && <span className="ml-1">(Expired)</span>}
+                      <span className={`px-2 py-1 text-sm font-medium rounded ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        {availableBalance.limitType === 'daily' ? 'Daily Available' : 'Available Balance'}: ₹{requestData.amtlimit || 0}
                       </span>
                     </h2>
                   </div>
@@ -836,7 +889,7 @@ export default function FillingDetailsAdmin() {
               {showLimitModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                   <div className="bg-white rounded-lg p-6 w-96">
-                    <h3 className="text-lg font-semibold mb-4 text-red-600">Limit Overdue</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-red-600">Credit Limit Overdue</h3>
                     <p className="mb-6 text-gray-700">{limitMessage}</p>
                     <div className="flex justify-end space-x-3">
                       <button

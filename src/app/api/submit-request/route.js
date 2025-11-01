@@ -1,3 +1,4 @@
+// src/app/api/submit-request/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -12,7 +13,7 @@ export async function POST(req) {
       request_type,    
       qty,            
       remarks,
-      products_codes, // This is the product_codes.id
+      products_codes,
     } = body;
 
     console.log('📥 Received data for request creation:', body);
@@ -20,6 +21,36 @@ export async function POST(req) {
     // Validate required fields
     if (!customer || !products_codes || !station_id || !vehicle_no || !driver_no || !qty) {
       return NextResponse.json({ error: "All fields are required" }, { status: 400 });
+    }
+
+    // ✅ STRICT Vehicle Number Validation - NO SPACES ALLOWED
+    if (vehicle_no.includes(' ')) {
+      return NextResponse.json({ 
+        error: "Spaces are not allowed in Vehicle Number! Please remove all spaces." 
+      }, { status: 400 });
+    }
+
+    const cleanVehicleNo = vehicle_no.toString().replace(/\s/g, '').toUpperCase();
+    
+    if (cleanVehicleNo.length < 3) {
+      return NextResponse.json({ 
+        error: "Vehicle number must be at least 3 characters long" 
+      }, { status: 400 });
+    }
+
+    // ✅ STRICT Driver Number Validation - NO SPACES ALLOWED
+    if (driver_no.includes(' ')) {
+      return NextResponse.json({ 
+        error: "Spaces are not allowed in Driver Number! Please remove all spaces." 
+      }, { status: 400 });
+    }
+
+    const cleanDriverNo = driver_no.toString().replace(/\s/g, '');
+    
+    if (cleanDriverNo.length !== 10 || !/^\d+$/.test(cleanDriverNo)) {
+      return NextResponse.json({ 
+        error: "Driver number must be exactly 10 digits without spaces" 
+      }, { status: 400 });
     }
 
     // First, get the product details from product_codes table
@@ -35,15 +66,15 @@ export async function POST(req) {
     }
 
     const productCodeData = productCodeQuery[0];
-    const product_id = productCodeData.product_id; // This goes to filling_requests.product
-    const sub_product_id = productCodeData.id; // This goes to filling_requests.sub_product_id
-    const product_code_name = productCodeData.pcode; // Product code name
+    const product_id = productCodeData.product_id;
+    const sub_product_id = productCodeData.id;
+    const product_code_name = productCodeData.pcode;
 
     console.log('📊 CORRECTED Product mapping details:', {
       selected_product_code_id: products_codes,
       product_code_name: product_code_name,
-      product_id_for_filling_requests_product: product_id, // ✅ This should go to filling_requests.product
-      sub_product_id_for_filling_requests_sub_product_id: sub_product_id // ✅ This should go to filling_requests.sub_product_id
+      product_id_for_filling_requests_product: product_id,
+      sub_product_id_for_filling_requests_sub_product_id: sub_product_id
     });
 
     // Generate the next RID (MP000001 format)
@@ -66,11 +97,13 @@ export async function POST(req) {
     console.log('📝 CORRECTED - Inserting into filling_requests:', {
       rid: nextRID,
       fs_id: station_id,
-      product: product_id, // ✅ product_codes.product_id → filling_requests.product
-      sub_product_id: sub_product_id, // ✅ product_codes.id → filling_requests.sub_product_id
+      product: product_id,
+      sub_product_id: sub_product_id,
       customer: customer,
       qty: qty,
-      product_code_name: product_code_name
+      product_code_name: product_code_name,
+      vehicle_no: cleanVehicleNo,
+      driver_no: cleanDriverNo
     });
 
     // Insert into filling_requests table with CORRECT mapping
@@ -82,8 +115,8 @@ export async function POST(req) {
       [
         nextRID,                 
         parseInt(station_id),     
-        vehicle_no,                
-        driver_no,                  
+        cleanVehicleNo,           // ✅ Use cleaned vehicle number
+        cleanDriverNo,            // ✅ Use cleaned driver number  
         request_type,             
         parseFloat(qty),           
         parseFloat(qty),            
@@ -91,8 +124,8 @@ export async function POST(req) {
         parseInt(customer),         
         'Pending',                  
         remarks || '', 
-        parseInt(product_id), // ✅ CORRECT: product_codes.product_id → filling_requests.product
-        parseInt(sub_product_id) // ✅ CORRECT: product_codes.id → filling_requests.sub_product_id
+        parseInt(product_id),
+        parseInt(sub_product_id)
       ]
     );
 
@@ -103,12 +136,11 @@ export async function POST(req) {
       try {
         await executeQuery(
           `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`,
-          [nextRID, 1, currentDate] // Using user ID 1 as default
+          [nextRID, 1, currentDate]
         );
         console.log('✅ Filling logs entry created');
       } catch (logError) {
         console.error('⚠️ Error creating filling logs:', logError);
-        // Continue even if logs fail
       }
 
       return NextResponse.json({ 

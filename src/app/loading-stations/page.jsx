@@ -96,9 +96,13 @@ export default function LoadingStations() {
                             <a href={`/loading-stations/view?id=${station.id}`} className="text-blue-600 hover:text-blue-800">
                               <BiShow size={20} />
                             </a>
-                            <a href={`/stock-history/${station.id}`} className="text-red-600 hover:text-red-800">
-                              <BiHistory size={20} />
-                            </a>
+                           <a
+  href={`/stock-history?id=${station.id}`}
+  className="text-red-600 hover:text-red-800"
+>
+  <BiHistory size={20} />
+</a>
+
                           </td>
                         </tr>
                       ))

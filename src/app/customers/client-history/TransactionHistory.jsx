@@ -1,4 +1,4 @@
-//src/app/customers/client-history/TransactionHistory.jsx
+// src/app/customers/client-history/TransactionHistory.jsx
 'use client';
 
 import Footer from "components/Footer";
@@ -9,7 +9,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function TransactionHistory() {
-  const [historyData, setHistoryData] = useState([]);
+  const [historyData, setHistoryData] = useState({ transactions: [], pagination: {} });
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -46,15 +46,18 @@ export default function TransactionHistory() {
     try {
       const res = await fetch(`/api/products?customer_id=${customerId}`);
       const result = await res.json();
-      if (result.success) setProducts(result.data);
+      if (result.success) setProducts(result.data || []);
     } catch (err) {
       console.error('Error fetching products:', err);
+      setProducts([]);
     }
   };
 
   const fetchClientHistory = async () => {
     try {
       setLoading(true);
+      setError('');
+      
       const params = new URLSearchParams({
         customer_id: customerId,
         page: page.toString(),
@@ -68,8 +71,11 @@ export default function TransactionHistory() {
       
       if (result.success) {
         setHistoryData(result.data);
+        if (result.data.customer) {
+          setCustomerDetails(result.data.customer);
+        }
       } else {
-        setError(result.error || 'Failed to fetch client history');
+        setError(result.message || 'Failed to fetch transaction history');
       }
     } catch (err) {
       setError('Error fetching transaction data');
@@ -102,8 +108,42 @@ export default function TransactionHistory() {
   };
 
   const handleExportCSV = () => {
-    // Implement CSV export functionality
-    alert('Export CSV functionality to be implemented');
+    // CSV export functionality
+    if (historyData.transactions && historyData.transactions.length > 0) {
+      const headers = [
+        'Station', 'Date', 'Product', 'Vehicle', 'Type', 'Quantity', 
+        'Deal Price', 'Amount', 'Credit', 'Outstanding Amount', 'Status'
+      ];
+      
+      const csvData = historyData.transactions.map(item => [
+        item.station_name || 'N/A',
+        item.completed_date ? new Date(item.completed_date).toLocaleDateString() : 'N/A',
+        item.product_name || 'N/A',
+        item.vehicle_number || 'N/A',
+        item.trans_type || 'N/A',
+        `${item.quantity || '0'} Ltr`,
+        `₹${parseFloat(item.deal_price || 0).toFixed(2)}`,
+        `₹${parseFloat(item.amount || 0).toFixed(2)}`,
+        `₹${parseFloat(item.credit || 0).toFixed(2)}`,
+        `₹${parseFloat(item.outstanding_amount || 0).toFixed(2)}`,
+        item.is_pending ? 'Pending' : 'Completed'
+      ]);
+
+      const csvContent = [
+        headers.join(','),
+        ...csvData.map(row => row.join(','))
+      ].join('\n');
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `transaction-history-${customerId}-${new Date().toISOString().split('T')[0]}.csv`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } else {
+      alert('No data available to export');
+    }
   };
 
   // Calculate outstanding balance safely
@@ -121,7 +161,7 @@ export default function TransactionHistory() {
   const isEligible = outstandingBalance === 0 || 
     (historyData.transactions?.every(transaction => 
       !transaction.is_pending || 
-      (transaction.pending_days && transaction.pending_days <= customerDetails?.grace_period)
+      (transaction.pending_days && transaction.pending_days <= (customerDetails?.grace_period || 0))
     ));
 
   if (loading) {
@@ -139,9 +179,9 @@ export default function TransactionHistory() {
   }
 
   const headers = [
-    '#', 'Station', 'Completed Date', 'Product', 'Sub Product', 'Vehicle', 
-    'Type', 'Loading Qty (Ltr)', 'Deal Price', 'Amount', 'Credit', 'Credit Date', 
-    'Outstanding Amount', 'Remaining Limit', 'Limit', 'Pending Days', 'Status', 'Updated By'
+    '#', 'Station', 'Completed Date', 'Product', 'Vehicle', 
+    'Type', 'Loading Qty (Ltr)', 'Deal Price', 'Amount', 'Credit', 
+    'Outstanding Amount', 'Remaining Limit', 'Pending Days', 'Status', 'Updated By'
   ];
 
   return (
@@ -327,9 +367,6 @@ export default function TransactionHistory() {
                           {item.product_name || 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.sub_name || 'N/A'}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
                           {item.vehicle_number || 'N/A'}
                         </td>
                         <td className="px-4 py-3 text-sm">
@@ -352,9 +389,6 @@ export default function TransactionHistory() {
                         <td className="px-4 py-3 text-sm text-green-600 font-medium">
                           ₹{parseFloat(item.credit || 0).toFixed(2)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          {item.credit_date || 'N/A'}
-                        </td>
                         <td className={`px-4 py-3 text-sm font-semibold ${
                           item.outstanding_amount > 0 ? 'text-red-600' : 'text-green-600'
                         }`}>
@@ -362,9 +396,6 @@ export default function TransactionHistory() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           ₹{parseFloat(item.remaining_limit || 0).toFixed(2)}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-900">
-                          ₹{parseFloat(item.limit || 0).toFixed(2)}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {item.pending_days || 0} days

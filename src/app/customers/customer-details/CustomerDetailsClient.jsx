@@ -1,4 +1,4 @@
-//src/app/customers/customer-details/customerDetailsClients.jsx
+// src/app/customers/customer-details/customerDetailsClients.jsx
 'use client';
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
@@ -80,8 +80,11 @@ export default function CustomerDetailsClient() {
       setLoading(true);
       setError('');
       
+      console.log('Fetching customer details for ID:', id);
       const res = await fetch(`/api/customers/customer-details?id=${id}`);
       const data = await res.json();
+      
+      console.log('API Response:', data);
       
       if (!res.ok) {
         throw new Error(data.error || `Failed to fetch customer details: ${res.status}`);
@@ -429,7 +432,7 @@ export default function CustomerDetailsClient() {
                   </div>
                 </div>
 
-                {/* Quick Stats - Only Basic Info */}
+                {/* Quick Stats */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
                   <div className={`rounded-lg p-4 ${
                     (customer.cst_limit || 0) >= 0 ? 'bg-green-50' : 'bg-red-50'

@@ -20,7 +20,7 @@ export default function CreateRequestPage() {
 
   const [formData, setFormData] = useState({
     customer: '',
-    products_codes: '', // This is product_codes.id
+    products_codes: '',
     station_id: '',
     vehicle_no: '',
     driver_no: '',
@@ -49,7 +49,7 @@ export default function CreateRequestPage() {
         setError('');
         const [customersRes, productCodesRes, stationsRes] = await Promise.all([
           fetch('/api/customers'),
-          fetch('/api/create-request'), // This returns product_codes
+          fetch('/api/create-request'),
           fetch('/api/stations')
         ]);
 
@@ -133,7 +133,6 @@ export default function CreateRequestPage() {
       const productCodeId = parseInt(value);
       console.log('🔍 Selected product code ID:', productCodeId);
       
-      // Find the selected product code from productCodes array
       const selectedProductCode = productCodes.find(p => p.id === productCodeId);
       console.log('📋 Selected product code:', selectedProductCode);
       
@@ -214,13 +213,29 @@ export default function CreateRequestPage() {
 
   const handleSubmitClick = (e) => {
     e.preventDefault();
+    
     if (!selectedProduct) return alert('Please select a product.');
     if (!formData.customer || !formData.products_codes || !formData.station_id || 
         !formData.vehicle_no || !formData.driver_no || !formData.qty)
       return alert('Please fill all required fields.');
 
-    if (formData.driver_no.length !== 10)
-      return alert('Please enter a valid 10-digit driver number.');
+    // ✅ STRICT Vehicle Number Validation - NO SPACES ALLOWED
+    if (formData.vehicle_no.includes(' ')) {
+      return alert('❌ Spaces are not allowed in Vehicle Number! Please remove spaces.');
+    }
+
+    if (formData.vehicle_no.length < 3) {
+      return alert('Please enter a valid vehicle number (minimum 3 characters).');
+    }
+
+    // ✅ STRICT Driver Number Validation - NO SPACES ALLOWED
+    if (formData.driver_no.includes(' ')) {
+      return alert('❌ Spaces are not allowed in Driver Number! Please remove spaces.');
+    }
+
+    if (formData.driver_no.length !== 10) {
+      return alert('Please enter exactly 10-digit driver number.');
+    }
 
     const quantity = parseInt(formData.qty) || 0;
     if (quantity < selectedProduct.min)
@@ -237,7 +252,6 @@ export default function CreateRequestPage() {
       setSubmitting(true);
       setShowConfirmation(false);
 
-      // Find the selected product code to get product_id
       const selectedProductCode = productCodes.find(p => p.id === parseInt(formData.products_codes));
       
       if (!selectedProductCode) {
@@ -249,7 +263,6 @@ export default function CreateRequestPage() {
         ...formData,
         product_name: selectedProduct?.name || '',
         barrels_required: calculatedBarrels,
-        // We only need products_codes (which is product_codes.id)
         products_codes: parseInt(formData.products_codes)
       };
 
@@ -314,6 +327,8 @@ export default function CreateRequestPage() {
 
         <main className="flex-1 mt-20 mb-20 md:mb-16 overflow-auto px-4 py-6">
           <h1 className="text-2xl font-bold mb-4">Purchase Request</h1>
+
+          {/* ✅ WARNING MESSAGE REMOVED FROM HERE */}
 
           {loading && (
             <div className="bg-white shadow-md rounded-lg p-6 text-center">
@@ -469,15 +484,41 @@ export default function CreateRequestPage() {
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Vehicle Number *</label>
-                  <input type="text" name="vehicle_no" value={formData.vehicle_no} onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" required />
+                  <input 
+                    type="text" 
+                    name="vehicle_no" 
+                    value={formData.vehicle_no} 
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow only alphanumeric characters, no spaces
+                      const cleanValue = value.replace(/[^a-zA-Z0-9]/g, '');
+                      setFormData(prev => ({ ...prev, vehicle_no: cleanValue }));
+                    }}
+                    className="border border-gray-300 rounded p-2 uppercase" 
+                    placeholder="e.g. UP15AB1234"
+                    required 
+                  />
+                  {/* ✅ Small text message removed */}
                 </div>
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Driver Number *</label>
-                  <input type="tel" name="driver_no" value={formData.driver_no} onChange={handleChange}
-                    pattern="[0-9]{10}" maxLength={10}
-                    className="border border-gray-300 rounded p-2" required />
+                  <input 
+                    type="tel" 
+                    name="driver_no" 
+                    value={formData.driver_no} 
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow only numbers, no spaces
+                      const cleanValue = value.replace(/\D/g, '');
+                      setFormData(prev => ({ ...prev, driver_no: cleanValue }));
+                    }}
+                    className="border border-gray-300 rounded p-2" 
+                    maxLength={10}
+                    placeholder="10 digits without spaces"
+                    required 
+                  />
+                  {/* ✅ Small text message removed */}
                 </div>
 
                 <div className="flex flex-col md:col-span-2">

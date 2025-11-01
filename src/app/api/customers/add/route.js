@@ -1,114 +1,131 @@
-//src/app/api/customers/add/route.js
-import db from "@/lib/db";
+import { executeQuery } from "@/lib/db";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 
+// Import modules for file handling (You must have these files/folders for file saving to work)
+
 export async function POST(req) {
   try {
+    // We must disable automatic body parsing to handle FormData, 
+    // but Next.js Route Handlers (App Router) handle this automatically.
+    // We can proceed directly with req.formData().
     const formData = await req.formData();
 
-    // Extract fields
     const client_name = formData.get("client_name");
-    const role = formData.get("role");
     const phone = formData.get("phone");
     const email = formData.get("email");
-    const password = formData.get("password");
-    const client_type = formData.get("client_type");
+    const password = crypto.createHash("sha256").update(formData.get("password")).digest("hex");
+    const role = formData.get("role");
     const billing_type = formData.get("billing_type");
-    const amtlimit = formData.get("amtlimit") || 0;
-    const address = formData.get("address");
-    const city = formData.get("city");
-    const region = formData.get("region");
-    const country = formData.get("country");
-    const zip = formData.get("zip");
-    const gst_name = formData.get("gst_name");
-    const gst_number = formData.get("gst_number");
     
-    // Extract arrays for products and block_location
-    const products = formData.getAll("products[]");
-    const block_location = formData.getAll("block_location[]");
-    
-    // Convert arrays to comma-separated strings
-    const productsString = products.join(',');
-    const blockLocationString = block_location.join(',');
-    
-    const permissions = JSON.parse(formData.get("permissions") || "{}");
+    // Get the client type to handle conditional fields
+    const client_type = formData.get("client_type");
 
-    // Hash password with SHA-256
-    let hashedPassword = null;
-    if (password) {
-      const hash = crypto.createHash("sha256");
-      hash.update(password);
-      hashedPassword = hash.digest("hex");
+    // Address & GST details
+    const address = formData.get("address") || "";
+    const city = formData.get("city") || "";
+    const region = formData.get("region") || "";
+    const country = formData.get("country") || "";
+    const postbox = formData.get("postbox") || ""; // ⬅️ Must match the form name attribute
+    const gst_name = formData.get("gst_name") || "";
+    const gst_number = formData.get("gst_number") || "";
+
+    // ✅ CORRECTION 1: Handle multiple product IDs (checkboxes)
+    const productsArray = formData.getAll("products[]");
+    const product = productsArray.length > 0 ? productsArray.join(",") : ""; 
+
+    // ✅ CORRECTION 2: Handle multiple block location IDs (checkboxes)
+    const blocklocationsArray = formData.getAll("block_location[]");
+    const blocklocation = blocklocationsArray.length > 0 ? blocklocationsArray.join(",") : "";
+    
+    // ✅ Handle Conditional Fields (amtlimit for Postpaid, day_limit for Day Limit)
+    // Note: Database columns are used to store these values directly.
+    const day_limit = client_type === "3" ? parseInt(formData.get("day_limit")) : 0;
+    const amtlimit = client_type === "2" ? parseFloat(formData.get("amtlimit")) : 0.00;
+    
+    const auth_token = crypto.randomBytes(32).toString("hex");
+
+    // --- File Handling (Conceptual - you need a storage folder) ---
+    const docs = {};
+    for (let i = 1; i <= 3; i++) {
+        const file = formData.get(`doc${i}`);
+        if (file instanceof File && file.size > 0) {
+            // NOTE: For a real app, you would save the file to a secure location (e.g., S3 or a specific server folder)
+            // For now, we'll simulate saving a path.
+            // Replace this with your actual file saving logic (using fs/promises or a service)
+            const filePath = `/uploads/customers/${newCustomerId}_doc${i}_${file.name}`;
+            
+            // Example of saving the file to the local disk (requires 'fs/promises' import)
+            // const buffer = Buffer.from(await file.arrayBuffer());
+            // await writeFile(path.join(process.cwd(), 'public', filePath), buffer); 
+            
+            docs[`doc${i}`] = filePath;
+        } else {
+            docs[`doc${i}`] = "";
+        }
     }
+    // -------------------------------------------------------------
 
-    // Insert customer
-    const [customerResult] = await db.execute(
-      `INSERT INTO customers 
-      (name, phone, email, password, roleid, billing_type, amtlimit, address, city, region, country, postbox, gst_name, gst_number, product, blocklocation) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        client_name,
-        phone,
-        email,
-        hashedPassword,
-        role,
-        billing_type,
-        amtlimit,
-        address,
-        city,
-        region,
-        country,
-        zip,
-        gst_name,
-        gst_number,
-        productsString,
-        blockLocationString
-      ]
-    );
+    // ✅ Insert into `customers` table
+    const insertCustomerQuery = `
+      INSERT INTO customers
+        (name, phone, email, password, roleid, billing_type,
+         address, city, region, country, postbox,
+         gst_name, gst_number, product, blocklocation,
+         day_limit, auth_token, status, amtlimit, doc1, doc2, doc3)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
+    `;
 
-    const customerId = customerResult.insertId;
+    const result = await executeQuery(insertCustomerQuery, [
+      client_name,
+      phone,
+      email,
+      password,
+      role,
+      billing_type,
+      address,
+      city,
+      region,
+      country,
+      postbox, 
+      gst_name,
+      gst_number,
+      product, // Comma-separated product IDs
+      blocklocation, // Comma-separated location IDs
+      day_limit,
+      auth_token,
+      amtlimit, // amtlimit for customers table
+      docs.doc1, docs.doc2, docs.doc3 // File paths
+    ]);
 
-    // Insert into customer_balances table with account_id as 0
-    await db.execute(
-      `INSERT INTO customer_balances 
-      (balance, hold_balance, amtlimit, cst_limit, com_id, account_id) 
-      VALUES (?, ?, ?, ?, ?, ?)`,
-      [
-        0.00,    // balance
-        0.00,    // hold_balance
-        amtlimit, // amtlimit from form
-        amtlimit, // cst_limit (same as amtlimit)
-        customerId, // com_id (customer id)
-        0         // account_id as 0
-      ]
-    );
+    const newCustomerId = result.insertId;
 
-    // Insert permissions
-    const permValues = [];
-    Object.keys(permissions).forEach((module) => {
-      permValues.push([
-        customerId,
-        module,
-        permissions[module].can_view ? 1 : 0,
-        permissions[module].can_edit ? 1 : 0,
-        permissions[module].can_delete ? 1 : 0,
-      ]);
-    });
+    // ✅ CORRECTION 3: Insert into `customer_balances` with correct conditional values
+    const insertBalanceQuery = `
+      INSERT INTO customer_balances
+        (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit) 
+      VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    
+    // Balance table logic: 
+    // amtlimit is used for credit limit (Postpaid/2), day_limit is for day limit client (Day Limit/3)
+    const balance_amtlimit = client_type === "2" ? amtlimit : 0.00; 
+    const balance_day_limit = client_type === "3" ? day_limit : 0; 
+    // The amount the Day Limit Client can use is typically unlimited (0.00) if a daily limit is not set
+    // You mentioned "unlimited use", so we keep day_amount and balance to 0.00 initially.
 
-    if (permValues.length > 0) {
-      await db.query(
-        `INSERT INTO customer_permissions (customer_id, module_name, can_view, can_edit, can_delete) VALUES ?`,
-        [permValues]
-      );
-    }
+    await executeQuery(insertBalanceQuery, [
+      0.00, // balance (initial)
+      0.00, // hold_balance (initial)
+      balance_amtlimit, // amtlimit (Credit Limit for Postpaid)
+      balance_amtlimit,
+      newCustomerId, // com_id (customer ID)
+      balance_day_limit // day_limit (Days for Day Limit Client)
+    ]);
 
-    return NextResponse.json({ 
-      message: "Customer added successfully",
-      customerId: customerId
-    });
+    return NextResponse.json({ success: true, message: "Customer added successfully" });
   } catch (error) {
-    console.error(error);
-    return NextResponse.json({ message: "Something went wrong", error }, { status: 500 });
+    console.error("❌ Error inserting customer:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }
