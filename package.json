@@ -2,11 +2,19 @@
   "name": "mpcl",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:init": "node scripts/init-db.js",
+    "db:test": "node scripts/test-db.js",
+    "db:migrate": "node scripts/add-credit-days-column.js",
+    "db:fix": "node scripts/fix-customers-table.js",
+    "db:quick-fix": "node scripts/run-quick-fix.js",
+    "db:emergency-fix": "node scripts/emergency-fix.js",
+    "test:credit-days": "node scripts/test-credit-days.js"
   },
   "dependencies": {
     "axios": "^1.12.2",

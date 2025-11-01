@@ -1,4 +1,3 @@
-
 //src/app/customers/add/page.jsx
 "use client";
 
@@ -16,9 +15,9 @@ export default function AddCustomer() {
 
   const [permissions, setPermissions] = useState({
     Dashboard: { can_view: false, can_edit: false, can_delete: false },
-    "Filling Requests": { can_view: false, can_edit: false},
+    "Filling Requests": { can_view: false, can_edit: false },
     "Loading Station": { can_view: false, can_edit: false },
-    "Loading History": { can_view: false, can_edit: false},
+    "Loading History": { can_view: false, can_edit: false },
   });
 
   const modules = Object.keys(permissions);
@@ -31,8 +30,12 @@ export default function AddCustomer() {
   };
 
   useEffect(() => {
-    fetch("/api/products").then((res) => res.json()).then(setProducts);
-    fetch("/api/stations").then((res) => res.json()).then(setStations);
+    fetch("/api/products")
+      .then((res) => res.json())
+      .then(setProducts);
+    fetch("/api/stations")
+      .then((res) => res.json())
+      .then(setStations);
   }, []);
 
   const handleSubmit = async (e) => {
@@ -82,7 +85,12 @@ export default function AddCustomer() {
               {/* Name, Role, Phone, Email, Password */}
               <div>
                 <label>Client Name</label>
-                <input type="text" name="client_name" required className="w-full border p-2 rounded" />
+                <input
+                  type="text"
+                  name="client_name"
+                  required
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>Role</label>
@@ -93,15 +101,28 @@ export default function AddCustomer() {
               </div>
               <div>
                 <label>Phone</label>
-                <input type="number" name="phone" required className="w-full border p-2 rounded" />
+                <input
+                  type="number"
+                  name="phone"
+                  required
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>Email</label>
-                <input type="email" name="email" className="w-full border p-2 rounded" />
+                <input
+                  type="email"
+                  name="email"
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>Password</label>
-                <input type="password" name="password" className="w-full border p-2 rounded" />
+                <input
+                  type="password"
+                  name="password"
+                  className="w-full border p-2 rounded"
+                />
               </div>
 
               {/* Customer Type & Billing */}
@@ -114,12 +135,16 @@ export default function AddCustomer() {
                   className="w-full border p-2 rounded"
                 >
                   <option value="1">Prepaid Client</option>
-                  <option value="2">Postpaid  Client</option>
+                  <option value="2">Postpaid Client</option>
+                  <option value="3">Credit Days Client</option>
                 </select>
               </div>
               <div>
                 <label>Billing Type</label>
-                <select name="billing_type" className="w-full border p-2 rounded">
+                <select
+                  name="billing_type"
+                  className="w-full border p-2 rounded"
+                >
                   <option value="1">Billing</option>
                   <option value="2">Non Billing</option>
                 </select>
@@ -128,8 +153,37 @@ export default function AddCustomer() {
               {clientType === "2" && (
                 <div>
                   <label>Credit Limit</label>
-                  <input type="number" name="amtlimit" className="w-full border p-2 rounded" />
+                  <input
+                    type="number"
+                    name="amtlimit"
+                    className="w-full border p-2 rounded"
+                  />
                 </div>
+              )}
+
+              {clientType === "3" && (
+                <>
+                  <div>
+                    <label>Credit Days</label>
+                    <input
+                      type="number"
+                      name="credit_days"
+                      placeholder="Enter number of days (e.g., 10)"
+                      className="w-full border p-2 rounded"
+                      min="1"
+                      max="365"
+                    />
+                  </div>
+                  <div>
+                    <label>Credit Limit (Optional)</label>
+                    <input
+                      type="number"
+                      name="amtlimit"
+                      placeholder="Maximum credit amount"
+                      className="w-full border p-2 rounded"
+                    />
+                  </div>
+                </>
               )}
 
               {/* Products */}
@@ -146,15 +200,26 @@ export default function AddCustomer() {
               {/* Address */}
               <div className="col-span-2">
                 <label>Address</label>
-                <textarea name="address" className="w-full border p-2 rounded"></textarea>
+                <textarea
+                  name="address"
+                  className="w-full border p-2 rounded"
+                ></textarea>
               </div>
               <div>
                 <label>City</label>
-                <input type="text" name="city" className="w-full border p-2 rounded" />
+                <input
+                  type="text"
+                  name="city"
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>State</label>
-                <select name="region" className="w-full border p-2 rounded" required>
+                <select
+                  name="region"
+                  className="w-full border p-2 rounded"
+                  required
+                >
                   <option value="">Select State</option>
                   <option value="andhra_pradesh">Andhra Pradesh</option>
                   <option value="arunachal_pradesh">Arunachal Pradesh</option>
@@ -184,9 +249,13 @@ export default function AddCustomer() {
                   <option value="uttar_pradesh">Uttar Pradesh</option>
                   <option value="uttarakhand">Uttarakhand</option>
                   <option value="west_bengal">West Bengal</option>
-                  <option value="andaman_nicobar">Andaman & Nicobar Islands</option>
+                  <option value="andaman_nicobar">
+                    Andaman & Nicobar Islands
+                  </option>
                   <option value="chandigarh">Chandigarh</option>
-                  <option value="dadra_nagar_haveli">Dadra & Nagar Haveli</option>
+                  <option value="dadra_nagar_haveli">
+                    Dadra & Nagar Haveli
+                  </option>
                   <option value="daman_diu">Daman & Diu</option>
                   <option value="delhi">Delhi</option>
                   <option value="lakshadweep">Lakshadweep</option>
@@ -195,19 +264,36 @@ export default function AddCustomer() {
               </div>
               <div>
                 <label>Country</label>
-                <input type="text" name="country" defaultValue="India" className="w-full border p-2 rounded" />
+                <input
+                  type="text"
+                  name="country"
+                  defaultValue="India"
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>Zip</label>
-                <input type="text" name="zip" className="w-full border p-2 rounded" />
+                <input
+                  type="text"
+                  name="zip"
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>GST Name</label>
-                <input type="text" name="gst_name" className="w-full border p-2 rounded" />
+                <input
+                  type="text"
+                  name="gst_name"
+                  className="w-full border p-2 rounded"
+                />
               </div>
               <div>
                 <label>GSTIN</label>
-                <input type="text" name="gst_number" className="w-full border p-2 rounded" />
+                <input
+                  type="text"
+                  name="gst_number"
+                  className="w-full border p-2 rounded"
+                />
               </div>
 
               {/* Assign Location */}
@@ -215,74 +301,90 @@ export default function AddCustomer() {
                 <label>Assign Location</label>
                 {stations.map((s) => (
                   <div key={s.id} className="flex items-center gap-2">
-                    <input type="checkbox" name="block_location[]" value={s.id} />
+                    <input
+                      type="checkbox"
+                      name="block_location[]"
+                      value={s.id}
+                    />
                     <span>{s.station_name}</span>
                   </div>
                 ))}
               </div>
 
               {/* File Upload */}
-             <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
-  <div className="flex flex-col">
-    <label className="mb-1 font-semibold text-gray-700">Document 1</label>
-    <input
-      type="file"
-      name="doc1"
-      className="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-    />
-  </div>
+              <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="flex flex-col">
+                  <label className="mb-1 font-semibold text-gray-700">
+                    Document 1
+                  </label>
+                  <input
+                    type="file"
+                    name="doc1"
+                    className="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
 
-  <div className="flex flex-col">
-    <label className="mb-1 font-semibold text-gray-700">Document 2</label>
-    <input
-      type="file"
-      name="doc2"
-      className="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-    />
-  </div>
+                <div className="flex flex-col">
+                  <label className="mb-1 font-semibold text-gray-700">
+                    Document 2
+                  </label>
+                  <input
+                    type="file"
+                    name="doc2"
+                    className="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
 
-  <div className="flex flex-col">
-    <label className="mb-1 font-semibold text-gray-700">Document 3</label>
-    <input
-      type="file"
-      name="doc3"
-      className="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-    />
-  </div>
-</div>
-
+                <div className="flex flex-col">
+                  <label className="mb-1 font-semibold text-gray-700">
+                    Document 3
+                  </label>
+                  <input
+                    type="file"
+                    name="doc3"
+                    className="border border-gray-300 p-2 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                </div>
+              </div>
 
               {/* Module Permissions */}
               <div className="col-span-2 mt-6 overflow-x-auto bg-white rounded-lg p-4 border">
-                <h3 className="text-md font-semibold mb-3">Assign Module Permissions</h3>
+                <h3 className="text-md font-semibold mb-3">
+                  Assign Module Permissions
+                </h3>
                 <table className="w-full border border-gray-200 text-sm">
                   <thead className="bg-gray-100">
                     <tr>
                       <th className="p-2 border">Module</th>
                       <th className="p-2 border">View</th>
                       <th className="p-2 border">Edit</th>
-                     
                     </tr>
                   </thead>
                   <tbody>
                     {modules.map((mod, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? "bg-gray-50" : "bg-white"}>
+                      <tr
+                        key={idx}
+                        className={idx % 2 === 0 ? "bg-gray-50" : "bg-white"}
+                      >
                         <td className="p-2 border font-medium">{mod}</td>
                         <td className="p-2 border text-center">
                           <input
                             type="checkbox"
                             checked={permissions[mod].can_view}
-                            onChange={() => handlePermissionChange(mod, "can_view")}
+                            onChange={() =>
+                              handlePermissionChange(mod, "can_view")
+                            }
                           />
                         </td>
                         <td className="p-2 border text-center">
                           <input
                             type="checkbox"
                             checked={permissions[mod].can_edit}
-                            onChange={() => handlePermissionChange(mod, "can_edit")}
+                            onChange={() =>
+                              handlePermissionChange(mod, "can_edit")
+                            }
                           />
                         </td>
-                      
                       </tr>
                     ))}
                   </tbody>
@@ -291,8 +393,18 @@ export default function AddCustomer() {
 
               {/* Submit / Reset */}
               <div className="col-span-2 flex justify-center gap-4 mt-4">
-                <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded-lg">Submit</button>
-                <button type="reset" className="px-6 py-2 bg-gray-400 text-white rounded-lg">Reset</button>
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-lg"
+                >
+                  Submit
+                </button>
+                <button
+                  type="reset"
+                  className="px-6 py-2 bg-gray-400 text-white rounded-lg"
+                >
+                  Reset
+                </button>
               </div>
             </form>
           </div>

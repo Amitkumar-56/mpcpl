@@ -14,7 +14,7 @@ import {
   BiRupee,
   BiSearch,
   BiShow,
-  BiTrash
+  BiTrash,
 } from "react-icons/bi";
 
 export default function CustomersPage() {
@@ -22,10 +22,10 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [permissions, setPermissions] = useState({ 
-    can_edit: true, 
-    can_view: true, 
-    can_delete: true 
+  const [permissions, setPermissions] = useState({
+    can_edit: true,
+    can_view: true,
+    can_delete: true,
   });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -35,11 +35,11 @@ export default function CustomersPage() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Fetch customers with balances
       const customersRes = await fetch("/api/customers");
       if (!customersRes.ok) {
-        throw new Error('Failed to fetch customers');
+        throw new Error("Failed to fetch customers");
       }
       const customersData = await customersRes.json();
       setCustomers(customersData);
@@ -68,12 +68,15 @@ export default function CustomersPage() {
   }, [fetchData]);
 
   // Memoized filtered customers
-  const filteredCustomers = useMemo(() => 
-    customers.filter((c) =>
-      `${c.name || ''} ${c.email || ''} ${c.phone || ''} ${c.address || ''} ${c.region || ''}`
-        .toLowerCase()
-        .includes(search.toLowerCase())
-    ),
+  const filteredCustomers = useMemo(
+    () =>
+      customers.filter((c) =>
+        `${c.name || ""} ${c.email || ""} ${c.phone || ""} ${c.address || ""} ${
+          c.region || ""
+        }`
+          .toLowerCase()
+          .includes(search.toLowerCase())
+      ),
     [customers, search]
   );
 
@@ -83,11 +86,12 @@ export default function CustomersPage() {
     const indexOfFirst = indexOfLast - itemsPerPage;
     const currentCustomers = filteredCustomers.slice(indexOfFirst, indexOfLast);
     const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
-    
+
     return { indexOfFirst, indexOfLast, currentCustomers, totalPages };
   }, [currentPage, itemsPerPage, filteredCustomers]);
 
-  const { indexOfFirst, indexOfLast, currentCustomers, totalPages } = paginationData;
+  const { indexOfFirst, indexOfLast, currentCustomers, totalPages } =
+    paginationData;
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this customer?")) return;
@@ -97,11 +101,11 @@ export default function CustomersPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
-      
+
       if (!res.ok) {
-        throw new Error('Failed to delete customer');
+        throw new Error("Failed to delete customer");
       }
-      
+
       const data = await res.text();
       if (data === "success") {
         setCustomers(customers.filter((c) => c.id !== id));
@@ -115,14 +119,30 @@ export default function CustomersPage() {
     }
   };
 
-  const getBillingType = useCallback((type) => {
+  const getBillingType = useCallback((type, customer) => {
     switch (type) {
       case 1:
-        return { text: "Billing", color: "bg-green-100 text-green-800 border border-green-200" };
+        // Check if it's a credit days customer
+        if (customer?.credit_days) {
+          return {
+            text: `Credit Days (${customer.credit_days}d)`,
+            color: "bg-orange-100 text-orange-800 border border-orange-200",
+          };
+        }
+        return {
+          text: "Postpaid",
+          color: "bg-green-100 text-green-800 border border-green-200",
+        };
       case 2:
-        return { text: "Non Billing", color: "bg-blue-100 text-blue-800 border border-blue-200" };
+        return {
+          text: "Non Billing",
+          color: "bg-blue-100 text-blue-800 border border-blue-200",
+        };
       default:
-        return { text: "Unknown", color: "bg-gray-100 text-gray-800 border border-gray-200" };
+        return {
+          text: "Prepaid",
+          color: "bg-purple-100 text-purple-800 border border-purple-200",
+        };
     }
   }, []);
 
@@ -144,56 +164,59 @@ export default function CustomersPage() {
   }, []);
 
   // Memoized action buttons configuration
-  const actionButtons = useMemo(() => [
-    {
-      key: 'view',
-      icon: BiShow,
-      label: 'View',
-      href: (id) => `/customers/customer-details?id=${id}`,
-      color: 'bg-blue-500 hover:bg-blue-600',
-      show: permissions.can_view
-    },
-    {
-      key: 'edit',
-      icon: BiEdit,
-      label: 'Edit',
-      href: (id) => `/customers/edit/${id}`,
-      color: 'bg-yellow-500 hover:bg-yellow-600',
-      show: permissions.can_edit
-    },
-    {
-      key: 'recharge-request',
-      icon: BiRupee ,
-      label: 'Recharge',
-      href: (id) => `/customers/recharge-request?id=${id}`,
-      color: 'bg-purple-500 hover:bg-purple-600',
-      show: permissions.can_edit
-    },
-    {
-      key: 'deal-price',
-      icon: BiCoin,
-      label: 'Deal',
-      href: (id) => `/customers/deal-price?id=${id}`,
-      color: 'bg-indigo-500 hover:bg-indigo-600',
-      show: permissions.can_edit
-    },
-    {
-      key: 'messages',
-      icon: BiMessage,
-      label: 'Msg',
-      href: (id) => `/customers/messages/${id}`,
-      color: 'bg-teal-500 hover:bg-teal-600',
-      show: permissions.can_edit
-    },
-    {
-      key: 'delete',
-      icon: BiTrash,
-      label: 'Delete',
-      onClick: (id) => handleDelete(id),
-      color: 'bg-red-500 hover:bg-red-600',
-      show: permissions.can_delete
-    }
-  ], [permissions, handleDelete]);
+  const actionButtons = useMemo(
+    () => [
+      {
+        key: "view",
+        icon: BiShow,
+        label: "View",
+        href: (id) => `/customers/customer-details?id=${id}`,
+        color: "bg-blue-500 hover:bg-blue-600",
+        show: permissions.can_view,
+      },
+      {
+        key: "edit",
+        icon: BiEdit,
+        label: "Edit",
+        href: (id) => `/customers/edit/${id}`,
+        color: "bg-yellow-500 hover:bg-yellow-600",
+        show: permissions.can_edit,
+      },
+      {
+        key: "recharge-request",
+        icon: BiRupee,
+        label: "Recharge",
+        href: (id) => `/customers/recharge-request?id=${id}`,
+        color: "bg-purple-500 hover:bg-purple-600",
+        show: permissions.can_edit,
+      },
+      {
+        key: "deal-price",
+        icon: BiCoin,
+        label: "Deal",
+        href: (id) => `/customers/deal-price?id=${id}`,
+        color: "bg-indigo-500 hover:bg-indigo-600",
+        show: permissions.can_edit,
+      },
+      {
+        key: "messages",
+        icon: BiMessage,
+        label: "Msg",
+        href: (id) => `/customers/messages/${id}`,
+        color: "bg-teal-500 hover:bg-teal-600",
+        show: permissions.can_edit,
+      },
+      {
+        key: "delete",
+        icon: BiTrash,
+        label: "Delete",
+        onClick: (id) => handleDelete(id),
+        color: "bg-red-500 hover:bg-red-600",
+        show: permissions.can_delete,
+      },
+    ],
+    [permissions, handleDelete]
+  );
 
   // Reset to first page when search changes
   useEffect(() => {
@@ -201,17 +224,40 @@ export default function CustomersPage() {
   }, [search]);
 
   // Memoized stats
-  const stats = useMemo(() => [
-    { title: 'Total Customers', value: customers.length, color: 'from-blue-500 to-blue-600' },
-    { title: 'Billing Customers', value: customers.filter(c => c.billing_type === 1).length, color: 'from-green-500 to-green-600' },
-    { title: 'Non-Billing', value: customers.filter(c => c.billing_type === 2).length, color: 'from-purple-500 to-purple-600' },
-    { title: 'Over Limit', value: customers.filter(c => c.balance > c.cst_limit).length, color: 'from-orange-500 to-orange-600' },
-  ], [customers]);
+  const stats = useMemo(
+    () => [
+      {
+        title: "Total Customers",
+        value: customers.length,
+        color: "from-blue-500 to-blue-600",
+      },
+      {
+        title: "Billing Customers",
+        value: customers.filter((c) => c.billing_type === 1).length,
+        color: "from-green-500 to-green-600",
+      },
+      {
+        title: "Non-Billing",
+        value: customers.filter((c) => c.billing_type === 2).length,
+        color: "from-purple-500 to-purple-600",
+      },
+      {
+        title: "Over Limit",
+        value: customers.filter((c) => c.balance > c.cst_limit).length,
+        color: "from-orange-500 to-orange-600",
+      },
+    ],
+    [customers]
+  );
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Sidebar */}
-      <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <div
+        className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        }`}
+      >
         <Sidebar activePage="Customers" onClose={() => setSidebarOpen(false)} />
       </div>
 
@@ -226,7 +272,7 @@ export default function CustomersPage() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <Header 
+        <Header
           onMenuClick={() => setSidebarOpen(!sidebarOpen)}
           title="Customer Management"
           subtitle="Manage your customers efficiently with real-time data"
@@ -239,7 +285,12 @@ export default function CustomersPage() {
             <nav className="mb-4 lg:mb-6">
               <ol className="flex items-center gap-2 text-sm text-purple-600">
                 <li>
-                  <Link href="/" className="hover:text-purple-800 font-medium transition-colors">Home</Link>
+                  <Link
+                    href="/"
+                    className="hover:text-purple-800 font-medium transition-colors"
+                  >
+                    Home
+                  </Link>
                 </li>
                 <li className="flex items-center gap-2">
                   <span className="text-purple-400">❯</span>
@@ -287,9 +338,14 @@ export default function CustomersPage() {
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               {stats.map((stat, index) => (
-                <div key={index} className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200`}>
+                <div
+                  key={index}
+                  className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200`}
+                >
                   <div className="text-2xl font-bold">{stat.value}</div>
-                  <div className="text-opacity-90 text-sm mt-1">{stat.title}</div>
+                  <div className="text-opacity-90 text-sm mt-1">
+                    {stat.title}
+                  </div>
                 </div>
               ))}
             </div>
@@ -298,7 +354,9 @@ export default function CustomersPage() {
             {loading && (
               <div className="flex justify-center items-center p-12 bg-white/80 backdrop-blur-lg rounded-2xl shadow-lg">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-                <span className="ml-4 text-purple-600 font-medium">Loading customers...</span>
+                <span className="ml-4 text-purple-600 font-medium">
+                  Loading customers...
+                </span>
               </div>
             )}
 
@@ -309,7 +367,7 @@ export default function CustomersPage() {
                   <span className="font-bold">Error: </span>
                   <span className="ml-2">{error}</span>
                 </div>
-                <button 
+                <button
                   onClick={fetchData}
                   className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                 >
@@ -323,11 +381,11 @@ export default function CustomersPage() {
               <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-1"></div>
                 <div className="p-4 lg:p-6 overflow-auto max-h-[70vh]">
-                  
                   {/* Results Count */}
                   <div className="mb-4 flex justify-between items-center">
                     <div className="text-sm text-gray-600">
-                      Found {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''}
+                      Found {filteredCustomers.length} customer
+                      {filteredCustomers.length !== 1 ? "s" : ""}
                       {search && ` for "${search}"`}
                     </div>
                     {totalPages > 1 && (
@@ -342,71 +400,126 @@ export default function CustomersPage() {
                     <table className="w-full min-w-[1200px]">
                       <thead>
                         <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">ID</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Name</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Email</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Phone</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Address</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Region</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Billing Type</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Credit Limit</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Outstanding</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Remaining Limit</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Actions</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            ID
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Name
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Email
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Phone
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Address
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Region
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Billing Type
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Credit Limit
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Outstanding
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Remaining Limit
+                          </th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">
+                            Actions
+                          </th>
                         </tr>
                       </thead>
                       <tbody>
                         {currentCustomers.length === 0 ? (
                           <tr>
-                            <td colSpan="11" className="p-8 text-center text-gray-700 font-semibold">
-                              {search ? 'No customers found matching your search' : 'No customers found'}
+                            <td
+                              colSpan="11"
+                              className="p-8 text-center text-gray-700 font-semibold"
+                            >
+                              {search
+                                ? "No customers found matching your search"
+                                : "No customers found"}
                             </td>
                           </tr>
                         ) : (
                           currentCustomers.map((c) => {
-                            const billingInfo = getBillingType(c.billing_type);
-                            const remainingLimit = calculateRemainingLimit(c.balance, c.cst_limit);
-                            const statusInfo = getStatusColor(c.balance, c.cst_limit);
+                            const billingInfo = getBillingType(
+                              c.billing_type,
+                              c
+                            );
+                            const remainingLimit = calculateRemainingLimit(
+                              c.balance,
+                              c.cst_limit
+                            );
+                            const statusInfo = getStatusColor(
+                              c.balance,
+                              c.cst_limit
+                            );
                             return (
-                              <tr key={c.id} className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200">
-                                <td className="p-4 font-mono text-purple-600 font-bold">#{c.id}</td>
+                              <tr
+                                key={c.id}
+                                className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200"
+                              >
+                                <td className="p-4 font-mono text-purple-600 font-bold">
+                                  #{c.id}
+                                </td>
                                 <td className="p-4">
                                   <div className="flex items-center space-x-3">
                                     <div className="w-10 h-10 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center shadow-md">
-                                      <span className="text-white font-bold text-sm">{(c.name?.charAt(0) || 'C').toUpperCase()}</span>
+                                      <span className="text-white font-bold text-sm">
+                                        {(
+                                          c.name?.charAt(0) || "C"
+                                        ).toUpperCase()}
+                                      </span>
                                     </div>
                                     <div>
-                                      <Link 
+                                      <Link
                                         href={`/customers/client-history?id=${c.id}`}
                                         className="font-bold text-gray-900 hover:text-purple-700 transition-colors block"
                                       >
-                                        {c.name || 'Unnamed Customer'}
+                                        {c.name || "Unnamed Customer"}
                                       </Link>
                                     </div>
                                   </div>
                                 </td>
                                 <td className="p-4">
-                                  <div className="text-gray-900 font-medium truncate max-w-[200px]">{c.email || 'No email'}</div>
+                                  <div className="text-gray-900 font-medium truncate max-w-[200px]">
+                                    {c.email || "No email"}
+                                  </div>
                                 </td>
                                 <td className="p-4">
-                                  <div className="text-gray-900 font-medium">{c.phone || 'No phone'}</div>
+                                  <div className="text-gray-900 font-medium">
+                                    {c.phone || "No phone"}
+                                  </div>
                                 </td>
                                 <td className="p-4">
-                                  <div className="text-gray-600 text-sm truncate max-w-[200px]">{c.address || 'No address'}</div>
+                                  <div className="text-gray-600 text-sm truncate max-w-[200px]">
+                                    {c.address || "No address"}
+                                  </div>
                                 </td>
                                 <td className="p-4">
                                   <span className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium border border-blue-200">
-                                    {c.region || 'Unknown'}
+                                    {c.region || "Unknown"}
                                   </span>
                                 </td>
                                 <td className="p-4">
-                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${billingInfo.color}`}>
+                                  <span
+                                    className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${billingInfo.color}`}
+                                  >
                                     {billingInfo.text}
                                   </span>
                                 </td>
                                 <td className="p-4">
                                   <button
-                                    onClick={() => handleLimitClick(c.id, c.name)}
+                                    onClick={() =>
+                                      handleLimitClick(c.id, c.name)
+                                    }
                                     className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200"
                                     title="Click to view limit details"
                                   >
@@ -414,24 +527,30 @@ export default function CustomersPage() {
                                   </button>
                                 </td>
                                 <td className="p-4">
-                                  <span className="font-bold text-red-600">{c.balance || 0}</span>
+                                  <span className="font-bold text-red-600">
+                                    {c.balance || 0}
+                                  </span>
                                 </td>
                                 <td className="p-4">
-                                  <span className={`font-bold ${statusInfo}`}>{c.amtlimit || 0}</span>
+                                  <span className={`font-bold ${statusInfo}`}>
+                                    {c.amtlimit || 0}
+                                  </span>
                                 </td>
-                                
+
                                 <td className="p-4">
                                   <div className="flex flex-wrap gap-1 w-32">
                                     {actionButtons
-                                      .filter(action => action.show)
+                                      .filter((action) => action.show)
                                       .map((action) => {
                                         const commonClasses = `p-2 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
-                                        
-                                        if (action.key === 'delete') {
+
+                                        if (action.key === "delete") {
                                           return (
                                             <button
                                               key={action.key}
-                                              onClick={() => action.onClick(c.id)}
+                                              onClick={() =>
+                                                action.onClick(c.id)
+                                              }
                                               className={commonClasses}
                                               title={action.label}
                                             >
@@ -439,7 +558,7 @@ export default function CustomersPage() {
                                             </button>
                                           );
                                         }
-                                        
+
                                         return (
                                           <Link
                                             key={action.key}
@@ -465,52 +584,80 @@ export default function CustomersPage() {
                   <div className="lg:hidden space-y-4">
                     {currentCustomers.length === 0 ? (
                       <div className="text-center p-8 text-gray-700 font-semibold bg-white rounded-xl">
-                        {search ? 'No customers found matching your search' : 'No customers found'}
+                        {search
+                          ? "No customers found matching your search"
+                          : "No customers found"}
                       </div>
                     ) : (
                       currentCustomers.map((c) => {
                         const billingInfo = getBillingType(c.billing_type);
-                        const remainingLimit = calculateRemainingLimit(c.balance, c.cst_limit);
-                        const statusInfo = getStatusColor(c.balance, c.cst_limit);
+                        const remainingLimit = calculateRemainingLimit(
+                          c.balance,
+                          c.cst_limit
+                        );
+                        const statusInfo = getStatusColor(
+                          c.balance,
+                          c.cst_limit
+                        );
                         return (
-                          <div key={c.id} className="bg-white rounded-xl shadow-lg border border-purple-100 p-4 hover:shadow-xl transition-all duration-200">
+                          <div
+                            key={c.id}
+                            className="bg-white rounded-xl shadow-lg border border-purple-100 p-4 hover:shadow-xl transition-all duration-200"
+                          >
                             <div className="flex justify-between items-start mb-3">
                               <div className="flex items-center space-x-3">
                                 <div className="w-12 h-12 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center shadow-md">
-                                  <span className="text-white font-bold">{(c.name?.charAt(0) || 'C').toUpperCase()}</span>
+                                  <span className="text-white font-bold">
+                                    {(c.name?.charAt(0) || "C").toUpperCase()}
+                                  </span>
                                 </div>
                                 <div>
-                                  <Link href={`/customers/client-history?id=${c.id}`} className="font-bold text-gray-900 text-lg hover:text-purple-700 transition-colors block">
-                                    {c.name || 'Unnamed Customer'}
+                                  <Link
+                                    href={`/customers/client-history?id=${c.id}`}
+                                    className="font-bold text-gray-900 text-lg hover:text-purple-700 transition-colors block"
+                                  >
+                                    {c.name || "Unnamed Customer"}
                                   </Link>
-                                  <p className="text-purple-600 font-mono text-sm">#{c.id}</p>
+                                  <p className="text-purple-600 font-mono text-sm">
+                                    #{c.id}
+                                  </p>
                                 </div>
                               </div>
                             </div>
-                            
+
                             <div className="grid grid-cols-1 gap-3 text-sm mb-3">
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
                                   <div className="text-gray-600">Email</div>
-                                  <div className="font-medium truncate">{c.email || 'No email'}</div>
+                                  <div className="font-medium truncate">
+                                    {c.email || "No email"}
+                                  </div>
                                 </div>
                                 <div>
                                   <div className="text-gray-600">Phone</div>
-                                  <div className="font-medium">{c.phone || 'No phone'}</div>
+                                  <div className="font-medium">
+                                    {c.phone || "No phone"}
+                                  </div>
                                 </div>
                               </div>
                               <div>
                                 <div className="text-gray-600">Address</div>
-                                <div className="font-medium text-sm">{c.address || 'No address'}</div>
+                                <div className="font-medium text-sm">
+                                  {c.address || "No address"}
+                                </div>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
                                   <div className="text-gray-600">Region</div>
-                                  <div className="font-medium">{c.region || 'Unknown'}</div>
+                                  <div className="font-medium">
+                                    {c.region || "Unknown"}
+                                  </div>
                                 </div>
                                 <div>
                                   <div className="text-gray-600">Type</div>
-                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}>
+                                  <span
+                                    className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}
+                                  >
                                     {billingInfo.text}
                                   </span>
                                 </div>
@@ -520,9 +667,13 @@ export default function CustomersPage() {
                             <div className="bg-gradient-to-r from-gray-50 to-purple-50 rounded-lg p-3 mb-3 border border-gray-200">
                               <div className="grid grid-cols-3 gap-2 text-center">
                                 <div>
-                                  <div className="text-xs text-gray-600">Credit Limit</div>
+                                  <div className="text-xs text-gray-600">
+                                    Credit Limit
+                                  </div>
                                   <button
-                                    onClick={() => handleLimitClick(c.id, c.name)}
+                                    onClick={() =>
+                                      handleLimitClick(c.id, c.name)
+                                    }
                                     className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
                                     title="Click to view limit details"
                                   >
@@ -530,26 +681,40 @@ export default function CustomersPage() {
                                   </button>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-gray-600">Outstanding</div>
-                                  <div className="font-bold text-sm text-red-600">{c.balance || 0}</div>
+                                  <div className="text-xs text-gray-600">
+                                    Outstanding
+                                  </div>
+                                  <div className="font-bold text-sm text-red-600">
+                                    {c.balance || 0}
+                                  </div>
                                 </div>
                                 <div>
-                                  <div className="text-xs text-gray-600">Remaining</div>
-                                  <div className={`font-bold text-sm ${statusInfo.includes('red') ? 'text-red-600' : statusInfo.includes('yellow') ? 'text-yellow-600' : 'text-green-600'}`}>
+                                  <div className="text-xs text-gray-600">
+                                    Remaining
+                                  </div>
+                                  <div
+                                    className={`font-bold text-sm ${
+                                      statusInfo.includes("red")
+                                        ? "text-red-600"
+                                        : statusInfo.includes("yellow")
+                                        ? "text-yellow-600"
+                                        : "text-green-600"
+                                    }`}
+                                  >
                                     {c.amtlimit || 0}
                                   </div>
                                 </div>
                               </div>
                             </div>
-                            
+
                             {/* Mobile Action Buttons */}
                             <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-200">
                               {actionButtons
-                                .filter(action => action.show)
+                                .filter((action) => action.show)
                                 .map((action) => {
                                   const commonClasses = `p-2 ${action.color} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all`;
-                                  
-                                  if (action.key === 'delete') {
+
+                                  if (action.key === "delete") {
                                     return (
                                       <button
                                         key={action.key}
@@ -557,11 +722,13 @@ export default function CustomersPage() {
                                         className={commonClasses}
                                       >
                                         <action.icon className="w-3 h-3" />
-                                        <span className="text-xs">{action.label}</span>
+                                        <span className="text-xs">
+                                          {action.label}
+                                        </span>
                                       </button>
                                     );
                                   }
-                                  
+
                                   return (
                                     <Link
                                       key={action.key}
@@ -569,7 +736,9 @@ export default function CustomersPage() {
                                       className={commonClasses}
                                     >
                                       <action.icon className="w-3 h-3" />
-                                      <span className="text-xs">{action.label}</span>
+                                      <span className="text-xs">
+                                        {action.label}
+                                      </span>
                                     </Link>
                                   );
                                 })}
@@ -585,36 +754,45 @@ export default function CustomersPage() {
                     <div className="border-t border-purple-200 pt-4 mt-4">
                       <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
                         <div className="text-sm font-semibold text-purple-700">
-                          Showing {indexOfFirst + 1} to {Math.min(indexOfLast, filteredCustomers.length)} of {filteredCustomers.length} customers
+                          Showing {indexOfFirst + 1} to{" "}
+                          {Math.min(indexOfLast, filteredCustomers.length)} of{" "}
+                          {filteredCustomers.length} customers
                         </div>
                         <div className="flex items-center space-x-2">
                           <button
-                            onClick={() => setCurrentPage(p => Math.max(p - 1, 1))}
+                            onClick={() =>
+                              setCurrentPage((p) => Math.max(p - 1, 1))
+                            }
                             disabled={currentPage === 1}
                             className="px-4 py-2 bg-purple-500 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-purple-600 transition-colors text-sm font-medium"
                           >
                             Previous
                           </button>
                           <div className="flex space-x-1">
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                              const pageNum = i + 1;
-                              return (
-                                <button
-                                  key={pageNum}
-                                  onClick={() => setCurrentPage(pageNum)}
-                                  className={`px-4 py-2 rounded-lg text-sm min-w-[44px] font-medium transition-all ${
-                                    currentPage === pageNum 
-                                      ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md" 
-                                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                  }`}
-                                >
-                                  {pageNum}
-                                </button>
-                              );
-                            })}
+                            {Array.from(
+                              { length: Math.min(5, totalPages) },
+                              (_, i) => {
+                                const pageNum = i + 1;
+                                return (
+                                  <button
+                                    key={pageNum}
+                                    onClick={() => setCurrentPage(pageNum)}
+                                    className={`px-4 py-2 rounded-lg text-sm min-w-[44px] font-medium transition-all ${
+                                      currentPage === pageNum
+                                        ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md"
+                                        : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                                    }`}
+                                  >
+                                    {pageNum}
+                                  </button>
+                                );
+                              }
+                            )}
                           </div>
                           <button
-                            onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}
+                            onClick={() =>
+                              setCurrentPage((p) => Math.min(p + 1, totalPages))
+                            }
                             disabled={currentPage === totalPages}
                             className="px-4 py-2 bg-pink-500 text-white rounded-lg disabled:bg-gray-300 disabled:cursor-not-allowed hover:bg-pink-600 transition-colors text-sm font-medium"
                           >
@@ -624,7 +802,6 @@ export default function CustomersPage() {
                       </div>
                     </div>
                   )}
-
                 </div>
               </div>
             )}
