@@ -258,7 +258,7 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     
     const balanceData = balanceRows[0];
     
-    const dayLimit = parseFloat(balanceData.day_limit) || 0;
+    const creditDays = parseInt(balanceData.day_limit, 10) || 0;
     const dayAmount = parseFloat(balanceData.day_amount) || 0;
     const creditLimit = parseFloat(balanceData.cst_limit) || 0;
     const usedAmount = parseFloat(balanceData.amtlimit) || 0;
@@ -267,39 +267,57 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     const calculatedAmount = actualPrice * aqty;
     
     console.log('🔍 Balance Limit Check:', {
-      day_limit: dayLimit,
+      credit_days: creditDays,
       day_amount: dayAmount,
-      daily_available: Math.max(0, dayLimit - dayAmount),
       credit_limit: creditLimit,
       used_amount: usedAmount,
-      credit_available: Math.max(0, creditLimit - usedAmount),
-      calculated_amount: calculatedAmount
+      calculated_amount: calculatedAmount,
+      actual_price: actualPrice,
+      quantity: aqty
     });
-    
-    // Priority: Day Limit > Credit Limit
-    if (dayLimit > 0) {
-      // Day limit system active
-      const dailyAvailable = Math.max(0, dayLimit - dayAmount);
-      
-      if (dailyAvailable < calculatedAmount) {
-        return { 
-          sufficient: false, 
-          message: `Insufficient daily limit. Required: ₹${calculatedAmount.toFixed(2)}, Available: ₹${dailyAvailable.toFixed(2)}. Please recharge your account.`
-        };
-      }
-    } else {
-      // Credit limit system active
+
+    // Check if customer uses day limit system
+    if (creditDays > 0) {
+      console.log('✅ Day-limit customer detected: skipping credit amount validation');
+      return { 
+        sufficient: true, 
+        mode: 'day_limit', 
+        creditDays,
+        calculatedAmount 
+      };
+    }
+
+    // Credit limit system validation
+    if (creditLimit > 0) {
       const creditAvailable = Math.max(0, creditLimit - usedAmount);
       
+      console.log('💰 Credit Limit Details:', {
+        credit_limit: creditLimit,
+        used_amount: usedAmount,
+        credit_available: creditAvailable,
+        required_amount: calculatedAmount
+      });
+
       if (creditAvailable < calculatedAmount) {
         return { 
           sufficient: false, 
           message: `Insufficient credit limit. Required: ₹${calculatedAmount.toFixed(2)}, Available: ₹${creditAvailable.toFixed(2)}. Please recharge your account.`
         };
       }
+      
+      return { 
+        sufficient: true, 
+        mode: 'credit_limit',
+        calculatedAmount 
+      };
     }
-    
-    return { sufficient: true };
+
+    // If no limit system is set
+    return { 
+      sufficient: false, 
+      message: 'No credit limit set for this customer. Please set credit limit first.' 
+    };
+
   } catch (error) {
     console.error('❌ Error checking balance limit:', error);
     return { 
@@ -382,6 +400,147 @@ async function handleProcessingStatus(data) {
   return 'Status updated to Processing';
 }
 
+// async function handleCompletedStatus(data) {
+//   const {
+//     id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
+//     oldstock, cst_limit, amtlimit, day_limit, day_amount,
+//     price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId
+//   } = data;
+
+//   let finalPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, price);
+//   const calculatedAmount = finalPrice * aqty;
+//   const newStock = oldstock - aqty;
+
+//   const getLatestAmountQuery = `SELECT amtlimit, balance FROM customer_balances WHERE com_id = ?`;
+//   const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
+  
+//   let old_amtlimit = 0;
+//   let old_balance = 0;
+  
+//   if (latestAmountRows.length > 0) {
+//       old_amtlimit = parseFloat(latestAmountRows[0].amtlimit) || 0; // Current available balance
+//     old_balance = parseFloat(latestAmountRows[0].balance) || 0;
+    
+//   }
+
+//   const new_amtlimit = old_amtlimit - calculatedAmount;
+//   const new_balance = old_balance + calculatedAmount;
+
+//     console.log('💰 Balance Update Calculation:', {
+//     old_available_balance: old_amtlimit,
+//     calculated_amount: calculatedAmount,
+//     new_available_balance: new_amtlimit,
+//     old_balance: old_balance,
+//     new_balance: new_balance
+//   });
+
+//     const now = getIndianTime();
+//   const updateCustomerBalanceQuery = `
+//     UPDATE customer_balances 
+//     SET amtlimit = amtlimit - ?, 
+//         balance = balance + ?,
+//         updated_at = ? 
+//     WHERE com_id = ?
+//   `;
+  
+//   await executeQuery(updateCustomerBalanceQuery, [calculatedAmount, calculatedAmount, now, cl_id]);
+//   // Update customer_balances based on limit system
+//   // const now = getIndianTime();
+
+//   // Get current balance to determine limit system
+//   const balanceQuery = `SELECT day_limit, cst_limit, amtlimit, day_amount FROM customer_balances WHERE com_id = ?`;
+//   const balanceRows = await executeQuery(balanceQuery, [cl_id]);
+  
+//   let updateBalanceQuery = '';
+//   let balanceType = '';
+//   let queryParams = [];
+  
+//   if (balanceRows.length > 0) {
+//     const balanceData = balanceRows[0];
+//     const creditDays = parseInt(balanceData.day_limit, 10) || 0;
+    
+//     if (creditDays > 0) {
+//       // Day limit system - update day_amount
+//       updateBalanceQuery = `
+//         UPDATE customer_balances 
+//         SET day_amount = day_amount + ?, 
+//             balance = balance + ?,
+//             updated_at = ? 
+//         WHERE com_id = ?
+//       `;
+//       balanceType = 'day_limit';
+//       queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
+//       console.log('✅ Updated daily limit - day_amount increased by:', calculatedAmount);
+//     } else {
+//       // Credit limit system - update amtlimit
+//       updateBalanceQuery = `
+//         UPDATE customer_balances 
+//         SET amtlimit = amtlimit - ?, 
+//             balance = balance + ?,
+//             updated_at = ? 
+//         WHERE com_id = ?
+//       `;
+//       balanceType = 'credit_limit';
+//       queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
+//       console.log('✅ Updated credit limit - amtlimit increased by:', calculatedAmount);
+//     }
+//   }
+  
+//   if (updateBalanceQuery) {
+//     await executeQuery(updateBalanceQuery, queryParams);
+//   }
+
+//   // Update filling request
+//   const updateRequestQuery = `
+//     UPDATE filling_requests 
+//     SET status = 'Completed', 
+//         aqty = ?,
+//         completed_date = ?,
+//         ccid = ?,
+//         remark = ?,
+//         doc1 = COALESCE(?, doc1),
+//         doc2 = COALESCE(?, doc2),
+//         doc3 = COALESCE(?, doc3),
+//         status_updated_by = ?,
+//         sub_product_id = COALESCE(?, sub_product_id),
+//         price = ?,
+//         totalamt = ?
+//     WHERE id = ? AND rid = ?
+//   `;
+  
+//   await executeQuery(updateRequestQuery, [
+//     aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, 
+//     sub_product_id, finalPrice, calculatedAmount, id, rid
+//   ]);
+
+//   // Insert into filling history
+//   const insertHistoryQuery = `
+//     INSERT INTO filling_history 
+//     (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
+//      available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit) 
+//     VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+//   `;
+  
+//   await executeQuery(insertHistoryQuery, [
+//     rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount, 
+//     newStock, now, cl_id, userId, old_amount, new_amount, calculatedAmount
+//   ]);
+
+//   // Update station stock
+//   const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
+//   await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
+
+//   // Handle non-billing stocks if needed
+//   if (billing_type == 2) {
+//     await handleNonBillingStocks(fs_id, product_id, aqty);
+//   }
+
+//   // Update wallet history with correct balance type
+//   await updateWalletHistory(cl_id, rid, calculatedAmount, balanceType);
+
+//   return 'Request Completed Successfully';
+// }
+
 async function handleCompletedStatus(data) {
   const {
     id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
@@ -393,44 +552,83 @@ async function handleCompletedStatus(data) {
   const calculatedAmount = finalPrice * aqty;
   const newStock = oldstock - aqty;
 
-  const getLatestAmountQuery = `SELECT new_amount FROM filling_history WHERE cl_id = ? ORDER BY id DESC LIMIT 1`;
+  const getLatestAmountQuery = `SELECT amtlimit, balance, day_amount FROM customer_balances WHERE com_id = ?`;
   const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
   
-  let old_amount = 0;
+  let old_amtlimit = 0;
+  let old_balance = 0;
+  let old_day_amount = 0;
   
   if (latestAmountRows.length > 0) {
-    old_amount = parseFloat(latestAmountRows[0].new_amount) || 0;
+    old_amtlimit = parseFloat(latestAmountRows[0].amtlimit) || 0;
+    old_balance = parseFloat(latestAmountRows[0].balance) || 0;
+    old_day_amount = parseFloat(latestAmountRows[0].day_amount) || 0;
   }
 
-  const new_amount = old_amount + calculatedAmount;
-  
-  // Update customer_balances based on limit system
+  const new_amtlimit = old_amtlimit - calculatedAmount;
+  const new_balance = old_balance + calculatedAmount;
+  const new_day_amount = old_day_amount + calculatedAmount;
+
+  console.log('💰 Balance Update Calculation:', {
+    old_available_balance: old_amtlimit,
+    calculated_amount: calculatedAmount,
+    new_available_balance: new_amtlimit,
+    old_balance: old_balance,
+    new_balance: new_balance
+  });
+
   const now = getIndianTime();
+
+  // Get current balance to determine limit system
+  const balanceQuery = `SELECT day_limit, cst_limit, amtlimit, day_amount FROM customer_balances WHERE com_id = ?`;
+  const balanceRows = await executeQuery(balanceQuery, [cl_id]);
   
   let updateBalanceQuery = '';
-  if (day_limit > 0) {
-    // Day limit system - update day_amount
-    updateBalanceQuery = `
-      UPDATE customer_balances 
-      SET day_amount = day_amount + ?, 
-          balance = balance + ?,
-          updated_at = ? 
-      WHERE com_id = ?
-    `;
-    console.log('✅ Updated daily limit - day_amount increased by:', calculatedAmount);
-  } else {
-    // Credit limit system - update amtlimit
-    updateBalanceQuery = `
-      UPDATE customer_balances 
-      SET amtlimit = amtlimit + ?, 
-          balance = balance + ?,
-          updated_at = ? 
-      WHERE com_id = ?
-    `;
-    console.log('✅ Updated credit limit - amtlimit increased by:', calculatedAmount);
+  let balanceType = '';
+  let queryParams = [];
+  
+  // FIX: Define old_amount and new_amount variables
+  let old_amount = 0;
+  let new_amount = 0;
+  
+  if (balanceRows.length > 0) {
+    const balanceData = balanceRows[0];
+    const creditDays = parseInt(balanceData.day_limit, 10) || 0;
+    
+    if (creditDays > 0) {
+      // Day limit system - update day_amount
+      updateBalanceQuery = `
+        UPDATE customer_balances 
+        SET day_amount = day_amount + ?, 
+            balance = balance + ?,
+            updated_at = ? 
+        WHERE com_id = ?
+      `;
+      balanceType = 'day_limit';
+      queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
+      old_amount = old_day_amount;
+      new_amount = new_day_amount;
+      console.log('✅ Updated daily limit - day_amount increased by:', calculatedAmount);
+    } else {
+      // Credit limit system - update amtlimit
+      updateBalanceQuery = `
+        UPDATE customer_balances 
+        SET amtlimit = amtlimit - ?, 
+            balance = balance + ?,
+            updated_at = ? 
+        WHERE com_id = ?
+      `;
+      balanceType = 'credit_limit';
+      queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
+      old_amount = old_amtlimit;
+      new_amount = new_amtlimit;
+      console.log('✅ Updated credit limit - amtlimit increased by:', calculatedAmount);
+    }
   }
   
-  await executeQuery(updateBalanceQuery, [calculatedAmount, calculatedAmount, now, cl_id]);
+  if (updateBalanceQuery) {
+    await executeQuery(updateBalanceQuery, queryParams);
+  }
 
   // Update filling request
   const updateRequestQuery = `
@@ -455,7 +653,7 @@ async function handleCompletedStatus(data) {
     sub_product_id, finalPrice, calculatedAmount, id, rid
   ]);
 
-  // Insert into filling history
+  // Insert into filling history - FIXED: using defined old_amount and new_amount
   const insertHistoryQuery = `
     INSERT INTO filling_history 
     (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
@@ -477,8 +675,8 @@ async function handleCompletedStatus(data) {
     await handleNonBillingStocks(fs_id, product_id, aqty);
   }
 
-  // Update wallet history
-  await updateWalletHistory(cl_id, rid, calculatedAmount, day_amount, amtlimit, day_limit);
+  // Update wallet history with correct balance type
+  await updateWalletHistory(cl_id, rid, calculatedAmount, balanceType);
 
   return 'Request Completed Successfully';
 }
@@ -591,28 +789,42 @@ async function updateFillingRequest(data) {
   return 'Request updated successfully';
 }
 
-async function updateWalletHistory(cl_id, rid, deductedAmount, oldDayAmount, oldAmtLimit, day_limit) {
+async function updateWalletHistory(cl_id, rid, deductedAmount, balanceType) {
   try {
-    // Get updated amounts
-    const balanceQuery = `SELECT day_amount, amtlimit FROM customer_balances WHERE com_id = ?`;
+    // Get current balance data
+    const balanceQuery = `SELECT day_amount, amtlimit, day_limit, cst_limit FROM customer_balances WHERE com_id = ?`;
     const balanceRows = await executeQuery(balanceQuery, [cl_id]);
     
-    let newDayAmount = 0;
-    let newAmtLimit = 0;
+    if (balanceRows.length === 0) return;
     
-    if (balanceRows.length > 0) {
-      newDayAmount = balanceRows[0].day_amount || 0;
-      newAmtLimit = balanceRows[0].amtlimit || 0;
+    const balanceData = balanceRows[0];
+    
+    let oldBalance = 0;
+    let newBalance = 0;
+    let balanceLabel = '';
+    
+    if (balanceType === 'day_limit' || balanceData.day_limit > 0) {
+      oldBalance = (balanceData.day_amount || 0) - deductedAmount;
+      newBalance = balanceData.day_amount || 0;
+      balanceLabel = 'Daily Limit';
+    } else {
+      oldBalance = (balanceData.amtlimit || 0) - deductedAmount;
+      newBalance = balanceData.amtlimit || 0;
+      balanceLabel = 'Credit Limit';
     }
 
-    // Use appropriate balance based on limit system
-    const oldBalance = day_limit > 0 ? oldDayAmount : oldAmtLimit;
-    const newBalance = day_limit > 0 ? newDayAmount : newAmtLimit;
+    console.log('💰 Wallet History Update:', {
+      balanceType,
+      oldBalance,
+      deductedAmount,
+      newBalance,
+      balanceLabel
+    });
 
     await executeQuery(
-      `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type) 
-       VALUES (?, ?, ?, ?, ?, NOW(), 4)`,
-      [cl_id, rid, oldBalance, deductedAmount, newBalance]
+      `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type, description) 
+       VALUES (?, ?, ?, ?, ?, NOW(), 4, ?)`,
+      [cl_id, rid, oldBalance, deductedAmount, newBalance, `Fuel Purchase - ${balanceLabel}`]
     );
   } catch (error) {
     console.error('❌ Error in updateWalletHistory:', error);
@@ -648,7 +860,7 @@ async function handleFileUpload(file) {
   try {
     const maxSize = 5 * 1024 * 1000;
     if (file.size > maxSize) {
-      throw new Error(`File size exceeds 5MB limit`);
+      throw new Error('File size exceeds 5MB limit');
     }
 
     // For now, return a dummy path since file upload might be causing issues

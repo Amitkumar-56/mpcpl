@@ -286,7 +286,7 @@ export default function FillingDetailsAdmin() {
     router.push(`/credit-limit?id=${requestData.cid}`);
   };
 
-  // Calculate available balance - FIXED with null check
+  // Calculate available balance
   const calculateAvailableBalance = () => {
     if (!requestData) {
       return {
@@ -300,10 +300,23 @@ export default function FillingDetailsAdmin() {
     const dayAmount = parseFloat(requestData.day_amount) || 0;
     const creditLimit = parseFloat(requestData.cst_limit) || 0;
     const usedAmount = parseFloat(requestData.amtlimit) || 0;
+    const isDayLimitClient = dayLimit > 0 && creditLimit <= 0;
     
     let availableBalance = 0;
     let limitType = 'none';
     
+    if (isDayLimitClient) {
+      return {
+        availableBalance: null,
+        isInsufficient: false,
+        limitType: 'day',
+        dayLimit,
+        dayAmount,
+        creditLimit,
+        usedAmount
+      };
+    }
+
     if (dayLimit > 0) {
       // Day limit system active
       availableBalance = Math.max(0, dayLimit - dayAmount);
@@ -326,6 +339,38 @@ export default function FillingDetailsAdmin() {
   };
 
   const availableBalance = calculateAvailableBalance();
+  const formatAmount = (value) => (Number(value || 0)).toLocaleString('en-IN');
+  
+  // Calculate credit available amount properly
+  const creditLimitTotal = parseFloat(requestData?.cst_limit) || 0;
+  
+
+  const creditAvailableAmount = parseFloat(requestData?.amtlimit) || 0; 
+const creditUsedAmount = parseFloat(requestData?.balance) || 0; 
+  
+  const dailyLimitTotal = parseFloat(requestData?.day_limit) || 0;
+  const dailyUsedAmount = parseFloat(requestData?.day_amount) || 0;
+  const dailyAvailableAmount = Math.max(0, dailyLimitTotal - dailyUsedAmount);
+  
+  const limitBadgeLabel = availableBalance.limitType === 'daily'
+    ? 'Daily Available'
+    : availableBalance.limitType === 'credit'
+      ? 'Available Balance'
+      : availableBalance.limitType === 'day'
+        ? 'Day Limit (Days)'
+        : 'Limit';
+        
+  const limitBadgeValue = availableBalance.limitType === 'day'
+    ? `${dailyLimitTotal} days`
+    : `₹${formatAmount(availableBalance.limitType === 'daily'
+        ? dailyAvailableAmount
+        : creditAvailableAmount)}`;
+    
+  const limitExceededLabel = availableBalance.limitType === 'daily'
+    ? 'Daily Limit'
+    : availableBalance.limitType === 'credit'
+      ? 'Credit Limit'
+      : 'Day Limit';
 
   // Loading component
   if (loading) {
@@ -449,7 +494,7 @@ export default function FillingDetailsAdmin() {
                     </span>
                     {availableBalance.isInsufficient && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
-                        {availableBalance.limitType === 'daily' ? 'Daily Limit' : 'Credit Limit'} Exceeded
+                        {limitExceededLabel} Exceeded
                       </span>
                     )}
                   </div>
@@ -465,16 +510,16 @@ export default function FillingDetailsAdmin() {
                     </svg>
                     <div>
                       <p className="text-red-700 font-medium">
-                        {availableBalance.limitType === 'daily' ? 'Daily Limit' : 'Credit Limit'} Exceeded
+                        {limitExceededLabel} Exceeded
                       </p>
                       <p className="text-red-600 text-sm">
                         {availableBalance.limitType === 'daily' ? (
                           <>
-                            Daily Limit: ₹{requestData.day_limit || 0}, Used: ₹{requestData.day_amount || 0},
+                            Daily Limit: ₹{formatAmount(dailyLimitTotal)}, Used: ₹{formatAmount(dailyUsedAmount)}, Available: ₹{formatAmount(dailyAvailableAmount)}
                           </>
                         ) : (
                           <>
-                            Credit Limit: ₹{requestData.cst_limit || 0}, Used: ₹{requestData.amtlimit || 0}, Available: ₹{requestData.amtlimit || 0}
+                            Credit Limit: ₹{formatAmount(creditLimitTotal)}, Used: ₹{formatAmount(creditUsedAmount)}, Available: ₹{formatAmount(creditAvailableAmount)}
                           </>
                         )}
                       </p>
@@ -525,42 +570,56 @@ export default function FillingDetailsAdmin() {
                         </tr>
                         
                         {/* Limit Information */}
-                        {availableBalance.limitType === 'daily' ? (
+                        {availableBalance.limitType === 'daily' && (
                           <>
                             <tr>
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Limit</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.day_limit || 0}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(dailyLimitTotal)}</td>
                             </tr>
                             <tr>
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Used</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.day_amount || 0}</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(dailyUsedAmount)}</td>
                             </tr>
                             <tr>
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Available</td>
                               <td className="px-4 py-3 text-sm font-medium">
                                 <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
-                                  ₹{requestData.amtlimit || 0}
+                                  ₹{formatAmount(dailyAvailableAmount)}
                                 </span>
                               </td>
                             </tr>
                           </>
-                        ) : (
+                        )}
+              
+{availableBalance.limitType === 'credit' && (
+  <>
+    <tr>
+      <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
+      <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(creditLimitTotal)}</td>
+    </tr>
+    <tr>
+      <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Used Amount</td>
+      <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(creditUsedAmount)}</td>
+    </tr>
+    <tr>
+      <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
+      <td className="px-4 py-3 text-sm font-medium">
+        <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
+          ₹{formatAmount(creditAvailableAmount)}
+        </span>
+      </td>
+    </tr>
+  </>
+)}
+                        {availableBalance.limitType === 'day' && (
                           <>
                             <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.cst_limit || 0}</td>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Day Limit (Credit Days)</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{requestData.day_limit || 0} days</td>
                             </tr>
                             <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Used Amount</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">₹{requestData.amtlimit || 0}</td>
-                            </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
-                              <td className="px-4 py-3 text-sm font-medium">
-                                <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
-                                  ₹{requestData.amtlimit || 0}
-                                </span>
-                              </td>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Mode</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">Unlimited requests within credit days window</td>
                             </tr>
                           </>
                         )}
@@ -653,7 +712,7 @@ export default function FillingDetailsAdmin() {
                       <span>Update Request</span>
                       <span className='bg-yellow-400 text-black rounded px-2 py-1 text-sm font-medium'>Available Stock: {requestData.station_stock || 0} Ltr</span>
                       <span className={`px-2 py-1 text-sm font-medium rounded ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                        {availableBalance.limitType === 'daily' ? 'Daily Available' : 'Available Balance'}: ₹{requestData.amtlimit || 0}
+                        {limitBadgeLabel}: {limitBadgeValue}
                       </span>
                     </h2>
                   </div>
