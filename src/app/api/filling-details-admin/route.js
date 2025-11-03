@@ -243,47 +243,67 @@ export async function POST(request) {
 async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, sub_product_id) {
   try {
     const balanceQuery = `
-      SELECT day_limit, day_amount, cst_limit, amtlimit
-      FROM customer_balances 
-      WHERE com_id = ?
+      SELECT 
+        cb.day_limit, 
+        cb.day_amount, 
+        cb.cst_limit, 
+        cb.amtlimit,
+        cb.balance,
+        cb.day_limit_expiry,
+        cb.is_active,
+        c.client_type
+      FROM customer_balances cb
+      LEFT JOIN customers c ON cb.com_id = c.id
+      WHERE cb.com_id = ?
     `;
     const balanceRows = await executeQuery(balanceQuery, [cl_id]);
     
     if (balanceRows.length === 0) {
       return { 
         sufficient: false, 
-        message: 'Customer balance not found. Please set credit limit first.' 
+        message: 'Customer balance not found.' 
       };
     }
     
     const balanceData = balanceRows[0];
+    const clientType = balanceData.client_type;
     
-    const creditDays = parseInt(balanceData.day_limit, 10) || 0;
-    const dayAmount = parseFloat(balanceData.day_amount) || 0;
-    const creditLimit = parseFloat(balanceData.cst_limit) || 0;
-    const usedAmount = parseFloat(balanceData.amtlimit) || 0;
-    
-    const actualPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, defaultPrice);
-    const calculatedAmount = actualPrice * aqty;
-    
-    console.log('🔍 Balance Limit Check:', {
-      credit_days: creditDays,
-      day_amount: dayAmount,
-      credit_limit: creditLimit,
-      used_amount: usedAmount,
-      calculated_amount: calculatedAmount,
-      actual_price: actualPrice,
-      quantity: aqty
-    });
-
-    // Check if customer uses day limit system
-    if (creditDays > 0) {
-      console.log('✅ Day-limit customer detected: skipping credit amount validation');
+    // DAY LIMIT CUSTOMER (Type 3) - No balance check, only check if account is active
+    if (clientType === "3") {
+      if (balanceData.is_active === 0) {
+        return { 
+          sufficient: false, 
+          message: 'Your day limit has expired. Please recharge to activate your account.',
+          isDayLimitExpired: true
+        };
+      }
+      
+      // Check if day limit will expire today
+      if (balanceData.day_limit_expiry) {
+        const now = new Date();
+        const expiryDate = new Date(balanceData.day_limit_expiry);
+        const timeDiff = expiryDate.getTime() - now.getTime();
+        const daysRemaining = Math.ceil(timeDiff / (1000 * 3600 * 24));
+        
+        if (daysRemaining <= 0) {
+          // Auto-deactivate if expired
+          await executeQuery(
+            `UPDATE customer_balances SET is_active = 0 WHERE com_id = ?`,
+            [cl_id]
+          );
+          return { 
+            sufficient: false, 
+            message: 'Day limit has expired. Please recharge your account.',
+            isDayLimitExpired: true
+          };
+        }
+      }
+      
+      console.log('✅ Day-limit customer: No credit limit check required');
       return { 
         sufficient: true, 
-        mode: 'day_limit', 
-        creditDays,
-        calculatedAmount 
+        mode: 'day_limit',
+        isDayLimitClient: true
       };
     }
 

@@ -1,7 +1,7 @@
 // app/customers/client-history/page.jsx
 "use client";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 // --- MOCK COMPONENTS (Replace with your actual components) ---
 const Modal = ({ show, onClose, title, children }) => {
@@ -48,7 +48,7 @@ function ClientHistoryContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // NEW STATES FOR PAYMENT PROCESSING
+  // NEW STATES FOR PAYMENT PROCESSING AND BALANCE INFO
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [pendingTransactions, setPendingTransactions] = useState([]);
@@ -56,6 +56,7 @@ function ClientHistoryContent() {
   const [paymentResult, setPaymentResult] = useState(null);
   const [error, setError] = useState("");
   const [customerName, setCustomerName] = useState("");
+  const [customerBalanceInfo, setCustomerBalanceInfo] = useState(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -99,6 +100,10 @@ function ClientHistoryContent() {
 
       const response = await fetch(`/api/customers/client-history?${params}`);
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const result = await response.json();
 
       if (result.success) {
@@ -107,14 +112,55 @@ function ClientHistoryContent() {
         setBalance(result.data.balance || 0);
         setPendingTransactions(result.data.pendingTransactions || []);
         setCustomerName(result.data.customerName || `Customer ${cid}`);
+        setCustomerBalanceInfo(result.data.customerBalanceInfo || null);
       } else {
         setError(result.error || "Failed to fetch data");
       }
     } catch (error) {
+      console.error('Fetch error:', error);
       setError("Network error: " + error.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  // Calculate transaction status - OVERDUE only for day_limit customers
+  const getTransactionStatus = (transaction) => {
+    // For inward transactions (recharges), always show as "Recharge"
+    if (transaction.trans_type === "inward") {
+      return { status: "Recharge", color: "green" };
+    }
+
+    // For outward transactions, check payment_status
+    if (transaction.payment_status === 1) {
+      return { status: "Paid", color: "green" };
+    }
+
+    // If payment_status is 0 (Unpaid), check if it's overdue
+    // BUT ONLY if customer has day_limit type
+    if (transaction.payment_status === 0) {
+      // Check if customer uses day_limit system
+      const isDayLimitCustomer = customerBalanceInfo?.day_limit > 0;
+      
+      if (isDayLimitCustomer) {
+        // Only check overdue for day_limit customers
+        const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
+        const currentDate = new Date();
+        const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
+        
+        if (daysDifference > 30) {
+          return { status: "Overdue", color: "red" };
+        } else {
+          return { status: "Pending", color: "orange" };
+        }
+      } else {
+        // For amt_limit customers, always show as Pending (no overdue)
+        return { status: "Pending", color: "orange" };
+      }
+    }
+
+    // Default fallback
+    return { status: "Pending", color: "orange" };
   };
 
   // New Payment Handlers
@@ -134,7 +180,6 @@ function ClientHistoryContent() {
     try {
       setProcessingPayment(true);
 
-      // NOTE: Using PATCH for idempotent update/resource modification
       const response = await fetch("/api/customers/client-history", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -171,42 +216,60 @@ function ClientHistoryContent() {
     }
   };
 
-  // Existing helper functions
+  // Export function
   const handleExport = async () => {
-    /* ... existing export logic ... */
+    try {
+      setExportLoading(true);
+      
+      const params = new URLSearchParams();
+      params.append('id', cid);
+      if (filter) params.append('pname', filter);
+
+      const response = await fetch('/api/customers/client-history', {
+        method: 'POST',
+        body: params
+      });
+
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = `transaction_history_${cid}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Export failed: ' + error.message);
+    } finally {
+      setExportLoading(false);
+    }
   };
+
   const formatCurrency = (amount) =>
     new Intl.NumberFormat("en-IN").format(amount || 0);
+    
   const formatDate = (dateString) => {
-    /* ... existing format date logic ... */
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-IN');
   };
+  
   const formatDateTime = (dateString) => {
-    /* ... existing format date time logic ... */
-  };
-
-  // Calculate transaction status
-  const getTransactionStatus = (transaction) => {
-    if (transaction.trans_type === "inward") {
-      return { status: "Recharge", color: "green" };
-    }
-
-    // Use payment_status field from DB if available.
-    // For compatibility with the API's current history query:
-    // Assume 'payment_status' is included in the main transactions fetch.
-    if (transaction.payment_status === 1) {
-      return { status: "Paid", color: "green" };
-    }
-
-    // If payment_status is 0 (Unpaid/Pending), check for overdue time
-    const transactionDate = new Date(transaction.filling_date);
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    if (transactionDate < thirtyDaysAgo) {
-      return { status: "Overdue", color: "red" };
-    } else {
-      return { status: "Pending", color: "orange" };
-    }
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   const PaymentStatusBadge = ({ status, transactionType }) => {
@@ -255,14 +318,13 @@ function ClientHistoryContent() {
     );
   };
 
-  // Mobile Card View
+  // Mobile Card View - SIMPLE VIEW
   const TransactionCard = ({ transaction }) => {
     const statusInfo = getTransactionStatus(transaction);
 
     return (
       <div className="bg-white rounded-lg shadow-sm border p-4 mb-3 hover:shadow-md transition-shadow">
         <div className="grid grid-cols-2 gap-3 text-sm">
-          {/* ... (Existing card fields) ... */}
           <div>
             <p className="text-gray-500 text-xs font-medium">ID</p>
             <p className="font-medium">{transaction.id}</p>
@@ -278,9 +340,9 @@ function ClientHistoryContent() {
             </p>
           </div>
           <div>
-            <p className="text-gray-500 text-xs font-medium">Date</p>
+            <p className="text-gray-500 text-xs font-medium">Completed Date</p>
             <p className="font-medium">
-              {formatDateTime(transaction.filling_date)}
+              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
             </p>
           </div>
           <div>
@@ -300,21 +362,7 @@ function ClientHistoryContent() {
                   : "text-blue-600"
               }`}
             >
-              ₹{formatCurrency(transaction.amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Due Amount</p>
-            <p
-              className={`font-bold ${
-                transaction.payment_status === 0 &&
-                transaction.trans_type === "outward"
-                  ? "text-red-600"
-                  : "text-green-600"
-              }`}
-            >
-              ₹{formatCurrency(transaction.amount)}{" "}
-              {/* Display full amount as 'due' if unpaid */}
+              ₹{formatCurrency(transaction.amount || transaction.credit)}
             </p>
           </div>
           <div className="col-span-2">
@@ -336,7 +384,6 @@ function ClientHistoryContent() {
   };
 
   if (!cid) {
-    // ... (Existing CID missing logic) ...
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -354,7 +401,7 @@ function ClientHistoryContent() {
 
   // Calculate total pending amount for display in modal/header
   const totalPendingAmount = pendingTransactions.reduce(
-    (sum, t) => sum + parseFloat(t.due_amount || t.amount),
+    (sum, t) => sum + parseFloat(t.amount || 0),
     0
   );
 
@@ -390,6 +437,12 @@ function ClientHistoryContent() {
                 <p className="text-gray-500">
                   Customer: {customerName} (ID: {cid})
                 </p>
+                {customerBalanceInfo && (
+                  <p className="text-sm text-gray-600">
+                    Limit Type: {customerBalanceInfo.day_limit > 0 ? 'Day Limit' : 'Amount Limit'} | 
+                    {customerBalanceInfo.day_limit > 0 ? ` Day Limit: ${customerBalanceInfo.day_limit}` : ` Amount Limit: ₹${formatCurrency(customerBalanceInfo.amtlimit)}`}
+                  </p>
+                )}
                 {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
               </div>
             </div>
@@ -462,7 +515,7 @@ function ClientHistoryContent() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters Section (Existing) */}
+        {/* Filters Section */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {/* Product Filter */}
@@ -533,7 +586,7 @@ function ClientHistoryContent() {
               </select>
             </div>
 
-            {/* Stats (Updated to reflect total pending amount) */}
+            {/* Stats */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Quick Stats
@@ -543,12 +596,17 @@ function ClientHistoryContent() {
                 <div className="text-red-600 font-semibold">
                   Total Due: ₹{formatCurrency(totalPendingAmount)}
                 </div>
+                {customerBalanceInfo?.day_limit > 0 && (
+                  <div className="text-blue-600 font-semibold">
+                    Day Limit Customer
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Results Section */}
+        {/* Results Section - SIMPLE UI VIEW */}
         <div className="bg-white rounded-lg shadow-sm border">
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -569,7 +627,7 @@ function ClientHistoryContent() {
             </div>
           ) : (
             <>
-              {/* Mobile View */}
+              {/* Mobile View - SIMPLE */}
               <div className="md:hidden p-4">
                 {displayTransactions.length > 0 ? (
                   displayTransactions.map((transaction) => (
@@ -607,7 +665,7 @@ function ClientHistoryContent() {
                 )}
               </div>
 
-              {/* Desktop Table View */}
+              {/* Desktop Table View - SIMPLE */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b">
@@ -622,7 +680,7 @@ function ClientHistoryContent() {
                         Station
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Date & Time
+                        Completed Date
                       </th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Product
@@ -663,7 +721,7 @@ function ClientHistoryContent() {
                               {transaction.station_name || "N/A"}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(transaction.filling_date)}
+                              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {transaction.pname || "N/A"}
@@ -678,7 +736,7 @@ function ClientHistoryContent() {
                                   : "text-blue-600"
                               }`}
                             >
-                              ₹{formatCurrency(transaction.amount)}
+                              ₹{formatCurrency(transaction.amount || transaction.credit)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <PaymentStatusBadge
@@ -729,7 +787,7 @@ function ClientHistoryContent() {
                 </table>
               </div>
 
-              {/* Pagination (Missing part completed here) */}
+              {/* Pagination */}
               {filteredTransactions.length > 0 && (
                 <div className="px-6 py-4 flex justify-between items-center border-t">
                   <p className="text-sm text-gray-600">
@@ -801,6 +859,11 @@ function ClientHistoryContent() {
             Payment will deduct the total balance, reset Day Limit counter, and
             extend validity days.
           </p>
+          {customerBalanceInfo?.day_limit > 0 && (
+            <p className="text-xs text-blue-600 mt-1 font-semibold">
+              Day Limit Customer - Overdue rules apply after 30 days
+            </p>
+          )}
         </div>
 
         <label className="block text-sm font-medium text-gray-700 mb-2">

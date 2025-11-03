@@ -1,4 +1,4 @@
-// app/customers/page.jsx
+// src/app/customers/page.jsx
 "use client";
 
 import Footer from "components/Footer";
@@ -36,7 +36,7 @@ export default function CustomersPage() {
       setLoading(true);
       setError(null);
       
-      // Fetch customers with balances
+      // Fetch customers with balances and day limit info
       const customersRes = await fetch("/api/customers");
       if (!customersRes.ok) {
         throw new Error('Failed to fetch customers');
@@ -126,6 +126,66 @@ export default function CustomersPage() {
     }
   }, []);
 
+  const getClientType = useCallback((client_type) => {
+    switch (client_type) {
+      case "1":
+        return { text: "Prepaid", color: "bg-purple-100 text-purple-800 border border-purple-200" };
+      case "2":
+        return { text: "Postpaid", color: "bg-orange-100 text-orange-800 border border-orange-200" };
+      case "3":
+        return { text: "Day Limit", color: "bg-indigo-100 text-indigo-800 border border-indigo-200" };
+      default:
+        return { text: "Unknown", color: "bg-gray-100 text-gray-800 border border-gray-200" };
+    }
+  }, []);
+
+  const getDayLimitStatus = useCallback((customer) => {
+    if (customer.client_type !== "3") return null;
+    
+    const isActive = customer.is_active !== 0;
+    const expiryDate = customer.day_limit_expiry;
+    
+    if (!isActive) {
+      return { 
+        text: "Expired", 
+        color: "bg-red-100 text-red-800 border border-red-200",
+        daysRemaining: 0
+      };
+    }
+    
+    if (expiryDate) {
+      const now = new Date();
+      const expiry = new Date(expiryDate);
+      const daysRemaining = Math.ceil((expiry - now) / (1000 * 3600 * 24));
+      
+      if (daysRemaining <= 0) {
+        return { 
+          text: "Expired", 
+          color: "bg-red-100 text-red-800 border border-red-200",
+          daysRemaining: 0
+        };
+      } else if (daysRemaining <= 3) {
+        return { 
+          text: `${daysRemaining}d left`, 
+          color: "bg-orange-100 text-orange-800 border border-orange-200",
+          daysRemaining
+        };
+      } else {
+        return { 
+          text: `${daysRemaining}d left`, 
+          color: "bg-green-100 text-green-800 border border-green-200",
+          daysRemaining
+        };
+      }
+    }
+    
+    return { 
+      text: "Active", 
+      color: "bg-gray-100 text-gray-800 border border-gray-200",
+      daysRemaining: null
+    };
+  }, []);
+
   const getStatusColor = useCallback((balance, limit) => {
     const remaining = limit - balance;
     if (remaining <= 0) return "text-red-600 font-bold";
@@ -163,7 +223,7 @@ export default function CustomersPage() {
     },
     {
       key: 'recharge-request',
-      icon: BiRupee ,
+      icon: BiRupee,
       label: 'Recharge',
       href: (id) => `/customers/recharge-request?id=${id}`,
       color: 'bg-purple-500 hover:bg-purple-600',
@@ -203,9 +263,10 @@ export default function CustomersPage() {
   // Memoized stats
   const stats = useMemo(() => [
     { title: 'Total Customers', value: customers.length, color: 'from-blue-500 to-blue-600' },
-    { title: 'Billing Customers', value: customers.filter(c => c.billing_type === 1).length, color: 'from-green-500 to-green-600' },
-    { title: 'Non-Billing', value: customers.filter(c => c.billing_type === 2).length, color: 'from-purple-500 to-purple-600' },
-    { title: 'Over Limit', value: customers.filter(c => c.balance > c.cst_limit).length, color: 'from-orange-500 to-orange-600' },
+    { title: 'Prepaid Customers', value: customers.filter(c => c.client_type === "1").length, color: 'from-purple-500 to-purple-600' },
+    { title: 'Postpaid Customers', value: customers.filter(c => c.client_type === "2").length, color: 'from-orange-500 to-orange-600' },
+    { title: 'Day Limit Customers', value: customers.filter(c => c.client_type === "3").length, color: 'from-indigo-500 to-indigo-600' },
+    { title: 'Expired Day Limits', value: customers.filter(c => c.client_type === "3" && c.is_active === 0).length, color: 'from-red-500 to-red-600' },
   ], [customers]);
 
   return (
@@ -285,7 +346,7 @@ export default function CustomersPage() {
             </div>
 
             {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               {stats.map((stat, index) => (
                 <div key={index} className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200`}>
                   <div className="text-2xl font-bold">{stat.value}</div>
@@ -339,19 +400,19 @@ export default function CustomersPage() {
 
                   {/* Desktop Table */}
                   <div className="hidden lg:block overflow-x-auto rounded-lg border border-gray-200">
-                    <table className="w-full min-w-[1200px]">
+                    <table className="w-full min-w-[1400px]">
                       <thead>
                         <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">ID</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Name</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Email</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Phone</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Address</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Region</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Client Type</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Billing Type</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Credit Limit</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Outstanding</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Remaining Limit</th>
+                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Day Limit Status</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Actions</th>
                         </tr>
                       </thead>
@@ -365,8 +426,11 @@ export default function CustomersPage() {
                         ) : (
                           currentCustomers.map((c) => {
                             const billingInfo = getBillingType(c.billing_type);
+                            const clientTypeInfo = getClientType(c.client_type);
+                            const dayLimitStatus = getDayLimitStatus(c);
                             const remainingLimit = calculateRemainingLimit(c.balance, c.cst_limit);
                             const statusInfo = getStatusColor(c.balance, c.cst_limit);
+                            
                             return (
                               <tr key={c.id} className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200">
                                 <td className="p-4 font-mono text-purple-600 font-bold">#{c.id}</td>
@@ -382,6 +446,7 @@ export default function CustomersPage() {
                                       >
                                         {c.name || 'Unnamed Customer'}
                                       </Link>
+                                      <div className="text-xs text-gray-500">{c.region || 'No region'}</div>
                                     </div>
                                   </div>
                                 </td>
@@ -392,11 +457,11 @@ export default function CustomersPage() {
                                   <div className="text-gray-900 font-medium">{c.phone || 'No phone'}</div>
                                 </td>
                                 <td className="p-4">
-                                  <div className="text-gray-600 text-sm truncate max-w-[200px]">{c.address || 'No address'}</div>
-                                </td>
-                                <td className="p-4">
-                                  <span className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium border border-blue-200">
-                                    {c.region || 'Unknown'}
+                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${clientTypeInfo.color}`}>
+                                    {clientTypeInfo.text}
+                                    {c.client_type === "3" && c.day_limit && (
+                                      <span className="ml-1 text-xs">({c.day_limit}d)</span>
+                                    )}
                                   </span>
                                 </td>
                                 <td className="p-4">
@@ -410,14 +475,33 @@ export default function CustomersPage() {
                                     className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200"
                                     title="Click to view limit details"
                                   >
-                                    {c.cst_limit || 0}
+                                    ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
                                   </button>
                                 </td>
                                 <td className="p-4">
-                                  <span className="font-bold text-red-600">{c.balance || 0}</span>
+                                  <span className="font-bold text-red-600">₹{(c.balance || 0).toLocaleString('en-IN')}</span>
                                 </td>
                                 <td className="p-4">
-                                  <span className={`font-bold ${statusInfo}`}>{c.amtlimit || 0}</span>
+                                  <span className={`font-bold ${statusInfo}`}>
+                                    ₹{(c.amtlimit || 0).toLocaleString('en-IN')}
+                                  </span>
+                                </td>
+                                <td className="p-4">
+                                  {dayLimitStatus ? (
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${dayLimitStatus.color}`}>
+                                      {dayLimitStatus.text}
+                                      {dayLimitStatus.daysRemaining > 0 && (
+                                        <span className="ml-1 text-xs">
+                                          {c.day_limit_expiry ? 
+                                            new Date(c.day_limit_expiry).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' }) 
+                                            : ''
+                                          }
+                                        </span>
+                                      )}
+                                    </span>
+                                  ) : (
+                                    <span className="text-gray-400 text-sm">N/A</span>
+                                  )}
                                 </td>
                                 
                                 <td className="p-4">
@@ -470,8 +554,11 @@ export default function CustomersPage() {
                     ) : (
                       currentCustomers.map((c) => {
                         const billingInfo = getBillingType(c.billing_type);
+                        const clientTypeInfo = getClientType(c.client_type);
+                        const dayLimitStatus = getDayLimitStatus(c);
                         const remainingLimit = calculateRemainingLimit(c.balance, c.cst_limit);
                         const statusInfo = getStatusColor(c.balance, c.cst_limit);
+                        
                         return (
                           <div key={c.id} className="bg-white rounded-xl shadow-lg border border-purple-100 p-4 hover:shadow-xl transition-all duration-200">
                             <div className="flex justify-between items-start mb-3">
@@ -486,6 +573,16 @@ export default function CustomersPage() {
                                   <p className="text-purple-600 font-mono text-sm">#{c.id}</p>
                                 </div>
                               </div>
+                              <div className="flex flex-col items-end space-y-1">
+                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${clientTypeInfo.color}`}>
+                                  {clientTypeInfo.text}
+                                </span>
+                                {dayLimitStatus && (
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${dayLimitStatus.color}`}>
+                                    {dayLimitStatus.text}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             
                             <div className="grid grid-cols-1 gap-3 text-sm mb-3">
@@ -499,20 +596,16 @@ export default function CustomersPage() {
                                   <div className="font-medium">{c.phone || 'No phone'}</div>
                                 </div>
                               </div>
-                              <div>
-                                <div className="text-gray-600">Address</div>
-                                <div className="font-medium text-sm">{c.address || 'No address'}</div>
-                              </div>
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
-                                  <div className="text-gray-600">Region</div>
-                                  <div className="font-medium">{c.region || 'Unknown'}</div>
-                                </div>
-                                <div>
-                                  <div className="text-gray-600">Type</div>
+                                  <div className="text-gray-600">Billing Type</div>
                                   <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}>
                                     {billingInfo.text}
                                   </span>
+                                </div>
+                                <div>
+                                  <div className="text-gray-600">Region</div>
+                                  <div className="font-medium">{c.region || 'Unknown'}</div>
                                 </div>
                               </div>
                             </div>
@@ -526,21 +619,43 @@ export default function CustomersPage() {
                                     className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
                                     title="Click to view limit details"
                                   >
-                                    {c.cst_limit || 0}
+                                    ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
                                   </button>
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-600">Outstanding</div>
-                                  <div className="font-bold text-sm text-red-600">{c.balance || 0}</div>
+                                  <div className="font-bold text-sm text-red-600">₹{(c.balance || 0).toLocaleString('en-IN')}</div>
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-600">Remaining</div>
                                   <div className={`font-bold text-sm ${statusInfo.includes('red') ? 'text-red-600' : statusInfo.includes('yellow') ? 'text-yellow-600' : 'text-green-600'}`}>
-                                    {c.amtlimit || 0}
+                                    ₹{(c.amtlimit || 0).toLocaleString('en-IN')}
                                   </div>
                                 </div>
                               </div>
                             </div>
+
+                            {/* Day Limit Info for Mobile */}
+                            {c.client_type === "3" && (
+                              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-3 mb-3 border border-indigo-200">
+                                <div className="flex justify-between items-center">
+                                  <div className="text-xs text-indigo-600">Day Limit</div>
+                                  <div className="font-bold text-sm text-indigo-700">{c.day_limit || 0} days</div>
+                                </div>
+                                {c.day_limit_expiry && (
+                                  <div className="flex justify-between items-center mt-1">
+                                    <div className="text-xs text-indigo-600">Expires</div>
+                                    <div className="text-sm text-indigo-600">
+                                      {new Date(c.day_limit_expiry).toLocaleDateString('en-IN', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric'
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                             
                             {/* Mobile Action Buttons */}
                             <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-200">

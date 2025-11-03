@@ -12,16 +12,35 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Customer ID required' }, { status: 400 });
     }
 
+    // Fetch customer name first
+    const customerResult = await executeQuery(
+      'SELECT name FROM customers WHERE id = ?',
+      [cid]
+    );
+    
+    if (customerResult.length === 0) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
+    }
+
+    const customerName = customerResult[0].name;
+
+    // Fetch customer balance info including limit types
+    const customerBalanceInfo = await executeQuery(
+      'SELECT balance, amtlimit, day_limit, hold_balance, cst_limit, last_reset_date, day_amount, day_limit_expiry, is_active FROM customer_balances WHERE com_id = ?',
+      [cid]
+    );
+
     // Fetch distinct products
     const products = await executeQuery('SELECT DISTINCT pname FROM products');
     
-    // Build main query
+    // Build main query - include both inward and outward transactions
     let sql = `
       SELECT 
         fh.*,
         p.pname, 
         fs.station_name, 
-        fr.vehicle_number, 
+        fr.vehicle_number,
+        fr.payment_status,
         ep.name AS updated_by_name
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
@@ -41,6 +60,15 @@ export async function GET(request) {
     sql += ' ORDER BY fh.id DESC';
     
     const transactions = await executeQuery(sql, params);
+
+    // Get pending transactions for payment processing
+    const pendingTransactions = await executeQuery(
+      `SELECT fr.id, fr.totalamt as amount, fr.completed_date, fr.payment_status
+       FROM filling_requests fr
+       WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
+       ORDER BY fr.completed_date ASC`,
+      [cid]
+    );
     
     // Calculate balance
     const balanceResult = await executeQuery(
@@ -56,7 +84,10 @@ export async function GET(request) {
         transactions,
         products: products.map(p => p.pname),
         balance,
-        filter: pname
+        filter: pname,
+        customerName,
+        pendingTransactions: pendingTransactions || [],
+        customerBalanceInfo: customerBalanceInfo.length > 0 ? customerBalanceInfo[0] : null
       }
     });
 
@@ -64,6 +95,97 @@ export async function GET(request) {
     console.error('API Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PATCH(request) {
+  try {
+    const body = await request.json();
+    const { customerId, rechargeAmount } = body;
+
+    if (!customerId || !rechargeAmount) {
+      return NextResponse.json(
+        { error: 'Customer ID and amount are required' },
+        { status: 400 }
+      );
+    }
+
+    // Start transaction
+    await executeQuery('START TRANSACTION');
+
+    try {
+      // Get pending transactions (oldest first)
+      const pendingTransactions = await executeQuery(
+        `SELECT id, totalamt as amount 
+         FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         ORDER BY completed_date ASC`,
+        [customerId]
+      );
+
+      let remainingAmount = parseFloat(rechargeAmount);
+      let invoicesPaid = 0;
+      let totalPaidAmount = 0;
+
+      // Pay off oldest invoices first
+      for (const transaction of pendingTransactions) {
+        if (remainingAmount <= 0) break;
+
+        const transactionAmount = parseFloat(transaction.amount);
+        
+        if (remainingAmount >= transactionAmount) {
+          // Full payment for this invoice
+          await executeQuery(
+            'UPDATE filling_requests SET payment_status = 1, payment_date = NOW() WHERE id = ?',
+            [transaction.id]
+          );
+          remainingAmount -= transactionAmount;
+          totalPaidAmount += transactionAmount;
+          invoicesPaid++;
+        } else {
+          // Partial payment - handle if needed
+          break;
+        }
+      }
+
+      // Update customer balance with any remaining amount (as recharge)
+      if (remainingAmount > 0) {
+        await executeQuery(
+          'UPDATE customer_balances SET balance = balance - ? WHERE com_id = ?',
+          [remainingAmount, customerId]
+        );
+
+        // Record the recharge in filling_history as inward transaction
+        await executeQuery(
+          `INSERT INTO filling_history (
+            cl_id, trans_type, credit, credit_date, 
+            new_amount, remaining_limit, created_by
+          ) VALUES (?, ?, ?, NOW(), ?, ?, ?)`,
+          [customerId, 'inward', remainingAmount, -remainingAmount, 0, 1]
+        );
+      }
+
+      await executeQuery('COMMIT');
+
+      return NextResponse.json({
+        success: true,
+        message: `Payment processed successfully. ${invoicesPaid} invoice(s) paid.`,
+        invoicesPaid,
+        amountPaid: totalPaidAmount,
+        remainingBalance: remainingAmount
+      });
+
+    } catch (error) {
+      await executeQuery('ROLLBACK');
+      throw error;
+    }
+
+  } catch (error) {
+    console.error('Payment processing error:', error);
+    return NextResponse.json(
+      { error: 'Failed to process payment' },
       { status: 500 }
     );
   }
@@ -79,13 +201,22 @@ export async function POST(request) {
       return NextResponse.json({ error: 'Customer ID required' }, { status: 400 });
     }
 
+    // Get customer balance info to determine columns
+    const customerBalanceInfo = await executeQuery(
+      'SELECT day_limit FROM customer_balances WHERE com_id = ?',
+      [cid]
+    );
+
+    const isDayLimitCustomer = customerBalanceInfo.length > 0 && customerBalanceInfo[0].day_limit > 0;
+
     // Build export query
     let sql = `
       SELECT 
         fh.*,
         p.pname, 
         fs.station_name, 
-        fr.vehicle_number, 
+        fr.vehicle_number,
+        fr.payment_status,
         ep.name AS updated_by_name
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
@@ -110,8 +241,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No records found' }, { status: 404 });
     }
 
-    // Prepare CSV data manually
+    // Prepare CSV headers - same for all customers
     const csvHeaders = [
+      'ID',
       'Station',
       'Completed Date',
       'Product',
@@ -124,29 +256,32 @@ export async function POST(request) {
       'Balance',
       'Remaining Limit',
       'Limit',
-      'In Amount',
-      'Dec Amount',
+      'Increase Amount',
+      'Decrease Amount',
       'Updated By'
     ];
 
-    // Convert data to CSV format manually
-    const csvRows = rows.map(row => [
-      row.station_name || '',
-      row.filling_date || '',
-      row.pname || '',
-      row.vehicle_number || '',
-      row.trans_type || '',
-      row.filling_qty || '',
-      row.amount || '',
-      row.credit || '',
-      row.credit_date || '',
-      row.new_amount || '',
-      row.remaining_limit || '',
-      row.limit_type || '',
-      row.in_amount || '',
-      row.d_amount || '',
-      row.updated_by_name || ''
-    ]);
+    // Convert data to CSV format
+    const csvRows = rows.map(row => {
+      return [
+        row.id || '',
+        row.station_name || '',
+        row.filling_date || row.credit_date || '',
+        row.pname || '',
+        row.vehicle_number || '',
+        row.trans_type || '',
+        row.filling_qty || '',
+        row.amount || '',
+        row.credit || '',
+        row.credit_date || '',
+        row.new_amount || '',
+        isDayLimitCustomer ? (row.remaining_day_limit || '') : (row.remaining_limit || ''),
+        row.limit_type || '',
+        row.in_amount || '',
+        row.d_amount || '',
+        row.updated_by_name || ''
+      ];
+    });
 
     // Create CSV content manually
     let csvContent = csvHeaders.join(',') + '\n';
