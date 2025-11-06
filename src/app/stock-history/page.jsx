@@ -1,8 +1,8 @@
 'use client';
 import { useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
-export default function StockHistory() {
+function StockHistoryContent() {
   const searchParams = useSearchParams();
   const [data, setData] = useState({
     filling_stations: {},
@@ -433,5 +433,21 @@ export default function StockHistory() {
         </div>
       </div>
     </main>
+  );
+}
+
+// Main component with Suspense boundary
+export default function StockHistory() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="flex flex-col items-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+          <p className="text-gray-600">Loading stock history...</p>
+        </div>
+      </div>
+    }>
+      <StockHistoryContent />
+    </Suspense>
   );
 }
