@@ -1,26 +1,30 @@
-// src/app/dashboard/page.js
 "use client";
 
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BiBell,
   BiCalendar,
   BiChart,
   BiCheckCircle,
+  BiCrown,
   BiDollar,
   BiDownload,
   BiError,
   BiGroup,
   BiHide,
+  BiMessageRounded,
   BiRefresh,
+  BiSend,
   BiShoppingBag,
   BiShow,
   BiTrendingDown,
-  BiTrendingUp
+  BiTrendingUp,
+  BiUser,
+  BiX
 } from "react-icons/bi";
 
 // Indian Rupee formatting function
@@ -51,7 +55,10 @@ const formatIndianRupees = (amount) => {
 
 // Calculate percentage change
 const calculatePercentageChange = (current, previous) => {
-  if (!previous || previous === 0) return { change: 0, isPositive: true };
+  if (previous === 0 || previous === null || previous === undefined) {
+    return current > 0 ? { change: 100, isPositive: true } : { change: 0, isPositive: true };
+  }
+  
   const change = ((current - previous) / previous) * 100;
   return {
     change: Math.abs(change).toFixed(1),
@@ -59,11 +66,9 @@ const calculatePercentageChange = (current, previous) => {
   };
 };
 
-// API endpoints configuration
+// API endpoints
 const API_ENDPOINTS = {
-  DASHBOARD_STATS: '/api/dashboard/stats',
-  OUTSTANDING_HISTORY: '/api/outstanding/history',
-  REFRESH_DATA: '/api/data/refresh'
+  DASHBOARD_DATA: '/api/dashboard?type=all'
 };
 
 export default function DashboardPage() {
@@ -80,15 +85,26 @@ export default function DashboardPage() {
     totalTransactions: 0,
     collectionEfficiency: 0,
     pendingPayments: 0,
-    clearedPayments: 0
+    clearedPayments: 0,
+    vendorChange: 0,
+    clientChange: 0
   });
-  const [historyData, setHistoryData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [error, setError] = useState(null);
-  const [dataStatus, setDataStatus] = useState('idle'); // idle, loading, success, error
+  const [dataStatus, setDataStatus] = useState('idle');
+  
+  // Real-time Chat States
+  const [socket, setSocket] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+  const [activeChats, setActiveChats] = useState([]);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
+  const [employeeMessages, setEmployeeMessages] = useState({});
+  const [newMessage, setNewMessage] = useState("");
+  const [employees, setEmployees] = useState([]);
+  const messagesEndRef = useRef(null);
 
   // Get authentication token
   const getAuthToken = () => {
@@ -117,61 +133,48 @@ export default function DashboardPage() {
         throw new Error(`API Error: ${response.status} ${response.statusText}`);
       }
       
-      return await response.json();
+      const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'API request failed');
+      }
+      
+      return result;
     } catch (error) {
       console.error('API Request failed:', error);
       throw error;
     }
   };
 
-  // Fetch dashboard statistics
-  const fetchDashboardStats = async () => {
+  // Fetch all dashboard data
+  const fetchDashboardData = async () => {
     try {
       setDataStatus('loading');
-      const data = await apiRequest(API_ENDPOINTS.DASHBOARD_STATS);
+      const result = await apiRequest(API_ENDPOINTS.DASHBOARD_DATA);
       
-      setStats({
-        vendorYesterdayOutstanding: data.vendorYesterdayOutstanding || 0,
-        vendorTodayOutstanding: data.vendorTodayOutstanding || 0,
-        clientYesterdayOutstanding: data.clientYesterdayOutstanding || 0,
-        clientTodayOutstanding: data.clientTodayOutstanding || 0,
-        totalVendors: data.totalVendors || 0,
-        totalClients: data.totalClients || 0,
-        totalTransactions: data.totalTransactions || 0,
-        collectionEfficiency: data.collectionEfficiency || 0,
-        pendingPayments: data.pendingPayments || 0,
-        clearedPayments: data.clearedPayments || 0
-      });
+      // Set stats
+      setStats(result.data);
       
       setDataStatus('success');
       setError(null);
+      setLastUpdated(new Date(result.lastUpdated));
     } catch (err) {
-      setError('Failed to fetch dashboard statistics');
+      setError(err.message || 'Failed to fetch dashboard data');
       setDataStatus('error');
-      console.error('Error fetching stats:', err);
+      console.error('Error fetching dashboard data:', err);
     }
   };
 
-  // Fetch outstanding history
-  const fetchOutstandingHistory = async () => {
-    try {
-      const data = await apiRequest(API_ENDPOINTS.OUTSTANDING_HISTORY);
-      setHistoryData(data.transactions || data.history || []);
-    } catch (err) {
-      console.error('Error fetching history:', err);
-      // Don't set error for history to avoid blocking the whole dashboard
-    }
+  // Refresh all data
+  const handleRefresh = () => {
+    refreshAllData();
   };
 
   // Refresh all data
   const refreshAllData = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([
-        fetchDashboardStats(),
-        fetchOutstandingHistory()
-      ]);
-      setLastUpdated(new Date());
+      await fetchDashboardData();
     } catch (err) {
       console.error('Error refreshing data:', err);
     } finally {
@@ -185,10 +188,114 @@ export default function DashboardPage() {
       if (document.visibilityState === 'visible') {
         refreshAllData();
       }
-    }, 5 * 60 * 1000); // 5 minutes
+    }, 5 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
+
+  // Socket.io connection for real-time chat
+  useEffect(() => {
+    // Initialize socket connection
+    const newSocket = new WebSocket('ws://localhost:3001'); // Adjust URL as needed
+    
+    newSocket.onopen = () => {
+      console.log('WebSocket connected');
+      setSocket(newSocket);
+      
+      // Join employee room
+      if (user?.id) {
+        newSocket.send(JSON.stringify({
+          type: 'employee_join',
+          employeeId: user.id
+        }));
+      }
+    };
+
+    newSocket.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      
+      if (data.type === 'new_message') {
+        const { message, customerId, customerName } = data;
+        
+        setActiveChats(prev => {
+          const existingChat = prev.find(chat => chat.customerId === customerId);
+          if (existingChat) {
+            return prev.map(chat => 
+              chat.customerId === customerId 
+                ? { ...chat, lastMessage: message, unread: true }
+                : chat
+            );
+          } else {
+            return [...prev, {
+              customerId,
+              customerName,
+              lastMessage: message,
+              unread: true,
+              timestamp: new Date()
+            }];
+          }
+        });
+
+        setEmployeeMessages(prev => ({
+          ...prev,
+          [customerId]: [...(prev[customerId] || []), message]
+        }));
+      }
+    };
+
+    newSocket.onclose = () => {
+      console.log('WebSocket disconnected');
+    };
+
+    return () => {
+      if (newSocket.readyState === WebSocket.OPEN) {
+        newSocket.close();
+      }
+    };
+  }, [user]);
+
+  // Load active chats and employees
+  useEffect(() => {
+    if (user?.id) {
+      fetchActiveChats();
+      fetchEmployees();
+    }
+  }, [user]);
+
+  const fetchActiveChats = async () => {
+    try {
+      const response = await fetch('/api/chat/sessions');
+      const data = await response.json();
+      
+      if (data.success) {
+        setActiveChats(data.sessions.map(session => ({
+          customerId: session.customerId.id,
+          customerName: session.customerId.name,
+          customerEmail: session.customerId.email,
+          customerPhone: session.customerId.phone,
+          customerPlan: session.customerId.plan,
+          lastMessageAt: session.last_message_at,
+          unread: true,
+          assignedEmployee: session.employeeId
+        })));
+      }
+    } catch (error) {
+      console.error('Error fetching active chats:', error);
+    }
+  };
+
+  const fetchEmployees = async () => {
+    try {
+      const response = await fetch('/api/chat/employees');
+      const data = await response.json();
+      
+      if (data.success) {
+        setEmployees(data.employees);
+      }
+    } catch (error) {
+      console.error('Error fetching employees:', error);
+    }
+  };
 
   // Initial data load
   useEffect(() => {
@@ -202,11 +309,7 @@ export default function DashboardPage() {
     const loadInitialData = async () => {
       setLoading(true);
       try {
-        await Promise.all([
-          fetchDashboardStats(),
-          fetchOutstandingHistory()
-        ]);
-        setLastUpdated(new Date());
+        await fetchDashboardData();
       } catch (err) {
         setError('Failed to load initial data');
       } finally {
@@ -217,30 +320,108 @@ export default function DashboardPage() {
     loadInitialData();
   }, [router]);
 
-  const handleRefresh = () => {
-    refreshAllData();
-  };
-
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      'Pending': 'bg-yellow-100 text-yellow-800 border border-yellow-200',
-      'Paid': 'bg-green-100 text-green-800 border border-green-200',
-      'Overdue': 'bg-red-100 text-red-800 border border-red-200',
-      'Partially Paid': 'bg-blue-100 text-blue-800 border border-blue-200',
-      'Processing': 'bg-purple-100 text-purple-800 border border-purple-200'
-    };
+  // Chat Functions
+  const selectCustomer = (customer) => {
+    setSelectedCustomer(customer);
+    setShowChat(true);
     
-    return (
-      <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusConfig[status] || 'bg-gray-100 text-gray-800'}`}>
-        {status}
-      </span>
-    );
+    if (socket) {
+      socket.send(JSON.stringify({
+        type: 'employee_join_customer',
+        customerId: customer.customerId
+      }));
+    }
+    
+    fetchCustomerMessages(customer.customerId);
+    
+    // Mark as read
+    if (socket) {
+      socket.send(JSON.stringify({
+        type: 'mark_as_read',
+        customerId: customer.customerId,
+        userId: user.id,
+        userType: 'employee'
+      }));
+    }
   };
 
-  const getTypeIcon = (type) => {
-    return type === 'Vendor' ? 
-      <BiShoppingBag className="text-blue-500 text-lg" /> : 
-      <BiGroup className="text-green-500 text-lg" />;
+  const fetchCustomerMessages = async (customerId) => {
+    try {
+      const response = await fetch(`/api/chat/messages?customerId=${customerId}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setEmployeeMessages(prev => ({
+          ...prev,
+          [customerId]: data.messages
+        }));
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error('Error fetching customer messages:', error);
+    }
+  };
+
+  const sendEmployeeMessage = () => {
+    if (!newMessage.trim() || !selectedCustomer || !socket || !user) return;
+
+    const messageData = {
+      type: 'employee_message',
+      customerId: selectedCustomer.customerId,
+      text: newMessage.trim(),
+      employeeId: user.id,
+      employeeName: user.name
+    };
+
+    socket.send(JSON.stringify(messageData));
+    setNewMessage("");
+  };
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendEmployeeMessage();
+    }
+  };
+
+  // Close chat when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      const chatElement = document.querySelector('.employee-chat-widget');
+      if (chatElement && !chatElement.contains(event.target) && 
+          !event.target.closest('.chat-toggle-button')) {
+        setShowChat(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const getRoleBadgeColor = (role) => {
+    switch(role) {
+      case '5': return 'bg-red-100 text-red-800';
+      case '4': return 'bg-purple-100 text-purple-800';
+      case '3': return 'bg-blue-100 text-blue-800';
+      case '2': return 'bg-green-100 text-green-800';
+      case '1': return 'bg-gray-100 text-gray-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleIcon = (role) => {
+    switch(role) {
+      case '5': return <BiCrown className="text-red-500" />;
+      case '4': return <BiUser className="text-purple-500" />;
+      case '3': return <BiUser className="text-blue-500" />;
+      case '2': return <BiUser className="text-green-500" />;
+      case '1': return <BiUser className="text-gray-500" />;
+      default: return <BiUser />;
+    }
   };
 
   // Loading state
@@ -279,7 +460,7 @@ export default function DashboardPage() {
                 </div>
               </div>
               <button 
-                onClick={refreshAllData}
+                onClick={handleRefresh}
                 className="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded-lg text-sm transition-colors"
               >
                 Retry
@@ -306,7 +487,7 @@ export default function DashboardPage() {
                   Welcome back, {user.name}!
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm md:text-base">
-                  Real-time outstanding balances and financial overview
+                  Real-time outstanding balances and customer support dashboard
                 </p>
                 {lastUpdated && (
                   <p className="text-gray-500 text-xs md:text-sm mt-1">
@@ -367,95 +548,329 @@ export default function DashboardPage() {
                 <button className="p-2 bg-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 tooltip" title="Notifications">
                   <BiBell className="text-lg text-gray-600" />
                 </button>
+
+                {/* Live Chat Button for Admin */}
+                <button 
+                  onClick={() => setShowChat(!showChat)}
+                  className="p-2 bg-green-500 text-white rounded-xl shadow-sm hover:bg-green-600 transition-all duration-200 tooltip relative"
+                  title="Customer Support Chat"
+                >
+                  <BiMessageRounded className="text-lg" />
+                  {activeChats.filter(chat => chat.unread).length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center animate-pulse">
+                      {activeChats.filter(chat => chat.unread).length}
+                    </span>
+                  )}
+                </button>
               </div>
             </div>
           </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-4 gap-3 md:gap-4 lg:gap-6 mb-4 lg:mb-6">
-            {/* Vendor Yesterday Outstanding */}
+          {/* Stats Grid - Only Client Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 md:gap-4 lg:gap-6 mb-4 lg:mb-6">
+            {/* Yesterday Outstanding */}
             <StatCard
-              title="Vendor Yesterday Outstanding"
-              amount={stats.vendorYesterdayOutstanding}
-              icon={<BiShoppingBag className="text-lg md:text-xl" />}
-              gradient="from-blue-500 to-blue-600"
-              change={calculatePercentageChange(stats.vendorYesterdayOutstanding, stats.vendorTodayOutstanding * 0.8)}
-              showDetails={showDetailedView}
-              additionalInfo={{
-                label: "Active Vendors",
-                value: stats.totalVendors
-              }}
-            />
-
-            {/* Vendor Today Outstanding */}
-            <StatCard
-              title="Vendor Today Outstanding"
-              amount={stats.vendorTodayOutstanding}
-              icon={<BiGroup className="text-lg md:text-xl" />}
-              gradient="from-green-500 to-green-600"
-              change={{
-                change: Math.abs(((stats.vendorTodayOutstanding - stats.vendorYesterdayOutstanding) / stats.vendorYesterdayOutstanding) * 100).toFixed(1),
-                isPositive: stats.vendorTodayOutstanding <= stats.vendorYesterdayOutstanding
-              }}
-              showDetails={showDetailedView}
-              additionalInfo={{
-                label: "Daily Change",
-                value: formatIndianRupees(stats.vendorTodayOutstanding - stats.vendorYesterdayOutstanding),
-                isPositive: stats.vendorTodayOutstanding <= stats.vendorYesterdayOutstanding
-              }}
-            />
-
-            {/* Client Yesterday Outstanding */}
-            <StatCard
-              title="Client Yesterday Outstanding"
+              title="Yesterday Outstanding"
               amount={stats.clientYesterdayOutstanding}
               icon={<BiDollar className="text-lg md:text-xl" />}
-              gradient="from-purple-500 to-purple-600"
-              change={{ change: stats.collectionEfficiency, isPositive: true }}
+              gradient="from-blue-500 to-blue-600"
+              change={calculatePercentageChange(stats.clientYesterdayOutstanding, stats.clientTodayOutstanding)}
               showDetails={showDetailedView}
               additionalInfo={{
                 label: "Active Clients",
                 value: stats.totalClients
               }}
-              customTrendText={`Collection Efficiency: ${stats.collectionEfficiency.toFixed(1)}%`}
             />
 
-            {/* Client Today Outstanding */}
+            {/* Today Outstanding */}
             <StatCard
-              title="Client Today Outstanding"
+              title="Today Outstanding"
               amount={stats.clientTodayOutstanding}
               icon={<BiChart className="text-lg md:text-xl" />}
-              gradient="from-orange-500 to-orange-600"
-              change={{
-                change: Math.abs(((stats.clientTodayOutstanding - stats.clientYesterdayOutstanding) / stats.clientYesterdayOutstanding) * 100).toFixed(1),
-                isPositive: stats.clientTodayOutstanding <= stats.clientYesterdayOutstanding
-              }}
+              gradient="from-green-500 to-green-600"
+              change={calculatePercentageChange(stats.clientTodayOutstanding, stats.clientYesterdayOutstanding)}
               showDetails={showDetailedView}
               additionalInfo={{
-                label: "Total Transactions",
-                value: stats.totalTransactions
+                label: "Collection Efficiency",
+                value: `${stats.collectionEfficiency.toFixed(1)}%`,
+                isPositive: stats.collectionEfficiency >= 80
               }}
             />
           </div>
 
-          {/* Outstanding History Table */}
-          <HistoryTable 
-            data={historyData} 
-            getStatusBadge={getStatusBadge}
-            getTypeIcon={getTypeIcon}
-            formatIndianRupees={formatIndianRupees}
-          />
+          {/* Additional Info Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6 mb-4 lg:mb-6">
+            {/* Total Clients */}
+            <InfoCard
+              title="Total Clients"
+              value={stats.totalClients}
+              icon={<BiGroup className="text-lg md:text-xl" />}
+              color="purple"
+            />
+
+            {/* Total Transactions */}
+            <InfoCard
+              title="Total Transactions"
+              value={stats.totalTransactions}
+              icon={<BiShoppingBag className="text-lg md:text-xl" />}
+              color="blue"
+            />
+
+            {/* Pending Payments */}
+            <InfoCard
+              title="Pending Payments"
+              value={stats.pendingPayments}
+              icon={<BiError className="text-lg md:text-xl" />}
+              color="yellow"
+            />
+
+            {/* Cleared Payments */}
+            <InfoCard
+              title="Cleared Payments"
+              value={stats.clearedPayments}
+              icon={<BiCheckCircle className="text-lg md:text-xl" />}
+              color="green"
+            />
+          </div>
+
+          {/* Support Quick Stats */}
+          <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <BiMessageRounded className="text-green-600 text-xl" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Support Overview</h2>
+                <p className="text-gray-600 text-sm">Customer support and communication stats</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="text-center p-4 bg-green-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Active Chats</p>
+                <p className="text-2xl font-bold text-green-600">{activeChats.length}</p>
+              </div>
+              
+              <div className="text-center p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Pending Replies</p>
+                <p className="text-2xl font-bold text-blue-600">{activeChats.filter(chat => chat.unread).length}</p>
+              </div>
+              
+              <div className="text-center p-4 bg-purple-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Online Employees</p>
+                <p className="text-2xl font-bold text-purple-600">{employees.length}</p>
+              </div>
+              
+              <div className="text-center p-4 bg-orange-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Avg Response Time</p>
+                <p className="text-2xl font-bold text-orange-600">2m</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Stats Summary */}
+          <div className="bg-white rounded-2xl shadow-lg p-6">
+            <div className="flex items-center space-x-3 mb-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <BiChart className="text-blue-600 text-xl" />
+              </div>
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Financial Summary</h2>
+                <p className="text-gray-600 text-sm">Overview of your outstanding balances</p>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Total Outstanding</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {formatIndianRupees(stats.clientTodayOutstanding + stats.clientYesterdayOutstanding)}
+                </p>
+              </div>
+              
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Daily Change</p>
+                <p className={`text-2xl font-bold ${stats.clientChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {stats.clientChange >= 0 ? '+' : ''}{formatIndianRupees(stats.clientChange)}
+                </p>
+              </div>
+              
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <p className="text-sm text-gray-600 mb-1">Success Rate</p>
+                <p className="text-2xl font-bold text-blue-600">
+                  {stats.collectionEfficiency.toFixed(1)}%
+                </p>
+              </div>
+            </div>
+          </div>
         </main>
 
         {/* Footer */}
         <Footer className="w-full" />
       </div>
+
+      {/* Employee Chat Widget */}
+      {showChat && (
+        <div className="employee-chat-widget fixed bottom-4 right-4 z-50 w-96 transition-all duration-300 ease-in-out">
+          {/* Chat Header */}
+          <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-t-lg p-4 text-white flex justify-between items-center shadow-lg">
+            <div className="flex items-center space-x-3">
+              <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse"></div>
+              <div>
+                <h3 className="font-bold">Support Dashboard</h3>
+                <p className="text-purple-100 text-sm">{activeChats.length} active chats</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setShowChat(false)}
+              className="text-purple-100 hover:text-white transition-colors p-1"
+            >
+              <BiX className="w-5 h-5" />
+            </button>
+          </div>
+
+          {/* Chat Body */}
+          <div className="bg-white rounded-b-lg shadow-xl border border-gray-200 max-h-96 overflow-hidden flex">
+            {/* Active Chats List */}
+            <div className="w-1/3 border-r border-gray-200">
+              <div className="p-3 border-b border-gray-200 bg-gray-50">
+                <h4 className="font-semibold text-sm">Active Chats</h4>
+              </div>
+              <div className="overflow-y-auto h-80">
+                {activeChats.map((chat) => (
+                  <div
+                    key={chat.customerId}
+                    className={`p-3 border-b border-gray-100 cursor-pointer hover:bg-gray-50 ${
+                      selectedCustomer?.customerId === chat.customerId ? 'bg-blue-50' : ''
+                    }`}
+                    onClick={() => selectCustomer(chat)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h5 className="font-medium text-sm text-gray-800">{chat.customerName}</h5>
+                        <p className="text-xs text-gray-600 truncate">
+                          {chat.lastMessage?.text || 'No messages yet'}
+                        </p>
+                      </div>
+                      {chat.unread && (
+                        <span className="bg-red-500 text-white text-xs rounded-full w-4 h-4 flex items-center justify-center ml-2">
+                          !
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {activeChats.length === 0 && (
+                  <div className="p-4 text-center text-gray-500 text-sm">
+                    No active chats
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Chat Messages */}
+            <div className="w-2/3 flex flex-col">
+              {selectedCustomer ? (
+                <>
+                  <div className="p-3 border-b border-gray-200 bg-gray-50">
+                    <h4 className="font-semibold text-sm">Chat with {selectedCustomer.customerName}</h4>
+                    <p className="text-xs text-gray-600">{selectedCustomer.customerEmail}</p>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
+                    {(employeeMessages[selectedCustomer.customerId] || []).map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${message.sender === 'employee' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-xs px-3 py-2 rounded-2xl ${
+                            message.sender === 'employee'
+                              ? 'bg-purple-500 text-white rounded-br-none'
+                              : 'bg-gray-100 text-gray-800 rounded-bl-none'
+                          }`}
+                        >
+                          <p className="text-sm">{message.text}</p>
+                          <div className={`flex items-center justify-end space-x-1 mt-1 ${
+                            message.sender === 'employee' ? 'text-purple-100' : 'text-gray-500'
+                          }`}>
+                            <span className="text-xs">
+                              {new Date(message.timestamp).toLocaleTimeString('en-IN', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                            {message.sender === 'employee' && message.employee_name && (
+                              <span className="text-xs ml-1">
+                                - {message.employee_name}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </div>
+
+                  <div className="p-3 border-t border-gray-200">
+                    <div className="flex space-x-2">
+                      <input
+                        type="text"
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        onKeyPress={handleKeyPress}
+                        placeholder="Type your response..."
+                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                      />
+                      <button
+                        onClick={sendEmployeeMessage}
+                        disabled={!newMessage.trim()}
+                        className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center space-x-1"
+                      >
+                        <BiSend className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                  Select a customer to start chatting
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Online Employees Sidebar */}
+      {employees.length > 0 && (
+        <div className="fixed right-4 top-20 w-64 bg-white rounded-lg shadow-lg z-40 border border-gray-200">
+          <div className="p-3 border-b border-gray-200 bg-gray-50">
+            <h3 className="font-semibold text-sm">Support Team Online</h3>
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {employees.map((employee) => (
+              <div key={employee.id} className="flex items-center space-x-3 p-3 border-b border-gray-100">
+                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                  {employee.name.charAt(0)}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-medium">{employee.name}</p>
+                  <p className={`text-xs px-2 py-1 rounded-full ${getRoleBadgeColor(employee.role)}`}>
+                    {employee.role_name}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // Stat Card Component
-const StatCard = ({ title, amount, icon, gradient, change, showDetails, additionalInfo, customTrendText }) => (
+const StatCard = ({ title, amount, icon, gradient, change, showDetails, additionalInfo }) => (
   <div className={`bg-gradient-to-br ${gradient} text-white p-4 md:p-5 lg:p-6 rounded-xl md:rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200`}>
     <div className="flex items-center justify-between">
       <div className="flex-1">
@@ -492,101 +907,32 @@ const StatCard = ({ title, amount, icon, gradient, change, showDetails, addition
         <BiTrendingDown className="text-red-300 mr-1" />
       )}
       <span className="text-opacity-90 text-xs md:text-sm">
-        {customTrendText || `${change.isPositive ? '+' : '-'}${change.change}% ${change.isPositive ? 'improvement' : 'change'}`}
+        {change.isPositive ? '+' : '-'}{change.change}% {change.isPositive ? 'increase' : 'decrease'}
       </span>
     </div>
   </div>
 );
 
-// History Table Component
-const HistoryTable = ({ data, getStatusBadge, getTypeIcon, formatIndianRupees }) => (
-  <div className="bg-white rounded-xl md:rounded-2xl shadow-lg overflow-hidden">
-    <div className="p-4 md:p-6 border-b border-gray-200">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg md:text-xl font-bold text-gray-800 mb-2 sm:mb-0">
-          Outstanding History
-        </h2>
-        <div className="flex space-x-2">
-          <select className="text-xs md:text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
-            <option>All Types</option>
-            <option>Vendor</option>
-            <option>Client</option>
-          </select>
-          <select className="text-xs md:text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-500 bg-white">
-            <option>All Status</option>
-            <option>Pending</option>
-            <option>Paid</option>
-            <option>Overdue</option>
-            <option>Partially Paid</option>
-          </select>
+// Info Card Component
+const InfoCard = ({ title, value, icon, color }) => {
+  const colorClasses = {
+    purple: 'bg-purple-100 text-purple-800 border-purple-200',
+    blue: 'bg-blue-100 text-blue-800 border-blue-200',
+    green: 'bg-green-100 text-green-800 border-green-200',
+    yellow: 'bg-yellow-100 text-yellow-800 border-yellow-200'
+  };
+
+  return (
+    <div className={`border rounded-xl p-4 md:p-5 ${colorClasses[color]} shadow-sm hover:shadow-md transition-shadow duration-200`}>
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm md:text-base font-medium">{title}</p>
+          <p className="text-xl md:text-2xl font-bold mt-1">{value}</p>
+        </div>
+        <div className="p-2 bg-white bg-opacity-50 rounded-lg">
+          {icon}
         </div>
       </div>
     </div>
-
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-full">
-        <thead>
-          <tr className="bg-gray-50">
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Due Date</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-200">
-          {data.map((item) => (
-            <tr key={item.id} className="hover:bg-gray-50 transition-colors duration-150">
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                {new Date(item.date).toLocaleDateString('en-IN')}
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap">
-                <div className="flex items-center">
-                  {getTypeIcon(item.type)}
-                  <span className="ml-2 text-sm font-medium text-gray-900">{item.type}</span>
-                </div>
-              </td>
-              <td className="px-4 py-3 text-sm text-gray-900 max-w-xs truncate" title={item.description}>
-                {item.description}
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-900">
-                {formatIndianRupees(item.amount)}
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap">
-                {getStatusBadge(item.status)}
-              </td>
-              <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                {new Date(item.dueDate).toLocaleDateString('en-IN')}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-
-    {data.length === 0 && (
-      <div className="text-center py-12">
-        <BiChart className="mx-auto text-4xl text-gray-400 mb-3" />
-        <p className="text-gray-500 text-lg mb-2">No outstanding records found</p>
-        <p className="text-gray-400 text-sm">Data will appear here when available</p>
-      </div>
-    )}
-
-    <div className="px-4 md:px-6 py-3 bg-gray-50 border-t border-gray-200">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-xs md:text-sm text-gray-600 mb-2 sm:mb-0">
-          Showing {data.length} records
-        </p>
-        <div className="flex space-x-2">
-          <button className="px-4 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
-            Previous
-          </button>
-          <button className="px-4 py-2 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
-            Next
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+  );
+};

@@ -30,6 +30,7 @@ export default function CustomersPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [activeFilter, setActiveFilter] = useState("all"); // "all", "prepaid", "postpaid", "daylimit"
 
   const fetchData = useCallback(async () => {
     try {
@@ -67,15 +68,30 @@ export default function CustomersPage() {
     fetchData();
   }, [fetchData]);
 
+  // Filter customers based on active filter
+  const filterCustomersByType = useCallback((customersList, filter) => {
+    switch (filter) {
+      case "prepaid":
+        return customersList.filter(c => c.client_type === "1");
+      case "postpaid":
+        return customersList.filter(c => c.client_type === "2");
+      case "daylimit":
+        return customersList.filter(c => c.client_type === "3");
+      case "all":
+      default:
+        return customersList;
+    }
+  }, []);
+
   // Memoized filtered customers
-  const filteredCustomers = useMemo(() => 
-    customers.filter((c) =>
+  const filteredCustomers = useMemo(() => {
+    const typeFiltered = filterCustomersByType(customers, activeFilter);
+    return typeFiltered.filter((c) =>
       `${c.name || ''} ${c.email || ''} ${c.phone || ''} ${c.address || ''} ${c.region || ''}`
         .toLowerCase()
         .includes(search.toLowerCase())
-    ),
-    [customers, search]
-  );
+    );
+  }, [customers, search, activeFilter, filterCustomersByType]);
 
   // Memoized pagination data
   const paginationData = useMemo(() => {
@@ -255,19 +271,64 @@ export default function CustomersPage() {
     }
   ], [permissions, handleDelete]);
 
-  // Reset to first page when search changes
+  // Reset to first page when search or filter changes
   useEffect(() => {
     setCurrentPage(1);
-  }, [search]);
+  }, [search, activeFilter]);
 
-  // Memoized stats
+  // Memoized stats with click handlers
   const stats = useMemo(() => [
-    { title: 'Total Customers', value: customers.length, color: 'from-blue-500 to-blue-600' },
-    { title: 'Prepaid Customers', value: customers.filter(c => c.client_type === "1").length, color: 'from-purple-500 to-purple-600' },
-    { title: 'Postpaid Customers', value: customers.filter(c => c.client_type === "2").length, color: 'from-orange-500 to-orange-600' },
-    { title: 'Day Limit Customers', value: customers.filter(c => c.client_type === "3").length, color: 'from-indigo-500 to-indigo-600' },
-    { title: 'Expired Day Limits', value: customers.filter(c => c.client_type === "3" && c.is_active === 0).length, color: 'from-red-500 to-red-600' },
+    { 
+      title: 'Total Customers', 
+      value: customers.length, 
+      color: 'from-blue-500 to-blue-600',
+      filter: 'all',
+      count: customers.length
+    },
+    { 
+      title: 'Prepaid Customers', 
+      value: customers.filter(c => c.client_type === "1").length, 
+      color: 'from-purple-500 to-purple-600',
+      filter: 'prepaid',
+      count: customers.filter(c => c.client_type === "1").length
+    },
+    { 
+      title: 'Postpaid Customers', 
+      value: customers.filter(c => c.client_type === "2").length, 
+      color: 'from-orange-500 to-orange-600',
+      filter: 'postpaid',
+      count: customers.filter(c => c.client_type === "2").length
+    },
+    { 
+      title: 'Day Limit Customers', 
+      value: customers.filter(c => c.client_type === "3").length, 
+      color: 'from-indigo-500 to-indigo-600',
+      filter: 'daylimit',
+      count: customers.filter(c => c.client_type === "3").length
+    },
+    { 
+      title: 'Expired Day Limits', 
+      value: customers.filter(c => c.client_type === "3" && c.is_active === 0).length, 
+      color: 'from-red-500 to-red-600',
+      filter: 'daylimit',
+      count: customers.filter(c => c.client_type === "3" && c.is_active === 0).length
+    },
   ], [customers]);
+
+  // Handle stat card click to filter
+  const handleStatClick = (filter) => {
+    setActiveFilter(filter);
+  };
+
+  // Get active filter display name
+  const getActiveFilterName = () => {
+    switch (activeFilter) {
+      case "prepaid": return "Prepaid Customers";
+      case "postpaid": return "Postpaid Customers";
+      case "daylimit": return "Day Limit Customers";
+      default: return "All Customers";
+    }
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -315,10 +376,12 @@ export default function CustomersPage() {
             <div className="mb-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
               <div>
                 <h1 className="text-2xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
-                  Customer List
+                  {getActiveFilterName()}
                 </h1>
                 <p className="text-purple-500 font-medium text-sm lg:text-base">
-                  Manage your customers efficiently with real-time data
+                  {activeFilter === "all" 
+                    ? "Manage all your customers efficiently with real-time data" 
+                    : `Showing ${activeFilter} customers only`}
                 </p>
               </div>
 
@@ -345,10 +408,36 @@ export default function CustomersPage() {
               </div>
             </div>
 
+            {/* Active Filter Indicator */}
+            {activeFilter !== "all" && (
+              <div className="mb-4 p-3 bg-purple-100 border border-purple-300 rounded-lg flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <span className="text-purple-700 font-medium">
+                    Showing {activeFilter} customers only
+                  </span>
+                  <span className="bg-purple-600 text-white px-2 py-1 rounded-full text-xs font-bold">
+                    {filteredCustomers.length} found
+                  </span>
+                </div>
+                <button
+                  onClick={() => setActiveFilter("all")}
+                  className="text-purple-600 hover:text-purple-800 font-medium text-sm underline"
+                >
+                  Show All Customers
+                </button>
+              </div>
+            )}
+
             {/* Stats */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               {stats.map((stat, index) => (
-                <div key={index} className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200`}>
+                <div 
+                  key={index} 
+                  className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200 cursor-pointer ${
+                    activeFilter === stat.filter ? 'ring-4 ring-white ring-opacity-50' : ''
+                  }`}
+                  onClick={() => handleStatClick(stat.filter)}
+                >
                   <div className="text-2xl font-bold">{stat.value}</div>
                   <div className="text-opacity-90 text-sm mt-1">{stat.title}</div>
                 </div>
@@ -390,6 +479,7 @@ export default function CustomersPage() {
                     <div className="text-sm text-gray-600">
                       Found {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''}
                       {search && ` for "${search}"`}
+                      {activeFilter !== "all" && ` (${activeFilter} only)`}
                     </div>
                     {totalPages > 1 && (
                       <div className="text-sm text-gray-600">
@@ -420,7 +510,7 @@ export default function CustomersPage() {
                         {currentCustomers.length === 0 ? (
                           <tr>
                             <td colSpan="11" className="p-8 text-center text-gray-700 font-semibold">
-                              {search ? 'No customers found matching your search' : 'No customers found'}
+                              {search ? 'No customers found matching your search' : `No ${activeFilter !== 'all' ? activeFilter : ''} customers found`}
                             </td>
                           </tr>
                         ) : (
@@ -549,7 +639,7 @@ export default function CustomersPage() {
                   <div className="lg:hidden space-y-4">
                     {currentCustomers.length === 0 ? (
                       <div className="text-center p-8 text-gray-700 font-semibold bg-white rounded-xl">
-                        {search ? 'No customers found matching your search' : 'No customers found'}
+                        {search ? 'No customers found matching your search' : `No ${activeFilter !== 'all' ? activeFilter : ''} customers found`}
                       </div>
                     ) : (
                       currentCustomers.map((c) => {

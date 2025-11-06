@@ -4,23 +4,25 @@ import { NextResponse } from "next/server";
 
 export async function GET(request) {
   try {
-    console.log("API: Fetching filling requests...");
+    console.log("🔍 API: Fetching filling requests...");
     
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
     const cid = searchParams.get('cid'); 
     
-    console.log("API: Status filter:", status);
-    console.log("API: Customer ID filter:", cid); 
+    console.log("📊 API: Status filter:", status);
+    console.log("👤 API: Customer ID:", cid); 
     
     // Validate customer ID
     if (!cid) {
+      console.log("❌ API: Customer ID is missing");
       return NextResponse.json(
         { success: false, message: 'Customer ID is required', requests: [] },
         { status: 400 }
       );
     }
 
+    // Build query based on filters
     let query = `
       SELECT fr.*, 
              p.pname AS product_name, 
@@ -34,74 +36,43 @@ export async function GET(request) {
     `;
     
     let params = [cid];
-    let conditions = []; 
+    let conditions = [];
 
+    // Add status filter if provided and not 'All'
     if (status && status !== 'All') {
       conditions.push(`fr.status = ?`);
       params.push(status.toLowerCase());
     }
 
+    // Add conditions to query
     if (conditions.length > 0) {
       query += ` AND ` + conditions.join(' AND ');
     }
     
+    // Add ordering
     query += ` ORDER BY fr.created DESC, fr.id DESC`;
 
-    console.log("API: Executing query:", query);
-    console.log("API: Query params:", params);
+    console.log("📝 API: Executing query:", query);
+    console.log("🔢 API: Query params:", params);
     
+    // Execute query
     const rows = await executeQuery(query, params);
-    console.log("API: Found rows:", rows.length);
+    console.log("✅ API: Found requests:", rows.length);
 
-    return NextResponse.json({ success: true, requests: rows });
-  } catch (error) {
-    console.error("GET API error:", error);
-    return NextResponse.json(
-      { success: false, message: error.message, requests: [] }, 
-      { status: 500 }
-    );
-  }
-}
-
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    console.log("API: Creating new filling request:", body);
-    
-    const { product, fs_id, vehicle_number, driver_number, qty, cid } = body;
-    
-    // Validate required fields
-    if (!product || !fs_id || !vehicle_number || !driver_number || !qty || !cid) {
-      return NextResponse.json(
-        { success: false, message: 'All fields are required' },
-        { status: 400 }
-      );
-    }
-    
-    // Generate unique request ID
-    const rid = 'REQ' + Date.now();
-    
-    const query = `
-      INSERT INTO filling_requests (rid, product, fs_id, vehicle_number, driver_number, qty, cid, status, created)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', NOW())
-    `;
-    
-    const params = [rid, product, fs_id, vehicle_number, driver_number, qty, cid];
-    
-    const result = await executeQuery(query, params);
-    
-    console.log("API: Request created successfully, ID:", result.insertId);
-    
     return NextResponse.json({ 
       success: true, 
-      message: 'Filling request created successfully',
-      requestId: result.insertId,
-      rid: rid
+      requests: rows,
+      count: rows.length 
     });
+    
   } catch (error) {
-    console.error("POST API error:", error);
+    console.error("❌ GET API error:", error);
     return NextResponse.json(
-      { success: false, message: error.message }, 
+      { 
+        success: false, 
+        message: error.message, 
+        requests: [] 
+      }, 
       { status: 500 }
     );
   }

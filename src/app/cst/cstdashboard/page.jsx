@@ -5,18 +5,48 @@ import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import {
+  BiBell,
+  BiCheckDouble,
+  BiMessageRounded,
+  BiMinus,
+  BiRefresh,
+  BiSend,
+  BiTime,
+  BiX,
+  BiHistory,
+  BiReceipt,
+  BiUser,
+  BiWallet,
+  BiWifi,
+  BiWifiOff
+} from "react-icons/bi";
+import { io } from "socket.io-client";
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
   const [activePage, setActivePage] = useState("Dashboard");
   const [user, setUser] = useState(null);
-  const [permissions, setPermissions] = useState({});
   const [loading, setLoading] = useState(true);
-  const [customerBalance, setCustomerBalance] = useState(null);
-  const [showExpiryAlert, setShowExpiryAlert] = useState(false);
-  const [expiryMessage, setExpiryMessage] = useState("");
+  
+  // Socket and Chat States
+  const [socket, setSocket] = useState(null);
+  const [showChat, setShowChat] = useState(false);
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [chatMinimized, setChatMinimized] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [sending, setSending] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [typingEmployee, setTypingEmployee] = useState("");
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const [notifications, setNotifications] = useState([]);
+  const [rechargeAmount, setRechargeAmount] = useState("");
+  const [showRechargeModal, setShowRechargeModal] = useState(false);
+  const messagesEndRef = useRef(null);
 
+  // Load user data
   useEffect(() => {
     const savedUser = localStorage.getItem("customer");
     if (!savedUser) {
@@ -31,83 +61,404 @@ export default function CustomerDashboardPage() {
     }
     
     setUser(parsedUser);
-    fetchCustomerBalance(parsedUser.id);
-    fetchPermissions(parsedUser.id);
+    setLoading(false);
   }, [router]);
 
-  const fetchCustomerBalance = async (customerId) => {
-    try {
-      const res = await fetch(`/api/cst/customer-balance?customer_id=${customerId}`);
-      
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
-      }
-      
-      const data = await res.json();
-      
-      if (data.success) {
-        setCustomerBalance(data.balanceData || {});
-        checkExpiryDate(data.balanceData);
-      }
-    } catch (err) {
-      console.error("Error fetching customer balance:", err);
-      setCustomerBalance({});
-    }
+  // Redirect to Customer History
+  const redirectToCustomerHistory = () => {
+    router.push("/cst/customer-history");
   };
 
-  const fetchPermissions = async (customerId) => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/cst/customer-permission?customer_id=${customerId}`);
+  // Redirect to My Users
+  const redirectToMyUsers = () => {
+    router.push("/cst/my-users");
+  };
+
+  // 🔥 IMPROVED SOCKET CONNECTION - WITH BETTER ERROR HANDLING
+  useEffect(() => {
+    if (!user?.id) return;
+
+    console.log('🔄 Initializing socket connection for customer:', user.id);
+    
+    // Simple socket connection with better options
+    const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || '/', {
+      path: '/api/socket/',
+      transports: ['websocket', 'polling'],
+      timeout: 10000,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
+
+    // Connection events
+    newSocket.on('connect', () => {
+      console.log('✅ Customer socket connected:', newSocket.id);
+      setConnectionStatus('connected');
       
-      if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+      // Join customer room
+      newSocket.emit('customer_join', {
+        customerId: user.id,
+        customerName: user.name
+      });
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('❌ Customer socket disconnected:', reason);
+      setConnectionStatus('disconnected');
+      
+      // Auto-reconnect after 3 seconds
+      if (reason === 'io server disconnect') {
+        setTimeout(() => {
+          newSocket.connect();
+        }, 3000);
       }
+    });
+
+    newSocket.on('connect_error', (error) => {
+      console.error('🔴 Socket connection error:', error);
+      setConnectionStatus('error');
       
-      const data = await res.json();
-      
-      if (data.success) {
-        setPermissions(data.permissions || {});
-        // Update user with permissions in localStorage
-        const savedUser = localStorage.getItem("customer");
-        if (savedUser) {
-          const userData = JSON.parse(savedUser);
-          userData.permissions = data.permissions || {};
-          localStorage.setItem("customer", JSON.stringify(userData));
+      // Try to reconnect after 5 seconds
+      setTimeout(() => {
+        if (newSocket.disconnected) {
+          newSocket.connect();
         }
+      }, 5000);
+    });
+
+    newSocket.on('reconnect_attempt', (attempt) => {
+      console.log(`🔄 Reconnection attempt ${attempt}`);
+      setConnectionStatus('reconnecting');
+    });
+
+    newSocket.on('reconnect', (attempt) => {
+      console.log(`✅ Reconnected successfully after ${attempt} attempts`);
+      setConnectionStatus('connected');
+    });
+
+    newSocket.on('reconnect_failed', () => {
+      console.error('🔴 Reconnection failed');
+      setConnectionStatus('error');
+    });
+
+    newSocket.on('joined_success', (data) => {
+      console.log('✅ Joined chat successfully:', data);
+    });
+
+    // Message events
+    newSocket.on('new_message', (data) => {
+      console.log('📨 New message received:', data);
+      
+      const { message } = data;
+      
+      // Add message to UI
+      setMessages(prev => [...prev, message]);
+      
+      // Update unread count if chat is closed
+      if (!showChat) {
+        setUnreadCount(prev => prev + 1);
       }
-    } catch (err) {
-      console.error("Error fetching permissions:", err);
-      setPermissions({});
+      
+      scrollToBottom();
+    });
+
+    newSocket.on('message_sent', (data) => {
+      console.log('✅ Message sent confirmation:', data);
+      
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === data.messageId 
+            ? { ...msg, status: data.status } 
+            : msg
+        )
+      );
+    });
+
+    newSocket.on('employee_typing', (data) => {
+      const { employeeName, typing } = data;
+      setIsTyping(typing);
+      setTypingEmployee(typing ? employeeName : "");
+    });
+
+    newSocket.on('error', (error) => {
+      console.error('🔴 Socket error:', error);
+      alert(`Chat error: ${error.message}`);
+    });
+
+    setSocket(newSocket);
+
+    // Cleanup
+    return () => {
+      console.log('🧹 Cleaning up socket connection');
+      if (newSocket) {
+        newSocket.disconnect();
+      }
+    };
+  }, [user]);
+
+  // Load messages when chat opens
+  useEffect(() => {
+    if (user?.id && showChat) {
+      fetchCustomerMessages();
+      markMessagesAsRead();
+    }
+  }, [user, showChat]);
+
+  const fetchCustomerMessages = async () => {
+    try {
+      if (!user?.id) return;
+      
+      const response = await fetch(`/api/chat/messages?customerId=${user.id}`);
+      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        setMessages(data.messages || []);
+        scrollToBottom();
+      }
+    } catch (error) {
+      console.error("Error fetching messages:", error);
+    }
+  };
+
+  // 🔥 IMPROVED SEND MESSAGE
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !user) {
+      console.log('Cannot send: No message or user');
+      return;
+    }
+
+    if (connectionStatus !== 'connected') {
+      alert('Cannot send message - not connected to chat server. Please try reconnecting.');
+      return;
+    }
+
+    if (!socket) {
+      alert('Socket connection not available. Please refresh the page.');
+      return;
+    }
+
+    console.log('🚀 Sending message via socket');
+    setSending(true);
+
+    // Create temporary message
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
+      text: newMessage.trim(),
+      sender: 'customer',
+      customer_id: user.id,
+      status: 'sending',
+      timestamp: new Date().toISOString(),
+    };
+
+    // Add to UI immediately
+    setMessages(prev => [...prev, tempMessage]);
+    setNewMessage("");
+    scrollToBottom();
+
+    try {
+      // Send via socket
+      socket.emit('customer_message', {
+        customerId: user.id,
+        text: newMessage.trim(),
+        customerName: user.name
+      });
+
+    } catch (error) {
+      console.error("❌ Error sending message:", error);
+      
+      // Update message status to failed
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === tempMessage.id 
+            ? { ...msg, status: 'failed' } 
+            : msg
+        )
+      );
+      
+      alert('Failed to send message. Please try again.');
     } finally {
-      setLoading(false);
+      setSending(false);
     }
   };
 
-  const checkExpiryDate = (balanceData) => {
-    if (!balanceData || !balanceData.limit_expiry) return;
-
-    const today = new Date();
-    const expiryDate = new Date(balanceData.limit_expiry);
-
-    const timeDiff = expiryDate.getTime() - today.getTime();
-    const remainingDays = Math.ceil(timeDiff / (1000 * 3600 * 24));
-
-    // Check if expired or about to expire
-    if (remainingDays < 0) {
-      setExpiryMessage("Your plan has expired! Please recharge immediately to continue services.");
-      setShowExpiryAlert(true);
-    } else if (remainingDays <= 3) {
-      setExpiryMessage(`Your plan will expire in ${remainingDays} day(s). Please recharge soon.`);
-      setShowExpiryAlert(true);
-    } else if (remainingDays <= 7) {
-      setExpiryMessage(`Your plan will expire in ${remainingDays} days. Consider recharging.`);
-      setShowExpiryAlert(true);
+  // 🔥 IMPROVED RECONNECT FUNCTION
+  const reconnectSocket = () => {
+    if (socket) {
+      console.log('🔄 Manual reconnection attempt');
+      setConnectionStatus('connecting');
+      socket.disconnect();
+      setTimeout(() => {
+        socket.connect();
+      }, 1000);
+    } else {
+      // If socket doesn't exist, reload the page
+      window.location.reload();
     }
   };
 
-  const closeAlert = () => {
-    setShowExpiryAlert(false);
+  // Recharge Functions
+  const handleRecharge = async () => {
+    if (!rechargeAmount || isNaN(rechargeAmount) || rechargeAmount <= 0) {
+      alert('Please enter a valid recharge amount');
+      return;
+    }
+
+    try {
+      // Here you would integrate with your payment gateway
+      console.log('Processing recharge for amount:', rechargeAmount);
+      
+      // Simulate API call
+      const response = await fetch('/api/customer/recharge', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: user.id,
+          amount: parseFloat(rechargeAmount)
+        })
+      });
+
+      if (response.ok) {
+        alert(`Recharge of ₹${rechargeAmount} initiated successfully!`);
+        setShowRechargeModal(false);
+        setRechargeAmount("");
+      } else {
+        throw new Error('Recharge failed');
+      }
+    } catch (error) {
+      console.error('Recharge error:', error);
+      alert('Recharge failed. Please try again.');
+    }
+  };
+
+  // Typing indicators
+  const handleTypingStart = () => {
+    if (socket && user && connectionStatus === 'connected') {
+      socket.emit('typing_start', {
+        customerId: user.id,
+        userType: 'customer',
+        userName: user.name
+      });
+    }
+  };
+
+  const handleTypingStop = () => {
+    if (socket && user && connectionStatus === 'connected') {
+      socket.emit('typing_stop', {
+        customerId: user.id,
+        userType: 'customer'
+      });
+    }
+  };
+
+  const markMessagesAsRead = async () => {
+    try {
+      if (!user?.id || !socket || connectionStatus !== 'connected') return;
+      
+      socket.emit('mark_as_read', {
+        customerId: user.id,
+        userId: user.id,
+        userType: 'customer'
+      });
+      
+      setUnreadCount(0);
+    } catch (error) {
+      console.error("Error marking messages as read:", error);
+    }
+  };
+
+  const scrollToBottom = () => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+    }, 100);
+  };
+
+  const toggleChat = () => {
+    const newShowChat = !showChat;
+    setShowChat(newShowChat);
+    setChatMinimized(false);
+    
+    if (newShowChat) {
+      markMessagesAsRead();
+    }
+  };
+
+  const minimizeChat = () => {
+    setChatMinimized(true);
+  };
+
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  };
+
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    
+    // Typing indicators
+    if (e.target.value.trim() && socket && connectionStatus === 'connected') {
+      handleTypingStart();
+    } else {
+      handleTypingStop();
+    }
+  };
+
+  const formatTime = (timestamp) => {
+    try {
+      return new Date(timestamp).toLocaleTimeString('en-IN', {
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      return '--:--';
+    }
+  };
+
+  const getStatusIcon = (message) => {
+    if (message.sender !== 'customer') return null;
+    
+    switch (message.status) {
+      case 'sending':
+        return <BiTime className="w-3 h-3 text-gray-400" />;
+      case 'sent':
+        return <BiCheckDouble className="w-3 h-3 text-gray-400" />;
+      case 'delivered':
+        return <BiCheckDouble className="w-3 h-3 text-blue-500" />;
+      case 'read':
+        return <BiCheckDouble className="w-3 h-3 text-green-500" />;
+      case 'failed':
+        return <BiTime className="w-3 h-3 text-red-500" />;
+      default:
+        return <BiTime className="w-3 h-3 text-gray-400" />;
+    }
+  };
+
+  const getConnectionStatusColor = () => {
+    switch(connectionStatus) {
+      case 'connected': return 'bg-green-500';
+      case 'connecting': 
+      case 'reconnecting': return 'bg-yellow-500 animate-pulse';
+      case 'disconnected': return 'bg-gray-500';
+      case 'error': return 'bg-red-500';
+      default: return 'bg-gray-500';
+    }
+  };
+
+  const getConnectionStatusIcon = () => {
+    switch(connectionStatus) {
+      case 'connected': return <BiWifi className="w-4 h-4" />;
+      case 'connecting':
+      case 'reconnecting': return <BiWifi className="w-4 h-4 animate-spin" />;
+      default: return <BiWifiOff className="w-4 h-4" />;
+    }
   };
 
   if (!user || loading) {
@@ -121,148 +472,227 @@ export default function CustomerDashboardPage() {
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
-
+      
       <div className="flex flex-col flex-1 overflow-hidden">
         <CstHeader />
-
-        {/* Expiry Alert Modal */}
-        {showExpiryAlert && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-bold text-red-600">Plan Expiry Alert</h3>
-                  <button 
-                    onClick={closeAlert}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    ✕
-                  </button>
-                </div>
-                <p className="text-gray-700 mb-4">{expiryMessage}</p>
-                <div className="flex justify-end space-x-3">
-                  <button
-                    onClick={closeAlert}
-                    className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-200 rounded-md hover:bg-gray-300"
-                  >
-                    Remind Me Later
-                  </button>
-                  <button
-                    onClick={() => {
-                      closeAlert();
-                      setActivePage("Recharge");
-                    }}
-                    className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-                  >
-                    Recharge Now
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
+        
         <main className="flex-1 p-6 overflow-auto">
           <h2 className="text-2xl font-bold mb-6 text-gray-800">{activePage}</h2>
-
+          
           {activePage === "Dashboard" && (
             <div className="space-y-6">
-              {/* Welcome Section */}
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-                <h3 className="text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h3>
-                <p className="text-blue-100">Here's what's happening with your account today.</p>
-              </div>
-
-              {/* Expiry Status Card */}
-              {customerBalance && (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                  <div className="bg-white rounded-lg shadow p-6">
+              {/* IMPROVED Connection Status Banner */}
+              {connectionStatus !== 'connected' && (
+                <div className={`border rounded-lg p-4 ${
+                  connectionStatus === 'error' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
+                }`}>
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center">
-                      <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                      <div className="ml-4">
-                        <h4 className="text-sm font-medium text-gray-500">Validity Days</h4>
-                        <p className="text-2xl font-bold text-gray-900">{customerBalance.validity_days || 0}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-white rounded-lg shadow p-6">
-                    <div className="flex items-center">
-                      <div className={`p-3 rounded-full ${
-                        customerBalance.limit_expiry && new Date(customerBalance.limit_expiry) < new Date() 
-                          ? 'bg-red-100 text-red-600' 
-                          : 'bg-green-100 text-green-600'
-                      }`}>
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                      </div>
-                      <div className="ml-4">
-                        <h4 className="text-sm font-medium text-gray-500">Expiry Date</h4>
-                        <p className="text-lg font-bold text-gray-900">
-                          {customerBalance.limit_expiry 
-                            ? new Date(customerBalance.limit_expiry).toLocaleDateString()
-                            : 'N/A'
-                          }
+                      <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
+                      <div>
+                        <p className={`font-medium ${
+                          connectionStatus === 'error' ? 'text-red-800' : 'text-yellow-800'
+                        }`}>
+                          Chat Connection Issue
                         </p>
-                        {customerBalance.limit_expiry && (
-                          <p className={`text-xs ${
-                            new Date(customerBalance.limit_expiry) < new Date() 
-                              ? 'text-red-600 font-bold'
-                              : 'text-gray-500'
-                          }`}>
-                            {new Date(customerBalance.limit_expiry) < new Date() 
-                              ? 'EXPIRED' 
-                              : `${Math.ceil((new Date(customerBalance.limit_expiry) - new Date()) / (1000 * 3600 * 24))} days remaining`
-                            }
-                          </p>
-                        )}
+                        <p className={`text-sm ${
+                          connectionStatus === 'error' ? 'text-red-600' : 'text-yellow-600'
+                        }`}>
+                          Status: {connectionStatus}
+                          {connectionStatus === 'error' && ' - Please check your internet connection'}
+                        </p>
                       </div>
                     </div>
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={reconnectSocket}
+                        className={`px-3 py-1 rounded-lg text-sm transition-colors flex items-center ${
+                          connectionStatus === 'error' 
+                            ? 'bg-red-100 hover:bg-red-200 text-red-800' 
+                            : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800'
+                        }`}
+                      >
+                        <BiRefresh className="mr-1" /> 
+                        {connectionStatus === 'error' ? 'Retry' : 'Reconnect'}
+                      </button>
+                      <button 
+                        onClick={() => window.location.reload()}
+                        className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-lg text-sm transition-colors"
+                      >
+                        Refresh Page
+                      </button>
+                    </div>
                   </div>
-
-                 
                 </div>
               )}
 
-              {/* Quick Actions */}
+              {/* Welcome Section */}
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h3 className="text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h3>
+                    <p className="text-blue-100">
+                      {connectionStatus === 'connected' 
+                        ? 'Live support is available' 
+                        : `Connection: ${connectionStatus}`
+                      }
+                    </p>
+                  </div>
+                  <div className="flex space-x-3">
+                    {/* My Users Button */}
+                    <button 
+                      onClick={redirectToMyUsers}
+                      className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                    >
+                      <BiUser className="w-5 h-5" />
+                      <span>My Users</span>
+                    </button>
+                    
+                    {/* Transaction History Button */}
+                    <button 
+                      onClick={redirectToCustomerHistory}
+                      className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                    >
+                      <BiHistory className="w-5 h-5" />
+                      <span>Transaction History</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Status Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                {/* Connection Status */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      <div className={`p-3 rounded-full ${
+                        connectionStatus === 'connected' ? 'bg-green-100 text-green-600' :
+                        connectionStatus === 'connecting' || connectionStatus === 'reconnecting' ? 'bg-yellow-100 text-yellow-600' :
+                        'bg-red-100 text-red-600'
+                      }`}>
+                        {getConnectionStatusIcon()}
+                      </div>
+                      <div className="ml-4">
+                        <h4 className="text-sm font-medium text-gray-500">Connection</h4>
+                        <p className="text-lg font-bold text-gray-900 capitalize">{connectionStatus}</p>
+                      </div>
+                    </div>
+                    <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()}`}></div>
+                  </div>
+                </div>
+
+                {/* Notifications */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-purple-100 text-purple-600">
+                      <BiBell className="w-6 h-6" />
+                    </div>
+                    <div className="ml-4">
+                      <h4 className="text-sm font-medium text-gray-500">Notifications</h4>
+                      <p className="text-2xl font-bold text-gray-900">{notifications.length}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Live Chat */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-blue-100 text-blue-600">
+                      <BiMessageRounded className="w-6 h-6" />
+                    </div>
+                    <div className="ml-4">
+                      <h4 className="text-sm font-medium text-gray-500">Live Support</h4>
+                      <p className="text-lg font-bold text-gray-900">Real-time Chat</p>
+                      <button 
+                        onClick={toggleChat}
+                        className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                      >
+                        {showChat ? 'Close Chat' : 'Start Chat'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Recharge Card */}
+                <div className="bg-white rounded-lg shadow p-6">
+                  <div className="flex items-center">
+                    <div className="p-3 rounded-full bg-green-100 text-green-600">
+                      <BiWallet className="w-6 h-6" />
+                    </div>
+                    <div className="ml-4">
+                      <h4 className="text-sm font-medium text-gray-500">Wallet Balance</h4>
+                      <p className="text-lg font-bold text-gray-900">Quick Recharge</p>
+                      <button 
+                        onClick={() => setShowRechargeModal(true)}
+                        className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center space-x-1"
+                      >
+                        <BiWallet className="w-4 h-4" />
+                        <span>Recharge Now</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Actions Section */}
               <div className="bg-white rounded-lg shadow p-6">
-                <h3 className="text-lg font-bold mb-4 text-gray-800">Quick Actions</h3>
+                <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <button
-                    onClick={() => setActivePage("Recharge")}
-                    className="p-4 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors text-left"
+                  {/* My Users Quick Action */}
+                  <button 
+                    onClick={redirectToMyUsers}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all duration-300 flex items-center space-x-3 group"
                   >
-                    <div className="text-blue-600 font-bold">Recharge</div>
-                    <div className="text-sm text-gray-600">Add balance to your account</div>
+                    <div className="p-3 bg-purple-100 text-purple-600 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
+                      <BiUser className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">My Users</h4>
+                      <p className="text-sm text-gray-600">Manage your users</p>
+                    </div>
                   </button>
-                  
-                  <button
-                    onClick={() => setActivePage("History")}
-                    className="p-4 bg-green-50 rounded-lg hover:bg-green-100 transition-colors text-left"
+
+                  {/* Transaction History Quick Action */}
+                  <button 
+                    onClick={redirectToCustomerHistory}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 flex items-center space-x-3 group"
                   >
-                    <div className="text-green-600 font-bold">Usage History</div>
-                    <div className="text-sm text-gray-600">View your usage details</div>
+                    <div className="p-3 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
+                      <BiReceipt className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Transaction History</h4>
+                      <p className="text-sm text-gray-600">View all your transactions</p>
+                    </div>
                   </button>
-                  
-                  <button
-                    onClick={() => setActivePage("Profile")}
-                    className="p-4 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors text-left"
+
+                  {/* Recharge Quick Action */}
+                  <button 
+                    onClick={() => setShowRechargeModal(true)}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all duration-300 flex items-center space-x-3 group"
                   >
-                    <div className="text-purple-600 font-bold">Profile</div>
-                    <div className="text-sm text-gray-600">Update your information</div>
+                    <div className="p-3 bg-green-100 text-green-600 rounded-lg group-hover:bg-green-600 group-hover:text-white transition-colors">
+                      <BiWallet className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Recharge Wallet</h4>
+                      <p className="text-sm text-gray-600">Add balance to your account</p>
+                    </div>
                   </button>
-                  
-                  <button
-                    onClick={() => setActivePage("Support")}
-                    className="p-4 bg-orange-50 rounded-lg hover:bg-orange-100 transition-colors text-left"
+
+                  {/* Live Support Quick Action */}
+                  <button 
+                    onClick={toggleChat}
+                    className="p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all duration-300 flex items-center space-x-3 group"
                   >
-                    <div className="text-orange-600 font-bold">Support</div>
-                    <div className="text-sm text-gray-600">Get help & support</div>
+                    <div className="p-3 bg-orange-100 text-orange-600 rounded-lg group-hover:bg-orange-600 group-hover:text-white transition-colors">
+                      <BiMessageRounded className="w-6 h-6" />
+                    </div>
+                    <div className="text-left">
+                      <h4 className="font-semibold text-gray-800">Live Support</h4>
+                      <p className="text-sm text-gray-600">Chat with support team</p>
+                    </div>
                   </button>
                 </div>
               </div>
@@ -272,6 +702,187 @@ export default function CustomerDashboardPage() {
 
         <Footer />
       </div>
+
+      {/* Recharge Modal */}
+      {showRechargeModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">Recharge Your Wallet</h3>
+              
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Enter Amount (₹)
+                </label>
+                <input
+                  type="number"
+                  value={rechargeAmount}
+                  onChange={(e) => setRechargeAmount(e.target.value)}
+                  placeholder="Enter amount"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  min="1"
+                />
+              </div>
+
+              {/* Quick Amount Buttons */}
+              <div className="grid grid-cols-3 gap-2 mb-6">
+                {[100, 500, 1000, 2000, 5000, 10000].map((amount) => (
+                  <button
+                    key={amount}
+                    onClick={() => setRechargeAmount(amount.toString())}
+                    className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    ₹{amount}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleRecharge}
+                  disabled={!rechargeAmount}
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
+                >
+                  Proceed to Pay ₹{rechargeAmount || '0'}
+                </button>
+                <button
+                  onClick={() => setShowRechargeModal(false)}
+                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Widget */}
+      {showChat && (
+        <div className={`fixed bottom-4 right-4 z-50 ${chatMinimized ? "w-80" : "w-96"} transition-all duration-300 bg-white rounded-lg shadow-lg flex flex-col border border-gray-300 max-h-[500px]`}>
+          
+          {/* Chat Header */}
+          <div className="bg-blue-600 p-4 flex items-center justify-between text-white rounded-t-lg">
+            <div className="flex items-center space-x-3">
+              <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} animate-pulse`}></div>
+              <div>
+                <h2 className="text-lg font-semibold">Customer Support</h2>
+                <p className="text-blue-100 text-xs capitalize">{connectionStatus}</p>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <button 
+                onClick={minimizeChat}
+                className="hover:bg-blue-700 p-1 rounded transition-colors"
+              >
+                <BiMinus className="w-5 h-5" />
+              </button>
+              <button 
+                onClick={() => setShowChat(false)}
+                className="hover:bg-blue-700 p-1 rounded transition-colors"
+              >
+                <BiX className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Messages Area */}
+          <div className="flex-1 p-4 overflow-y-auto bg-gray-50 max-h-80 space-y-3">
+            {messages.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No messages yet. Start a conversation!</p>
+            ) : (
+              messages.map((msg) => (
+                <div 
+                  key={msg.id} 
+                  className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div 
+                    className={`max-w-[80%] px-4 py-2 rounded-2xl ${
+                      msg.sender === 'customer' 
+                        ? 'bg-blue-500 text-white rounded-br-none' 
+                        : 'bg-white text-gray-800 border rounded-bl-none'
+                    }`}
+                  >
+                    <p className="text-sm">{msg.text}</p>
+                    <div className={`flex items-center justify-end space-x-1 mt-1 ${
+                      msg.sender === 'customer' ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
+                      <span className="text-xs">{formatTime(msg.timestamp)}</span>
+                      {getStatusIcon(msg)}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+            
+            {/* Typing Indicator */}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{typingEmployee} is typing...</p>
+                </div>
+              </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Input Area */}
+          <div className="p-3 border-t border-gray-300 bg-white rounded-b-lg">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={
+                  connectionStatus === 'connected' 
+                    ? "Type your message..." 
+                    : "Connecting to chat..."
+                }
+                value={newMessage}
+                onChange={handleInputChange}
+                onKeyDown={handleKeyPress}
+                disabled={sending || connectionStatus !== 'connected'}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
+                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              >
+                {sending ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <BiSend className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            {connectionStatus !== 'connected' && (
+              <p className="text-xs text-red-500 mt-2 text-center">
+                Cannot send messages - {connectionStatus}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Chat Toggle Button */}
+      {!showChat && (
+        <button 
+          onClick={toggleChat}
+          className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-colors z-40 flex items-center justify-center"
+        >
+          <BiMessageRounded className="w-6 h-6" />
+          {unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center animate-pulse">
+              {unreadCount}
+            </span>
+          )}
+        </button>
+      )}
     </div>
   );
 }

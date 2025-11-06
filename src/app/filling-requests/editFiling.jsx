@@ -55,7 +55,7 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* Call Icon - STATION PHONE */}
+      {/* Call Icon */}
       <button
         onClick={() => onCall(request.station_phone, request.loading_station)}
         disabled={!stationPhone}
@@ -64,18 +64,14 @@ const Icons = ({
             ? "text-green-600 hover:bg-green-50" 
             : "text-gray-400 cursor-not-allowed"
         }`}
-        title={
-          stationPhone 
-            ? `Call Station: ${request.loading_station || "Station"} - ${stationPhone}` 
-            : "No phone number available for this station"
-        }
+        title={stationPhone ? `Call Station: ${stationPhone}` : "No phone number available"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       </button>
 
-      {/* Share Icon - STATION MAP LINK */}
+      {/* Share Icon */}
       <button
         onClick={() => onShare(request)}
         disabled={!hasMapLink}
@@ -84,11 +80,7 @@ const Icons = ({
             ? "text-blue-600 hover:bg-blue-50" 
             : "text-gray-400 cursor-not-allowed"
         }`}
-        title={
-          hasMapLink 
-            ? `Share Station Location: ${request.loading_station || "Station"}` 
-            : "No map location available for this station"
-        }
+        title={hasMapLink ? "Share Station Location" : "No map location available"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -174,6 +166,23 @@ const ExpandedDetails = ({ request, onClose }) => {
             </div>
           </div>
 
+          {/* Eligibility Information */}
+          {request.eligibility && request.eligibility !== "N/A" && (
+            <div className="border-t pt-4">
+              <label className="text-sm font-medium text-gray-600">Eligibility Check</label>
+              <div className="mt-2">
+                <span className={`px-2 py-1 rounded-full text-xs ${
+                  request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                }`}>
+                  {request.eligibility}
+                </span>
+                {request.eligibility_reason && (
+                  <p className="text-sm text-gray-600 mt-1">{request.eligibility_reason}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Station Contact Information */}
           {(stationPhone || stationEmail || stationManager) && (
             <div className="border-t pt-4">
@@ -230,12 +239,12 @@ const ExpandedDetails = ({ request, onClose }) => {
             <div className="mt-2 space-y-2">
               <div className="flex justify-between">
                 <span>Created:</span>
-                <span>{request.created ? new Date(request.created).toLocaleString("en-GB") : "N/A"}</span>
+                <span>{request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A"}</span>
               </div>
               {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
                 <div className="flex justify-between">
                   <span>Completed:</span>
-                  <span>{new Date(request.completed_date).toLocaleString("en-GB")}</span>
+                  <span>{new Date(request.completed_date).toLocaleString("en-IN")}</span>
                 </div>
               )}
             </div>
@@ -265,14 +274,14 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
       <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
       <td className="py-3 px-4 text-sm">{request.driver_number}</td>
       <td className="py-3 px-4 text-sm">
-        <div>{request.created ? new Date(request.created).toLocaleDateString("en-GB") : "N/A"}</div>
+        <div>{request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"}</div>
         <div className="text-xs text-gray-500">
-          {request.created ? new Date(request.created).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}
+          {request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}
         </div>
       </td>
       <td className="py-3 px-4 text-sm">
         {request.completed_date && request.completed_date !== "0000-00-00 00:00:00"
-          ? new Date(request.completed_date).toLocaleDateString("en-GB")
+          ? new Date(request.completed_date).toLocaleDateString("en-IN")
           : "-"}
       </td>
       <td className="py-3 px-4 text-sm">
@@ -350,33 +359,22 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
           <div>
             <div className="font-medium text-gray-600 text-xs">Date & Time</div>
             <div>
-              {request.created ? new Date(request.created).toLocaleDateString("en-GB") : "N/A"}
+              {request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"}
               <br />
               <span className="text-xs text-gray-500">
-                {request.created ? new Date(request.created).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : ""}
+                {request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}
               </span>
             </div>
           </div>
           {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
             <div>
               <div className="font-medium text-gray-600 text-xs">Completed</div>
-              <div>{new Date(request.completed_date).toLocaleDateString("en-GB")}</div>
+              <div>{new Date(request.completed_date).toLocaleDateString("en-IN")}</div>
             </div>
           )}
         </div>
         
-        {/* Station Contact Info in Mobile */}
-        {stationPhone && (
-          <div className="bg-blue-50 p-3 rounded-md">
-            <div className="flex items-center justify-between">
-              <div className="font-medium text-blue-600 text-xs">Station Phone</div>
-              <a href={`tel:${stationPhone}`} className="text-blue-700 font-semibold">
-                {stationPhone}
-              </a>
-            </div>
-          </div>
-        )}
-
+        {/* Eligibility Check */}
         {request.status === "Pending" && request.eligibility && (
           <div className="bg-gray-50 p-3 rounded-md">
             <div className="flex items-center justify-between">
@@ -392,6 +390,19 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             )}
           </div>
         )}
+
+        {/* Station Contact Info */}
+        {stationPhone && (
+          <div className="bg-blue-50 p-3 rounded-md">
+            <div className="flex items-center justify-between">
+              <div className="font-medium text-blue-600 text-xs">Station Phone</div>
+              <a href={`tel:${stationPhone}`} className="text-blue-700 font-semibold">
+                {stationPhone}
+              </a>
+            </div>
+          </div>
+        )}
+
         {request.updated_by_name && (
           <div>
             <div className="font-medium text-gray-600 text-xs">Staff</div>
@@ -505,7 +516,7 @@ export default function FillingRequests() {
     setUser(JSON.parse(userData));
   }, [router]);
 
-  // Fetch requests with improved error handling
+  // Fetch requests with detailed logging
   useEffect(() => {
     const fetchRequests = async () => {
       try {
@@ -518,9 +529,11 @@ export default function FillingRequests() {
         });
 
         console.log("🔍 Fetching from:", `/api/filling-requests?${params}`);
+        console.log("📡 Full URL:", `${window.location.origin}/api/filling-requests?${params}`);
 
         const response = await fetch(`/api/filling-requests?${params}`);
         console.log("📡 Response status:", response.status);
+        console.log("📡 Response ok:", response.ok);
 
         if (response.ok) {
           const result = await response.json();
@@ -537,9 +550,9 @@ export default function FillingRequests() {
           if (result.requests && Array.isArray(result.requests)) {
             requestsData = result.requests;
             paginationData = {
-              page: result.currentPage || result.page || 1,
-              recordsPerPage: result.recordsPerPage || result.perPage || 10,
-              totalRecords: result.totalRecords || result.total || 0,
+              page: result.currentPage || 1,
+              recordsPerPage: result.recordsPerPage || 10,
+              totalRecords: result.totalRecords || 0,
               totalPages: result.totalPages || 1,
             };
           } else if (Array.isArray(result)) {
@@ -547,13 +560,15 @@ export default function FillingRequests() {
             paginationData.totalRecords = result.length;
           }
 
-          console.log("✅ Processed requests:", requestsData.length);
-          console.log("✅ Processed pagination:", paginationData);
+          console.log("✅ Processed requests count:", requestsData.length);
+          console.log("✅ Pagination data:", paginationData);
 
           setRequests(requestsData);
           setPagination(paginationData);
         } else {
-          console.error("❌ Failed to fetch requests:", response.status);
+          console.error("❌ Failed to fetch requests. Status:", response.status);
+          const errorText = await response.text();
+          console.error("❌ Error response:", errorText);
           setRequests([]);
           setPagination({
             page: 1,
@@ -564,6 +579,7 @@ export default function FillingRequests() {
         }
       } catch (error) {
         console.error("❌ Fetch error:", error);
+        console.error("❌ Error details:", error.message);
         setRequests([]);
         setPagination({
           page: 1,
@@ -623,7 +639,6 @@ export default function FillingRequests() {
     setExpandedRequest(request);
   }, []);
 
-  // Phone Handler - STATION KE PHONE NUMBER PAR CALL KAREGA
   const handleCall = useCallback((stationPhone, stationName = "") => {
     console.log("📞 Calling station:", { stationName, stationPhone });
     
@@ -632,17 +647,13 @@ export default function FillingRequests() {
       return;
     }
     
-    // Clean phone number (remove spaces, dashes, etc.)
     const cleanPhoneNumber = stationPhone.trim().replace(/[\s\-\(\)]/g, '');
-    
-    // Check if it's a valid Indian phone number (10 digits starting with 6-9)
     const isValidIndianNumber = /^[6-9]\d{9}$/.test(cleanPhoneNumber);
     
     if (isValidIndianNumber) {
       console.log("🇮🇳 Calling Indian number:", cleanPhoneNumber);
       window.open(`tel:+91${cleanPhoneNumber}`);
     } else if (cleanPhoneNumber.length >= 10) {
-      // If it's a valid length but doesn't match Indian pattern, try direct dial
       console.log("📞 Calling international number:", cleanPhoneNumber);
       window.open(`tel:${cleanPhoneNumber}`);
     } else {
@@ -650,7 +661,6 @@ export default function FillingRequests() {
     }
   }, []);
 
-  // Share Handler - STATION KA GOOGLE MAPS LOCATION SHARE KAREGA
   const handleShare = useCallback(async (request) => {
     try {
       const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
@@ -677,7 +687,6 @@ export default function FillingRequests() {
 
       console.log("📤 Sharing station location:", shareText);
 
-      // Check if Web Share API is available
       if (navigator.share) {
         try {
           await navigator.share({
@@ -688,18 +697,15 @@ export default function FillingRequests() {
           console.log("✅ Shared successfully via Web Share API");
         } catch (error) {
           if (error.name !== 'AbortError') {
-            // Fallback to clipboard if sharing fails
             await navigator.clipboard.writeText(shareText);
             alert("📋 Station location copied to clipboard!");
           }
         }
       } else {
-        // Fallback for browsers without Web Share API
         try {
           await navigator.clipboard.writeText(shareText);
           alert("📋 Station location copied to clipboard!\n\nYou can paste it in WhatsApp or any messaging app.");
         } catch (error) {
-          // Final fallback
           const textArea = document.createElement('textarea');
           textArea.value = shareText;
           document.body.appendChild(textArea);
@@ -715,9 +721,7 @@ export default function FillingRequests() {
     }
   }, []);
 
-  // PDF Handler
   const handlePdf = useCallback((requestId) => {
-    // Check if request is completed before allowing PDF generation
     const request = requests.find(req => req.id === requestId);
     
     if (request && request.status !== "Completed") {
@@ -725,7 +729,6 @@ export default function FillingRequests() {
       return;
     }
     
-    // Navigate to PDF generation page
     router.push(`/filling-requests/pdf?id=${requestId}`);
   }, [requests, router]);
 
@@ -831,8 +834,19 @@ export default function FillingRequests() {
                     <tbody>
                       {requestItems.length > 0 ? requestItems : (
                         <tr>
-                          <td colSpan="13" className="py-4 text-center text-gray-500">
-                            No requests found
+                          <td colSpan="13" className="py-8 text-center text-gray-500">
+                            <div className="flex flex-col items-center">
+                              <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <p className="text-lg font-medium">No requests found</p>
+                              <p className="text-sm text-gray-600 mt-1">
+                                {statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
+                              </p>
+                              {search && (
+                                <p className="text-sm text-gray-600">Try changing your search criteria</p>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -842,7 +856,17 @@ export default function FillingRequests() {
 
                 <div className="block md:hidden">
                   {mobileRequestItems.length > 0 ? mobileRequestItems : (
-                    <div className="text-center py-6 text-gray-500">No requests found</div>
+                    <div className="text-center py-8 text-gray-500">
+                      <div className="flex flex-col items-center">
+                        <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <p className="text-lg font-medium">No requests found</p>
+                        <p className="text-sm text-gray-600 mt-1">
+                          {statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
+                        </p>
+                      </div>
+                    </div>
                   )}
                 </div>
 

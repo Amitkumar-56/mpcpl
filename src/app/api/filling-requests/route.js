@@ -30,7 +30,7 @@ export async function GET(request) {
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
-      LEFT JOIN product_codes pc ON pc.id = fr.fl_id
+      LEFT JOIN product_codes pc ON pc.id = fr.sub_product_id
       LEFT JOIN employee_profile ep ON ep.id = fr.status_updated_by
       LEFT JOIN customer_balances cb ON cb.com_id = fr.cid
       WHERE 1=1
