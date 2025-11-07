@@ -10,7 +10,6 @@ import {
   BiCalendar,
   BiChart,
   BiCheckCircle,
-  BiCrown,
   BiDollar,
   BiDownload,
   BiError,
@@ -23,7 +22,6 @@ import {
   BiShow,
   BiTrendingDown,
   BiTrendingUp,
-  BiUser,
   BiX
 } from "react-icons/bi";
 
@@ -103,7 +101,6 @@ export default function DashboardPage() {
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [employeeMessages, setEmployeeMessages] = useState({});
   const [newMessage, setNewMessage] = useState("");
-  const [employees, setEmployees] = useState([]);
   const messagesEndRef = useRef(null);
 
   // Get authentication token
@@ -254,11 +251,10 @@ export default function DashboardPage() {
     };
   }, [user]);
 
-  // Load active chats and employees
+  // Load active chats (employees fetch removed)
   useEffect(() => {
     if (user?.id) {
       fetchActiveChats();
-      fetchEmployees();
     }
   }, [user]);
 
@@ -281,19 +277,6 @@ export default function DashboardPage() {
       }
     } catch (error) {
       console.error('Error fetching active chats:', error);
-    }
-  };
-
-  const fetchEmployees = async () => {
-    try {
-      const response = await fetch('/api/chat/employees');
-      const data = await response.json();
-      
-      if (data.success) {
-        setEmployees(data.employees);
-      }
-    } catch (error) {
-      console.error('Error fetching employees:', error);
     }
   };
 
@@ -401,28 +384,6 @@ export default function DashboardPage() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-  const getRoleBadgeColor = (role) => {
-    switch(role) {
-      case '5': return 'bg-red-100 text-red-800';
-      case '4': return 'bg-purple-100 text-purple-800';
-      case '3': return 'bg-blue-100 text-blue-800';
-      case '2': return 'bg-green-100 text-green-800';
-      case '1': return 'bg-gray-100 text-gray-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getRoleIcon = (role) => {
-    switch(role) {
-      case '5': return <BiCrown className="text-red-500" />;
-      case '4': return <BiUser className="text-purple-500" />;
-      case '3': return <BiUser className="text-blue-500" />;
-      case '2': return <BiUser className="text-green-500" />;
-      case '1': return <BiUser className="text-gray-500" />;
-      default: return <BiUser />;
-    }
-  };
 
   // Loading state
   if (!user || (loading && !refreshing)) {
@@ -645,7 +606,7 @@ export default function DashboardPage() {
               </div>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="text-center p-4 bg-green-50 rounded-lg">
                 <p className="text-sm text-gray-600 mb-1">Active Chats</p>
                 <p className="text-2xl font-bold text-green-600">{activeChats.length}</p>
@@ -654,11 +615,6 @@ export default function DashboardPage() {
               <div className="text-center p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-gray-600 mb-1">Pending Replies</p>
                 <p className="text-2xl font-bold text-blue-600">{activeChats.filter(chat => chat.unread).length}</p>
-              </div>
-              
-              <div className="text-center p-4 bg-purple-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Online Employees</p>
-                <p className="text-2xl font-bold text-purple-600">{employees.length}</p>
               </div>
               
               <div className="text-center p-4 bg-orange-50 rounded-lg">
@@ -838,30 +794,6 @@ export default function DashboardPage() {
                 </div>
               )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Online Employees Sidebar */}
-      {employees.length > 0 && (
-        <div className="fixed right-4 top-20 w-64 bg-white rounded-lg shadow-lg z-40 border border-gray-200">
-          <div className="p-3 border-b border-gray-200 bg-gray-50">
-            <h3 className="font-semibold text-sm">Support Team Online</h3>
-          </div>
-          <div className="max-h-64 overflow-y-auto">
-            {employees.map((employee) => (
-              <div key={employee.id} className="flex items-center space-x-3 p-3 border-b border-gray-100">
-                <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                  {employee.name.charAt(0)}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{employee.name}</p>
-                  <p className={`text-xs px-2 py-1 rounded-full ${getRoleBadgeColor(employee.role)}`}>
-                    {employee.role_name}
-                  </p>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       )}

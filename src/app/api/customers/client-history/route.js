@@ -24,7 +24,7 @@ export async function GET(request) {
 
     const customerName = customerResult[0].name;
 
-    // Fetch customer balance info including limit types
+    // Fetch customer balance info including limit types - IMPORTANT: Get day_limit information
     const customerBalanceInfo = await executeQuery(
       'SELECT balance, amtlimit, day_limit, hold_balance, cst_limit, last_reset_date, day_amount, day_limit_expiry, is_active FROM customer_balances WHERE com_id = ?',
       [cid]
@@ -33,14 +33,28 @@ export async function GET(request) {
     // Fetch distinct products
     const products = await executeQuery('SELECT DISTINCT pname FROM products');
     
-    // Build main query - include both inward and outward transactions
+    // Build main query - include ALL fields for complete transaction history
     let sql = `
       SELECT 
-        fh.*,
+        fh.id,
+        fh.trans_type,
+        fh.filling_qty,
+        fh.amount,
+        fh.credit,
+        fh.credit_date,
+        fh.new_amount,
+        fh.remaining_limit,
+        fh.remaining_day_limit,
+        fh.limit_type,
+        fh.in_amount,
+        fh.d_amount,
+        fh.filling_date,
+        fh.created_at,
         p.pname, 
         fs.station_name, 
         fr.vehicle_number,
         fr.payment_status,
+        fr.completed_date,
         ep.name AS updated_by_name
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
@@ -209,14 +223,27 @@ export async function POST(request) {
 
     const isDayLimitCustomer = customerBalanceInfo.length > 0 && customerBalanceInfo[0].day_limit > 0;
 
-    // Build export query
+    // Build export query with ALL fields
     let sql = `
       SELECT 
-        fh.*,
+        fh.id,
+        fh.trans_type,
+        fh.filling_qty,
+        fh.amount,
+        fh.credit,
+        fh.credit_date,
+        fh.new_amount,
+        fh.remaining_limit,
+        fh.remaining_day_limit,
+        fh.limit_type,
+        fh.in_amount,
+        fh.d_amount,
+        fh.filling_date,
         p.pname, 
         fs.station_name, 
         fr.vehicle_number,
         fr.payment_status,
+        fr.completed_date,
         ep.name AS updated_by_name
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
@@ -241,9 +268,9 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No records found' }, { status: 404 });
     }
 
-    // Prepare CSV headers - same for all customers
+    // Prepare CSV headers - ALL columns as requested
     const csvHeaders = [
-      'ID',
+      '#',
       'Station',
       'Completed Date',
       'Product',
@@ -261,12 +288,12 @@ export async function POST(request) {
       'Updated By'
     ];
 
-    // Convert data to CSV format
+    // Convert data to CSV format with ALL fields
     const csvRows = rows.map(row => {
       return [
         row.id || '',
         row.station_name || '',
-        row.filling_date || row.credit_date || '',
+        row.completed_date || row.filling_date || row.credit_date || '',
         row.pname || '',
         row.vehicle_number || '',
         row.trans_type || '',

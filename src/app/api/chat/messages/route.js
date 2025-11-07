@@ -1,4 +1,3 @@
-// src/app/api/chat/messages/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 

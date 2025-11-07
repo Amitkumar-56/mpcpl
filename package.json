@@ -17,7 +17,7 @@
     "jsonwebtoken": "^9.0.2",
     "jspdf": "^3.0.3",
     "lightningcss": "^1.30.2",
-    "mysql2": "^3.14.5",
+    "mysql2": "^3.15.3",
     "next": "^15.0.3",
     "next-auth": "^4.24.11",
     "node-cron": "^4.2.1",

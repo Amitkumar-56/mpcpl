@@ -9,18 +9,18 @@ import { useEffect, useRef, useState } from "react";
 import {
   BiBell,
   BiCheckDouble,
+  BiHistory,
   BiMessageRounded,
   BiMinus,
+  BiReceipt,
   BiRefresh,
   BiSend,
   BiTime,
-  BiX,
-  BiHistory,
-  BiReceipt,
   BiUser,
   BiWallet,
   BiWifi,
-  BiWifiOff
+  BiWifiOff,
+  BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -64,97 +64,55 @@ export default function CustomerDashboardPage() {
     setLoading(false);
   }, [router]);
 
-  // Redirect to Customer History
-  const redirectToCustomerHistory = () => {
-    router.push("/cst/customer-history");
-  };
-
-  // Redirect to My Users
-  const redirectToMyUsers = () => {
-    router.push("/cst/my-users");
-  };
-
-  // 🔥 IMPROVED SOCKET CONNECTION - WITH BETTER ERROR HANDLING
+  // 🔥 SIMPLIFIED SOCKET CONNECTION
   useEffect(() => {
     if (!user?.id) return;
 
-    console.log('🔄 Initializing socket connection for customer:', user.id);
+    console.log('🔄 Starting socket connection...');
+
+    // Simple socket configuration
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
     
-    // Simple socket connection with better options
-    const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || '/', {
+    const newSocket = io(socketUrl, {
       path: '/api/socket/',
-      transports: ['websocket', 'polling'],
-      timeout: 10000,
+      transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
     });
 
-    // Connection events
+    // Basic event handlers
     newSocket.on('connect', () => {
-      console.log('✅ Customer socket connected:', newSocket.id);
+      console.log('✅ Connected to server:', newSocket.id);
       setConnectionStatus('connected');
       
       // Join customer room
       newSocket.emit('customer_join', {
-        customerId: user.id,
-        customerName: user.name
+        customerId: user.id.toString(),
+        customerName: user.name || 'Customer'
       });
     });
 
-    newSocket.on('disconnect', (reason) => {
-      console.log('❌ Customer socket disconnected:', reason);
+    newSocket.on('disconnect', () => {
+      console.log('🔴 Disconnected from server');
       setConnectionStatus('disconnected');
-      
-      // Auto-reconnect after 3 seconds
-      if (reason === 'io server disconnect') {
-        setTimeout(() => {
-          newSocket.connect();
-        }, 3000);
-      }
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('🔴 Socket connection error:', error);
-      setConnectionStatus('error');
-      
-      // Try to reconnect after 5 seconds
-      setTimeout(() => {
-        if (newSocket.disconnected) {
-          newSocket.connect();
-        }
-      }, 5000);
-    });
-
-    newSocket.on('reconnect_attempt', (attempt) => {
-      console.log(`🔄 Reconnection attempt ${attempt}`);
-      setConnectionStatus('reconnecting');
-    });
-
-    newSocket.on('reconnect', (attempt) => {
-      console.log(`✅ Reconnected successfully after ${attempt} attempts`);
-      setConnectionStatus('connected');
-    });
-
-    newSocket.on('reconnect_failed', () => {
-      console.error('🔴 Reconnection failed');
+      console.error('❌ Connection failed:', error.message);
       setConnectionStatus('error');
     });
 
     newSocket.on('joined_success', (data) => {
-      console.log('✅ Joined chat successfully:', data);
+      console.log('✅ Joined room successfully:', data);
     });
 
-    // Message events
     newSocket.on('new_message', (data) => {
-      console.log('📨 New message received:', data);
-      
+      console.log('📨 New message:', data);
       const { message } = data;
       
-      // Add message to UI
       setMessages(prev => [...prev, message]);
       
-      // Update unread count if chat is closed
       if (!showChat) {
         setUnreadCount(prev => prev + 1);
       }
@@ -163,44 +121,33 @@ export default function CustomerDashboardPage() {
     });
 
     newSocket.on('message_sent', (data) => {
-      console.log('✅ Message sent confirmation:', data);
-      
+      console.log('✅ Message sent:', data);
       setMessages(prev => 
         prev.map(msg => 
-          msg.id === data.messageId 
-            ? { ...msg, status: data.status } 
+          msg.tempId === data.tempId
+            ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
             : msg
         )
       );
     });
 
     newSocket.on('employee_typing', (data) => {
-      const { employeeName, typing } = data;
-      setIsTyping(typing);
-      setTypingEmployee(typing ? employeeName : "");
-    });
-
-    newSocket.on('error', (error) => {
-      console.error('🔴 Socket error:', error);
-      alert(`Chat error: ${error.message}`);
+      setIsTyping(data.typing);
+      setTypingEmployee(data.typing ? data.employeeName : "");
     });
 
     setSocket(newSocket);
 
-    // Cleanup
     return () => {
-      console.log('🧹 Cleaning up socket connection');
-      if (newSocket) {
-        newSocket.disconnect();
-      }
+      console.log('🧹 Cleaning up socket');
+      newSocket.disconnect();
     };
-  }, [user]);
+  }, [user?.id]);
 
   // Load messages when chat opens
   useEffect(() => {
     if (user?.id && showChat) {
       fetchCustomerMessages();
-      markMessagesAsRead();
     }
   }, [user, showChat]);
 
@@ -208,185 +155,86 @@ export default function CustomerDashboardPage() {
     try {
       if (!user?.id) return;
       
+      console.log('📥 Fetching messages...');
       const response = await fetch(`/api/chat/messages?customerId=${user.id}`);
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
       
-      const data = await response.json();
-      
-      if (data.success) {
-        setMessages(data.messages || []);
-        scrollToBottom();
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setMessages(data.messages || []);
+          scrollToBottom();
+        }
       }
     } catch (error) {
       console.error("Error fetching messages:", error);
     }
   };
 
-  // 🔥 IMPROVED SEND MESSAGE
   const sendMessage = async () => {
-    if (!newMessage.trim() || !user) {
-      console.log('Cannot send: No message or user');
+    const messageText = newMessage.trim();
+    
+    if (!messageText || !user || !socket || !socket.connected) {
       return;
     }
 
-    if (connectionStatus !== 'connected') {
-      alert('Cannot send message - not connected to chat server. Please try reconnecting.');
-      return;
-    }
-
-    if (!socket) {
-      alert('Socket connection not available. Please refresh the page.');
-      return;
-    }
-
-    console.log('🚀 Sending message via socket');
+    console.log('🚀 Sending message...');
     setSending(true);
 
-    // Create temporary message
+    const tempId = `temp-${Date.now()}`;
     const tempMessage = {
-      id: `temp-${Date.now()}`,
-      text: newMessage.trim(),
+      tempId,
+      text: messageText,
       sender: 'customer',
       customer_id: user.id,
       status: 'sending',
       timestamp: new Date().toISOString(),
     };
 
-    // Add to UI immediately
     setMessages(prev => [...prev, tempMessage]);
     setNewMessage("");
     scrollToBottom();
 
     try {
-      // Send via socket
       socket.emit('customer_message', {
-        customerId: user.id,
-        text: newMessage.trim(),
-        customerName: user.name
+        customerId: user.id.toString(),
+        text: messageText,
+        customerName: user.name || 'Customer',
+        tempId: tempId
       });
-
     } catch (error) {
-      console.error("❌ Error sending message:", error);
-      
-      // Update message status to failed
+      console.error("Error sending message:", error);
       setMessages(prev => 
         prev.map(msg => 
-          msg.id === tempMessage.id 
-            ? { ...msg, status: 'failed' } 
+          msg.tempId === tempId
+            ? { ...msg, status: 'failed' }
             : msg
         )
       );
-      
-      alert('Failed to send message. Please try again.');
     } finally {
       setSending(false);
     }
   };
 
-  // 🔥 IMPROVED RECONNECT FUNCTION
   const reconnectSocket = () => {
     if (socket) {
-      console.log('🔄 Manual reconnection attempt');
-      setConnectionStatus('connecting');
       socket.disconnect();
       setTimeout(() => {
         socket.connect();
       }, 1000);
     } else {
-      // If socket doesn't exist, reload the page
       window.location.reload();
-    }
-  };
-
-  // Recharge Functions
-  const handleRecharge = async () => {
-    if (!rechargeAmount || isNaN(rechargeAmount) || rechargeAmount <= 0) {
-      alert('Please enter a valid recharge amount');
-      return;
-    }
-
-    try {
-      // Here you would integrate with your payment gateway
-      console.log('Processing recharge for amount:', rechargeAmount);
-      
-      // Simulate API call
-      const response = await fetch('/api/customer/recharge', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          customerId: user.id,
-          amount: parseFloat(rechargeAmount)
-        })
-      });
-
-      if (response.ok) {
-        alert(`Recharge of ₹${rechargeAmount} initiated successfully!`);
-        setShowRechargeModal(false);
-        setRechargeAmount("");
-      } else {
-        throw new Error('Recharge failed');
-      }
-    } catch (error) {
-      console.error('Recharge error:', error);
-      alert('Recharge failed. Please try again.');
-    }
-  };
-
-  // Typing indicators
-  const handleTypingStart = () => {
-    if (socket && user && connectionStatus === 'connected') {
-      socket.emit('typing_start', {
-        customerId: user.id,
-        userType: 'customer',
-        userName: user.name
-      });
-    }
-  };
-
-  const handleTypingStop = () => {
-    if (socket && user && connectionStatus === 'connected') {
-      socket.emit('typing_stop', {
-        customerId: user.id,
-        userType: 'customer'
-      });
-    }
-  };
-
-  const markMessagesAsRead = async () => {
-    try {
-      if (!user?.id || !socket || connectionStatus !== 'connected') return;
-      
-      socket.emit('mark_as_read', {
-        customerId: user.id,
-        userId: user.id,
-        userType: 'customer'
-      });
-      
-      setUnreadCount(0);
-    } catch (error) {
-      console.error("Error marking messages as read:", error);
     }
   };
 
   const scrollToBottom = () => {
     setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ 
-        behavior: 'smooth',
-        block: 'end'
-      });
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   };
 
   const toggleChat = () => {
-    const newShowChat = !showChat;
-    setShowChat(newShowChat);
+    setShowChat(!showChat);
     setChatMinimized(false);
-    
-    if (newShowChat) {
-      markMessagesAsRead();
-    }
   };
 
   const minimizeChat = () => {
@@ -397,17 +245,6 @@ export default function CustomerDashboardPage() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
-    }
-  };
-
-  const handleInputChange = (e) => {
-    setNewMessage(e.target.value);
-    
-    // Typing indicators
-    if (e.target.value.trim() && socket && connectionStatus === 'connected') {
-      handleTypingStart();
-    } else {
-      handleTypingStop();
     }
   };
 
@@ -461,6 +298,43 @@ export default function CustomerDashboardPage() {
     }
   };
 
+  const redirectToCustomerHistory = () => {
+    router.push("/cst/customer-history");
+  };
+
+  const redirectToMyUsers = () => {
+    router.push("/cst/user");
+  };
+
+  const handleRecharge = async () => {
+    if (!rechargeAmount || isNaN(rechargeAmount) || rechargeAmount <= 0) {
+      alert('Please enter a valid recharge amount');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/customer/recharge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId: user.id,
+          amount: parseFloat(rechargeAmount)
+        })
+      });
+
+      if (response.ok) {
+        alert(`Recharge of ₹${rechargeAmount} initiated successfully!`);
+        setShowRechargeModal(false);
+        setRechargeAmount("");
+      } else {
+        throw new Error('Recharge failed');
+      }
+    } catch (error) {
+      console.error('Recharge error:', error);
+      alert('Recharge failed. Please try again.');
+    }
+  };
+
   if (!user || loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -481,7 +355,7 @@ export default function CustomerDashboardPage() {
           
           {activePage === "Dashboard" && (
             <div className="space-y-6">
-              {/* IMPROVED Connection Status Banner */}
+              {/* Connection Status Banner */}
               {connectionStatus !== 'connected' && (
                 <div className={`border rounded-lg p-4 ${
                   connectionStatus === 'error' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
@@ -513,7 +387,7 @@ export default function CustomerDashboardPage() {
                         }`}
                       >
                         <BiRefresh className="mr-1" /> 
-                        {connectionStatus === 'error' ? 'Retry' : 'Reconnect'}
+                        Retry
                       </button>
                       <button 
                         onClick={() => window.location.reload()}
@@ -526,7 +400,7 @@ export default function CustomerDashboardPage() {
                 </div>
               )}
 
-              {/* Welcome Section */}
+              {/* Rest of your dashboard UI remains the same */}
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex justify-between items-center">
                   <div>
@@ -539,7 +413,6 @@ export default function CustomerDashboardPage() {
                     </p>
                   </div>
                   <div className="flex space-x-3">
-                    {/* My Users Button */}
                     <button 
                       onClick={redirectToMyUsers}
                       className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
@@ -548,7 +421,6 @@ export default function CustomerDashboardPage() {
                       <span>My Users</span>
                     </button>
                     
-                    {/* Transaction History Button */}
                     <button 
                       onClick={redirectToCustomerHistory}
                       className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
@@ -562,7 +434,6 @@ export default function CustomerDashboardPage() {
 
               {/* Status Cards */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                {/* Connection Status */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
@@ -582,7 +453,6 @@ export default function CustomerDashboardPage() {
                   </div>
                 </div>
 
-                {/* Notifications */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center">
                     <div className="p-3 rounded-full bg-purple-100 text-purple-600">
@@ -595,7 +465,6 @@ export default function CustomerDashboardPage() {
                   </div>
                 </div>
 
-                {/* Live Chat */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center">
                     <div className="p-3 rounded-full bg-blue-100 text-blue-600">
@@ -614,7 +483,6 @@ export default function CustomerDashboardPage() {
                   </div>
                 </div>
 
-                {/* Recharge Card */}
                 <div className="bg-white rounded-lg shadow p-6">
                   <div className="flex items-center">
                     <div className="p-3 rounded-full bg-green-100 text-green-600">
@@ -635,11 +503,10 @@ export default function CustomerDashboardPage() {
                 </div>
               </div>
 
-              {/* Quick Actions Section */}
+              {/* Quick Actions */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {/* My Users Quick Action */}
                   <button 
                     onClick={redirectToMyUsers}
                     className="p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all duration-300 flex items-center space-x-3 group"
@@ -653,7 +520,6 @@ export default function CustomerDashboardPage() {
                     </div>
                   </button>
 
-                  {/* Transaction History Quick Action */}
                   <button 
                     onClick={redirectToCustomerHistory}
                     className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 flex items-center space-x-3 group"
@@ -667,7 +533,6 @@ export default function CustomerDashboardPage() {
                     </div>
                   </button>
 
-                  {/* Recharge Quick Action */}
                   <button 
                     onClick={() => setShowRechargeModal(true)}
                     className="p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all duration-300 flex items-center space-x-3 group"
@@ -681,7 +546,6 @@ export default function CustomerDashboardPage() {
                     </div>
                   </button>
 
-                  {/* Live Support Quick Action */}
                   <button 
                     onClick={toggleChat}
                     className="p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all duration-300 flex items-center space-x-3 group"
@@ -724,7 +588,6 @@ export default function CustomerDashboardPage() {
                 />
               </div>
 
-              {/* Quick Amount Buttons */}
               <div className="grid grid-cols-3 gap-2 mb-6">
                 {[100, 500, 1000, 2000, 5000, 10000].map((amount) => (
                   <button
@@ -764,7 +627,7 @@ export default function CustomerDashboardPage() {
           {/* Chat Header */}
           <div className="bg-blue-600 p-4 flex items-center justify-between text-white rounded-t-lg">
             <div className="flex items-center space-x-3">
-              <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} animate-pulse`}></div>
+              <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
               <div>
                 <h2 className="text-lg font-semibold">Customer Support</h2>
                 <p className="text-blue-100 text-xs capitalize">{connectionStatus}</p>
@@ -793,7 +656,7 @@ export default function CustomerDashboardPage() {
             ) : (
               messages.map((msg) => (
                 <div 
-                  key={msg.id} 
+                  key={msg.id || msg.tempId} 
                   className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div 
@@ -844,7 +707,7 @@ export default function CustomerDashboardPage() {
                     : "Connecting to chat..."
                 }
                 value={newMessage}
-                onChange={handleInputChange}
+                onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={handleKeyPress}
                 disabled={sending || connectionStatus !== 'connected'}
               />

@@ -76,7 +76,9 @@ export default function RechargeRequestPage() {
       return { 
         canPayRequests: 0, 
         amountUsed: 0,
-        futureRequestCapacity: 0,
+        daysToAdd: 0,
+        amountUsedForDays: 0,
+        remainingChange: 0,
         hasPendingRequests: false
       };
     }
@@ -84,6 +86,7 @@ export default function RechargeRequestPage() {
     const paymentAmount = parseFloat(amount) || 0;
     const pendingRequests = customerData.pending.request_count;
     const totalPendingAmount = customerData.pending.total_amount;
+    const dayLimitAmount = 100000; // Fixed ₹1 lakh per day
 
     // Calculate how many pending requests can be paid
     let canPayRequests = 0;
@@ -92,7 +95,6 @@ export default function RechargeRequestPage() {
 
     // First, calculate pending requests that can be paid
     if (pendingRequests > 0 && totalPendingAmount > 0) {
-      // Simple calculation: assume average amount per request
       const avgAmount = totalPendingAmount / pendingRequests;
       
       for (let i = 0; i < pendingRequests; i++) {
@@ -106,16 +108,46 @@ export default function RechargeRequestPage() {
       }
     }
 
-    const futureRequestCapacity = remainingAmount; // Remaining amount after clearing pending
+    // Calculate days that can be added with remaining amount
+    let daysToAdd = 0;
+    let amountUsedForDays = 0;
+    let remainingChange = remainingAmount;
+    
+    if (remainingAmount > 0) {
+      daysToAdd = Math.floor(remainingAmount / dayLimitAmount);
+      amountUsedForDays = daysToAdd * dayLimitAmount;
+      remainingChange = remainingAmount - amountUsedForDays;
+    }
+
+    // Calculate new expiry date
+    let newExpiryDate = customerData.customer.day_limit_expiry;
+    const today = new Date();
+    
+    if (!newExpiryDate || new Date(newExpiryDate) < today) {
+      const newDate = new Date();
+      newDate.setDate(newDate.getDate() + daysToAdd);
+      newExpiryDate = newDate.toISOString().split('T')[0];
+    } else {
+      const currentExpiry = new Date(newExpiryDate);
+      currentExpiry.setDate(currentExpiry.getDate() + daysToAdd);
+      newExpiryDate = currentExpiry.toISOString().split('T')[0];
+    }
+
+    // BALANCE से MINUS होगा, TOTAL_DAY_AMOUNT में ADD होगा
+    const newBalance = (customerData.balance.current_balance || 0) - paymentAmount;
+    const newTotalDayAmount = (customerData.balance.total_day_amount || 0) + paymentAmount;
 
     return {
       canPayRequests,
       amountUsed: amountUsedForPending,
-      remainingAmount,
-      futureRequestCapacity,
-      newBalance: (customerData.balance.current_balance || 0) - paymentAmount,
-      newTotalDayAmount: (customerData.balance.total_day_amount || 0) + paymentAmount,
+      daysToAdd,
+      amountUsedForDays,
+      remainingChange,
+      newExpiryDate,
+      newBalance,
+      newTotalDayAmount,
       totalPendingAmount,
+      dayLimitAmount,
       hasPendingRequests: pendingRequests > 0
     };
   };
@@ -157,14 +189,17 @@ export default function RechargeRequestPage() {
           if (data.data.old_balance !== undefined && data.data.new_balance !== undefined) {
             message += `\n\n💰 Balance: ₹${data.data.old_balance} → ₹${data.data.new_balance}`;
           }
+          if (data.data.old_total_day_amount !== undefined && data.data.new_total_day_amount !== undefined) {
+            message += `\n\n📊 Total Day Amount: ₹${data.data.old_total_day_amount} → ₹${data.data.new_total_day_amount}`;
+          }
           if (data.data.paid_requests) {
             message += `\n\n✅ Cleared requests: ${data.data.paid_requests}`;
           }
-          if (data.data.future_request_capacity) {
-            message += `\n\n🎯 Can make requests worth: ₹${data.data.future_request_capacity}`;
+          if (data.data.days_added) {
+            message += `\n\n📅 Days added: ${data.data.days_added}`;
           }
-          if (data.data.new_total_day_amount) {
-            message += `\n\n📊 Total recharged: ₹${data.data.new_total_day_amount}`;
+          if (data.data.new_expiry_date) {
+            message += `\n\n🗓️ New expiry date: ${formatDate(data.data.new_expiry_date)}`;
           }
         }
         
@@ -184,7 +219,7 @@ export default function RechargeRequestPage() {
         
         setTimeout(() => {
           setSuccessMessage("");
-        }, 8000);
+        }, 10000);
       } else {
         setError(data.error || "Failed to process payment");
       }
@@ -259,7 +294,6 @@ export default function RechargeRequestPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />
         
-        {/* MAIN CONTENT WITH PROPER SCROLL */}
         <main className="flex-1 overflow-y-auto bg-gray-50 relative">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
             <button
@@ -347,51 +381,6 @@ export default function RechargeRequestPage() {
               )}
             </div>
 
-            {/* Payment Information */}
-            {isDayLimitCustomer && (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mb-8">
-                <div className="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-green-50 to-blue-50">
-                  <h2 className="text-lg font-semibold text-gray-900">How Payment Works</h2>
-                </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="p-4 bg-green-50 rounded-lg">
-                      <h3 className="text-sm font-medium text-green-800 mb-2">Payment Benefits</h3>
-                      <ul className="text-sm text-green-700 space-y-2">
-                        <li className="flex items-start">
-                          <span className="text-green-500 mr-2">✅</span>
-                          <span>Clear pending requests automatically</span>
-                        </li>
-                        <li className="flex items-start">
-                          <span className="text-green-500 mr-2">✅</span>
-                          <span>Get capacity for new requests equal to payment amount</span>
-                        </li>
-                        <li className="flex items-start">
-                          <span className="text-green-500 mr-2">✅</span>
-                          <span>Balance updated with payment deduction</span>
-                        </li>
-                        <li className="flex items-start">
-                          <span className="text-green-500 mr-2">✅</span>
-                          <span>Total recharge amount tracked in system</span>
-                        </li>
-                      </ul>
-                    </div>
-                    <div className="p-4 bg-blue-50 rounded-lg">
-                      <h3 className="text-sm font-medium text-blue-800 mb-2">Example</h3>
-                      <ul className="text-sm text-blue-700 space-y-2">
-                        <li>Pay ₹50,000 =</li>
-                        <li>• Clear pending requests first</li>
-                        <li>• Remaining amount = New request capacity</li>
-                        <li>• Balance reduced by ₹50,000</li>
-                        <li>• Total recharge increased by ₹50,000</li>
-                        <li>• No day extension - only request capacity</li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Error Message */}
             {error && (
               <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -410,7 +399,7 @@ export default function RechargeRequestPage() {
             )}
           </div>
 
-          {/* FIXED BUTTON - ALWAYS VISIBLE AT BOTTOM */}
+          {/* FIXED BUTTON */}
           <div className="fixed bottom-6 right-6 z-50">
             <button
               onClick={() => setShowModal(true)}
@@ -474,6 +463,17 @@ export default function RechargeRequestPage() {
                 <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm font-medium text-blue-800 mb-2">Payment Preview</p>
                   
+                  {/* Balance Update */}
+                  <div className="mb-3 p-3 bg-gray-50 rounded-lg">
+                    <p className="text-sm font-semibold text-gray-700">💰 Balance Update</p>
+                    <p className="text-xs text-gray-600">
+                      Balance: {formatCurrency(customerData.balance.current_balance)} → {formatCurrency(paymentBreakdown.newBalance)}
+                    </p>
+                    <p className="text-xs text-gray-600">
+                      Total Day Amount: {formatCurrency(customerData.balance.total_day_amount)} → {formatCurrency(paymentBreakdown.newTotalDayAmount)}
+                    </p>
+                  </div>
+                  
                   {/* Pending Requests Clearance */}
                   {paymentBreakdown.canPayRequests > 0 && (
                     <div className="mb-3 p-3 bg-green-50 rounded-lg">
@@ -486,28 +486,32 @@ export default function RechargeRequestPage() {
                     </div>
                   )}
 
-                  {/* Future Request Capacity */}
-                  <div className="p-3 bg-purple-50 rounded-lg">
-                    <p className="text-sm font-semibold text-purple-700">
-                      🎯 Future Request Capacity
-                    </p>
-                    <p className="text-lg font-bold text-purple-600">
-                      Can make requests worth: {formatCurrency(paymentBreakdown.futureRequestCapacity)}
-                    </p>
-                    <p className="text-xs text-purple-600">
-                      After payment, you can create new filling requests up to this amount
-                    </p>
-                  </div>
+                  {/* Days Added */}
+                  {paymentBreakdown.daysToAdd > 0 && (
+                    <div className="mb-3 p-3 bg-orange-50 rounded-lg">
+                      <p className="text-sm font-semibold text-orange-700">
+                        📅 Days Added: {paymentBreakdown.daysToAdd} day(s)
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        Amount used for days: {formatCurrency(paymentBreakdown.amountUsedForDays)}
+                      </p>
+                      <p className="text-xs text-orange-600">
+                        New expiry date: {formatDate(paymentBreakdown.newExpiryDate)}
+                      </p>
+                    </div>
+                  )}
 
-                  {/* Balance Update */}
-                  <div className="mt-3 p-2 bg-gray-50 rounded-lg">
-                    <p className="text-xs text-gray-600">
-                      Balance: {formatCurrency(customerData.balance.current_balance)} → {formatCurrency(paymentBreakdown.newBalance)}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      Total Recharged: {formatCurrency(customerData.balance.total_day_amount)} → {formatCurrency(paymentBreakdown.newTotalDayAmount)}
-                    </p>
-                  </div>
+                  {/* Remaining Change */}
+                  {paymentBreakdown.remainingChange > 0 && (
+                    <div className="p-3 bg-purple-50 rounded-lg">
+                      <p className="text-sm font-semibold text-purple-700">
+                        💰 Remaining Change: {formatCurrency(paymentBreakdown.remainingChange)}
+                      </p>
+                      <p className="text-xs text-purple-600">
+                        This amount will be kept as credit for future
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -529,7 +533,7 @@ export default function RechargeRequestPage() {
                 />
                 {isDayLimitCustomer && (
                   <p className="text-xs text-gray-500 mt-1">
-                    This amount will be used to clear pending requests first, then remaining amount will be your future request capacity.
+                    This amount will be used to clear pending requests first, then remaining amount will buy additional days.
                   </p>
                 )}
               </div>

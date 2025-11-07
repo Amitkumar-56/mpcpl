@@ -62,6 +62,9 @@ function ClientHistoryContent() {
   const router = useRouter();
   const cid = searchParams.get("id");
 
+  // Check if customer is day_limit type
+  const isDayLimitCustomer = customerBalanceInfo?.day_limit > 0;
+
   // Filter transactions based on search
   const filteredTransactions = transactions.filter((transaction) => {
     if (!searchTerm) return true;
@@ -124,11 +127,11 @@ function ClientHistoryContent() {
     }
   };
 
-  // Calculate transaction status - OVERDUE only for day_limit customers
+  // Calculate transaction status - ONLY for day_limit customers
   const getTransactionStatus = (transaction) => {
     // For inward transactions (recharges), always show as "Recharge"
     if (transaction.trans_type === "inward") {
-      return { status: "Recharge", color: "green" };
+      return { status: "inward", color: "green" };
     }
 
     // For outward transactions, check payment_status
@@ -138,29 +141,41 @@ function ClientHistoryContent() {
 
     // If payment_status is 0 (Unpaid), check if it's overdue
     // BUT ONLY if customer has day_limit type
-    if (transaction.payment_status === 0) {
-      // Check if customer uses day_limit system
-      const isDayLimitCustomer = customerBalanceInfo?.day_limit > 0;
+    if (transaction.payment_status === 0 && isDayLimitCustomer) {
+      const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
+      const currentDate = new Date();
+      const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
       
-      if (isDayLimitCustomer) {
-        // Only check overdue for day_limit customers
-        const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
-        const currentDate = new Date();
-        const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
-        
-        if (daysDifference > 30) {
-          return { status: "Overdue", color: "red" };
-        } else {
-          return { status: "Pending", color: "orange" };
-        }
+      if (daysDifference > 30) {
+        return { status: "Overdue", color: "red" };
       } else {
-        // For amt_limit customers, always show as Pending (no overdue)
         return { status: "Pending", color: "orange" };
       }
     }
 
-    // Default fallback
-    return { status: "Pending", color: "orange" };
+    // For amt_limit customers OR non-day_limit, return null (no status)
+    return null;
+  };
+
+  // Calculate days used and remaining for day_limit customers
+  const getDayLimitInfo = () => {
+    if (!isDayLimitCustomer) return null;
+
+    const dayLimit = customerBalanceInfo?.day_limit || 0;
+    const dayAmount = customerBalanceInfo?.day_amount || 0;
+    const lastResetDate = customerBalanceInfo?.last_reset_date;
+    const dayLimitExpiry = customerBalanceInfo?.day_limit_expiry;
+
+    const daysUsed = dayAmount;
+    const daysRemaining = Math.max(0, dayLimit - dayAmount);
+
+    return {
+      dayLimit,
+      daysUsed,
+      daysRemaining,
+      lastResetDate,
+      dayLimitExpiry
+    };
   };
 
   // New Payment Handlers
@@ -273,6 +288,8 @@ function ClientHistoryContent() {
   };
 
   const PaymentStatusBadge = ({ status, transactionType }) => {
+    if (!status) return null; // Don't render anything if no status
+
     const styles = {
       paid: "bg-green-100 text-green-800 border-green-200",
       overdue: "bg-red-100 text-red-800 border-red-200",
@@ -286,7 +303,7 @@ function ClientHistoryContent() {
         : styles[status?.toLowerCase()] ||
           "bg-gray-100 text-gray-800 border-gray-200";
 
-    const displayStatus = transactionType === "inward" ? "Recharge" : status;
+    const displayStatus = transactionType === "inward" ? "inward" : status;
 
     return (
       <span
@@ -307,7 +324,7 @@ function ClientHistoryContent() {
       styles[type?.toLowerCase()] ||
       "bg-gray-100 text-gray-800 border-gray-200";
     const displayText =
-      type === "outward" ? "Fuel" : type === "inward" ? "Recharge" : type;
+      type === "outward" ? "outward" : type === "inward" ? "inward" : type;
 
     return (
       <span
@@ -318,7 +335,7 @@ function ClientHistoryContent() {
     );
   };
 
-  // Mobile Card View - SIMPLE VIEW
+  // Mobile Card View - WITH ALL COLUMNS
   const TransactionCard = ({ transaction }) => {
     const statusInfo = getTransactionStatus(transaction);
 
@@ -328,10 +345,6 @@ function ClientHistoryContent() {
           <div>
             <p className="text-gray-500 text-xs font-medium">ID</p>
             <p className="font-medium">{transaction.id}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Type</p>
-            <TransactionTypeBadge type={transaction.trans_type} />
           </div>
           <div>
             <p className="text-gray-500 text-xs font-medium">Station</p>
@@ -350,28 +363,75 @@ function ClientHistoryContent() {
             <p className="font-medium">{transaction.pname || "N/A"}</p>
           </div>
           <div>
-            <p className="text-gray-500 text-xs font-medium">Vehicle</p>
+            <p className="text-gray-500 text-xs font-medium">Vehicle #</p>
             <p className="font-medium">{transaction.vehicle_number || "N/A"}</p>
           </div>
           <div>
+            <p className="text-gray-500 text-xs font-medium">Trans Type</p>
+            <TransactionTypeBadge type={transaction.trans_type} />
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Loading Qty</p>
+            <p className="font-medium">{transaction.filling_qty || "0"}</p>
+          </div>
+          <div>
             <p className="text-gray-500 text-xs font-medium">Amount</p>
-            <p
-              className={`font-bold ${
-                transaction.trans_type === "inward"
-                  ? "text-green-600"
-                  : "text-blue-600"
-              }`}
-            >
-              ₹{formatCurrency(transaction.amount || transaction.credit)}
+            <p className="font-bold text-blue-600">
+              ₹{formatCurrency(transaction.amount)}
             </p>
           </div>
-          <div className="col-span-2">
-            <p className="text-gray-500 text-xs font-medium">Status</p>
-            <PaymentStatusBadge
-              status={statusInfo.status}
-              transactionType={transaction.trans_type}
-            />
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Credit</p>
+            <p className="font-bold text-green-600">
+              ₹{formatCurrency(transaction.credit)}
+            </p>
           </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Credit Date</p>
+            <p className="font-medium">
+              {formatDate(transaction.credit_date)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Balance</p>
+            <p className="font-bold">
+              ₹{formatCurrency(transaction.new_amount)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Remaining Limit</p>
+            <p className="font-medium">
+              {isDayLimitCustomer ? 
+                (transaction.remaining_day_limit || "N/A") : 
+                (transaction.remaining_limit || "N/A")}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Limit</p>
+            <p className="font-medium">{transaction.limit_type || "N/A"}</p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Increase Amount</p>
+            <p className="font-bold text-green-600">
+              ₹{formatCurrency(transaction.in_amount)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Decrease Amount</p>
+            <p className="font-bold text-red-600">
+              ₹{formatCurrency(transaction.d_amount)}
+            </p>
+          </div>
+          {/* Conditionally render status only for day_limit customers */}
+          {isDayLimitCustomer && (
+            <div className="col-span-2">
+              <p className="text-gray-500 text-xs font-medium">Status</p>
+              <PaymentStatusBadge
+                status={statusInfo?.status}
+                transactionType={transaction.trans_type}
+              />
+            </div>
+          )}
           <div className="col-span-2">
             <p className="text-gray-500 text-xs font-medium">Updated By</p>
             <p className="font-medium">
@@ -404,6 +464,9 @@ function ClientHistoryContent() {
     (sum, t) => sum + parseFloat(t.amount || 0),
     0
   );
+
+  // Get day limit info
+  const dayLimitInfo = getDayLimitInfo();
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -438,10 +501,28 @@ function ClientHistoryContent() {
                   Customer: {customerName} (ID: {cid})
                 </p>
                 {customerBalanceInfo && (
-                  <p className="text-sm text-gray-600">
-                    Limit Type: {customerBalanceInfo.day_limit > 0 ? 'Day Limit' : 'Amount Limit'} | 
-                    {customerBalanceInfo.day_limit > 0 ? ` Day Limit: ${customerBalanceInfo.day_limit}` : ` Amount Limit: ₹${formatCurrency(customerBalanceInfo.amtlimit)}`}
-                  </p>
+                  <div className="text-sm text-gray-600 space-y-1">
+                    <p>
+                      Limit Type: {isDayLimitCustomer ? 'Day Limit' : 'Amount Limit'} | 
+                      {isDayLimitCustomer ? ` Day Limit: ${customerBalanceInfo.day_limit}` : ` Amount Limit: ₹${formatCurrency(customerBalanceInfo.amtlimit)}`}
+                    </p>
+                    {/* Day Limit Information - ONLY for day_limit customers */}
+                    {isDayLimitCustomer && dayLimitInfo && (
+                      <div className="flex space-x-4 text-xs">
+                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
+                          Days Used: {dayLimitInfo.daysUsed}/{dayLimitInfo.dayLimit}
+                        </span>
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
+                          Days Remaining: {dayLimitInfo.daysRemaining}
+                        </span>
+                        {dayLimitInfo.dayLimitExpiry && (
+                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
+                            Expiry: {formatDate(dayLimitInfo.dayLimitExpiry)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
                 {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
               </div>
@@ -596,7 +677,7 @@ function ClientHistoryContent() {
                 <div className="text-red-600 font-semibold">
                   Total Due: ₹{formatCurrency(totalPendingAmount)}
                 </div>
-                {customerBalanceInfo?.day_limit > 0 && (
+                {isDayLimitCustomer && (
                   <div className="text-blue-600 font-semibold">
                     Day Limit Customer
                   </div>
@@ -606,7 +687,7 @@ function ClientHistoryContent() {
           </div>
         </div>
 
-        {/* Results Section - SIMPLE UI VIEW */}
+        {/* Results Section - WITH ALL COLUMNS */}
         <div className="bg-white rounded-lg shadow-sm border">
           {loading ? (
             <div className="flex justify-center items-center py-12">
@@ -627,7 +708,7 @@ function ClientHistoryContent() {
             </div>
           ) : (
             <>
-              {/* Mobile View - SIMPLE */}
+              {/* Mobile View - WITH ALL FIELDS */}
               <div className="md:hidden p-4">
                 {displayTransactions.length > 0 ? (
                   displayTransactions.map((transaction) => (
@@ -665,36 +746,63 @@ function ClientHistoryContent() {
                 )}
               </div>
 
-              {/* Desktop Table View - SIMPLE */}
+              {/* Desktop Table View - WITH ALL COLUMNS */}
               <div className="hidden md:block overflow-x-auto">
                 <table className="w-full">
                   <thead className="bg-gray-50 border-b">
                     <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        ID
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        #
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Type
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Station
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Completed Date
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Product
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Vehicle
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Vehicle #
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Trans Type
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Loading Qty
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Amount
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Status
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Credit
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Credit Date
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Balance
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Remaining Limit
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Limit
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Increase Amount
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Decrease Amount
+                      </th>
+                      {/* Conditionally render Status column only for day_limit customers */}
+                      {isDayLimitCustomer && (
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                      )}
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                         Updated By
                       </th>
                     </tr>
@@ -709,42 +817,65 @@ function ClientHistoryContent() {
                             key={transaction.id}
                             className="hover:bg-gray-50 transition-colors"
                           >
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                               {transaction.id}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.station_name || "N/A"}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.pname || "N/A"}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.vehicle_number || "N/A"}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <TransactionTypeBadge
                                 type={transaction.trans_type}
                               />
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.station_name || "N/A"}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.filling_qty || "0"}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-blue-600">
+                              ₹{formatCurrency(transaction.amount)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.pname || "N/A"}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
+                              ₹{formatCurrency(transaction.credit)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.vehicle_number || "N/A"}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
+                              {formatDate(transaction.credit_date)}
                             </td>
-                            <td
-                              className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${
-                                transaction.trans_type === "inward"
-                                  ? "text-green-600"
-                                  : "text-blue-600"
-                              }`}
-                            >
-                              ₹{formatCurrency(transaction.amount || transaction.credit)}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">
+                              ₹{formatCurrency(transaction.new_amount)}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <PaymentStatusBadge
-                                status={statusInfo.status}
-                                transactionType={transaction.trans_type}
-                              />
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {isDayLimitCustomer ? 
+                                (transaction.remaining_day_limit || "N/A") : 
+                                (transaction.remaining_limit || "N/A")}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.limit_type || "N/A"}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
+                              ₹{formatCurrency(transaction.in_amount)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-red-600">
+                              ₹{formatCurrency(transaction.d_amount)}
+                            </td>
+                            {/* Conditionally render Status cell only for day_limit customers */}
+                            {isDayLimitCustomer && (
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                <PaymentStatusBadge
+                                  status={statusInfo?.status}
+                                  transactionType={transaction.trans_type}
+                                />
+                              </td>
+                            )}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                               {transaction.updated_by_name || "Unknown"}
                             </td>
                           </tr>
@@ -752,7 +883,7 @@ function ClientHistoryContent() {
                       })
                     ) : (
                       <tr>
-                        <td colSpan="9" className="px-6 py-8 text-center">
+                        <td colSpan={isDayLimitCustomer ? "17" : "16"} className="px-6 py-8 text-center">
                           <div className="flex flex-col items-center text-gray-500">
                             <svg
                               className="w-16 h-16 mb-4"
@@ -859,7 +990,7 @@ function ClientHistoryContent() {
             Payment will deduct the total balance, reset Day Limit counter, and
             extend validity days.
           </p>
-          {customerBalanceInfo?.day_limit > 0 && (
+          {isDayLimitCustomer && (
             <p className="text-xs text-blue-600 mt-1 font-semibold">
               Day Limit Customer - Overdue rules apply after 30 days
             </p>
