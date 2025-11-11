@@ -1,6 +1,5 @@
-
-//src/components/sidebar.jsx
 "use client";
+import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import {
@@ -25,32 +24,47 @@ import {
 } from "react-icons/fa";
 
 export default function Sidebar() {
-  const [user, setUser] = useState(null);
+  const { user, logout, loading: authLoading } = useSession();
   const [permissions, setPermissions] = useState({});
-  const [loading, setLoading] = useState(true);
   const [isOpen, setIsOpen] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (savedUser) {
-      const parsedUser = JSON.parse(savedUser);
-      setUser(parsedUser);
-      setPermissions(parsedUser.permissions || {});
+    if (user) {
+      setPermissions(user.permissions || {});
     }
-    setLoading(false);
-  }, []);
+  }, [user]);
 
-  const logout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("token");
-    router.push("/login");
+  const handleLogout = async () => {
+    if (isLoggingOut) return;
+    
+    try {
+      setIsLoggingOut(true);
+      await logout();
+      setIsOpen(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
-  if (loading) return <p className="p-4">Loading...</p>;
+  // Improved loading state with better UX
+  if (authLoading) {
+    return (
+      <div className="fixed md:relative z-40 w-64 h-screen bg-blue-200 text-black flex flex-col">
+        <div className="flex-1 flex flex-col items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
+          <p className="text-gray-600 text-sm">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render sidebar if no user
   if (!user) {
-    router.push("/login");
     return null;
   }
 
@@ -59,11 +73,10 @@ export default function Sidebar() {
     users: "Users",
     reports: "Reports",
     filling_requests: "Filling Requests",
-     stock: "stock",
+    stock: "stock",
     loading_stations: "Loading Station",
     vehicles: "Vehicle",
     schedule_price: "Schedule Prices",
-
     lr_management: "LR Management",
     history: "Loading History",
     products: "Items & Products",
@@ -106,7 +119,7 @@ export default function Sidebar() {
     { name: "Loading History", icon: <FaHistory />, module: "history", path: "/history" },
     { name: "Tanker History", icon: <FaHistory />, module: "tanker_history", path: "/tanker-history" },
     { name: "Deepo History", icon: <FaHistory />, module: "deepo_history", path: "/deepo-history" },
-    { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/vouchers" },
+    { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/remarks" },
     { name: "Settings", icon: <FaCog />, module: "settings", path: "/settings" },
   ];
@@ -124,11 +137,11 @@ export default function Sidebar() {
     <>
       <style jsx>{`
         .scrollbar-hide::-webkit-scrollbar {
-          display: none; /* Chrome, Safari */
+          display: none;
         }
         .scrollbar-hide {
-          -ms-overflow-style: none; /* IE, Edge */
-          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none;
+          scrollbar-width: none;
         }
       `}</style>
 
@@ -140,16 +153,41 @@ export default function Sidebar() {
         {isOpen ? <FaTimes /> : <FaBars />}
       </button>
 
+      {/* Overlay for mobile */}
+      {isOpen && (
+        <div 
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
         className={`fixed md:relative z-40 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0 transition-transform duration-300`}
       >
-        {/* Nav */}
+        {/* User Info */}
+        <div className="p-4 border-b border-gray-300 bg-blue-300">
+          <div className="flex items-center space-x-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+              {user.name?.charAt(0).toUpperCase() || 'U'}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">
+                {user.name}
+              </p>
+              <p className="text-xs text-gray-600 truncate">
+                {user.role === 5 ? 'Admin' : 'User'}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 scrollbar-hide">
           {allowedMenu.map((item) => {
-            const isActive = pathname.startsWith(item.path);
+            const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
             return (
               <button
                 key={item.name}
@@ -159,30 +197,47 @@ export default function Sidebar() {
                 }}
                 className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
                   isActive
-                    ? "bg-blue-500 text-white"
-                    : "text-black hover:bg-gray-700 hover:text-white"
+                    ? "bg-blue-500 text-white shadow-md"
+                    : "text-black hover:bg-blue-300 hover:text-gray-900"
                 }`}
               >
                 <span className="mr-3 text-lg">{item.icon}</span>
-                <span className="text-sm">{item.name}</span>
+                <span className="text-sm font-medium">{item.name}</span>
               </button>
             );
           })}
 
           {allowedMenu.length === 0 && (
-            <div className="p-3 text-center text-gray-400">
+            <div className="p-3 text-center text-gray-600 text-sm">
               No modules available for your role
             </div>
           )}
         </nav>
 
-        {/* Logout */}
-        <button
-          onClick={logout}
-          className="flex items-center p-3 border-t border-gray-700 text-black hover:bg-red-600 hover:text-white transition-colors"
-        >
-          <FaSignOutAlt className="mr-3" /> Logout
-        </button>
+        {/* Logout Button */}
+        <div className="p-3 border-t border-gray-300 bg-blue-300">
+          <button
+            onClick={handleLogout}
+            disabled={isLoggingOut}
+            className={`flex items-center justify-center w-full p-3 text-black rounded transition-colors ${
+              isLoggingOut 
+                ? "bg-gray-400 cursor-not-allowed" 
+                : "hover:bg-red-500 hover:text-white"
+            }`}
+          >
+            {isLoggingOut ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3"></div>
+                <span className="font-medium">Logging out...</span>
+              </>
+            ) : (
+              <>
+                <FaSignOutAlt className="mr-3" /> 
+                <span className="font-medium">Logout</span>
+              </>
+            )}
+          </button>
+        </div>
       </aside>
     </>
   );

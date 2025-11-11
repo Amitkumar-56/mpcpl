@@ -1,10 +1,13 @@
+// src/app/login/page.js
 "use client";
 
+import { useSession } from '@/context/SessionContext'; // ✅ YEH LINE ADD KAREN
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { FaEnvelope, FaLock, FaMobileAlt } from "react-icons/fa";
 
 export default function LoginPage() {
+  const { login } = useSession(); // ✅ YEH LINE ADD KAREN
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -30,23 +33,19 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (data.success) {
-        // ✅ Use sessionStorage instead of localStorage
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: data.userId,
-            emp_code: data.emp_code,
-            name: data.name,
-            email: data.email,
-            role: data.role,
-            fs_id: data.fs_id,
-            fl_id: data.fl_id,
-            permissions: data.permissions,
-            station: data.station,
-            client: data.client,
-          })
-        );
-        localStorage.setItem("token", data.token);
+        // ✅ Session Context का login function use करें
+        login({
+          id: data.userId,
+          emp_code: data.emp_code,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          fs_id: data.fs_id,
+          fl_id: data.fl_id,
+          permissions: data.permissions,
+          station: data.station,
+          client: data.client,
+        }, data.token);
 
         router.push("/dashboard");
       } else {
@@ -76,23 +75,19 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (data.success) {
-        // ✅ Use sessionStorage instead of localStorage
-        localStorage.setItem(
-          "user",
-          JSON.stringify({
-            id: data.userId,
-            emp_code: data.emp_code,
-            name: data.name,
-            email: data.email,
-            role: data.role,
-            fs_id: data.fs_id,
-            fl_id: data.fl_id,
-            permissions: data.permissions,
-            station: data.station,
-            client: data.client,
-          })
-        );
-        localStorage.setItem("token", data.token);
+        // ✅ Session Context का login function use करें
+        login({
+          id: data.userId,
+          emp_code: data.emp_code,
+          name: data.name,
+          email: data.email,
+          role: data.role,
+          fs_id: data.fs_id,
+          fl_id: data.fl_id,
+          permissions: data.permissions,
+          station: data.station,
+          client: data.client,
+        }, data.token);
 
         router.push("/dashboard");
       } else {

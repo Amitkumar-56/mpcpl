@@ -1,13 +1,15 @@
+
 // src/app/layout.js
+import { SessionProvider } from '@/context/SessionContext';
 import './globals.css';
 
 export const metadata = {
   title: 'MPCL Dashboard',
   description: 'Filling Requests Management System',
   icons: {
-    icon: '/favicon.png',       // ✅ PNG icon
+    icon: '/favicon.png',
     shortcut: '/favicon.png',
-    apple: '/favicon.png',      // ✅ iOS ke liye bhi same
+    apple: '/favicon.png',
   },
 };
 
@@ -15,9 +17,9 @@ export default function RootLayout({ children }) {
   return (
     <html lang="en">
       <body className="min-h-screen flex flex-col">
-      
-        <main className="flex-grow">{children}</main>
-      
+        <SessionProvider>
+          <main className="flex-grow">{children}</main>
+        </SessionProvider>
       </body>
     </html>
   );

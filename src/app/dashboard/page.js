@@ -1,5 +1,5 @@
 "use client";
-
+import { useSession } from '@/context/SessionContext';
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
@@ -70,9 +70,9 @@ const API_ENDPOINTS = {
 };
 
 export default function DashboardPage() {
+  const { user: sessionUser, logout, checkAuth } = useSession();
   const router = useRouter();
   const [activePage, setActivePage] = useState("Dashboard");
-  const [user, setUser] = useState(null);
   const [stats, setStats] = useState({
     vendorYesterdayOutstanding: 0,
     vendorTodayOutstanding: 0,
@@ -106,7 +106,7 @@ export default function DashboardPage() {
   // Get authentication token
   const getAuthToken = () => {
     if (typeof window !== 'undefined') {
-      return localStorage.getItem('authToken') || localStorage.getItem('userToken');
+      return localStorage.getItem('token');
     }
     return null;
   };
@@ -193,17 +193,17 @@ export default function DashboardPage() {
   // Socket.io connection for real-time chat
   useEffect(() => {
     // Initialize socket connection
-    const newSocket = new WebSocket('ws://localhost:3001'); // Adjust URL as needed
+    const newSocket = new WebSocket('ws://localhost:3001');
     
     newSocket.onopen = () => {
       console.log('WebSocket connected');
       setSocket(newSocket);
       
       // Join employee room
-      if (user?.id) {
+      if (sessionUser?.id) {
         newSocket.send(JSON.stringify({
           type: 'employee_join',
-          employeeId: user.id
+          employeeId: sessionUser.id
         }));
       }
     };
@@ -249,14 +249,14 @@ export default function DashboardPage() {
         newSocket.close();
       }
     };
-  }, [user]);
+  }, [sessionUser]);
 
-  // Load active chats (employees fetch removed)
+  // Load active chats
   useEffect(() => {
-    if (user?.id) {
+    if (sessionUser?.id) {
       fetchActiveChats();
     }
-  }, [user]);
+  }, [sessionUser]);
 
   const fetchActiveChats = async () => {
     try {
@@ -282,12 +282,10 @@ export default function DashboardPage() {
 
   // Initial data load
   useEffect(() => {
-    const savedUser = localStorage.getItem("user");
-    if (!savedUser) {
+    if (!sessionUser) {
       router.push("/login");
       return;
     }
-    setUser(JSON.parse(savedUser));
     
     const loadInitialData = async () => {
       setLoading(true);
@@ -301,7 +299,7 @@ export default function DashboardPage() {
     };
 
     loadInitialData();
-  }, [router]);
+  }, [sessionUser, router]);
 
   // Chat Functions
   const selectCustomer = (customer) => {
@@ -318,11 +316,11 @@ export default function DashboardPage() {
     fetchCustomerMessages(customer.customerId);
     
     // Mark as read
-    if (socket) {
+    if (socket && sessionUser) {
       socket.send(JSON.stringify({
         type: 'mark_as_read',
         customerId: customer.customerId,
-        userId: user.id,
+        userId: sessionUser.id,
         userType: 'employee'
       }));
     }
@@ -346,14 +344,14 @@ export default function DashboardPage() {
   };
 
   const sendEmployeeMessage = () => {
-    if (!newMessage.trim() || !selectedCustomer || !socket || !user) return;
+    if (!newMessage.trim() || !selectedCustomer || !socket || !sessionUser) return;
 
     const messageData = {
       type: 'employee_message',
       customerId: selectedCustomer.customerId,
       text: newMessage.trim(),
-      employeeId: user.id,
-      employeeName: user.name
+      employeeId: sessionUser.id,
+      employeeName: sessionUser.name
     };
 
     socket.send(JSON.stringify(messageData));
@@ -386,13 +384,13 @@ export default function DashboardPage() {
   }, []);
 
   // Loading state
-  if (!user || (loading && !refreshing)) {
+  if (!sessionUser || (loading && !refreshing)) {
     return (
       <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-600 text-lg">Loading your dashboard...</p>
-          <p className="text-gray-400 text-sm mt-2">Fetching latest data</p>
+          <p className="text-gray-400 text-sm mt-2">Fetching latest dynamic data</p>
         </div>
       </div>
     );
@@ -406,7 +404,7 @@ export default function DashboardPage() {
       {/* Main content area */}
       <div className="flex flex-col flex-1 overflow-hidden">
         {/* Header */}
-        <Header user={user} />
+        <Header user={sessionUser} />
 
         {/* Scrollable main panel */}
         <main className="flex-1 p-3 md:p-4 lg:p-6 overflow-auto">
@@ -435,7 +433,7 @@ export default function DashboardPage() {
               <BiCheckCircle className="text-green-500 text-xl mr-3" />
               <div>
                 <p className="text-green-800 font-medium">Data Updated</p>
-                <p className="text-green-600 text-sm">Dashboard data refreshed successfully</p>
+                <p className="text-green-600 text-sm">Dashboard data refreshed dynamically from database</p>
               </div>
             </div>
           )}
@@ -445,10 +443,10 @@ export default function DashboardPage() {
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div className="flex-1">
                 <h1 className="text-xl md:text-2xl lg:text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent">
-                  Welcome back, {user.name}!
+                  Welcome back, {sessionUser.name}!
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm md:text-base">
-                  Real-time outstanding balances and customer support dashboard
+                  Real-time dynamic outstanding balances and customer support dashboard
                 </p>
                 {lastUpdated && (
                   <p className="text-gray-500 text-xs md:text-sm mt-1">
@@ -527,7 +525,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Stats Grid - Only Client Cards */}
+          {/* Stats Grid - Dynamic Client Cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-3 md:gap-4 lg:gap-6 mb-4 lg:mb-6">
             {/* Yesterday Outstanding */}
             <StatCard
@@ -559,7 +557,7 @@ export default function DashboardPage() {
             />
           </div>
 
-          {/* Additional Info Cards */}
+          {/* Additional Info Cards - Dynamic */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 lg:gap-6 mb-4 lg:mb-6">
             {/* Total Clients */}
             <InfoCard
@@ -624,7 +622,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Quick Stats Summary */}
+          {/* Quick Stats Summary - Dynamic */}
           <div className="bg-white rounded-2xl shadow-lg p-6">
             <div className="flex items-center space-x-3 mb-4">
               <div className="p-2 bg-blue-100 rounded-lg">
@@ -632,7 +630,7 @@ export default function DashboardPage() {
               </div>
               <div>
                 <h2 className="text-xl font-bold text-gray-800">Financial Summary</h2>
-                <p className="text-gray-600 text-sm">Overview of your outstanding balances</p>
+                <p className="text-gray-600 text-sm">Dynamic overview of your outstanding balances</p>
               </div>
             </div>
             

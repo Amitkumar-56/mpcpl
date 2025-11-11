@@ -1,5 +1,6 @@
-//src/app/api/auth/verify/route.js
+// src/app/api/auth/verify/route.js
 import { verifyToken } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -8,21 +9,86 @@ export async function GET() {
     const cookieStore = cookies();
     const token = cookieStore.get('token')?.value;
     
+    console.log('🔐 Verify API called, token exists:', !!token);
+    
     if (!token) {
-      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
+      console.log('❌ No token found in cookies');
+      return NextResponse.json({ 
+        authenticated: false,
+        error: 'Not authenticated' 
+      });
     }
 
     const decoded = verifyToken(token);
     if (!decoded) {
-      return NextResponse.json({ error: 'Invalid token' }, { status: 401 });
+      console.log('❌ Token verification failed');
+      return NextResponse.json({ 
+        authenticated: false,
+        error: 'Invalid token' 
+      });
     }
 
-    return NextResponse.json({ 
-      userId: decoded.userId, 
-      role: decoded.role,
-      authenticated: true 
+    console.log('✅ Token verified, user ID:', decoded.userId);
+
+    // Fetch complete user data from database
+    const users = await executeQuery(
+      `SELECT id, emp_code, name, email, role, status, fs_id, fl_id, station, client
+       FROM employee_profile 
+       WHERE id = ? AND status = 1`,
+      [decoded.userId]  // Use decoded.userId instead of decoded.id
+    );
+
+    console.log('📊 Users found:', users.length);
+
+    if (users.length === 0) {
+      console.log('❌ User not found in database');
+      return NextResponse.json({ 
+        authenticated: false,
+        error: 'User not found' 
+      });
+    }
+
+    const user = users[0];
+    console.log('✅ User authenticated:', user.name, user.role);
+
+    // Fetch permissions with role-based query
+    const permissions = await executeQuery(
+      `SELECT module_name, can_view, can_edit, can_delete
+       FROM role_permissions 
+       WHERE employee_id = ? AND role = ?`,
+      [user.id, user.role]
+    );
+
+    console.log('🔑 Permissions found:', permissions.length);
+
+    const userPermissions = {};
+    permissions.forEach((p) => {
+      userPermissions[p.module_name] = {
+        can_view: p.can_view === 1,
+        can_edit: p.can_edit === 1,
+        can_delete: p.can_delete === 1,
+      };
     });
+
+    return NextResponse.json({ 
+      authenticated: true,
+      id: user.id,
+      emp_code: user.emp_code,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      fs_id: user.fs_id,
+      fl_id: user.fl_id,
+      station: user.station,
+      client: user.client,
+      permissions: userPermissions
+    });
+
   } catch (error) {
-    return NextResponse.json({ error: 'Authentication error' }, { status: 500 });
+    console.error('❌ Verify API error:', error);
+    return NextResponse.json({ 
+      authenticated: false,
+      error: 'Authentication error: ' + error.message 
+    });
   }
 }

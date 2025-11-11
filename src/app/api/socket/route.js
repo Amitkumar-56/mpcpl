@@ -1,30 +1,32 @@
 // src/app/api/socket/route.js
 import { executeQuery } from "@/lib/db";
-import { Server } from "socket.io";
 
+// Global WebSocket server instance
 let io;
 
 export default function SocketHandler(req, res) {
+  // If response is already sent, return
   if (res.headersSent) {
     return res.end();
   }
 
+  // Initialize Socket.IO only once
   if (!res.socket.server.io) {
-    console.log("✅ Setting up Socket.IO server...");
+    console.log("✅ Initializing Socket.IO server...");
 
     try {
+      const { Server } = require("socket.io");
+      
       io = new Server(res.socket.server, {
         path: "/api/socket/",
-        addTrailingSlash: false,
         cors: {
-          origin: ["http://localhost:3000", "http://127.0.0.1:3000"],
+          origin: process.env.NODE_ENV === "production" 
+            ? ["https://yourdomain.com"] 
+            : ["http://localhost:3000", "http://127.0.0.1:3000"],
           methods: ["GET", "POST"],
           credentials: true
         },
-        pingTimeout: 30000,
-        pingInterval: 10000,
-        connectTimeout: 20000,
-        transports: ['polling', 'websocket']
+        transports: ['websocket', 'polling']
       });
 
       io.on("connection", (socket) => {
@@ -42,8 +44,8 @@ export default function SocketHandler(req, res) {
 
             console.log(`👤 Customer ${customerId} joining...`);
             
+            // Join customer room
             await socket.join(`customer_${customerId}`);
-            await socket.join("employees");
             
             socket.customerId = customerId;
             socket.userType = 'customer';
@@ -51,13 +53,7 @@ export default function SocketHandler(req, res) {
 
             console.log(`✅ Customer ${customerId} joined successfully`);
 
-            socket.to("employees").emit("customer_online", {
-              customerId,
-              customerName,
-              socketId: socket.id,
-              timestamp: new Date().toISOString()
-            });
-
+            // Send success message
             socket.emit("joined_success", { 
               message: "Successfully joined chat", 
               customerId,
@@ -81,12 +77,14 @@ export default function SocketHandler(req, res) {
               return;
             }
 
+            // Save message to database
             const result = await executeQuery(
               `INSERT INTO messages (text, sender, customer_id, status, timestamp) 
                VALUES (?, 'customer', ?, 'sent', NOW())`,
               [text, customerId]
             );
 
+            // Update chat session
             await executeQuery(
               `INSERT INTO chat_sessions (customer_id, last_message_at, status) 
                VALUES (?, NOW(), 'active') 
@@ -94,6 +92,7 @@ export default function SocketHandler(req, res) {
               [customerId]
             );
 
+            // Get saved message with customer name
             const [savedMessage] = await executeQuery(
               `SELECT m.*, c.name as customer_name 
                FROM messages m 
@@ -111,12 +110,12 @@ export default function SocketHandler(req, res) {
               timestamp: savedMessage.timestamp
             };
 
-            io.to("employees").emit("new_message", {
-              message: messageData,
-              customerId,
-              customerName: savedMessage.customer_name || customerName
+            // Broadcast to all connected clients in customer room
+            io.to(`customer_${customerId}`).emit("new_message", {
+              message: messageData
             });
 
+            // Send confirmation to sender
             socket.emit("message_sent", { 
               messageId: savedMessage.id,
               tempId: tempId,
@@ -170,18 +169,21 @@ export default function SocketHandler(req, res) {
               return;
             }
 
+            // Save message to database
             const result = await executeQuery(
               `INSERT INTO messages (text, sender, customer_id, employee_id, status, timestamp) 
                VALUES (?, 'employee', ?, ?, 'delivered', NOW())`,
               [text, customerId, employeeId]
             );
 
+            // Update chat session
             await executeQuery(
               `UPDATE chat_sessions SET employee_id = ?, last_message_at = NOW(), status = 'active' 
                WHERE customer_id = ?`,
               [employeeId, customerId]
             );
 
+            // Get saved message with employee name
             const [savedMessage] = await executeQuery(
               `SELECT m.*, ep.name as employee_name 
                FROM messages m 
@@ -201,11 +203,12 @@ export default function SocketHandler(req, res) {
               employee_name: savedMessage.employee_name || employeeName
             };
 
+            // Send to customer
             io.to(`customer_${customerId}`).emit("new_message", {
-              message: messageData,
-              employeeName: savedMessage.employee_name || employeeName
+              message: messageData
             });
 
+            // Send confirmation to employee
             socket.emit("message_sent", {
               messageId: savedMessage.id,
               status: 'delivered'
@@ -252,64 +255,9 @@ export default function SocketHandler(req, res) {
           }
         });
 
-        // MARK AS READ
-        socket.on("mark_as_read", async (data) => {
-          try {
-            const { customerId, userId, userType } = data;
-            console.log('👀 Marking messages as read:', data);
-
-            if (!customerId) {
-              socket.emit("error", { message: "Customer ID is required" });
-              return;
-            }
-
-            const senderToUpdate = userType === 'employee' ? 'customer' : 'employee';
-
-            await executeQuery(
-              `UPDATE messages SET status = 'read' 
-               WHERE customer_id = ? 
-               AND sender = ? 
-               AND status != 'read'`,
-              [customerId, senderToUpdate]
-            );
-
-            if (userType === 'employee') {
-              io.to(`customer_${customerId}`).emit("message_read", { 
-                customerId
-              });
-            } else {
-              io.to("employees").emit("customer_read_messages", { 
-                customerId
-              });
-            }
-
-            console.log(`✅ Messages marked as read by ${userType}`);
-
-          } catch (error) {
-            console.error("❌ Error marking messages as read:", error);
-            socket.emit("error", { message: "Failed to mark messages as read" });
-          }
-        });
-
-        // Join specific customer room
-        socket.on("employee_join_customer", (customerId) => {
-          if (customerId) {
-            socket.join(`customer_${customerId}`);
-            console.log(`👨‍💼 Employee joined customer room: customer_${customerId}`);
-          }
-        });
-
         // Handle disconnect
         socket.on("disconnect", (reason) => {
           console.log("❌ User disconnected:", socket.id, "Reason:", reason);
-          
-          if (socket.userType === 'customer' && socket.customerId) {
-            socket.to("employees").emit("customer_offline", {
-              customerId: socket.customerId,
-              customerName: socket.userName,
-              socketId: socket.id
-            });
-          }
         });
 
         socket.on("error", (error) => {
@@ -318,11 +266,13 @@ export default function SocketHandler(req, res) {
 
       });
 
+      // Store io instance
       res.socket.server.io = io;
       console.log("✅ Socket.IO server setup completed");
 
     } catch (error) {
       console.error("❌ Error setting up Socket.IO:", error);
+      return res.status(500).json({ error: "Failed to setup WebSocket" });
     }
   } else {
     console.log("✅ Socket.IO server already running");

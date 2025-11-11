@@ -1,5 +1,4 @@
 // src/app/api/dashboard/route.js
-
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -17,195 +16,276 @@ export async function GET(request) {
     const todayFormatted = today.toISOString().split('T')[0];
     const yesterdayFormatted = yesterday.toISOString().split('T')[0];
 
-    console.log('Calculating for dates:', { todayFormatted, yesterdayFormatted });
+    console.log('📅 Calculating for dates:', { 
+      today: todayFormatted, 
+      yesterday: yesterdayFormatted 
+    });
 
-    // CLIENT OUTSTANDING CALCULATIONS (filling_history table - new_amount)
-    
+    // DYNAMIC CLIENT OUTSTANDING CALCULATIONS
     let clientTodayOutstanding = 0;
     let clientYesterdayOutstanding = 0;
     let totalClients = 0;
     let totalTransactions = 0;
-    let hasClientData = false;
 
     try {
-      // Check if filling_history table has any data
-      const checkClientData = await executeQuery(`
-        SELECT COUNT(*) as record_count, MAX(created_at) as latest_date
+      // ✅ 1. TODAY'S CLIENT OUTSTANDING - USING CORRECT 'rid' COLUMN
+      console.log('🔄 Calculating today\'s client outstanding with rid...');
+      const todayClientQuery = `
+        SELECT COALESCE(SUM(fh.new_amount), 0) as total 
+        FROM filling_history fh
+        LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+        WHERE (
+          DATE(fr.completed_date) = ? 
+          OR 
+          DATE(fh.created_at) = ?
+        )
+        AND fh.new_amount > 0
+        AND fh.cl_id IS NOT NULL
+      `;
+      const todayClientResult = await executeQuery(todayClientQuery, [todayFormatted, todayFormatted]);
+      clientTodayOutstanding = parseFloat(todayClientResult[0]?.total) || 0;
+      console.log('✅ Today Client Outstanding:', clientTodayOutstanding);
+
+      // ✅ 2. YESTERDAY'S CLIENT OUTSTANDING - USING CORRECT 'rid' COLUMN
+      console.log('🔄 Calculating yesterday\'s total outstanding with rid...');
+      const yesterdayClientQuery = `
+        SELECT COALESCE(SUM(fh.new_amount), 0) as total 
+        FROM filling_history fh
+        LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+        WHERE fh.cl_id IS NOT NULL
+          AND fh.new_amount > 0
+          AND (
+            DATE(fh.created_at) < ? 
+            OR 
+            DATE(fr.completed_date) < ?
+          )
+      `;
+      const yesterdayClientResult = await executeQuery(yesterdayClientQuery, [todayFormatted, todayFormatted]);
+      clientYesterdayOutstanding = parseFloat(yesterdayClientResult[0]?.total) || 0;
+      console.log('✅ Yesterday Client Outstanding (Total Pending):', clientYesterdayOutstanding);
+
+      // ✅ 3. CHECK IF WE HAVE DATA
+      const checkTodayDataQuery = `
+        SELECT COUNT(*) as count 
+        FROM filling_history fh
+        LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+        WHERE (
+          DATE(fr.completed_date) = ? 
+          OR 
+          DATE(fh.created_at) = ?
+        )
+        AND fh.new_amount > 0
+        AND fh.cl_id IS NOT NULL
+      `;
+      const todayDataCheck = await executeQuery(checkTodayDataQuery, [todayFormatted, todayFormatted]);
+      const hasTodayData = parseInt(todayDataCheck[0]?.count) > 0;
+
+      const checkYesterdayDataQuery = `
+        SELECT COUNT(*) as count 
+        FROM filling_history fh
+        LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+        WHERE fh.cl_id IS NOT NULL
+          AND fh.new_amount > 0
+          AND (
+            DATE(fh.created_at) < ? 
+            OR 
+            DATE(fr.completed_date) < ?
+          )
+      `;
+      const yesterdayDataCheck = await executeQuery(checkYesterdayDataQuery, [todayFormatted, todayFormatted]);
+      const hasYesterdayData = parseInt(yesterdayDataCheck[0]?.count) > 0;
+
+      console.log('📊 Data Availability:', {
+        today: hasTodayData,
+        yesterday: hasYesterdayData,
+        todayAmount: clientTodayOutstanding,
+        yesterdayAmount: clientYesterdayOutstanding
+      });
+
+      // ✅ 4. FALLBACK: If joins don't work, use filling_history only
+      if (clientTodayOutstanding === 0 && clientYesterdayOutstanding === 0) {
+        console.log('🔄 Using filling_history only as fallback...');
+        
+        // Today from filling_history
+        const todaySimpleQuery = `
+          SELECT COALESCE(SUM(new_amount), 0) as total 
+          FROM filling_history 
+          WHERE DATE(created_at) = ?
+            AND new_amount > 0
+            AND cl_id IS NOT NULL
+        `;
+        const todaySimpleResult = await executeQuery(todaySimpleQuery, [todayFormatted]);
+        clientTodayOutstanding = parseFloat(todaySimpleResult[0]?.total) || 0;
+        
+        // Yesterday from filling_history (all before today)
+        const yesterdaySimpleQuery = `
+          SELECT COALESCE(SUM(new_amount), 0) as total 
+          FROM filling_history 
+          WHERE DATE(created_at) < ?
+            AND new_amount > 0
+            AND cl_id IS NOT NULL
+        `;
+        const yesterdaySimpleResult = await executeQuery(yesterdaySimpleQuery, [todayFormatted]);
+        clientYesterdayOutstanding = parseFloat(yesterdaySimpleResult[0]?.total) || 0;
+        
+        console.log('✅ Fallback Results:', {
+          today: clientTodayOutstanding,
+          yesterday: clientYesterdayOutstanding
+        });
+      }
+
+      // ✅ 5. TOTAL CLIENTS
+      console.log('🔄 Counting total clients...');
+      const totalClientsQuery = `
+        SELECT COUNT(DISTINCT cl_id) as count 
+        FROM filling_history 
+        WHERE cl_id IS NOT NULL
+      `;
+      const totalClientsResult = await executeQuery(totalClientsQuery);
+      totalClients = parseInt(totalClientsResult[0]?.count) || 0;
+      console.log('✅ Total Clients:', totalClients);
+
+      // ✅ 6. TOTAL TRANSACTIONS
+      console.log('🔄 Counting total transactions...');
+      const totalTransactionsQuery = `
+        SELECT COUNT(*) as count 
         FROM filling_history 
         WHERE new_amount > 0
-        LIMIT 1
-      `);
+          AND cl_id IS NOT NULL
+      `;
+      const totalTransactionsResult = await executeQuery(totalTransactionsQuery);
+      totalTransactions = parseInt(totalTransactionsResult[0]?.count) || 0;
+      console.log('✅ Total Transactions:', totalTransactions);
+
+    } catch (error) {
+      console.error('❌ Database query error:', error);
       
-      hasClientData = checkClientData[0]?.record_count > 0;
-      console.log('Client table has data:', hasClientData, checkClientData[0]);
-
-      if (hasClientData) {
-        // Today's client outstanding
-        const clientTodayQuery = `
+      // Ultimate fallback - use filling_history only
+      console.log('🔄 Using ultimate fallback with filling_history only...');
+      try {
+        const todaySimpleQuery = `
           SELECT COALESCE(SUM(new_amount), 0) as total 
           FROM filling_history 
-          WHERE DATE(created_at) = ? 
-          AND new_amount > 0
+          WHERE DATE(created_at) = ?
+            AND new_amount > 0
+            AND cl_id IS NOT NULL
         `;
-        const clientTodayResult = await executeQuery(clientTodayQuery, [todayFormatted]);
-        clientTodayOutstanding = parseFloat(clientTodayResult[0]?.total) || 0;
-        console.log('Client Today Outstanding:', clientTodayOutstanding);
-
-        // Yesterday's client outstanding
-        const clientYesterdayQuery = `
+        const todaySimpleResult = await executeQuery(todaySimpleQuery, [todayFormatted]);
+        clientTodayOutstanding = parseFloat(todaySimpleResult[0]?.total) || 0;
+        
+        const yesterdaySimpleQuery = `
           SELECT COALESCE(SUM(new_amount), 0) as total 
           FROM filling_history 
-          WHERE DATE(created_at) = ? 
-          AND new_amount > 0
+          WHERE DATE(created_at) < ?
+            AND new_amount > 0
+            AND cl_id IS NOT NULL
         `;
-        const clientYesterdayResult = await executeQuery(clientYesterdayQuery, [yesterdayFormatted]);
-        clientYesterdayOutstanding = parseFloat(clientYesterdayResult[0]?.total) || 0;
-        console.log('Client Yesterday Outstanding:', clientYesterdayOutstanding);
-
-        // If no data for specific dates, get total outstanding
-        if (clientTodayOutstanding === 0 && clientYesterdayOutstanding === 0) {
-          const totalClientOutstandingQuery = `
-            SELECT COALESCE(SUM(new_amount), 0) as total 
-            FROM filling_history 
-            WHERE new_amount > 0
-          `;
-          const totalClientResult = await executeQuery(totalClientOutstandingQuery);
-          clientTodayOutstanding = parseFloat(totalClientResult[0]?.total) || 0;
-          clientYesterdayOutstanding = clientTodayOutstanding;
-          console.log('Total Client Outstanding:', clientTodayOutstanding);
-        }
-
-        // Total unique clients (from filling_history - cl_id)
-        const totalClientsQuery = `
-          SELECT COUNT(DISTINCT cl_id) as count 
-          FROM filling_history 
-          WHERE cl_id IS NOT NULL
-        `;
-        const totalClientsResult = await executeQuery(totalClientsQuery);
-        totalClients = parseInt(totalClientsResult[0]?.count) || 0;
-
-        // Total transactions
-        const totalTransactionsQuery = `
-          SELECT COUNT(*) as count 
-          FROM filling_history
-          WHERE new_amount > 0
-        `;
-        const totalTransactionsResult = await executeQuery(totalTransactionsQuery);
-        totalTransactions = parseInt(totalTransactionsResult[0]?.count) || 0;
+        const yesterdaySimpleResult = await executeQuery(yesterdaySimpleQuery, [todayFormatted]);
+        clientYesterdayOutstanding = parseFloat(yesterdaySimpleResult[0]?.total) || 0;
+        
+        console.log('✅ Ultimate Fallback Results:', {
+          today: clientTodayOutstanding,
+          yesterday: clientYesterdayOutstanding
+        });
+        
+      } catch (finalError) {
+        console.log('❌ Ultimate fallback failed, using zeros');
+        clientTodayOutstanding = 0;
+        clientYesterdayOutstanding = 0;
+        totalClients = 0;
+        totalTransactions = 0;
       }
-
-    } catch (clientError) {
-      console.log('Client data error:', clientError);
     }
 
-    // VENDOR OUTSTANDING CALCULATIONS - ALWAYS 0
-    const vendorTodayOutstanding = 0;
-    const vendorYesterdayOutstanding = 0;
-    const totalVendors = 0;
-
-    // COLLECTION EFFICIENCY - Simplified without status
+    // ✅ 7. COLLECTION EFFICIENCY
     let collectionEfficiency = 0;
     try {
-      if (hasClientData && totalTransactions > 0) {
-        // Simple calculation based on transactions
-        const totalAmount = clientTodayOutstanding + clientYesterdayOutstanding;
-        const estimatedPaid = totalAmount * 0.85; // Assume 85% collection
-        collectionEfficiency = totalAmount > 0 ? (estimatedPaid / totalAmount) * 100 : 85;
-      } else {
-        collectionEfficiency = 85.0; // Default value
+      if (totalTransactions > 0) {
+        const efficiencyQuery = `
+          SELECT 
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'completed' OR status = 'paid' THEN 1 ELSE 0 END) as completed
+          FROM filling_history 
+          WHERE new_amount > 0
+            AND cl_id IS NOT NULL
+        `;
+        const efficiencyResult = await executeQuery(efficiencyQuery);
+        const effData = efficiencyResult[0];
+        
+        if (effData && effData.total > 0) {
+          collectionEfficiency = (effData.completed / effData.total) * 100;
+        }
       }
+      console.log('✅ Collection Efficiency:', collectionEfficiency);
     } catch (efficiencyError) {
       console.log('Efficiency calculation error:', efficiencyError);
-      collectionEfficiency = 85.0; // Fallback value
+      collectionEfficiency = 0;
     }
 
-    // PAYMENT STATUS COUNTS - Simplified without status
-    const pendingPayments = Math.floor(totalTransactions * 0.15); // Estimate 15% pending
-    const clearedPayments = totalTransactions - pendingPayments;
-
-    // OUTSTANDING HISTORY DATA - Without status column
-    let historyData = [];
-    if (type === 'history' || type === 'all') {
-      try {
-        if (hasClientData) {
-          const clientHistoryQuery = `
-            SELECT 
-              id,
-              cl_id as entity_id,
-              new_amount as amount,
-              COALESCE(trans_type, 'Filling Transaction') as description,
-              created_at as date,
-              expiry_date as due_date
-            FROM filling_history
-            WHERE new_amount > 0
-            ORDER BY created_at DESC
-            LIMIT 50
-          `;
-          const clientHistoryResult = await executeQuery(clientHistoryQuery);
-          
-          historyData = clientHistoryResult.map(item => ({
-            id: item.id,
-            type: 'Client',
-            description: item.description || `Transaction #${item.id}`,
-            amount: parseFloat(item.amount) || 0,
-            status: 'Active', // Default status since no status column
-            date: item.date,
-            dueDate: item.due_date,
-            entityId: item.entity_id
-          }));
-          
-          console.log('Client History Records:', historyData.length);
-        }
-
-      } catch (historyError) {
-        console.log('History data error:', historyError);
+    // ✅ 8. PAYMENT STATUS COUNTS
+    let pendingPayments = 0;
+    let clearedPayments = 0;
+    try {
+      if (totalTransactions > 0) {
+        const paymentStatusQuery = `
+          SELECT 
+            SUM(CASE WHEN status != 'completed' AND status != 'paid' THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status = 'completed' OR status = 'paid' THEN 1 ELSE 0 END) as completed
+          FROM filling_history 
+          WHERE new_amount > 0
+            AND cl_id IS NOT NULL
+        `;
+        const paymentStatusResult = await executeQuery(paymentStatusQuery);
+        const payData = paymentStatusResult[0];
+        
+        pendingPayments = parseInt(payData?.pending) || 0;
+        clearedPayments = parseInt(payData?.completed) || 0;
       }
+      console.log('✅ Payment Status:', { 
+        pending: pendingPayments, 
+        cleared: clearedPayments 
+      });
+    } catch (paymentError) {
+      console.log('Payment status error:', paymentError);
     }
 
-    // PREPARE FINAL RESPONSE
+    // ✅ 9. CALCULATE CHANGES
+    const clientChange = clientTodayOutstanding;
+
+    // ✅ 10. PREPARE FINAL RESPONSE
     const responseData = {
-      // Client Stats
       vendorYesterdayOutstanding: 0,
       vendorTodayOutstanding: 0,
-      clientYesterdayOutstanding: clientYesterdayOutstanding,
-      clientTodayOutstanding: clientTodayOutstanding,
-      
-      // Counts
+      clientYesterdayOutstanding: Math.round(clientYesterdayOutstanding),
+      clientTodayOutstanding: Math.round(clientTodayOutstanding),
       totalVendors: 0,
       totalClients: totalClients,
       totalTransactions: totalTransactions,
-      
-      // Efficiency
       collectionEfficiency: Math.round(collectionEfficiency * 100) / 100,
-      
-      // Payment Status
       pendingPayments: pendingPayments,
       clearedPayments: clearedPayments,
-      
-      // Additional calculated fields
       vendorChange: 0,
-      clientChange: clientTodayOutstanding - clientYesterdayOutstanding,
-      
-      // History data
-      ...(type === 'history' || type === 'all' ? { history: historyData } : {})
+      clientChange: Math.round(clientChange)
     };
 
-    console.log('Final Response Data:', responseData);
+    console.log('🎯 FINAL Response Data with rid:', responseData);
 
     return NextResponse.json({
       success: true,
       data: responseData,
       lastUpdated: new Date().toISOString(),
-      note: hasClientData ? 'Client data loaded successfully' : 'No client data available'
+      dataSource: 'corrected_rid_column',
+      note: 'Using correct rid column for table joins'
     });
 
   } catch (error) {
-    console.error('Dashboard API error:', error);
+    console.error('❌ Dashboard API error:', error);
     
     return NextResponse.json({
       success: false,
       error: 'Failed to fetch dashboard data',
-      details: error.message
+      details: error.message,
+      dataSource: 'error'
     }, { status: 500 });
   }
 }

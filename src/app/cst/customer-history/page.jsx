@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import CustomerHistoryContent from "./CustomerHistoryContent";
+import { useCustomerSession } from '@/context/CustomerSessionContext';
 
 export default function CustomerHistoryPage() {
   return (

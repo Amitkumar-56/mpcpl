@@ -1,4 +1,4 @@
-import crypto from 'crypto'; // for SHA-256
+import crypto from 'crypto';
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import path from 'path';
@@ -32,7 +32,7 @@ export async function DELETE(req) {
 }
 
 export async function POST(req) {
-  const conn = await db.getConnection(); // use connection for transaction
+  const conn = await db.getConnection();
   try {
     const formData = await req.formData();
 
@@ -43,7 +43,6 @@ export async function POST(req) {
     let lastCode = lastRow.length ? lastRow[0].emp_code : null;
     let newCodeNumber = 1;
     if (lastCode) {
-      // Extract number from last code EMP001 -> 1
       const numPart = parseInt(lastCode.replace('EMP', ''), 10);
       newCodeNumber = numPart + 1;
     }
@@ -52,7 +51,7 @@ export async function POST(req) {
     // --- Form fields ---
     const email = formData.get('email') || '';
     const rawPassword = formData.get('password') || '';
-    const role = parseInt(formData.get('role')) || 0;
+    const role = parseInt(formData.get('role')) || 0; // Yeh role employee_profile ke liye hai
     const salary = parseInt(formData.get('salary')) || 0;
     const name = formData.get('name') || '';
     const address = formData.get('address') || '';
@@ -96,7 +95,7 @@ export async function POST(req) {
 
     const employeeId = result.insertId;
 
-    // --- Save permissions ---
+    // --- Save permissions with ROLE ---
     const perms = formData.get('permissions');
     if (perms) {
       let permissionsObj = {};
@@ -110,16 +109,28 @@ export async function POST(req) {
         const { can_view, can_edit, can_delete } = permissionsObj[moduleName];
         await conn.execute(
           `INSERT INTO role_permissions 
-            (employee_id, module_name, can_view, can_edit, can_delete)
-           VALUES (?,?,?,?,?)`,
-          [employeeId, moduleName, can_view ? 1 : 0, can_edit ? 1 : 0, can_delete ? 1 : 0]
+            (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
+           VALUES (?,?,?,?,?,?, NOW())`,
+          [
+            employeeId, 
+            role, // Yahan same role use karenge jo employee_profile mein hai
+            moduleName, 
+            can_view ? 1 : 0, 
+            can_edit ? 1 : 0, 
+            can_delete ? 1 : 0
+          ]
         );
       }
     }
 
     // Commit transaction
     await conn.commit();
-    return NextResponse.json({ message: 'Employee added', id: employeeId, emp_code });
+    return NextResponse.json({ 
+      message: 'Employee added', 
+      id: employeeId, 
+      emp_code,
+      role: role // Response mein role bhi send karen
+    });
   } catch (err) {
     await conn.rollback();
     console.error('Database error:', err);
@@ -131,4 +142,3 @@ export async function POST(req) {
     conn.release();
   }
 }
-

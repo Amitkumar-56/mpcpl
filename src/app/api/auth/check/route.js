@@ -1,3 +1,4 @@
+// src/app/api/auth/check/route.js
 import { verifyToken } from "@/lib/auth";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";

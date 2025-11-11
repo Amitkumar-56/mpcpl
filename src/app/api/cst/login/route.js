@@ -1,4 +1,4 @@
-//src/app/api/cst/login/route.js
+import { signToken } from "@/lib/cstauth";
 import { executeQuery } from "@/lib/db";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
@@ -42,6 +42,13 @@ export async function POST(req) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
+    // Generate JWT token
+    const token = signToken({ 
+      id: customer.id, 
+      email: customer.email,
+      role: 'customer'
+    });
+
     // Return customer info (exclude password)
     return NextResponse.json({
       success: true,
@@ -53,9 +60,10 @@ export async function POST(req) {
         client: customer.client,
         roleid: customer.roleid,
       },
+      token
     });
   } catch (err) {
-    console.error("Login error:", err);
+    console.error("Customer login error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

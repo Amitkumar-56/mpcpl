@@ -1,3 +1,5 @@
+
+// src/app/api/check-permissions/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 

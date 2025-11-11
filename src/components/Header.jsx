@@ -1,145 +1,265 @@
-//src/components/Header.jsx
 'use client';
 
+import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 export default function Header() {
-  const [user, setUser] = useState(null);
+  const { user, logout, loading } = useSession();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false); // Mobile sidebar
+  const [showSidebar, setShowSidebar] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
-  useEffect(() => {
-    const userData = localStorage.getItem('user');
-    if (userData) {
-      setUser(JSON.parse(userData));
-    }
-  }, []);
-
   const handleLogout = () => {
-    localStorage.clear();
-    router.push('/login');
+    logout();
     setShowProfileMenu(false);
     setShowSidebar(false);
   };
 
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showProfileMenu && !event.target.closest('.profile-dropdown')) {
+        setShowProfileMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showProfileMenu]);
+
+  // Don't show header on login page
   if (pathname === '/login') return null;
 
+  // Show loading state
+  if (loading) {
+    return (
+      <header className="bg-white shadow-sm">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+          <div className="flex items-center gap-4">
+            <div className="animate-pulse bg-gray-200 rounded-full w-8 h-8"></div>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // Don't show header if no user
+  if (!user) return null;
+
   return (
-    <header className="bg-white shadow-sm">
+    <header className="bg-white shadow-sm border-b border-gray-200">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         {/* Logo */}
-        <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+        <div className="flex items-center space-x-4">
+          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+          
+          {/* Show current page title */}
+          {pathname !== '/dashboard' && (
+            <div className="hidden md:block">
+              <span className="text-gray-500 mx-2">•</span>
+              <span className="text-gray-700 font-medium capitalize">
+                {pathname.split('/').filter(Boolean).join(' / ')}
+              </span>
+            </div>
+          )}
+        </div>
 
         {/* Search - Only show on dashboard */}
         {pathname === '/dashboard' && (
           <div className="hidden sm:flex items-center w-1/2 max-w-lg">
             <input
               type="text"
-              placeholder="Search"
-              className="w-full border border-gray-300 rounded-l-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              placeholder="Search transactions, customers..."
+              className="w-full border border-gray-300 rounded-l-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
-            <button className="bg-white border border-l-0 border-gray-300 px-3 rounded-r-md text-gray-500">
+            <button className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 transition-colors">
               <FaComments className="text-lg" />
             </button>
           </div>
         )}
 
-        {/* User Profile */}
+        {/* User Profile Section */}
         <div className="flex items-center gap-4">
           {/* Notification with badge */}
           <div className="relative hidden sm:block">
-            <FaBell className="text-gray-600 cursor-pointer text-lg" />
-            <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 rounded-full">
-              0
-            </span>
+            <button className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
+              <FaBell className="text-xl" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                0
+              </span>
+            </button>
           </div>
 
-          {/* Profile Dropdown / Mobile Sidebar */}
-          <div className="relative">
-            <div
-              className="flex items-center gap-2 cursor-pointer"
-              onClick={() => setShowSidebar(true)}
+          {/* Profile Dropdown */}
+          <div className="relative profile-dropdown">
+            {/* Profile Trigger Button */}
+            <button
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
+              className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
             >
-              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
-                {user?.name?.charAt(0) || 'U'}
+              <div className="text-right hidden sm:block">
+                <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                <p className="text-xs text-gray-500">
+                  {user.role === 5 ? 'Administrator' : 'User'} • {user.emp_code}
+                </p>
               </div>
-              <span className="text-gray-800 font-medium hidden sm:block">{user?.name || 'User'}</span>
-            </div>
-
-            {/* Desktop Dropdown */}
-            {showProfileMenu && !showSidebar && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-50 sm:block hidden">
-                <button
-                  onClick={() => { router.push('/roles'); setShowProfileMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <FaCog /> Role Setting
-                </button>
-                <button
-                  onClick={() => { router.push('/profile'); setShowProfileMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <FaUser /> My Profile
-                </button>
-                <button
-                  onClick={() => { router.push('/change-password'); setShowProfileMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <FaKey /> Change Password
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-2 px-4 py-2 w-full text-left text-red-600 hover:bg-gray-100"
-                >
-                  <FaSignOutAlt /> Sign Out
-                </button>
+              <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
+                {user.name?.charAt(0).toUpperCase() || 'U'}
               </div>
-            )}
+            </button>
 
-            {/* Mobile Sidebar */}
-            {showSidebar && (
-              <div className="fixed top-0 right-0 w-64 h-full bg-white shadow-lg z-50 flex flex-col">
-                <div className="flex justify-between items-center px-4 py-3 border-b">
-                  <h2 className="text-lg font-semibold">Menu</h2>
-                  <button onClick={() => setShowSidebar(false)}>
-                    <FaTimes className="text-gray-700 text-xl" />
-                  </button>
+            {/* Desktop Dropdown Menu */}
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2">
+                {/* User Info */}
+                <div className="px-4 py-3 border-b border-gray-100">
+                  <p className="font-semibold text-gray-900">{user.name}</p>
+                  <p className="text-sm text-gray-600 truncate">{user.email}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {user.station || 'Main Station'}
+                  </p>
                 </div>
-                <div className="flex flex-col mt-4 gap-2 px-4">
+
+                {/* Menu Items */}
+                <div className="py-2">
                   <button
-                    onClick={() => { router.push('/roles'); setShowSidebar(false); }}
-                    className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
+                    onClick={() => { 
+                      router.push('/profile'); 
+                      setShowProfileMenu(false); 
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 w-full text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                   >
-                    <FaCog /> Role Setting
+                    <FaUser className="text-gray-400" />
+                    <span>My Profile</span>
                   </button>
+
                   <button
-                    onClick={() => { router.push('/profile'); setShowSidebar(false); }}
-                    className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
+                    onClick={() => { 
+                      router.push('/change-password'); 
+                      setShowProfileMenu(false); 
+                    }}
+                    className="flex items-center gap-3 px-4 py-3 w-full text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                   >
-                    <FaUser /> My Profile
+                    <FaKey className="text-gray-400" />
+                    <span>Change Password</span>
                   </button>
-                  <button
-                    onClick={() => { router.push('/change-password'); setShowSidebar(false); }}
-                    className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
-                  >
-                    <FaKey /> Change Password
-                  </button>
+
+                  {user.role === 5 && (
+                    <button
+                      onClick={() => { 
+                        router.push('/roles'); 
+                        setShowProfileMenu(false); 
+                      }}
+                      className="flex items-center gap-3 px-4 py-3 w-full text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                    >
+                      <FaCog className="text-gray-400" />
+                      <span>Role Settings</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Logout */}
+                <div className="border-t border-gray-100 pt-2">
                   <button
                     onClick={handleLogout}
-                    className="flex items-center gap-2 px-2 py-2 text-red-600 hover:bg-gray-100 rounded"
+                    className="flex items-center gap-3 px-4 py-3 w-full text-left text-red-600 hover:bg-red-50 transition-colors"
                   >
-                    <FaSignOutAlt /> Sign Out
+                    <FaSignOutAlt />
+                    <span>Sign Out</span>
                   </button>
                 </div>
               </div>
             )}
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="sm:hidden p-2 text-gray-600 hover:text-blue-600"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
         </div>
       </div>
+
+      {/* Mobile Sidebar Overlay */}
+      {showSidebar && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 sm:hidden">
+          <div className="absolute right-0 top-0 w-80 h-full bg-white shadow-xl flex flex-col">
+            {/* Header */}
+            <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <div className="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                  {user.name?.charAt(0).toUpperCase() || 'U'}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{user.name}</p>
+                  <p className="text-sm text-gray-600">{user.email}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowSidebar(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg"
+              >
+                <FaTimes className="text-gray-600 text-lg" />
+              </button>
+            </div>
+
+            {/* Menu Items */}
+            <div className="flex-1 py-4">
+              <button
+                onClick={() => { router.push('/profile'); setShowSidebar(false); }}
+                className="flex items-center gap-4 px-6 py-4 w-full text-left text-gray-700 hover:bg-blue-50 border-b border-gray-100"
+              >
+                <FaUser className="text-gray-400 text-lg" />
+                <span className="font-medium">My Profile</span>
+              </button>
+
+              <button
+                onClick={() => { router.push('/change-password'); setShowSidebar(false); }}
+                className="flex items-center gap-4 px-6 py-4 w-full text-left text-gray-700 hover:bg-blue-50 border-b border-gray-100"
+              >
+                <FaKey className="text-gray-400 text-lg" />
+                <span className="font-medium">Change Password</span>
+              </button>
+
+              {user.role === 5 && (
+                <button
+                  onClick={() => { router.push('/roles'); setShowSidebar(false); }}
+                  className="flex items-center gap-4 px-6 py-4 w-full text-left text-gray-700 hover:bg-blue-50 border-b border-gray-100"
+                >
+                  <FaCog className="text-gray-400 text-lg" />
+                  <span className="font-medium">Role Settings</span>
+                </button>
+              )}
+
+              {/* Notifications in mobile */}
+              <div className="flex items-center gap-4 px-6 py-4 border-b border-gray-100">
+                <FaBell className="text-gray-400 text-lg" />
+                <span className="font-medium">Notifications</span>
+                <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">0</span>
+              </div>
+            </div>
+
+            {/* Logout */}
+            <div className="p-4 border-t border-gray-200">
+              <button
+                onClick={handleLogout}
+                className="flex items-center justify-center gap-3 w-full py-3 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors font-medium"
+              >
+                <FaSignOutAlt />
+                <span>Sign Out</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
