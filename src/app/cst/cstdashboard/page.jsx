@@ -3,7 +3,7 @@
 
 import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
-import Sidebar from "@/components/cstSidebar";
+import Sidebar from "@/components/cstsidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
