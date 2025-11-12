@@ -1,4 +1,4 @@
-// src/components/cstsidebar.jsx (Self-contained version)
+// src/components/cstSidebar.jsx (Self-contained version)
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

@@ -1,9 +1,9 @@
+//src/app/cst/cstdashboard/page.jsx
 "use client";
 
-import CstHeader from "@/components/CstHeader";
-import CstSidebar from "@/components/cstsidebar";
 import Footer from "@/components/Footer";
-import { useCustomerSession } from '@/context/CustomerSessionContext';
+import CstHeader from "@/components/cstHeader";
+import Sidebar from "@/components/cstSidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -22,11 +22,13 @@ import {
   BiWifiOff,
   BiX
 } from "react-icons/bi";
+import { io } from "socket.io-client";
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
-  const { customer, loading: authLoading, logout } = useCustomerSession();
   const [activePage, setActivePage] = useState("Dashboard");
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
   
   // Socket and Chat States
   const [socket, setSocket] = useState(null);
@@ -42,165 +44,119 @@ export default function CustomerDashboardPage() {
   const [notifications, setNotifications] = useState([]);
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [showRechargeModal, setShowRechargeModal] = useState(false);
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const messagesEndRef = useRef(null);
-  const socketRef = useRef(null);
 
-  // Redirect if not authenticated
+  // Load user data
   useEffect(() => {
-    if (!authLoading && !customer) {
+    const savedUser = localStorage.getItem("customer");
+    if (!savedUser) {
       router.push("/cst/login");
+      return;
     }
-  }, [customer, authLoading, router]);
+    
+    const parsedUser = JSON.parse(savedUser);
+    if (Number(parsedUser.roleid) !== 1) {
+      router.push("/cst/login");
+      return;
+    }
+    
+    setUser(parsedUser);
+    setLoading(false);
+  }, [router]);
 
-  // Improved WebSocket connection with reconnection logic
+  // 🔥 SIMPLIFIED SOCKET CONNECTION
   useEffect(() => {
-    if (!customer?.id) return;
+    if (!user?.id) return;
 
-    console.log('🔄 Initializing WebSocket connection for customer:', customer.id);
+    console.log('🔄 Starting socket connection...');
 
-    const initializeSocket = () => {
-      // Clean up existing socket
-      if (socketRef.current) {
-        socketRef.current.disconnect();
-        socketRef.current = null;
-      }
+    // Simple socket configuration
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
+    
+    const newSocket = io(socketUrl, {
+      path: '/api/socket/',
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+    });
 
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+    // Basic event handlers
+    newSocket.on('connect', () => {
+      console.log('✅ Connected to server:', newSocket.id);
+      setConnectionStatus('connected');
       
-      try {
-        const newSocket = new WebSocket(socketUrl);
-        
-        newSocket.onopen = () => {
-          console.log('✅ WebSocket connected successfully');
-          setConnectionStatus('connected');
-          setReconnectAttempts(0);
-          
-          // Join customer room
-          const joinMessage = {
-            type: 'customer_join',
-            customerId: customer.id.toString(),
-            customerName: customer.name || 'Customer'
-          };
-          newSocket.send(JSON.stringify(joinMessage));
-          console.log('📤 Sent join message:', joinMessage);
-        };
+      // Join customer room
+      newSocket.emit('customer_join', {
+        customerId: user.id.toString(),
+        customerName: user.name || 'Customer'
+      });
+    });
 
-        newSocket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            console.log('📨 Received message:', data);
-            
-            switch (data.type) {
-              case 'new_message':
-                handleNewMessage(data);
-                break;
-              case 'message_sent':
-                handleMessageSent(data);
-                break;
-              case 'employee_typing':
-                handleEmployeeTyping(data);
-                break;
-              case 'joined_success':
-                console.log('✅ Successfully joined room:', data);
-                break;
-              case 'error':
-                console.error('❌ Socket error:', data.message);
-                break;
-              default:
-                console.log('📦 Unknown message type:', data.type);
-            }
-          } catch (error) {
-            console.error('❌ Error parsing message:', error);
-          }
-        };
+    newSocket.on('disconnect', () => {
+      console.log('🔴 Disconnected from server');
+      setConnectionStatus('disconnected');
+    });
 
-        newSocket.onclose = (event) => {
-          console.log('🔴 WebSocket disconnected:', event.code, event.reason);
-          setConnectionStatus('disconnected');
-          
-          // Attempt reconnection after delay
-          if (reconnectAttempts < 5) {
-            const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000);
-            console.log(`🔄 Attempting reconnection in ${delay}ms (attempt ${reconnectAttempts + 1})`);
-            
-            setTimeout(() => {
-              setReconnectAttempts(prev => prev + 1);
-              initializeSocket();
-            }, delay);
-          } else {
-            console.error('❌ Max reconnection attempts reached');
-            setConnectionStatus('error');
-          }
-        };
+    newSocket.on('connect_error', (error) => {
+      console.error('❌ Connection failed:', error.message);
+      setConnectionStatus('error');
+    });
 
-        newSocket.onerror = (error) => {
-          console.error('❌ WebSocket error:', error);
-          setConnectionStatus('error');
-        };
+    newSocket.on('joined_success', (data) => {
+      console.log('✅ Joined room successfully:', data);
+    });
 
-        socketRef.current = newSocket;
-        setSocket(newSocket);
-        
-      } catch (error) {
-        console.error('❌ Failed to create WebSocket:', error);
-        setConnectionStatus('error');
+    newSocket.on('new_message', (data) => {
+      console.log('📨 New message:', data);
+      const { message } = data;
+      
+      setMessages(prev => [...prev, message]);
+      
+      if (!showChat) {
+        setUnreadCount(prev => prev + 1);
       }
-    };
+      
+      scrollToBottom();
+    });
 
-    initializeSocket();
+    newSocket.on('message_sent', (data) => {
+      console.log('✅ Message sent:', data);
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.tempId === data.tempId
+            ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
+            : msg
+        )
+      );
+    });
 
-    // Cleanup on unmount
+    newSocket.on('employee_typing', (data) => {
+      setIsTyping(data.typing);
+      setTypingEmployee(data.typing ? data.employeeName : "");
+    });
+
+    setSocket(newSocket);
+
     return () => {
-      if (socketRef.current) {
-        socketRef.current.close();
-        socketRef.current = null;
-      }
+      console.log('🧹 Cleaning up socket');
+      newSocket.disconnect();
     };
-  }, [customer?.id, reconnectAttempts]);
-
-  // Message handlers
-  const handleNewMessage = (data) => {
-    const { message } = data;
-    
-    setMessages(prev => [...prev, message]);
-    
-    if (!showChat) {
-      setUnreadCount(prev => prev + 1);
-    }
-    
-    scrollToBottom();
-  };
-
-  const handleMessageSent = (data) => {
-    setMessages(prev => 
-      prev.map(msg => 
-        msg.tempId === data.tempId
-          ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
-          : msg
-      )
-    );
-  };
-
-  const handleEmployeeTyping = (data) => {
-    setIsTyping(data.typing);
-    setTypingEmployee(data.typing ? data.employeeName : "");
-  };
+  }, [user?.id]);
 
   // Load messages when chat opens
   useEffect(() => {
-    if (customer?.id && showChat) {
+    if (user?.id && showChat) {
       fetchCustomerMessages();
-      setUnreadCount(0); // Mark as read when opening chat
     }
-  }, [customer, showChat]);
+  }, [user, showChat]);
 
   const fetchCustomerMessages = async () => {
     try {
-      if (!customer?.id) return;
+      if (!user?.id) return;
       
-      console.log('📥 Fetching customer messages...');
-      const response = await fetch(`/api/chat/messages?customerId=${customer.id}`);
+      console.log('📥 Fetching messages...');
+      const response = await fetch(`/api/chat/messages?customerId=${user.id}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -210,20 +166,14 @@ export default function CustomerDashboardPage() {
         }
       }
     } catch (error) {
-      console.error("Error fetching customer messages:", error);
+      console.error("Error fetching messages:", error);
     }
   };
 
   const sendMessage = async () => {
     const messageText = newMessage.trim();
     
-    if (!messageText || !customer || !socketRef.current || connectionStatus !== 'connected') {
-      console.warn('⚠️ Cannot send message - conditions not met:', {
-        hasMessage: !!messageText,
-        hasCustomer: !!customer,
-        socketReady: socketRef.current?.readyState === WebSocket.OPEN,
-        connectionStatus
-      });
+    if (!messageText || !user || !socket || !socket.connected) {
       return;
     }
 
@@ -235,7 +185,7 @@ export default function CustomerDashboardPage() {
       tempId,
       text: messageText,
       sender: 'customer',
-      customer_id: customer.id,
+      customer_id: user.id,
       status: 'sending',
       timestamp: new Date().toISOString(),
     };
@@ -245,18 +195,14 @@ export default function CustomerDashboardPage() {
     scrollToBottom();
 
     try {
-      const messageData = {
-        type: 'customer_message',
-        customerId: customer.id.toString(),
+      socket.emit('customer_message', {
+        customerId: user.id.toString(),
         text: messageText,
-        customerName: customer.name || 'Customer',
+        customerName: user.name || 'Customer',
         tempId: tempId
-      };
-      
-      socketRef.current.send(JSON.stringify(messageData));
-      console.log('📤 Sent message data:', messageData);
+      });
     } catch (error) {
-      console.error("❌ Error sending message:", error);
+      console.error("Error sending message:", error);
       setMessages(prev => 
         prev.map(msg => 
           msg.tempId === tempId
@@ -270,36 +216,14 @@ export default function CustomerDashboardPage() {
   };
 
   const reconnectSocket = () => {
-    setReconnectAttempts(0);
-    setConnectionStatus('connecting');
-    
-    // Force reinitialize socket
-    if (socketRef.current) {
-      socketRef.current.close();
+    if (socket) {
+      socket.disconnect();
+      setTimeout(() => {
+        socket.connect();
+      }, 1000);
+    } else {
+      window.location.reload();
     }
-    
-    setTimeout(() => {
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-      try {
-        const newSocket = new WebSocket(socketUrl);
-        
-        newSocket.onopen = () => {
-          console.log('✅ Manual reconnection successful');
-          setConnectionStatus('connected');
-          setReconnectAttempts(0);
-        };
-        
-        newSocket.onerror = () => {
-          setConnectionStatus('error');
-        };
-        
-        socketRef.current = newSocket;
-        setSocket(newSocket);
-      } catch (error) {
-        console.error('❌ Manual reconnection failed:', error);
-        setConnectionStatus('error');
-      }
-    }, 1000);
   };
 
   const scrollToBottom = () => {
@@ -311,9 +235,6 @@ export default function CustomerDashboardPage() {
   const toggleChat = () => {
     setShowChat(!showChat);
     setChatMinimized(false);
-    if (!showChat) {
-      setUnreadCount(0);
-    }
   };
 
   const minimizeChat = () => {
@@ -396,7 +317,7 @@ export default function CustomerDashboardPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          customerId: customer.id,
+          customerId: user.id,
           amount: parseFloat(rechargeAmount)
         })
       });
@@ -414,24 +335,17 @@ export default function CustomerDashboardPage() {
     }
   };
 
-  if (authLoading) {
+  if (!user || loading) {
     return (
-      <div className="flex justify-center items-center h-screen bg-gray-100">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading customer dashboard...</p>
-        </div>
+      <div className="flex justify-center items-center h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
       </div>
     );
   }
 
-  if (!customer) {
-    return null;
-  }
-
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-      <CstSidebar activePage={activePage} setActivePage={setActivePage} />
+      <Sidebar activePage={activePage} setActivePage={setActivePage} />
       
       <div className="flex flex-col flex-1 overflow-hidden">
         <CstHeader />
@@ -486,11 +400,11 @@ export default function CustomerDashboardPage() {
                 </div>
               )}
 
-              {/* Welcome Banner */}
+              {/* Rest of your dashboard UI remains the same */}
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex justify-between items-center">
                   <div>
-                    <h3 className="text-2xl font-bold mb-2">Welcome back, {customer.name}! 👋</h3>
+                    <h3 className="text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h3>
                     <p className="text-blue-100">
                       {connectionStatus === 'connected' 
                         ? 'Live support is available' 

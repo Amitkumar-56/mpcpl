@@ -2,7 +2,6 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { useCustomerSession } from '@/context/CustomerSessionContext';
 
 export default function CustomerHistoryContent() {
   const [transactions, setTransactions] = useState([]);

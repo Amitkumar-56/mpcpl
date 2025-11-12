@@ -20,7 +20,12 @@ export function verifyToken(token) {
   }
 }
 
-// 🔑 Check Permissions - FIXED parameter order
+// 🔑 Validate Customer Role - ADD THIS FUNCTION
+export function validateCustomerRole(user) {
+  return user && user.role === 'customer';
+}
+
+// 🔑 Check Permissions
 export async function checkPermissions(userId, moduleName, action = 'can_view') {
   try {
     const result = await executeQuery(
