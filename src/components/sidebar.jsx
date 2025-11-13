@@ -1,7 +1,7 @@
 "use client";
 import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import {
   FaBars,
   FaBox,
@@ -25,17 +25,10 @@ import {
 
 export default function Sidebar() {
   const { user, logout, loading: authLoading } = useSession();
-  const [permissions, setPermissions] = useState({});
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-
-  useEffect(() => {
-    if (user) {
-      setPermissions(user.permissions || {});
-    }
-  }, [user]);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -51,51 +44,8 @@ export default function Sidebar() {
     }
   };
 
-  // Improved loading state with better UX
-  if (authLoading) {
-    return (
-      <div className="fixed md:relative z-40 w-64 h-screen bg-blue-200 text-black flex flex-col">
-        <div className="flex-1 flex flex-col items-center justify-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mb-2"></div>
-          <p className="text-gray-600 text-sm">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Don't render sidebar if no user
-  if (!user) {
-    return null;
-  }
-
-  const moduleMapping = {
-    dashboard: "Dashboard",
-    users: "Users",
-    reports: "Reports",
-    filling_requests: "Filling Requests",
-    stock: "stock",
-    loading_stations: "Loading Station",
-    vehicles: "Vehicle",
-    schedule_price: "Schedule Prices",
-    lr_management: "LR Management",
-    history: "Loading History",
-    products: "Items & Products",
-    employees: "Employees",
-    suppliers: "Suppliers",
-    transporters: "Transporters",
-    nb_management: "NB Accounts",
-    vouchers: "Voucher",
-    stock: "Stock Transfer",
-    remarks: "Remarks",
-    settings: "Settings",
-    customers: "Customer",
-    tanker_history: "Tanker History",
-    deepo_history: "Deepo History",
-    nb_expenses: "NB Expenses",
-    nb_stock: "NB Stock",
-  };
-
-  const menuItems = [
+  // Memoized menu items to prevent unnecessary re-renders
+  const menuItems = useMemo(() => [
     { name: "Dashboard", icon: <FaHome />, module: "dashboard", path: "/dashboard" },
     { name: "Customers", icon: <FaUsers />, module: "customers", path: "/customers" },
     { name: "Purchese Request", icon: <FaFileInvoice />, module: "filling_requests", path: "/filling-requests" },
@@ -122,16 +72,58 @@ export default function Sidebar() {
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/remarks" },
     { name: "Settings", icon: <FaCog />, module: "settings", path: "/settings" },
-  ];
+  ], []);
 
-  // ✅ Admin (role 5) gets full access
-  const allowedMenu =
-    user.role === 5
-      ? menuItems
-      : menuItems.filter((item) => {
-          const backendModuleName = moduleMapping[item.module];
-          return permissions[backendModuleName] && permissions[backendModuleName].can_view;
-        });
+  const moduleMapping = useMemo(() => ({
+    dashboard: "Dashboard",
+    users: "Users",
+    reports: "Reports",
+    filling_requests: "Filling Requests",
+    stock: "stock",
+    loading_stations: "Loading Station",
+    vehicles: "Vehicle",
+    schedule_price: "Schedule Prices",
+    lr_management: "LR Management",
+    history: "Loading History",
+    products: "Items & Products",
+    employees: "Employees",
+    suppliers: "Suppliers",
+    transporters: "Transporters",
+    nb_management: "NB Accounts",
+    vouchers: "Voucher",
+    stock: "Stock Transfer",
+    remarks: "Remarks",
+    settings: "Settings",
+    customers: "Customer",
+    tanker_history: "Tanker History",
+    deepo_history: "Deepo History",
+    nb_expenses: "NB Expenses",
+    nb_stock: "NB Stock",
+  }), []);
+
+  // Optimized permission filtering
+  const allowedMenu = useMemo(() => {
+    if (!user) return [];
+    
+    // ✅ Admin (role 5) gets full access
+    if (user.role === 5) return menuItems;
+    
+    return menuItems.filter((item) => {
+      const backendModuleName = moduleMapping[item.module];
+      return user.permissions?.[backendModuleName]?.can_view;
+    });
+  }, [user, menuItems, moduleMapping]);
+
+  // Improved navigation handler
+  const handleNavigation = (path) => {
+    router.push(path);
+    setIsOpen(false);
+  };
+
+  // Don't render sidebar if no user and not loading
+  if (!user && !authLoading) {
+    return null;
+  }
 
   return (
     <>
@@ -171,14 +163,14 @@ export default function Sidebar() {
         <div className="p-4 border-b border-gray-300 bg-blue-300">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
-              {user.name?.charAt(0).toUpperCase() || 'U'}
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {user.name}
+                {user?.name || 'Loading...'}
               </p>
               <p className="text-xs text-gray-600 truncate">
-                {user.role === 5 ? 'Admin' : 'User'}
+                {user?.role === 5 ? 'Admin' : 'User'}
               </p>
             </div>
           </div>
@@ -186,31 +178,37 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 scrollbar-hide">
-          {allowedMenu.map((item) => {
-            const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
-            return (
-              <button
-                key={item.name}
-                onClick={() => {
-                  router.push(item.path);
-                  setIsOpen(false);
-                }}
-                className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
-                  isActive
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "text-black hover:bg-blue-300 hover:text-gray-900"
-                }`}
-              >
-                <span className="mr-3 text-lg">{item.icon}</span>
-                <span className="text-sm font-medium">{item.name}</span>
-              </button>
-            );
-          })}
-
-          {allowedMenu.length === 0 && (
-            <div className="p-3 text-center text-gray-600 text-sm">
-              No modules available for your role
+          {authLoading ? (
+            <div className="flex flex-col items-center justify-center p-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
+              <p className="text-gray-600 text-sm">Loading menu...</p>
             </div>
+          ) : (
+            <>
+              {allowedMenu.map((item) => {
+                const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
+                return (
+                  <button
+                    key={item.name}
+                    onClick={() => handleNavigation(item.path)}
+                    className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
+                      isActive
+                        ? "bg-blue-500 text-white shadow-md"
+                        : "text-black hover:bg-blue-300 hover:text-gray-900"
+                    }`}
+                  >
+                    <span className="mr-3 text-lg">{item.icon}</span>
+                    <span className="text-sm font-medium">{item.name}</span>
+                  </button>
+                );
+              })}
+
+              {allowedMenu.length === 0 && (
+                <div className="p-3 text-center text-gray-600 text-sm">
+                  No modules available for your role
+                </div>
+              )}
+            </>
           )}
         </nav>
 
@@ -218,9 +216,9 @@ export default function Sidebar() {
         <div className="p-3 border-t border-gray-300 bg-blue-300">
           <button
             onClick={handleLogout}
-            disabled={isLoggingOut}
+            disabled={isLoggingOut || authLoading}
             className={`flex items-center justify-center w-full p-3 text-black rounded transition-colors ${
-              isLoggingOut 
+              isLoggingOut || authLoading
                 ? "bg-gray-400 cursor-not-allowed" 
                 : "hover:bg-red-500 hover:text-white"
             }`}

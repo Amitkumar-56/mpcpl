@@ -2,7 +2,7 @@
 "use client";
 
 import { usePathname, useRouter } from 'next/navigation';
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
 
 const SessionContext = createContext();
 
@@ -12,9 +12,33 @@ export function SessionProvider({ children }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const checkAuth = async () => {
+  // ✅ Optimized auth check with useCallback
+  const checkAuth = useCallback(async () => {
     try {
       setLoading(true);
+      
+      // ✅ CST routes के लिए अलग handling
+      if (pathname.startsWith('/cst/')) {
+        const savedCustomer = localStorage.getItem("customer");
+        if (savedCustomer) {
+          setUser(JSON.parse(savedCustomer));
+        } else {
+          setUser(null);
+        }
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Employee routes के लिए conditional check
+      // Skip auth check if already have user data in sessionStorage
+      const sessionUser = sessionStorage.getItem('user');
+      if (sessionUser) {
+        const userData = JSON.parse(sessionUser);
+        setUser(userData);
+        setLoading(false);
+        return;
+      }
+
       const res = await fetch('/api/auth/verify', {
         credentials: 'include',
         cache: 'no-store'
@@ -24,27 +48,49 @@ export function SessionProvider({ children }) {
         const data = await res.json();
         if (data.authenticated && data.id) {
           setUser(data);
+          // ✅ Cache user data to avoid repeated API calls
+          sessionStorage.setItem('user', JSON.stringify({
+            id: data.id,
+            name: data.name,
+            email: data.email,
+            role: data.role,
+            permissions: data.permissions || {}
+          }));
         } else {
           setUser(null);
+          sessionStorage.removeItem('user');
         }
       } else {
         setUser(null);
+        sessionStorage.removeItem('user');
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       setUser(null);
+      sessionStorage.removeItem('user');
     } finally {
       setLoading(false);
     }
-  };
+  }, [pathname]);
 
+  // ✅ Optimized useEffect with proper dependencies
   useEffect(() => {
     checkAuth();
-  }, []);
+  }, [checkAuth]); // ✅ Only depend on checkAuth function
 
+  // ✅ Separate useEffect for redirection logic
   useEffect(() => {
     if (loading) return;
 
+    // ✅ CST routes के लिए अलग logic
+    if (pathname.startsWith('/cst/')) {
+      if (!user && pathname !== '/cst/login') {
+        router.push('/cst/login');
+      }
+      return;
+    }
+
+    // ✅ Employee routes के लिए normal logic
     if (user) {
       if (pathname === '/login') {
         router.push('/dashboard');
@@ -56,26 +102,40 @@ export function SessionProvider({ children }) {
     }
   }, [user, loading, pathname, router]);
 
-  const login = (userData, token) => {
+  // ✅ Optimized login function
+  const login = useCallback((userData, token) => {
     setUser(userData);
-    // Store minimal data in sessionStorage for quick access
     if (typeof window !== 'undefined') {
-      sessionStorage.setItem('user', JSON.stringify({
+      const sessionUserData = {
         id: userData.id,
         name: userData.name,
         email: userData.email,
-        role: userData.role
-      }));
+        role: userData.role,
+        permissions: userData.permissions || {}
+      };
+      
+      sessionStorage.setItem('user', JSON.stringify(sessionUserData));
       localStorage.setItem('token', token);
     }
-  };
+  }, []);
 
-  const logout = async () => {
+  // ✅ Optimized logout function
+  const logout = useCallback(async () => {
     try {
-      await fetch('/api/auth/logout', { 
-        method: 'POST',
-        credentials: 'include'
-      });
+      // ✅ Current route के based पर अलग logout
+      if (pathname.startsWith('/cst/')) {
+        // Customer logout
+        localStorage.removeItem("customer");
+        localStorage.removeItem("cst_token");
+      } else {
+        // Employee logout - only call API if actually logged in
+        if (user) {
+          await fetch('/api/auth/logout', { 
+            method: 'POST',
+            credentials: 'include'
+          });
+        }
+      }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
@@ -83,11 +143,22 @@ export function SessionProvider({ children }) {
       if (typeof window !== 'undefined') {
         sessionStorage.removeItem('user');
         localStorage.removeItem('token');
+        localStorage.removeItem('customer');
+        localStorage.removeItem('cst_token');
       }
-      router.push('/login');
+      
+      // ✅ Use setTimeout to avoid race conditions
+      setTimeout(() => {
+        if (pathname.startsWith('/cst/')) {
+          router.push('/cst/login');
+        } else {
+          router.push('/login');
+        }
+      }, 100);
     }
-  };
+  }, [pathname, user, router]);
 
+  // ✅ Memoized context value
   const value = {
     user,
     loading,

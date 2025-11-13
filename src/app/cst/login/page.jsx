@@ -1,4 +1,4 @@
-//src/app/cst/login/page.jsx
+// src/app/cst/login/page.jsx
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -31,16 +31,26 @@ export default function CustomerLoginPage() {
         return;
       }
 
-      if (Number(data.customer.roleid) !== 1) {
-        setError("Access denied");
+      if (!data.success) {
+        setError(data.error || "Login failed");
         return;
       }
 
+      // ✅ Role check - customers table के roleid से check करें
+      if (Number(data.customer.roleid) !== 1) {
+        setError("Access denied - Invalid user role");
+        return;
+      }
+
+      // ✅ Customer data को localStorage में save करें
       localStorage.setItem("customer", JSON.stringify(data.customer));
+      
+      // ✅ CST dashboard पर redirect करें
       router.push("/cst/cstdashboard");
+      
     } catch (err) {
-      console.error(err);
-      setError("Server error");
+      console.error("Login error:", err);
+      setError("Server error - Please try again");
     } finally {
       setIsLoading(false);
     }
@@ -90,14 +100,25 @@ export default function CustomerLoginPage() {
                 </div>
               </div>
 
-              {error && <p className="text-red-500 text-center mb-4">{error}</p>}
+              {error && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                  <p className="text-red-600 text-sm text-center">{error}</p>
+                </div>
+              )}
 
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-semibold hover:from-blue-500 hover:to-blue-700 transition"
+                className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-semibold hover:from-blue-500 hover:to-blue-700 transition disabled:opacity-50"
               >
-                {isLoading ? "Logging in..." : "Continue"}
+                {isLoading ? (
+                  <span className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Logging in...
+                  </span>
+                ) : (
+                  "Continue"
+                )}
               </button>
             </form>
 
