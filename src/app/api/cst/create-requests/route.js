@@ -29,6 +29,30 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    const dayLimitRows = await executeQuery(
+      'SELECT day_limit FROM customer_balances WHERE com_id = ?',
+      [parseInt(customer_id)]
+    );
+    const dayLimitVal = dayLimitRows.length > 0 ? parseInt(dayLimitRows[0].day_limit) || 0 : 0;
+    if (dayLimitVal > 0) {
+      const earliestRows = await executeQuery(
+        `SELECT completed_date FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         ORDER BY completed_date ASC LIMIT 1`,
+        [parseInt(customer_id)]
+      );
+      if (earliestRows.length > 0 && earliestRows[0].completed_date) {
+        const completed = new Date(earliestRows[0].completed_date);
+        const daysUsed = Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24)));
+        if (daysUsed >= dayLimitVal) {
+          return NextResponse.json({
+            success: false,
+            message: 'Day limit exceeded. Please pay one-day amount to continue.'
+          }, { status: 403 });
+        }
+      }
+    }
+
     // Generate RID
     const lastRequestQuery = `SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1`;
     const lastRequest = await executeQuery(lastRequestQuery);
@@ -93,6 +117,26 @@ export async function POST(request) {
     let price = 0;
     if (priceResult.length > 0) {
       price = parseFloat(priceResult[0].price) || 0;
+    }
+
+    const typeRows = await executeQuery(
+      'SELECT client_type FROM customers WHERE id = ?',
+      [parseInt(customer_id)]
+    );
+    const clientType = typeRows.length > 0 ? String(typeRows[0].client_type) : '';
+    if (clientType === '2') {
+      const requestedAmount = price * (parseFloat(qty) || 0);
+      const balRows = await executeQuery(
+        'SELECT amtlimit FROM customer_balances WHERE com_id = ?',
+        [parseInt(customer_id)]
+      );
+      const amtlimit = balRows.length > 0 ? parseFloat(balRows[0].amtlimit) || 0 : 0;
+      if (requestedAmount > amtlimit) {
+        return NextResponse.json({
+          success: false,
+          message: 'Insufficient credit limit. Please recharge to continue.'
+        }, { status: 403 });
+      }
     }
 
     console.log('📊 Insert Data:', {

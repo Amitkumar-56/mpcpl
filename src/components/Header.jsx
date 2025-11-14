@@ -3,12 +3,17 @@
 import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { io } from 'socket.io-client';
 import { FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 export default function Header() {
   const { user, logout, loading } = useSession();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
+  const [showNotifMenu, setShowNotifMenu] = useState(false);
+  const [notifCount, setNotifCount] = useState(0);
+  const [notifications, setNotifications] = useState([]);
+  const [empSocket, setEmpSocket] = useState(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -23,6 +28,9 @@ export default function Header() {
     const handleClickOutside = (event) => {
       if (showProfileMenu && !event.target.closest('.profile-dropdown')) {
         setShowProfileMenu(false);
+      }
+      if (showNotifMenu && !event.target.closest('.notif-dropdown')) {
+        setShowNotifMenu(false);
       }
     };
 
@@ -49,6 +57,63 @@ export default function Header() {
 
   // Don't show header if no user
   if (!user) return null;
+
+  useEffect(() => {
+    const isCustomer = pathname.startsWith('/cst');
+    if (!user || isCustomer) return;
+    let s;
+    (async () => {
+      try { await fetch('/api/socket'); } catch (e) {}
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+      s = io(socketUrl, {
+        path: '/api/socket',
+        transports: ['websocket'],
+        reconnection: true,
+        withCredentials: true,
+      });
+      s.on('connect', () => {
+        s.emit('employee_join', {
+          employeeId: String(user.id || user.emp_id || user.emp_code || '0'),
+          employeeName: user.name || 'Employee',
+          role: user.role,
+        });
+      });
+      s.on('customer_message_notification', (data) => {
+        setNotifCount((c) => c + 1);
+        setNotifications((list) => [{
+          id: `${data.messageId}`,
+          customerId: data.customerId,
+          customerName: data.customerName,
+          text: data.text,
+          timestamp: data.timestamp,
+          status: data.status,
+        }, ...list].slice(0, 20));
+      });
+      s.on('chat_assigned', (data) => {
+        setNotifications((list) => [{
+          id: `assigned-${data.customerId}`,
+          customerId: data.customerId,
+          customerName: data.employeeName,
+          text: 'Chat assigned',
+          timestamp: Date.now(),
+          status: 'assigned',
+        }, ...list].slice(0, 20));
+      });
+      setEmpSocket(s);
+    })();
+    return () => { try { s && s.disconnect(); } catch (e) {} };
+  }, [user, pathname]);
+
+  const acceptChat = (customerId) => {
+    if (!empSocket || !empSocket.connected) return;
+    empSocket.emit('employee_accept_chat', {
+      customerId,
+      employeeId: String(user.id || user.emp_id || user.emp_code || '0'),
+      employeeName: user.name || 'Employee',
+    });
+    setShowNotifMenu(false);
+  };
 
   return (
     <header className="bg-white shadow-sm border-b border-gray-200">
@@ -85,13 +150,43 @@ export default function Header() {
         {/* User Profile Section */}
         <div className="flex items-center gap-4">
           {/* Notification with badge */}
-          <div className="relative hidden sm:block">
-            <button className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
+          <div className="relative hidden sm:block notif-dropdown">
+            <button 
+              onClick={() => setShowNotifMenu((v) => !v)}
+              className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
               <FaBell className="text-xl" />
               <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                0
+                {notifCount}
               </span>
             </button>
+            {showNotifMenu && (
+              <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2">
+                <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
+                  <span className="font-semibold text-gray-900">Notifications</span>
+                  <button 
+                    onClick={() => { setNotifCount(0); }}
+                    className="text-xs text-blue-600 hover:underline">Clear</button>
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="px-4 py-6 text-center text-gray-500">No notifications</div>
+                  ) : (
+                    notifications.map((n) => (
+                      <div key={n.id} className="px-4 py-3 border-b border-gray-100">
+                        <p className="text-sm font-medium text-gray-800">{n.customerName || 'Customer'} • #{n.customerId}</p>
+                        <p className="text-xs text-gray-600 mt-1">{n.text}</p>
+                        <div className="mt-2 flex items-center justify-between">
+                          <span className="text-[11px] text-gray-500">{new Date(n.timestamp).toLocaleString()}</span>
+                          <button 
+                            onClick={() => acceptChat(n.customerId)}
+                            className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Accept</button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Profile Dropdown */}
@@ -243,7 +338,7 @@ export default function Header() {
               <div className="flex items-center gap-4 px-6 py-4 border-b border-gray-100">
                 <FaBell className="text-gray-400 text-lg" />
                 <span className="font-medium">Notifications</span>
-                <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">0</span>
+                <span className="ml-auto bg-red-500 text-white text-xs px-2 py-1 rounded-full">{notifCount}</span>
               </div>
             </div>
 

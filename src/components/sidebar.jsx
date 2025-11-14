@@ -2,6 +2,7 @@
 import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import {
   FaBars,
   FaBox,
@@ -188,9 +189,11 @@ export default function Sidebar() {
               {allowedMenu.map((item) => {
                 const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
                 return (
-                  <button
+                  <Link
                     key={item.name}
-                    onClick={() => handleNavigation(item.path)}
+                    href={item.path}
+                    prefetch={false}
+                    onClick={() => setIsOpen(false)}
                     className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
                       isActive
                         ? "bg-blue-500 text-white shadow-md"
@@ -199,7 +202,7 @@ export default function Sidebar() {
                   >
                     <span className="mr-3 text-lg">{item.icon}</span>
                     <span className="text-sm font-medium">{item.name}</span>
-                  </button>
+                  </Link>
                 );
               })}
 

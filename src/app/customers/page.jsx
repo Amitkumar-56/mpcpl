@@ -4,6 +4,7 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import DayLimitManager from "components/DayLimitManager";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -36,25 +37,20 @@ export default function CustomersPage() {
     try {
       setLoading(true);
       setError(null);
-      
-      // Fetch customers with balances and day limit info
-      const customersRes = await fetch("/api/customers");
-      if (!customersRes.ok) {
+      const [customersRes, permRes] = await Promise.all([
+        fetch("/api/customers"),
+        fetch("/api/permissions?module=Customers").catch(() => null)
+      ]);
+
+      if (!customersRes || !customersRes.ok) {
         throw new Error('Failed to fetch customers');
       }
       const customersData = await customersRes.json();
       setCustomers(customersData);
 
-      // Try to fetch permissions
-      try {
-        const permRes = await fetch("/api/permissions?module=Customers");
-        if (permRes.ok) {
-          const permData = await permRes.json();
-          setPermissions(permData);
-        }
-      } catch (permError) {
-        console.log("Using default permissions");
-        // Keep default permissions
+      if (permRes && permRes.ok) {
+        const permData = await permRes.json();
+        setPermissions(permData);
       }
     } catch (err) {
       console.error("Error fetching customers:", err);
@@ -104,6 +100,47 @@ export default function CustomersPage() {
   }, [currentPage, itemsPerPage, filteredCustomers]);
 
   const { indexOfFirst, indexOfLast, currentCustomers, totalPages } = paginationData;
+
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
+  const [switchCustomer, setSwitchCustomer] = useState(null);
+  const [switchTarget, setSwitchTarget] = useState('post');
+  const [switchValue, setSwitchValue] = useState('');
+  const [switchLoading, setSwitchLoading] = useState(false);
+
+  const openSwitchModal = (customer, target) => {
+    setSwitchCustomer(customer);
+    setSwitchTarget(target);
+    setSwitchValue('');
+    setShowSwitchModal(true);
+  };
+
+  const submitSwitch = async () => {
+    if (!switchCustomer) return;
+    const valNum = Number(switchValue);
+    if (isNaN(valNum) || valNum < 0) {
+      alert('Enter a valid limit');
+      return;
+    }
+    try {
+      setSwitchLoading(true);
+      const res = await fetch('/api/customers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId: switchCustomer.id, targetType: switchTarget, limitValue: valNum })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to switch');
+      alert(data.message || 'Updated');
+      setShowSwitchModal(false);
+      setSwitchCustomer(null);
+      setSwitchValue('');
+      fetchData();
+    } catch (e) {
+      alert(e.message || 'Failed');
+    } finally {
+      setSwitchLoading(false);
+    }
+  };
 
   const handleDelete = async (id) => {
     if (!confirm("Are you sure you want to delete this customer?")) return;
@@ -157,47 +194,12 @@ export default function CustomersPage() {
 
   const getDayLimitStatus = useCallback((customer) => {
     if (customer.client_type !== "3") return null;
-    
     const isActive = customer.is_active !== 0;
-    const expiryDate = customer.day_limit_expiry;
-    
-    if (!isActive) {
-      return { 
-        text: "Expired", 
-        color: "bg-red-100 text-red-800 border border-red-200",
-        daysRemaining: 0
-      };
-    }
-    
-    if (expiryDate) {
-      const now = new Date();
-      const expiry = new Date(expiryDate);
-      const daysRemaining = Math.ceil((expiry - now) / (1000 * 3600 * 24));
-      
-      if (daysRemaining <= 0) {
-        return { 
-          text: "Expired", 
-          color: "bg-red-100 text-red-800 border border-red-200",
-          daysRemaining: 0
-        };
-      } else if (daysRemaining <= 3) {
-        return { 
-          text: `${daysRemaining}d left`, 
-          color: "bg-orange-100 text-orange-800 border border-orange-200",
-          daysRemaining
-        };
-      } else {
-        return { 
-          text: `${daysRemaining}d left`, 
-          color: "bg-green-100 text-green-800 border border-green-200",
-          daysRemaining
-        };
-      }
-    }
-    
-    return { 
-      text: "Active", 
-      color: "bg-gray-100 text-gray-800 border border-gray-200",
+    return {
+      text: isActive ? "Active" : "Expired",
+      color: isActive
+        ? "bg-gray-100 text-gray-800 border border-gray-200"
+        : "bg-red-100 text-red-800 border border-red-200",
       daysRemaining: null
     };
   }, []);
@@ -212,6 +214,14 @@ export default function CustomersPage() {
   // Function to handle limit click
   const handleLimitClick = useCallback((customerId, customerName) => {
     window.location.href = `/credit-limit?id=${customerId}`;
+  }, []);
+
+  const [dayLimitCustomer, setDayLimitCustomer] = useState(null);
+  const openDayLimitManager = useCallback((customer) => {
+    setDayLimitCustomer(customer);
+  }, []);
+  const closeDayLimitManager = useCallback(() => {
+    setDayLimitCustomer(null);
   }, []);
 
   // Calculate remaining limit
@@ -560,34 +570,37 @@ export default function CustomersPage() {
                                   </span>
                                 </td>
                                 <td className="p-4">
-                                  <button
-                                    onClick={() => handleLimitClick(c.id, c.name)}
-                                    className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200"
-                                    title="Click to view limit details"
-                                  >
-                                    ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
-                                  </button>
+                                  {c.client_type === "3" ? (
+                                    <span className="font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-lg border border-gray-200 cursor-not-allowed" title="Day Limit customer - credit limit disabled">
+                                      N/A
+                                    </span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleLimitClick(c.id, c.name)}
+                                      className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200"
+                                      title="Click to view limit details"
+                                    >
+                                      ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
+                                    </button>
+                                  )}
                                 </td>
                                 <td className="p-4">
                                   <span className="font-bold text-red-600">₹{(c.balance || 0).toLocaleString('en-IN')}</span>
                                 </td>
                                 <td className="p-4">
-                                  <span className={`font-bold ${statusInfo}`}>
-                                    ₹{(c.amtlimit || 0).toLocaleString('en-IN')}
-                                  </span>
+                                  {c.client_type === "3" ? (
+                                    <span className="font-bold text-gray-400">N/A</span>
+                                  ) : (
+                                    <span className={`font-bold ${statusInfo}`}>
+                                      ₹{(Math.max(0, (c.cst_limit || 0) - (c.balance || 0)) || 0).toLocaleString('en-IN')}
+                                    </span>
+                                  )}
                                 </td>
                                 <td className="p-4">
                                   {dayLimitStatus ? (
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${dayLimitStatus.color}`}>
                                       {dayLimitStatus.text}
-                                      {dayLimitStatus.daysRemaining > 0 && (
-                                        <span className="ml-1 text-xs">
-                                          {c.day_limit_expiry ? 
-                                            new Date(c.day_limit_expiry).toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit' }) 
-                                            : ''
-                                          }
-                                        </span>
-                                      )}
+                                      
                                     </span>
                                   ) : (
                                     <span className="text-gray-400 text-sm">N/A</span>
@@ -595,7 +608,7 @@ export default function CustomersPage() {
                                 </td>
                                 
                                 <td className="p-4">
-                                  <div className="flex flex-wrap gap-1 w-32">
+                                  <div className="flex flex-wrap gap-1 w-40">
                                     {actionButtons
                                       .filter(action => action.show)
                                       .map((action) => {
@@ -625,6 +638,22 @@ export default function CustomersPage() {
                                           </Link>
                                         );
                                       })}
+                                    {c.client_type === "3" && (
+                                      <button
+                                        onClick={() => openDayLimitManager(c)}
+                                        className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                                        title="Manage Day Limit"
+                                      >
+                                        DL
+                                      </button>
+                                    )}
+                                    <button
+                                      onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
+                                      className="p-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                                      title={c.client_type === '3' ? 'Switch to Postpaid' : 'Switch to Day Limit'}
+                                    >
+                                      SW
+                                    </button>
                                   </div>
                                 </td>
                               </tr>
@@ -633,9 +662,9 @@ export default function CustomersPage() {
                         )}
                       </tbody>
                     </table>
-                  </div>
+      </div>
 
-                  {/* Mobile Cards */}
+      {/* Mobile Cards */}
                   <div className="lg:hidden space-y-4">
                     {currentCustomers.length === 0 ? (
                       <div className="text-center p-8 text-gray-700 font-semibold bg-white rounded-xl">
@@ -673,8 +702,51 @@ export default function CustomersPage() {
                                   </span>
                                 )}
                               </div>
-                            </div>
-                            
+      </div>
+
+      {showSwitchModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                {switchTarget === 'post' ? 'Switch to Postpaid' : 'Switch to Day Limit'}
+              </h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {switchTarget === 'post' ? 'Credit Limit (₹)' : 'Day Limit (Days)'}
+                  </label>
+                  <input
+                    type="number"
+                    step={switchTarget === 'post' ? '0.01' : '1'}
+                    min="0"
+                    value={switchValue}
+                    onChange={(e) => setSwitchValue(e.target.value)}
+                    placeholder={switchTarget === 'post' ? 'Enter credit limit' : 'Enter day limit'}
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                </div>
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    onClick={() => { setShowSwitchModal(false); setSwitchCustomer(null); setSwitchValue(''); }}
+                    disabled={switchLoading}
+                    className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitSwitch}
+                    disabled={switchLoading}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    {switchLoading ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
                             <div className="grid grid-cols-1 gap-3 text-sm mb-3">
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
@@ -704,13 +776,17 @@ export default function CustomersPage() {
                               <div className="grid grid-cols-3 gap-2 text-center">
                                 <div>
                                   <div className="text-xs text-gray-600">Credit Limit</div>
-                                  <button
-                                    onClick={() => handleLimitClick(c.id, c.name)}
-                                    className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
-                                    title="Click to view limit details"
-                                  >
-                                    ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
-                                  </button>
+                                  {c.client_type === "3" ? (
+                                    <span className="font-bold text-sm text-gray-400">N/A</span>
+                                  ) : (
+                                    <button
+                                      onClick={() => handleLimitClick(c.id, c.name)}
+                                      className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                      title="Click to view limit details"
+                                    >
+                                      ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
+                                    </button>
+                                  )}
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-600">Outstanding</div>
@@ -718,9 +794,13 @@ export default function CustomersPage() {
                                 </div>
                                 <div>
                                   <div className="text-xs text-gray-600">Remaining</div>
-                                  <div className={`font-bold text-sm ${statusInfo.includes('red') ? 'text-red-600' : statusInfo.includes('yellow') ? 'text-yellow-600' : 'text-green-600'}`}>
-                                    ₹{(c.amtlimit || 0).toLocaleString('en-IN')}
-                                  </div>
+                                  {c.client_type === "3" ? (
+                                    <div className="font-bold text-sm text-gray-400">N/A</div>
+                                  ) : (
+                                    <div className={`font-bold text-sm ${statusInfo.includes('red') ? 'text-red-600' : statusInfo.includes('yellow') ? 'text-yellow-600' : 'text-green-600'}`}>
+                                      ₹{(Math.max(0, (c.cst_limit || 0) - (c.balance || 0)) || 0).toLocaleString('en-IN')}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             </div>
@@ -732,18 +812,7 @@ export default function CustomersPage() {
                                   <div className="text-xs text-indigo-600">Day Limit</div>
                                   <div className="font-bold text-sm text-indigo-700">{c.day_limit || 0} days</div>
                                 </div>
-                                {c.day_limit_expiry && (
-                                  <div className="flex justify-between items-center mt-1">
-                                    <div className="text-xs text-indigo-600">Expires</div>
-                                    <div className="text-sm text-indigo-600">
-                                      {new Date(c.day_limit_expiry).toLocaleDateString('en-IN', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric'
-                                      })}
-                                    </div>
-                                  </div>
-                                )}
+                                
                               </div>
                             )}
                             
@@ -839,6 +908,19 @@ export default function CustomersPage() {
         {/* Footer */}
         <Footer />
       </div>
+      {dayLimitCustomer && (
+        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-lg">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h2 className="text-lg font-semibold">Manage Day Limit — {dayLimitCustomer.name}</h2>
+              <button onClick={closeDayLimitManager} className="text-gray-600 hover:text-gray-900">×</button>
+            </div>
+            <div className="p-4">
+              <DayLimitManager customer={dayLimitCustomer} onUpdate={() => { closeDayLimitManager(); fetchCustomers(); }} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

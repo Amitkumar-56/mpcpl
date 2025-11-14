@@ -198,15 +198,63 @@ export async function POST(request) {
       }
     }
 
-    // Get current timestamp
     const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
+    const dayLimitRows = await executeQuery(
+      'SELECT day_limit FROM customer_balances WHERE com_id = ?',
+      [parseInt(customer)]
+    );
+    const dayLimitVal = dayLimitRows.length > 0 ? parseInt(dayLimitRows[0].day_limit) || 0 : 0;
+    if (dayLimitVal > 0) {
+      const earliestRows = await executeQuery(
+        `SELECT completed_date FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         ORDER BY completed_date ASC LIMIT 1`,
+        [parseInt(customer)]
+      );
+      if (earliestRows.length > 0 && earliestRows[0].completed_date) {
+        const completed = new Date(earliestRows[0].completed_date);
+        const daysUsed = Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24)));
+        if (daysUsed >= dayLimitVal) {
+          return NextResponse.json({ 
+            error: 'Day limit exceeded. Please pay one-day amount to continue.' 
+          }, { status: 403 });
+        }
+      }
+    }
+
     // Get product name
-    const productResult = await executeQuery(
-      "SELECT pcode FROM product_codes WHERE id = ?",
+    const productRow = await executeQuery(
+      "SELECT pcode, product_id FROM product_codes WHERE id = ?",
       [products_codes]
     );
-    const productName = productResult.length > 0 ? productResult[0].pcode : 'Unknown Product';
+    const productName = productRow.length > 0 ? productRow[0].pcode : 'Unknown Product';
+    const productId = productRow.length > 0 ? productRow[0].product_id : null;
+
+    const clientTypeRows = await executeQuery(
+      'SELECT client_type FROM customers WHERE id = ?',
+      [parseInt(customer)]
+    );
+    const clientType = clientTypeRows.length > 0 ? String(clientTypeRows[0].client_type) : '';
+
+    if (clientType === '2' && productId) {
+      const priceRows = await executeQuery(
+        `SELECT price FROM deal_price WHERE com_id = ? AND station_id = ? AND product_id = ? AND is_active = 1 AND status = 'active' ORDER BY updated_date DESC LIMIT 1`,
+        [parseInt(customer), parseInt(station_id), productId]
+      );
+      const price = priceRows.length > 0 ? parseFloat(priceRows[0].price) || 0 : 0;
+      const requestedAmount = price * (parseFloat(qty) || 0);
+      const balRows = await executeQuery(
+        'SELECT amtlimit FROM customer_balances WHERE com_id = ?',
+        [parseInt(customer)]
+      );
+      const amtlimit = balRows.length > 0 ? parseFloat(balRows[0].amtlimit) || 0 : 0;
+      if (requestedAmount > amtlimit) {
+        return NextResponse.json({
+          error: 'Insufficient credit limit. Please recharge to continue.'
+        }, { status: 403 });
+      }
+    }
 
     // Insert into filling_requests table
     const result = await executeQuery(

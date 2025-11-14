@@ -16,7 +16,7 @@ export async function GET(request) {
     const customerResult = await executeQuery(
       'SELECT name FROM customers WHERE id = ?',
       [cid]
-    );
+    ).catch(() => []);
     
     if (customerResult.length === 0) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
@@ -26,14 +26,13 @@ export async function GET(request) {
 
     // Fetch customer balance info including limit types - IMPORTANT: Get day_limit information
     const customerBalanceInfo = await executeQuery(
-      'SELECT balance, amtlimit, day_limit, hold_balance, cst_limit, last_reset_date, day_amount, day_limit_expiry, is_active FROM customer_balances WHERE com_id = ?',
+      'SELECT balance, amtlimit, day_limit, hold_balance, cst_limit, last_reset_date, day_amount, is_active FROM customer_balances WHERE com_id = ?',
       [cid]
-    );
+    ).catch(() => []);
 
     // Fetch distinct products
-    const products = await executeQuery('SELECT DISTINCT pname FROM products');
+    const products = await executeQuery('SELECT DISTINCT pname FROM products').catch(() => []);
     
-    // Build main query - include ALL fields for complete transaction history
     let sql = `
       SELECT 
         fh.id,
@@ -44,10 +43,6 @@ export async function GET(request) {
         fh.credit_date,
         fh.new_amount,
         fh.remaining_limit,
-        fh.remaining_day_limit,
-        fh.limit_type,
-        fh.in_amount,
-        fh.d_amount,
         fh.filling_date,
         fh.created_at,
         p.pname, 
@@ -73,24 +68,50 @@ export async function GET(request) {
     
     sql += ' ORDER BY fh.id DESC';
     
-    const transactions = await executeQuery(sql, params);
+    const transactions = await executeQuery(sql, params).catch(() => []);
 
     // Get pending transactions for payment processing
     const pendingTransactions = await executeQuery(
-      `SELECT fr.id, fr.totalamt as amount, fr.completed_date, fr.payment_status
+      `SELECT 
+         fr.id,
+         COALESCE(fr.totalamt, fr.price * fr.aqty) AS amount,
+         fr.completed_date,
+         fr.payment_status,
+         fr.vehicle_number,
+         fr.trans_type,
+         fr.aqty AS loading_qty,
+         fs.station_name,
+         p.pname
        FROM filling_requests fr
-       WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
+       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+       LEFT JOIN products p ON fr.product = p.id
+       WHERE fr.cid = ? AND fr.status = 'Completed'
        ORDER BY fr.completed_date ASC`,
       [cid]
-    );
+    ).catch(() => []);
     
-    // Calculate balance
     const balanceResult = await executeQuery(
       'SELECT balance FROM customer_balances WHERE com_id = ?',
       [cid]
-    );
+    ).catch(() => []);
     
     const balance = balanceResult.length > 0 ? Math.round(balanceResult[0].balance) : 0;
+
+    const dayLimit = customerBalanceInfo.length > 0 ? parseInt(customerBalanceInfo[0].day_limit) || 0 : 0;
+    const enrichedPending = (pendingTransactions || []).map((t) => {
+      const completed = t.completed_date ? new Date(t.completed_date) : null;
+      const elapsedDays = completed ? Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      const isPaid = Number(t.payment_status) === 1;
+      const overdue = !isPaid && dayLimit > 0 && elapsedDays >= dayLimit;
+      return {
+        ...t,
+        days_limit: dayLimit,
+        outstanding_balance: balance,
+        remaining_days: elapsedDays,
+        total_days: dayLimit,
+        overdue_status: isPaid ? 'Paid' : overdue ? 'Overdue' : 'Open'
+      };
+    });
 
     return NextResponse.json({
       success: true,
@@ -100,7 +121,7 @@ export async function GET(request) {
         balance,
         filter: pname,
         customerName,
-        pendingTransactions: pendingTransactions || [],
+        pendingTransactions: enrichedPending || [],
         customerBalanceInfo: customerBalanceInfo.length > 0 ? customerBalanceInfo[0] : null
       }
     });
@@ -164,12 +185,18 @@ export async function PATCH(request) {
         }
       }
 
-      // Update customer balance with any remaining amount (as recharge)
+      // Update customer balance and amtlimit with any remaining amount (as recharge)
       if (remainingAmount > 0) {
         await executeQuery(
-          'UPDATE customer_balances SET balance = balance - ? WHERE com_id = ?',
-          [remainingAmount, customerId]
+          'UPDATE customer_balances SET balance = balance - ?, amtlimit = amtlimit + ? WHERE com_id = ?',
+          [remainingAmount, remainingAmount, customerId]
         );
+
+        const updated = await executeQuery(
+          'SELECT amtlimit FROM customer_balances WHERE com_id = ?',
+          [customerId]
+        );
+        const updatedAmtLimit = updated.length > 0 ? parseFloat(updated[0].amtlimit) || 0 : 0;
 
         // Record the recharge in filling_history as inward transaction
         await executeQuery(
@@ -177,7 +204,7 @@ export async function PATCH(request) {
             cl_id, trans_type, credit, credit_date, 
             new_amount, remaining_limit, created_by
           ) VALUES (?, ?, ?, NOW(), ?, ?, ?)`,
-          [customerId, 'inward', remainingAmount, -remainingAmount, 0, 1]
+          [customerId, 'inward', remainingAmount, -remainingAmount, updatedAmtLimit, 1]
         );
       }
 

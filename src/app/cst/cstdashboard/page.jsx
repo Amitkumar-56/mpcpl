@@ -67,80 +67,103 @@ export default function CustomerDashboardPage() {
   // 🔥 SIMPLIFIED SOCKET CONNECTION
   useEffect(() => {
     if (!user?.id) return;
-
-    console.log('🔄 Starting socket connection...');
-
-    // Simple socket configuration
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000';
-    
-    const newSocket = io(socketUrl, {
-      path: '/api/socket/',
-      transports: ['polling', 'websocket'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    });
-
-    // Basic event handlers
-    newSocket.on('connect', () => {
-      console.log('✅ Connected to server:', newSocket.id);
-      setConnectionStatus('connected');
-      
-      // Join customer room
-      newSocket.emit('customer_join', {
-        customerId: user.id.toString(),
-        customerName: user.name || 'Customer'
+    setConnectionStatus('connecting');
+    const initAndConnect = async () => {
+      try {
+        await fetch('/api/socket');
+      } catch (e) {}
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+      const newSocket = io(socketUrl, {
+        path: '/api/socket',
+        transports: ['websocket'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+        withCredentials: true,
       });
-    });
+      newSocket.on('connect', () => {
+        setConnectionStatus('connected');
+        newSocket.emit('customer_join', {
+          customerId: user.id.toString(),
+          customerName: user.name || 'Customer'
+        });
+      });
+      newSocket.on('disconnect', () => {
+        setConnectionStatus('disconnected');
+      });
+      newSocket.on('connect_error', (err) => {
+        console.error('Socket connect_error:', err?.message || err);
+        setConnectionStatus('error');
+      });
+      newSocket.on('reconnect_attempt', () => {
+        setConnectionStatus('reconnecting');
+      });
+      newSocket.on('joined_success', () => {});
+      const mergeMessages = (prev, incoming) => {
+        const byId = incoming.id;
+        const byTemp = incoming.tempId;
+        const next = [];
+        let replaced = false;
+        for (const m of prev) {
+          if (byId && m.id === byId) {
+            next.push({ ...m, ...incoming });
+            replaced = true;
+          } else if (byTemp && m.tempId === byTemp) {
+            next.push({ ...m, ...incoming });
+            replaced = true;
+          } else {
+            next.push(m);
+          }
+        }
+        if (!replaced) next.push(incoming);
+        // Deduplicate by id/tempId
+        const seen = new Set();
+        return next.filter(m => {
+          const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        });
+      };
 
-    newSocket.on('disconnect', () => {
-      console.log('🔴 Disconnected from server');
-      setConnectionStatus('disconnected');
-    });
-
-    newSocket.on('connect_error', (error) => {
-      console.error('❌ Connection failed:', error.message);
-      setConnectionStatus('error');
-    });
-
-    newSocket.on('joined_success', (data) => {
-      console.log('✅ Joined room successfully:', data);
-    });
-
-    newSocket.on('new_message', (data) => {
-      console.log('📨 New message:', data);
-      const { message } = data;
-      
-      setMessages(prev => [...prev, message]);
-      
-      if (!showChat) {
-        setUnreadCount(prev => prev + 1);
-      }
-      
-      scrollToBottom();
-    });
-
-    newSocket.on('message_sent', (data) => {
-      console.log('✅ Message sent:', data);
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.tempId === data.tempId
-            ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
-            : msg
-        )
-      );
-    });
-
-    newSocket.on('employee_typing', (data) => {
-      setIsTyping(data.typing);
-      setTypingEmployee(data.typing ? data.employeeName : "");
-    });
-
-    setSocket(newSocket);
-
+      newSocket.on('new_message', (data) => {
+        const { message } = data;
+        setMessages(prev => mergeMessages(prev, message));
+        if (!showChat) {
+          setUnreadCount(prev => prev + 1);
+        }
+        scrollToBottom();
+      });
+      newSocket.on('message_sent', (data) => {
+        setMessages(prev => {
+          const updated = prev.map(msg =>
+            msg.tempId === data.tempId
+              ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
+              : msg
+          );
+          // Remove any duplicate entries that already have same id
+          const seen = new Set();
+          return updated.filter(m => {
+            const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+        });
+      });
+      newSocket.on('employee_typing', (data) => {
+        setIsTyping(data.typing);
+        setTypingEmployee(data.typing ? data.employeeName : "");
+      });
+      setSocket(newSocket);
+      return () => {
+        newSocket.disconnect();
+      };
+    };
+    const cleanup = initAndConnect();
     return () => {
-      console.log('🧹 Cleaning up socket');
-      newSocket.disconnect();
+      if (typeof cleanup === 'function') cleanup();
     };
   }, [user?.id]);
 
@@ -161,7 +184,16 @@ export default function CustomerDashboardPage() {
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          setMessages(data.messages || []);
+          // Ensure uniqueness when loading history
+          const loaded = data.messages || [];
+          const seen = new Set();
+          const unique = loaded.filter(m => {
+            const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          });
+          setMessages(unique);
           scrollToBottom();
         }
       }
@@ -656,7 +688,7 @@ export default function CustomerDashboardPage() {
             ) : (
               messages.map((msg) => (
                 <div 
-                  key={msg.id || msg.tempId} 
+                  key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
                   className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div 

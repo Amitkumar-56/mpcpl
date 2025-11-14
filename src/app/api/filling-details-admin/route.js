@@ -547,21 +547,57 @@ async function handleCompletedStatus(data) {
     sub_product_id, finalPrice, calculatedAmount, id, rid
   ]);
 
-  // Insert into filling history
-  const insertHistoryQuery = `
-    INSERT INTO filling_history 
-    (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
-     available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit) 
-    VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `;
-  
-  await executeQuery(insertHistoryQuery, [
-    rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount, 
-    newStock, now, cl_id, userId, 
-    customerDayLimit > 0 ? old_balance : old_amtlimit, 
-    customerDayLimit > 0 ? new_balance : new_amtlimit, 
-    calculatedAmount
-  ]);
+  try {
+    const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+    const colSet = new Set(colsInfo.map(r => r.Field));
+
+    const baseCols = [
+      'rid','fs_id','product_id','sub_product_id','trans_type','current_stock','filling_qty','amount',
+      'available_stock','filling_date','cl_id','created_by','old_amount','new_amount','remaining_limit'
+    ];
+    const baseVals = [
+      rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
+      newStock, now, cl_id, userId,
+      customerDayLimit > 0 ? old_balance : old_amtlimit,
+      customerDayLimit > 0 ? new_balance : new_amtlimit,
+      calculatedAmount
+    ];
+
+    const elapsedDays = 0;
+    const remainingDayLimit = customerDayLimit > 0 ? Math.max(0, customerDayLimit - elapsedDays) : null;
+    const dayValidityDays = customerDayLimit > 0 ? customerDayLimit : null;
+
+    if (colSet.has('remaining_day_limit')) {
+      baseCols.push('remaining_day_limit');
+      baseVals.push(remainingDayLimit);
+    }
+    if (colSet.has('day_limit_validity_days')) {
+      baseCols.push('day_limit_validity_days');
+      baseVals.push(dayValidityDays);
+    }
+    if (colSet.has('day_limit_amount')) {
+      baseCols.push('day_limit_amount');
+      baseVals.push(calculatedAmount);
+    }
+
+    const placeholders = baseCols.map(() => '?').join(', ');
+    const insertSql = `INSERT INTO filling_history (${baseCols.join(',')}) VALUES (${placeholders})`;
+    await executeQuery(insertSql, baseVals);
+  } catch (e) {
+    const insertHistoryQuery = `
+      INSERT INTO filling_history 
+      (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
+       available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit) 
+      VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await executeQuery(insertHistoryQuery, [
+      rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
+      newStock, now, cl_id, userId,
+      customerDayLimit > 0 ? old_balance : old_amtlimit,
+      customerDayLimit > 0 ? new_balance : new_amtlimit,
+      calculatedAmount
+    ]);
+  }
 
   // Update station stock
   const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;

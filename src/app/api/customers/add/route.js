@@ -55,14 +55,8 @@ export async function POST(req) {
 
     const newCustomerId = result.insertId;
 
-    // For day limit clients: set day_limit and calculate expiry
-    let day_limit_expiry = null;
-    if (client_type === "3" && day_limit > 0) {
-      const expiryDate = new Date();
-      expiryDate.setDate(expiryDate.getDate() + day_limit);
-      expiryDate.setHours(23, 59, 59, 999);
-      day_limit_expiry = expiryDate.toISOString().slice(0, 19).replace('T', ' ');
-    }
+    // For day limit clients: no expiry is set; days are counted from completed_date
+    const day_limit_expiry = null;
 
     // Insert into customer_balances
     const insertBalanceQuery = `

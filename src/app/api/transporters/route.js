@@ -5,23 +5,23 @@ import { NextResponse } from "next/server";
 // ✅ GET all transporters with payable sum
 export async function GET() {
   try {
-    const transporters = await executeQuery("SELECT * FROM transporters ORDER BY id DESC");
-
-    // For each transporter, fetch payable amount
-    const results = await Promise.all(
-      transporters.map(async (t) => {
-        const payableData = await executeQuery(
-          "SELECT SUM(t_payable) AS total_payable FROM stock WHERE transporter_id = ?",
-          [t.id]
-        );
-        return {
-          ...t,
-          total_payable: payableData[0]?.total_payable || 0,
-        };
-      })
+    const results = await executeQuery(
+      `SELECT 
+         t.id,
+         t.transporter_name,
+         t.email,
+         t.phone,
+         t.address,
+         COALESCE(SUM(s.t_payable), 0) AS total_payable
+       FROM transporters t
+       LEFT JOIN stock s ON s.transporter_id = t.id
+       GROUP BY t.id, t.transporter_name, t.email, t.phone, t.address
+       ORDER BY t.id DESC`
     );
 
-    return NextResponse.json({ success: true, data: results });
+    const response = NextResponse.json({ success: true, data: results });
+    response.headers.set("Cache-Control", "public, max-age=30, s-maxage=60, stale-while-revalidate=300");
+    return response;
   } catch (error) {
     console.error("Error fetching transporters:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

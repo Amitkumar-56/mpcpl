@@ -77,6 +77,7 @@ export async function POST(request) {
         'SELECT COALESCE(MAX(voucher_no), 0) + 1 as next_voucher_no FROM vouchers'
       );
       const voucher_no = voucherNoResult[0]?.next_voucher_no || 1;
+      const voucher_code = `V${String(voucher_no).padStart(4, '0')}`;
 
       console.log('Generated voucher number:', voucher_no);
 
@@ -149,7 +150,8 @@ export async function POST(request) {
         success: true,
         message: 'Voucher created successfully',
         voucherId: voucherId,
-        voucher_no: voucher_no
+        voucher_no: voucher_no,
+        voucher_code: voucher_code
       });
 
     } catch (error) {

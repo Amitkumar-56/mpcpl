@@ -160,21 +160,21 @@ function ClientHistoryContent() {
   // Calculate days used and remaining for day_limit customers
   const getDayLimitInfo = () => {
     if (!isDayLimitCustomer) return null;
-
     const dayLimit = customerBalanceInfo?.day_limit || 0;
-    const dayAmount = customerBalanceInfo?.day_amount || 0;
     const lastResetDate = customerBalanceInfo?.last_reset_date;
-    const dayLimitExpiry = customerBalanceInfo?.day_limit_expiry;
-
-    const daysUsed = dayAmount;
-    const daysRemaining = Math.max(0, dayLimit - dayAmount);
-
+    // Days used are calculated from earliest pending transaction's completed_date
+    let daysUsed = 0;
+    const earliest = pendingTransactions && pendingTransactions[0]?.completed_date;
+    if (earliest) {
+      const diffMs = Date.now() - new Date(earliest).getTime();
+      daysUsed = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+    }
+    const daysRemaining = Math.max(0, dayLimit - daysUsed);
     return {
       dayLimit,
       daysUsed,
       daysRemaining,
-      lastResetDate,
-      dayLimitExpiry
+      lastResetDate
     };
   };
 
@@ -515,11 +515,7 @@ function ClientHistoryContent() {
                         <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
                           Days Remaining: {dayLimitInfo.daysRemaining}
                         </span>
-                        {dayLimitInfo.dayLimitExpiry && (
-                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                            Expiry: {formatDate(dayLimitInfo.dayLimitExpiry)}
-                          </span>
-                        )}
+                        {/* No expiry for Day Limit customers */}
                       </div>
                     )}
                   </div>
@@ -529,8 +525,16 @@ function ClientHistoryContent() {
             </div>
 
             <div className="flex items-center space-x-4">
+              {customerBalanceInfo && !isDayLimitCustomer && (
+                <div className="text-right">
+                  <p className="text-sm text-gray-500">Remaining Limit (amtlimit)</p>
+                  <p className="text-lg font-bold text-indigo-600">
+                    ₹{formatCurrency(customerBalanceInfo.amtlimit)}
+                  </p>
+                </div>
+              )}
               <div className="text-right">
-                <p className="text-sm text-gray-500">Available Balance</p>
+                <p className="text-sm text-gray-500">Outstanding (balance)</p>
                 <p
                   className={`text-lg font-bold ${
                     balance < 0 ? "text-red-600" : "text-green-600"
@@ -596,6 +600,72 @@ function ClientHistoryContent() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {isDayLimitCustomer && (
+          <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Day Limit Summary</h3>
+            <div className="overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200 border">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle #</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trans Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Qty</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credit</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credit Date</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Limit</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding (balance)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Days</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Days</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recharge</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding after Payment</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overdue</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {pendingTransactions && pendingTransactions.length > 0 ? (
+                    pendingTransactions.map((t) => {
+                      const dayLimit = customerBalanceInfo?.day_limit || 0;
+                      const completed = t.completed_date ? new Date(t.completed_date) : null;
+                      const elapsedDays = completed ? Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+                      const isPaid = Number(t.payment_status) === 1;
+                      const overdue = !isPaid && dayLimit > 0 && elapsedDays >= dayLimit;
+                      const recharge = 0;
+                      const outstandingAfter = Math.max(0, (balance || 0) - recharge);
+                      return (
+                        <tr key={t.id}>
+                          <td className="px-4 py-2 text-sm">{t.station_name || 'N/A'}</td>
+                          <td className="px-4 py-2 text-sm">{formatDateTime(t.completed_date)}</td>
+                          <td className="px-4 py-2 text-sm">{t.pname || 'N/A'}</td>
+                          <td className="px-4 py-2 text-sm">{t.vehicle_number || 'N/A'}</td>
+                          <td className="px-4 py-2 text-sm">{t.trans_type || 'N/A'}</td>
+                          <td className="px-4 py-2 text-sm">{t.loading_qty ?? t.aqty ?? 0}</td>
+                          <td className="px-4 py-2 text-sm">₹{formatCurrency(t.amount)}</td>
+                          <td className="px-4 py-2 text-sm">₹{formatCurrency(0)}</td>
+                          <td className="px-4 py-2 text-sm">{''}</td>
+                          <td className="px-4 py-2 text-sm">{dayLimit}</td>
+                          <td className="px-4 py-2 text-sm">₹{formatCurrency(balance)}</td>
+                          <td className="px-4 py-2 text-sm">{elapsedDays}</td>
+                          <td className="px-4 py-2 text-sm">{dayLimit}</td>
+                          <td className="px-4 py-2 text-sm">₹{formatCurrency(recharge)}</td>
+                          <td className="px-4 py-2 text-sm">₹{formatCurrency(outstandingAfter)}</td>
+                          <td className="px-4 py-2 text-sm">{isPaid ? 'Paid' : overdue ? 'Overdue' : 'Open'}</td>
+                        </tr>
+                      );
+                    })
+                ) : (
+                    <tr>
+                      <td className="px-4 py-3 text-center text-sm text-gray-500" colSpan={12}>No day limit items</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
         {/* Filters Section */}
         <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">

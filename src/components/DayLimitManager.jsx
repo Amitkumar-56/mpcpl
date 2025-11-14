@@ -110,7 +110,7 @@ export default function DayLimitManager({ customer, onUpdate }) {
       <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between mb-4">
           <div>
-            <h3 className="text-lg font-semibold text-gray-900">Daily Limit Management</h3>
+            <h3 className="text-lg font-semibold text-gray-900">Day Limit Management</h3>
             <p className="text-sm text-gray-600 mt-1">
               Manage customer's daily transaction limits and monitor usage
             </p>
@@ -157,16 +157,16 @@ export default function DayLimitManager({ customer, onUpdate }) {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="text-sm font-medium text-gray-600">Daily Limit</div>
+              <div className="text-sm font-medium text-gray-600">Days Limit</div>
               <div className="text-2xl font-bold text-gray-900">
-                ₹{currentDayLimit.toLocaleString('en-IN')}
+                {currentDayLimit}
               </div>
             </div>
             
             <div className="bg-blue-50 rounded-lg p-4">
-              <div className="text-sm font-medium text-blue-600">Used Today</div>
+              <div className="text-sm font-medium text-blue-600">Days Used</div>
               <div className="text-2xl font-bold text-blue-900">
-                ₹{usedToday.toLocaleString('en-IN')}
+                {usedToday}
               </div>
             </div>
             
@@ -175,11 +175,11 @@ export default function DayLimitManager({ customer, onUpdate }) {
             }`}>
               <div className={`text-sm font-medium ${
                 remainingToday > 0 ? 'text-green-600' : 'text-red-600'
-              }`}>Remaining Today</div>
+              }`}>Remaining Days</div>
               <div className={`text-2xl font-bold ${
                 remainingToday > 0 ? 'text-green-900' : 'text-red-900'
               }`}>
-                ₹{remainingToday.toLocaleString('en-IN')}
+                {remainingToday}
               </div>
             </div>
           </div>
@@ -218,26 +218,26 @@ export default function DayLimitManager({ customer, onUpdate }) {
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">
-                {adjustType === 'increase' ? 'Increase' : 'Decrease'} Daily Limit
+                {adjustType === 'increase' ? 'Increase' : 'Decrease'} Days Limit
               </h3>
               
               <form onSubmit={handleAdjustDayLimit} className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Amount (₹)
+                    Days
                   </label>
                   <input 
                     type="number"
-                    step="0.01"
-                    min="0.01"
+                    step="1"
+                    min="1"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="Enter amount"
+                    placeholder="Enter days"
                     required 
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    Current daily limit: ₹{currentDayLimit.toLocaleString('en-IN')}
+                    Current day limit: {currentDayLimit}
                   </p>
                 </div>
                 
@@ -248,7 +248,7 @@ export default function DayLimitManager({ customer, onUpdate }) {
                   <textarea 
                     value={reason}
                     onChange={(e) => setReason(e.target.value)}
-                    placeholder={`Enter reason for ${adjustType === 'increase' ? 'increasing' : 'decreasing'} the daily limit`}
+                    placeholder={`Enter reason for ${adjustType === 'increase' ? 'increasing' : 'decreasing'} the days limit`}
                     required 
                     rows="3"
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent" 

@@ -4,6 +4,7 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
+import { io } from "socket.io-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BiCalendar,
@@ -75,6 +76,8 @@ export default function DashboardPage() {
   const [employeeMessages, setEmployeeMessages] = useState({});
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef(null);
+  const [notifSocket, setNotifSocket] = useState(null);
+  const [notifCount, setNotifCount] = useState(0);
 
   // Get authentication token
   const getAuthToken = () => {
@@ -180,6 +183,62 @@ export default function DashboardPage() {
       }
     };
   }, [showChat, sessionUser]);
+
+  // Socket.io notifications for Support Chat (employees)
+  useEffect(() => {
+    if (!sessionUser?.id) return;
+    let s;
+    (async () => {
+      try { await fetch('/api/socket'); } catch (e) {}
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+      s = io(socketUrl, {
+        path: '/api/socket',
+        transports: ['websocket'],
+        reconnection: true,
+        withCredentials: true,
+      });
+      s.on('connect', () => {
+        s.emit('employee_join', {
+          employeeId: String(sessionUser.id),
+          employeeName: sessionUser.name || 'Employee',
+          role: sessionUser.role,
+        });
+      });
+      s.on('customer_message_notification', (data) => {
+        setNotifCount((c) => c + 1);
+        setActiveChats((prev) => {
+          const idx = prev.findIndex(c => c.customerId === data.customerId);
+          const chatItem = {
+            customerId: data.customerId,
+            customerName: data.customerName,
+            lastMessage: { id: data.messageId, text: data.text, timestamp: data.timestamp, sender: 'customer' },
+            unread: true,
+          };
+          if (idx >= 0) {
+            const copy = [...prev];
+            copy[idx] = { ...copy[idx], ...chatItem };
+            return copy;
+          }
+          return [chatItem, ...prev];
+        });
+      });
+      s.on('chat_assigned', (data) => {
+        setActiveChats((prev) => prev.map(c => c.customerId === data.customerId ? { ...c, unread: false } : c));
+      });
+      setNotifSocket(s);
+    })();
+    return () => { try { s && s.disconnect(); } catch (e) {} };
+  }, [sessionUser]);
+
+  const acceptChat = (customerId) => {
+    if (!notifSocket || !notifSocket.connected) return;
+    notifSocket.emit('employee_accept_chat', {
+      customerId,
+      employeeId: String(sessionUser.id),
+      employeeName: sessionUser.name || 'Employee',
+    });
+  };
 
   // Load essential data first
   useEffect(() => {
