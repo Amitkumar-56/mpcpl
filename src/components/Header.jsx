@@ -36,31 +36,13 @@ export default function Header() {
 
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showProfileMenu]);
+  }, [showProfileMenu, showNotifMenu]);
 
-  // Don't show header on login page
-  if (pathname === '/login') return null;
-
-  // Show loading state
-  if (loading) {
-    return (
-      <header className="bg-white shadow-sm">
-        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
-          <div className="flex items-center gap-4">
-            <div className="animate-pulse bg-gray-200 rounded-full w-8 h-8"></div>
-          </div>
-        </div>
-      </header>
-    );
-  }
-
-  // Don't show header if no user
-  if (!user) return null;
-
+  // Socket connection effect - must be called before conditional returns
   useEffect(() => {
     const isCustomer = pathname.startsWith('/cst');
-    if (!user || isCustomer) return;
+    if (!user || isCustomer || pathname === '/login') return;
+    
     let s;
     (async () => {
       try { await fetch('/api/socket'); } catch (e) {}
@@ -104,6 +86,26 @@ export default function Header() {
     })();
     return () => { try { s && s.disconnect(); } catch (e) {} };
   }, [user, pathname]);
+
+  // Don't show header on login page
+  if (pathname === '/login') return null;
+
+  // Show loading state
+  if (loading) {
+    return (
+      <header className="bg-white shadow-sm">
+        <div className="container mx-auto px-4 py-3 flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+          <div className="flex items-center gap-4">
+            <div className="animate-pulse bg-gray-200 rounded-full w-8 h-8"></div>
+          </div>
+        </div>
+      </header>
+    );
+  }
+
+  // Don't show header if no user
+  if (!user) return null;
 
   const acceptChat = (customerId) => {
     if (!empSocket || !empSocket.connected) return;

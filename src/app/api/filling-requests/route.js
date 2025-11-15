@@ -26,7 +26,8 @@ export async function GET(request) {
         fs.station_name as loading_station,
         pc.pcode as product_name,
         ep.name as updated_by_name,
-        cb.amtlimit as customer_balance
+        cb.amtlimit as customer_balance,
+        cb.day_limit as customer_day_limit
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
@@ -112,7 +113,13 @@ if (requests && requests.length > 0) {
     const balance = parseFloat(request.customer_balance) || 0;
 
     if (request.status === 'Pending') {
-      if (balance === 0 || balance < qty * 100) {
+      // Check if customer is day_limit type from customer_balances table (com_id = cid)
+      const dayLimit = request.customer_day_limit ? parseInt(request.customer_day_limit) || 0 : 0;
+      const isDayLimitCustomer = dayLimit > 0;
+      
+      // Day limit customers should NOT show "Insufficient Balance" error
+      // Only check balance for credit_limit customers (amtlimit customers)
+      if (!isDayLimitCustomer && (balance === 0 || balance < qty * 100)) {
         eligibility = 'No';
         eligibility_reason = 'Insufficient Balance';
       } else {
@@ -206,6 +213,35 @@ export async function POST(request) {
     );
     const dayLimitVal = dayLimitRows.length > 0 ? parseInt(dayLimitRows[0].day_limit) || 0 : 0;
     if (dayLimitVal > 0) {
+      // For day_limit customers: Check if oldest unpaid day is cleared
+      // Get oldest unpaid day's total amount
+      const oldestUnpaidDay = await executeQuery(
+        `SELECT 
+           DATE(completed_date) as day_date,
+           SUM(totalamt) as day_total,
+           COUNT(*) as transaction_count
+         FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         GROUP BY DATE(completed_date)
+         ORDER BY DATE(completed_date) ASC
+         LIMIT 1`,
+        [parseInt(customer)]
+      );
+      
+      if (oldestUnpaidDay.length > 0 && oldestUnpaidDay[0].day_date) {
+        const dayTotal = parseFloat(oldestUnpaidDay[0].day_total) || 0;
+        const transactionCount = parseInt(oldestUnpaidDay[0].transaction_count) || 0;
+        const dayDate = oldestUnpaidDay[0].day_date;
+        
+        // Check if this day has unpaid amount - if yes, block new requests
+        if (dayTotal > 0 && transactionCount > 0) {
+          return NextResponse.json({ 
+            error: `Day limit: Please clear the payment for ${dayDate} (₹${dayTotal.toFixed(2)}) before making new requests. Total ${transactionCount} transaction(s) pending for this day.` 
+          }, { status: 403 });
+        }
+      }
+      
+      // Also check day limit expiry (days elapsed since oldest unpaid transaction)
       const earliestRows = await executeQuery(
         `SELECT completed_date FROM filling_requests 
          WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
@@ -217,7 +253,7 @@ export async function POST(request) {
         const daysUsed = Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24)));
         if (daysUsed >= dayLimitVal) {
           return NextResponse.json({ 
-            error: 'Day limit exceeded. Please pay one-day amount to continue.' 
+            error: `Day limit exceeded (${daysUsed}/${dayLimitVal} days). Please pay the oldest day's amount to continue.` 
           }, { status: 403 });
         }
       }
@@ -231,28 +267,35 @@ export async function POST(request) {
     const productName = productRow.length > 0 ? productRow[0].pcode : 'Unknown Product';
     const productId = productRow.length > 0 ? productRow[0].product_id : null;
 
-    const clientTypeRows = await executeQuery(
-      'SELECT client_type FROM customers WHERE id = ?',
+    // Check customer type from customer_balances table using com_id (same as cid)
+    const balanceCheckRows = await executeQuery(
+      'SELECT day_limit, amtlimit FROM customer_balances WHERE com_id = ?',
       [parseInt(customer)]
     );
-    const clientType = clientTypeRows.length > 0 ? String(clientTypeRows[0].client_type) : '';
-
-    if (clientType === '2' && productId) {
-      const priceRows = await executeQuery(
-        `SELECT price FROM deal_price WHERE com_id = ? AND station_id = ? AND product_id = ? AND is_active = 1 AND status = 'active' ORDER BY updated_date DESC LIMIT 1`,
-        [parseInt(customer), parseInt(station_id), productId]
-      );
-      const price = priceRows.length > 0 ? parseFloat(priceRows[0].price) || 0 : 0;
-      const requestedAmount = price * (parseFloat(qty) || 0);
-      const balRows = await executeQuery(
-        'SELECT amtlimit FROM customer_balances WHERE com_id = ?',
+    
+    const isDayLimitCustomer = balanceCheckRows.length > 0 && (parseInt(balanceCheckRows[0].day_limit) || 0) > 0;
+    
+    // Only check balance/amtlimit for credit_limit customers (NOT for day_limit customers)
+    if (!isDayLimitCustomer && productId) {
+      const clientTypeRows = await executeQuery(
+        'SELECT client_type FROM customers WHERE id = ?',
         [parseInt(customer)]
       );
-      const amtlimit = balRows.length > 0 ? parseFloat(balRows[0].amtlimit) || 0 : 0;
-      if (requestedAmount > amtlimit) {
-        return NextResponse.json({
-          error: 'Insufficient credit limit. Please recharge to continue.'
-        }, { status: 403 });
+      const clientType = clientTypeRows.length > 0 ? String(clientTypeRows[0].client_type) : '';
+
+      if (clientType === '2') {
+        const priceRows = await executeQuery(
+          `SELECT price FROM deal_price WHERE com_id = ? AND station_id = ? AND product_id = ? AND is_active = 1 AND status = 'active' ORDER BY updated_date DESC LIMIT 1`,
+          [parseInt(customer), parseInt(station_id), productId]
+        );
+        const price = priceRows.length > 0 ? parseFloat(priceRows[0].price) || 0 : 0;
+        const requestedAmount = price * (parseFloat(qty) || 0);
+        const amtlimit = balanceCheckRows.length > 0 ? parseFloat(balanceCheckRows[0].amtlimit) || 0 : 0;
+        if (requestedAmount > amtlimit) {
+          return NextResponse.json({
+            error: 'Insufficient credit limit. Please recharge to continue.'
+          }, { status: 403 });
+        }
       }
     }
 

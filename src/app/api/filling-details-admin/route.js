@@ -35,7 +35,6 @@ export async function GET(req) {
           cb.updated_at,
           cb.day_limit,
           cb.day_amount,
-          cb.day_limit_expiry,
           cb.is_active,
           fss.stock as station_stock,
           pc.pcode as sub_product_code
@@ -92,12 +91,35 @@ export async function GET(req) {
         data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
       }
 
-      // Calculate remaining days for day limit customers
-      if (data.day_limit && data.day_limit > 0 && data.day_limit_expiry) {
-        const now = new Date();
-        const expiryDate = new Date(data.day_limit_expiry);
-        const remainingDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-        data.remaining_days = Math.max(0, remainingDays);
+      // Calculate remaining days for day limit customers based on oldest completed_date
+      // NOT based on expiry_date - only use completed_date from filling_requests
+      if (data.day_limit && data.day_limit > 0) {
+        // Get oldest unpaid transaction's completed_date
+        const oldestUnpaid = await executeQuery(
+          `SELECT completed_date 
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           ORDER BY completed_date ASC 
+           LIMIT 1`,
+          [data.com_id]
+        );
+        
+        if (oldestUnpaid.length > 0 && oldestUnpaid[0].completed_date) {
+          const currentDate = new Date();
+          currentDate.setHours(0, 0, 0, 0);
+          const oldestCompletedDate = new Date(oldestUnpaid[0].completed_date);
+          oldestCompletedDate.setHours(0, 0, 0, 0);
+          
+          // Calculate days elapsed: current_date - completed_date
+          const timeDiff = currentDate.getTime() - oldestCompletedDate.getTime();
+          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+          
+          // Remaining days = day_limit - days_elapsed
+          data.remaining_days = Math.max(0, data.day_limit - daysElapsed);
+        } else {
+          // No unpaid transactions, so all days remaining
+          data.remaining_days = data.day_limit;
+        }
       } else {
         data.remaining_days = 0;
       }
@@ -105,7 +127,6 @@ export async function GET(req) {
       console.log('✅ Final data prepared:', {
         day_limit: data.day_limit,
         remaining_days: data.remaining_days,
-        day_limit_expiry: data.day_limit_expiry,
         is_active: data.is_active,
         cst_limit: data.cst_limit,
         amtlimit: data.amtlimit
@@ -166,8 +187,8 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Check customer balance limit before proceeding (ONLY for Completed status)
-    if (status === 'Completed') {
+    // Check customer balance limit before proceeding (for Processing and Completed status)
+    if (status === 'Processing' || status === 'Completed') {
       const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
       
       if (!balanceCheck.sufficient) {
@@ -266,12 +287,11 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     // Calculate the amount for this transaction
     const calculatedAmount = aqty * defaultPrice;
     
-    // Get customer balance with day limit info
+    // Get customer balance with day limit info (no expiry_date needed)
     const balanceQuery = `
       SELECT 
         amtlimit, 
         day_limit,
-        day_limit_expiry,
         is_active
       FROM customer_balances 
       WHERE com_id = ?
@@ -293,58 +313,68 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
       dayLimit,
       current_amtlimit: currentAmtLimit,
       required_amount: calculatedAmount,
-      day_limit_expiry: balanceData.day_limit_expiry,
       is_active: balanceData.is_active
     });
 
     // DAY LIMIT CUSTOMER CHECK
     if (dayLimit > 0) {
-      const now = new Date();
-      const expiryDate = balanceData.day_limit_expiry ? new Date(balanceData.day_limit_expiry) : null;
+      // For day_limit customers: Check based on oldest completed_date from filling_requests
+      // Get oldest unpaid transaction's completed_date (first unpaid day)
+      const oldestUnpaidTransaction = await executeQuery(
+        `SELECT completed_date 
+         FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         ORDER BY completed_date ASC 
+         LIMIT 1`,
+        [cl_id]
+      );
       
-      // Check if day limit is expired
-      if (expiryDate && now > expiryDate) {
-        console.log('❌ Day limit expired');
+      const currentDate = new Date();
+      currentDate.setHours(0, 0, 0, 0); // Reset to start of day for accurate calculation
+      
+      if (oldestUnpaidTransaction.length > 0 && oldestUnpaidTransaction[0].completed_date) {
+        const oldestCompletedDate = new Date(oldestUnpaidTransaction[0].completed_date);
+        oldestCompletedDate.setHours(0, 0, 0, 0); // Reset to start of day
         
-        // Update status to inactive
-        await executeQuery(
-          `UPDATE customer_balances SET is_active = 0 WHERE com_id = ?`,
-          [cl_id]
-        );
+        // Calculate days elapsed: current_date - completed_date
+        const timeDiff = currentDate.getTime() - oldestCompletedDate.getTime();
+        const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
         
-        return { 
-          sufficient: false, 
-          message: 'Your day limit has expired. Please renew your limit.',
-          isDayLimitExpired: true
-        };
+        console.log('📅 Day Limit Check:', {
+          oldestCompletedDate: oldestCompletedDate.toISOString(),
+          currentDate: currentDate.toISOString(),
+          daysElapsed,
+          dayLimit,
+          isExceeded: daysElapsed >= dayLimit
+        });
+        
+        // If days elapsed >= day_limit, block the request
+        if (daysElapsed >= dayLimit) {
+          console.log('❌ Day limit exceeded based on oldest completed_date');
+          
+          return { 
+            sufficient: false, 
+            message: `Day limit exceeded. The oldest unpaid transaction is ${daysElapsed} days old (limit: ${dayLimit} days). Please clear the payment for the oldest day to continue.`,
+            isDayLimitExpired: true
+          };
+        }
       }
       
-      // Check if account is active
+      // Only check is_active if manually set by admin (not automatically due to day limit)
+      // This allows admin to manually block accounts for other reasons
       if (balanceData.is_active === 0) {
-        console.log('❌ Day limit account inactive');
+        console.log('❌ Day limit account manually inactive');
         return { 
           sufficient: false, 
           message: 'Your day limit account is inactive. Please contact administrator.'
         };
       }
       
-      // Calculate remaining days
-      let remainingDays = 0;
-      if (expiryDate) {
-        remainingDays = Math.ceil((expiryDate - now) / (1000 * 60 * 60 * 24));
-        remainingDays = Math.max(0, remainingDays);
-      }
-      
-      console.log('✅ Day limit customer - Transaction allowed', {
-        remainingDays,
-        expiryDate: expiryDate?.toISOString()
-      });
+      console.log('✅ Day limit customer - Transaction allowed');
       
       return { 
         sufficient: true, 
         mode: 'day_limit',
-        remainingDays,
-        expiryDate: expiryDate?.toISOString(),
         isDayLimitClient: true
       };
     }
@@ -424,6 +454,9 @@ async function updateFillingLogs(request_id, status, userId) {
 async function handleProcessingStatus(data) {
   const { id, rid, cl_id, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id } = data;
   
+  // Day limit check is already done in POST endpoint before calling this function
+  // This function will only be called if balance check passes
+  
   const now = getIndianTime();
   const updateRequestQuery = `
     UPDATE filling_requests 
@@ -457,9 +490,9 @@ async function handleCompletedStatus(data) {
   const calculatedAmount = finalPrice * aqty;
   const newStock = oldstock - aqty;
 
-  // Get current balance data
+  // Get current balance data (no expiry_date needed - using completed_date only)
   const getLatestAmountQuery = `
-    SELECT amtlimit, balance, day_limit, day_limit_expiry, is_active 
+    SELECT amtlimit, balance, day_limit, is_active 
     FROM customer_balances 
     WHERE com_id = ?
   `;

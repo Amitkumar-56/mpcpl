@@ -35,6 +35,36 @@ export async function POST(request) {
     );
     const dayLimitVal = dayLimitRows.length > 0 ? parseInt(dayLimitRows[0].day_limit) || 0 : 0;
     if (dayLimitVal > 0) {
+      // For day_limit customers: Check if oldest unpaid day is cleared
+      // Get oldest unpaid day's total amount
+      const oldestUnpaidDay = await executeQuery(
+        `SELECT 
+           DATE(completed_date) as day_date,
+           SUM(totalamt) as day_total,
+           COUNT(*) as transaction_count
+         FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         GROUP BY DATE(completed_date)
+         ORDER BY DATE(completed_date) ASC
+         LIMIT 1`,
+        [parseInt(customer_id)]
+      );
+      
+      if (oldestUnpaidDay.length > 0 && oldestUnpaidDay[0].day_date) {
+        const dayTotal = parseFloat(oldestUnpaidDay[0].day_total) || 0;
+        const transactionCount = parseInt(oldestUnpaidDay[0].transaction_count) || 0;
+        const dayDate = oldestUnpaidDay[0].day_date;
+        
+        // Check if this day has unpaid amount - if yes, block new requests
+        if (dayTotal > 0 && transactionCount > 0) {
+          return NextResponse.json({
+            success: false,
+            message: `Day limit: Please clear the payment for ${dayDate} (₹${dayTotal.toFixed(2)}) before making new requests. Total ${transactionCount} transaction(s) pending for this day.`
+          }, { status: 403 });
+        }
+      }
+      
+      // Also check day limit expiry (days elapsed since oldest unpaid transaction)
       const earliestRows = await executeQuery(
         `SELECT completed_date FROM filling_requests 
          WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
@@ -47,7 +77,7 @@ export async function POST(request) {
         if (daysUsed >= dayLimitVal) {
           return NextResponse.json({
             success: false,
-            message: 'Day limit exceeded. Please pay one-day amount to continue.'
+            message: `Day limit exceeded (${daysUsed}/${dayLimitVal} days). Please pay the oldest day's amount to continue.`
           }, { status: 403 });
         }
       }

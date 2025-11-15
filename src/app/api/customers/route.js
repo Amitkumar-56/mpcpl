@@ -56,42 +56,120 @@ export async function PATCH(req) {
       return NextResponse.json({ error: 'Invalid parameters' }, { status: 400 });
     }
 
-    if (targetType === 'day') {
-      if (isNaN(limitValue) || limitValue < 0) {
-        return NextResponse.json({ error: 'Invalid day limit' }, { status: 400 });
-      }
-      await executeQuery('UPDATE customers SET client_type = ?, day_limit = ? WHERE id = ?', ['3', limitValue, customerId]);
-      const balRows = await executeQuery('SELECT id FROM customer_balances WHERE com_id = ?', [customerId]);
-      if (balRows.length > 0) {
-        await executeQuery('UPDATE customer_balances SET day_limit = ?, day_amount = 0, day_limit_expiry = NULL WHERE com_id = ?', [limitValue, customerId]);
-      } else {
-        await executeQuery(
-          'INSERT INTO customer_balances (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, day_limit_expiry, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [0, 0, 0, 0, customerId, limitValue, 0, null, 1]
-        );
-      }
-      return NextResponse.json({ success: true, message: 'Switched to Day Limit', customerId, day_limit: limitValue });
+    // Get current customer data
+    const customerRows = await executeQuery('SELECT * FROM customers WHERE id = ?', [customerId]);
+    if (customerRows.length === 0) {
+      return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
 
-    if (targetType === 'post') {
-      if (isNaN(limitValue) || limitValue < 0) {
-        return NextResponse.json({ error: 'Invalid credit limit' }, { status: 400 });
+    const currentCustomer = customerRows[0];
+
+    if (targetType === 'day') {
+      // Switching TO Day Limit (from Prepaid/Postpaid)
+      if (isNaN(limitValue) || limitValue < 1) {
+        return NextResponse.json({ error: 'Invalid day limit (minimum 1 day)' }, { status: 400 });
       }
-      await executeQuery('UPDATE customers SET client_type = ?, amtlimit = NULL WHERE id = ?', ['2', customerId]);
+
+      // Update customers table
+      await executeQuery(
+        'UPDATE customers SET client_type = ? WHERE id = ?', 
+        ['3', customerId]
+      );
+
+      // Update or insert in customer_balances table
       const balRows = await executeQuery('SELECT id FROM customer_balances WHERE com_id = ?', [customerId]);
+      
       if (balRows.length > 0) {
-        await executeQuery('UPDATE customer_balances SET cst_limit = ?, amtlimit = ? WHERE com_id = ?', [limitValue, limitValue, customerId]);
-      } else {
+        // Update existing balance record - disable credit limits, enable day limit
         await executeQuery(
-          'INSERT INTO customer_balances (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, day_limit_expiry, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-          [0, 0, limitValue, limitValue, customerId, 0, 0, null, 1]
+          `UPDATE customer_balances 
+           SET day_limit = ?, day_amount = 0, total_day_amount = 0, day_limit_expiry = NULL,
+               amtlimit = 0, cst_limit = 0, is_active = 1
+           WHERE com_id = ?`,
+          [limitValue, customerId]
+        );
+      } else {
+        // Insert new balance record for day limit
+        await executeQuery(
+          `INSERT INTO customer_balances 
+           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, total_day_amount, day_limit_expiry, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [0, 0, 0, 0, customerId, limitValue, 0, 0, null, 1]
         );
       }
-      return NextResponse.json({ success: true, message: 'Switched to Postpaid', customerId, amtlimit: limitValue });
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `Customer switched to Day Limit (${limitValue} days)`, 
+        customerId, 
+        day_limit: limitValue 
+      });
+
+    } else if (targetType === 'post') {
+      // Switching FROM Day Limit TO Postpaid
+      if (isNaN(limitValue) || limitValue < 0) {
+        return NextResponse.json({ error: 'Invalid credit limit amount' }, { status: 400 });
+      }
+
+      // Update customers table - set to postpaid
+      await executeQuery(
+        'UPDATE customers SET client_type = ? WHERE id = ?', 
+        ['2', customerId]
+      );
+
+      // Update customer_balances table - enable credit limits, disable day limit
+      const balRows = await executeQuery('SELECT id FROM customer_balances WHERE com_id = ?', [customerId]);
+      
+      if (balRows.length > 0) {
+        await executeQuery(
+          `UPDATE customer_balances 
+           SET cst_limit = ?, amtlimit = ?, 
+               day_limit = 0, day_amount = 0, total_day_amount = 0, day_limit_expiry = NULL
+           WHERE com_id = ?`,
+          [limitValue, limitValue, customerId]
+        );
+      } else {
+        await executeQuery(
+          `INSERT INTO customer_balances 
+           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, total_day_amount, day_limit_expiry, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [0, 0, limitValue, limitValue, customerId, 0, 0, 0, null, 1]
+        );
+      }
+
+      return NextResponse.json({ 
+        success: true, 
+        message: `Customer switched to Postpaid with credit limit ₹${limitValue}`, 
+        customerId, 
+        cst_limit: limitValue 
+      });
     }
 
   } catch (error) {
-    console.error('Switch type error:', error);
+    console.error('Switch customer type error:', error);
     return NextResponse.json({ error: 'Failed to switch customer type' }, { status: 500 });
+  }
+}
+
+// For customer deletion (if needed)
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    const { id } = body;
+
+    if (!id) {
+      return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
+    }
+
+    // Delete from customer_balances first (foreign key constraint)
+    await executeQuery('DELETE FROM customer_balances WHERE com_id = ?', [id]);
+    
+    // Then delete from customers
+    await executeQuery('DELETE FROM customers WHERE id = ?', [id]);
+
+    return NextResponse.json({ success: true, message: 'Customer deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting customer:', error);
+    return NextResponse.json({ error: 'Failed to delete customer' }, { status: 500 });
   }
 }

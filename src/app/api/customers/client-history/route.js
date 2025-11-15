@@ -98,17 +98,43 @@ export async function GET(request) {
     const balance = balanceResult.length > 0 ? Math.round(balanceResult[0].balance) : 0;
 
     const dayLimit = customerBalanceInfo.length > 0 ? parseInt(customerBalanceInfo[0].day_limit) || 0 : 0;
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0); // Reset to start of day for accurate calculation
+    
     const enrichedPending = (pendingTransactions || []).map((t) => {
       const completed = t.completed_date ? new Date(t.completed_date) : null;
-      const elapsedDays = completed ? Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+      // Calculate remaining days: current date - completed date (days elapsed since completion)
+      let remainingDays = 0;
+      if (completed) {
+        completed.setHours(0, 0, 0, 0); // Reset to start of day
+        const timeDiff = currentDate.getTime() - completed.getTime();
+        remainingDays = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+      }
+      
       const isPaid = Number(t.payment_status) === 1;
-      const overdue = !isPaid && dayLimit > 0 && elapsedDays >= dayLimit;
+      // Overdue if: not paid AND day limit > 0 AND remaining days (elapsed) >= day limit
+      const overdue = !isPaid && dayLimit > 0 && remainingDays >= dayLimit;
+      
+      // Calculate recharge amount (amount paid for this transaction)
+      const recharge = isPaid ? parseFloat(t.amount || 0) : 0;
+      
+      // Calculate outstanding for this specific transaction
+      // Outstanding = transaction amount (if not paid, 0 if paid)
+      const transactionOutstanding = isPaid ? 0 : parseFloat(t.amount || 0);
+      
+      // Outstanding after payment = transaction outstanding - recharge
+      // For paid transactions, outstanding after payment = 0
+      // For unpaid transactions, outstanding after payment = transaction amount
+      const outstandingAfterPayment = isPaid ? 0 : transactionOutstanding;
+      
       return {
         ...t,
         days_limit: dayLimit,
-        outstanding_balance: balance,
-        remaining_days: elapsedDays,
-        total_days: dayLimit,
+        outstanding_balance: transactionOutstanding, // Outstanding for this specific transaction
+        remaining_days: remainingDays, // Days elapsed since completion (current date - completed date)
+        total_days: dayLimit, // Total day limit assigned
+        recharge: recharge, // Amount paid (recharge) for this transaction
+        outstanding_after_payment: outstandingAfterPayment, // Outstanding after payment
         overdue_status: isPaid ? 'Paid' : overdue ? 'Overdue' : 'Open'
       };
     });
@@ -151,71 +177,158 @@ export async function PATCH(request) {
     await executeQuery('START TRANSACTION');
 
     try {
-      // Get pending transactions (oldest first)
-      const pendingTransactions = await executeQuery(
-        `SELECT id, totalamt as amount 
-         FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
-         ORDER BY completed_date ASC`,
+      // Get customer info first to check if day_limit customer
+      const customerInfo = await executeQuery(
+        'SELECT day_limit, amtlimit FROM customer_balances WHERE com_id = ?',
         [customerId]
       );
+      const isDayLimit = customerInfo.length > 0 && (parseInt(customerInfo[0].day_limit) || 0) > 0;
+
+      // Get current balance before payment
+      const balanceBefore = await executeQuery(
+        'SELECT balance FROM customer_balances WHERE com_id = ?',
+        [customerId]
+      );
+      const currentBalance = balanceBefore.length > 0 ? parseFloat(balanceBefore[0].balance) || 0 : 0;
 
       let remainingAmount = parseFloat(rechargeAmount);
       let invoicesPaid = 0;
       let totalPaidAmount = 0;
+      let daysCleared = 0;
 
-      // Pay off oldest invoices first
-      for (const transaction of pendingTransactions) {
-        if (remainingAmount <= 0) break;
+      // For day_limit customers: Allocate payment per day based on completed_date
+      if (isDayLimit) {
+        // Group pending transactions by completed_date (per day)
+        const pendingTransactionsByDay = await executeQuery(
+          `SELECT 
+             DATE(completed_date) as day_date,
+             SUM(totalamt) as day_total,
+             GROUP_CONCAT(id) as transaction_ids
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           GROUP BY DATE(completed_date)
+           ORDER BY DATE(completed_date) ASC`,
+          [customerId]
+        );
 
-        const transactionAmount = parseFloat(transaction.amount);
-        
-        if (remainingAmount >= transactionAmount) {
-          // Full payment for this invoice
-          await executeQuery(
-            'UPDATE filling_requests SET payment_status = 1, payment_date = NOW() WHERE id = ?',
-            [transaction.id]
-          );
-          remainingAmount -= transactionAmount;
-          totalPaidAmount += transactionAmount;
-          invoicesPaid++;
-        } else {
-          // Partial payment - handle if needed
-          break;
+        // Clear each day's amount starting from oldest day
+        for (const dayData of pendingTransactionsByDay) {
+          if (remainingAmount <= 0) break;
+
+          const dayTotal = parseFloat(dayData.day_total) || 0;
+          const transactionIds = dayData.transaction_ids.split(',').map(id => parseInt(id.trim()));
+
+          if (remainingAmount >= dayTotal) {
+            // Full payment for this day - mark all transactions of this day as paid
+            if (transactionIds.length > 0) {
+              await executeQuery(
+                `UPDATE filling_requests 
+                 SET payment_status = 1, payment_date = NOW() 
+                 WHERE id IN (${transactionIds.map(() => '?').join(',')})`,
+                transactionIds
+              );
+              invoicesPaid += transactionIds.length;
+              totalPaidAmount += dayTotal;
+              remainingAmount -= dayTotal;
+              daysCleared++;
+            }
+          } else {
+            // Partial payment - cannot partially pay a day, need full day amount
+            break;
+          }
+        }
+      } else {
+        // For credit_limit customers: Pay off oldest invoices first (transaction by transaction)
+        const pendingTransactions = await executeQuery(
+          `SELECT id, totalamt as amount 
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           ORDER BY completed_date ASC`,
+          [customerId]
+        );
+
+        for (const transaction of pendingTransactions) {
+          if (remainingAmount <= 0) break;
+
+          const transactionAmount = parseFloat(transaction.amount);
+          
+          if (remainingAmount >= transactionAmount) {
+            await executeQuery(
+              'UPDATE filling_requests SET payment_status = 1, payment_date = NOW() WHERE id = ?',
+              [transaction.id]
+            );
+            remainingAmount -= transactionAmount;
+            totalPaidAmount += transactionAmount;
+            invoicesPaid++;
+          } else {
+            break;
+          }
         }
       }
 
-      // Update customer balance and amtlimit with any remaining amount (as recharge)
-      if (remainingAmount > 0) {
-        await executeQuery(
-          'UPDATE customer_balances SET balance = balance - ?, amtlimit = amtlimit + ? WHERE com_id = ?',
-          [remainingAmount, remainingAmount, customerId]
-        );
+      // Update customer balance (reduce balance by payment amount)
+      const newBalance = currentBalance - parseFloat(rechargeAmount);
+      await executeQuery(
+        'UPDATE customer_balances SET balance = ? WHERE com_id = ?',
+        [newBalance, customerId]
+      );
 
-        const updated = await executeQuery(
-          'SELECT amtlimit FROM customer_balances WHERE com_id = ?',
-          [customerId]
-        );
-        const updatedAmtLimit = updated.length > 0 ? parseFloat(updated[0].amtlimit) || 0 : 0;
+      // Record the recharge in filling_history as inward transaction with credit
+      // For day_limit customers, credit = recharge amount
+      // For credit_limit customers, update amtlimit and remaining_limit
+      if (remainingAmount > 0 || totalPaidAmount > 0) {
+        if (!isDayLimit && remainingAmount > 0) {
+          // Credit limit customer - add remaining amount to amtlimit
+          await executeQuery(
+            'UPDATE customer_balances SET amtlimit = amtlimit + ? WHERE com_id = ?',
+            [remainingAmount, customerId]
+          );
+        }
 
-        // Record the recharge in filling_history as inward transaction
-        await executeQuery(
-          `INSERT INTO filling_history (
-            cl_id, trans_type, credit, credit_date, 
-            new_amount, remaining_limit, created_by
-          ) VALUES (?, ?, ?, NOW(), ?, ?, ?)`,
-          [customerId, 'inward', remainingAmount, -remainingAmount, updatedAmtLimit, 1]
-        );
+        // Get updated amtlimit for credit_limit customers
+        let remainingLimit = 0;
+        if (!isDayLimit) {
+          const updatedInfo = await executeQuery(
+            'SELECT amtlimit FROM customer_balances WHERE com_id = ?',
+            [customerId]
+          );
+          remainingLimit = updatedInfo.length > 0 ? parseFloat(updatedInfo[0].amtlimit) || 0 : 0;
+        }
+
+        // Record in filling_history - for day_limit, credit = total recharge amount
+        const creditAmount = isDayLimit ? parseFloat(rechargeAmount) : remainingAmount;
+        
+        if (creditAmount > 0 || totalPaidAmount > 0) {
+          await executeQuery(
+            `INSERT INTO filling_history (
+              cl_id, trans_type, credit, credit_date, 
+              new_amount, remaining_limit, created_by
+            ) VALUES (?, ?, ?, NOW(), ?, ?, ?)`,
+            [
+              customerId, 
+              'inward', 
+              creditAmount, // For day_limit: total recharge, for credit_limit: remaining after paying invoices
+              newBalance, 
+              isDayLimit ? 0 : remainingLimit, 
+              1
+            ]
+          );
+        }
       }
 
       await executeQuery('COMMIT');
 
+      const message = isDayLimit
+        ? `Payment processed successfully. ${invoicesPaid} invoice(s) paid across ${daysCleared} day(s). Amount: ₹${totalPaidAmount}. ${remainingAmount > 0 ? `Remaining: ₹${remainingAmount} (credited).` : ''}`
+        : `Payment processed successfully. ${invoicesPaid} invoice(s) paid. Amount: ₹${totalPaidAmount}. ${remainingAmount > 0 ? `Remaining: ₹${remainingAmount} (added to amtlimit).` : ''}`;
+
       return NextResponse.json({
         success: true,
-        message: `Payment processed successfully. ${invoicesPaid} invoice(s) paid.`,
+        message,
         invoicesPaid,
         amountPaid: totalPaidAmount,
-        remainingBalance: remainingAmount
+        remainingBalance: remainingAmount,
+        daysCleared: isDayLimit ? daysCleared : undefined
       });
 
     } catch (error) {

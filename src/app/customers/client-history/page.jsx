@@ -614,10 +614,8 @@ function ClientHistoryContent() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Trans Type</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Qty</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credit</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Credit Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Days Limit</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding (balance)</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Outstanding</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remaining Days</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Days</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recharge</th>
@@ -627,38 +625,84 @@ function ClientHistoryContent() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {pendingTransactions && pendingTransactions.length > 0 ? (
-                    pendingTransactions.map((t) => {
-                      const dayLimit = customerBalanceInfo?.day_limit || 0;
+                    pendingTransactions.map((t, index) => {
+                      const dayLimit = t.days_limit || customerBalanceInfo?.day_limit || 0;
                       const completed = t.completed_date ? new Date(t.completed_date) : null;
-                      const elapsedDays = completed ? Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24))) : 0;
+                      
+                      // Calculate remaining days: current date - completed date (days elapsed)
+                      const currentDate = new Date();
+                      currentDate.setHours(0, 0, 0, 0);
+                      let remainingDays = 0;
+                      if (completed) {
+                        completed.setHours(0, 0, 0, 0);
+                        const timeDiff = currentDate.getTime() - completed.getTime();
+                        remainingDays = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+                      }
+                      
                       const isPaid = Number(t.payment_status) === 1;
-                      const overdue = !isPaid && dayLimit > 0 && elapsedDays >= dayLimit;
-                      const recharge = 0;
-                      const outstandingAfter = Math.max(0, (balance || 0) - recharge);
+                      // Overdue if: not paid AND day limit > 0 AND remaining days (elapsed) >= day limit
+                      const overdue = !isPaid && dayLimit > 0 && remainingDays >= dayLimit;
+                      
+                      // Get values from API response (already calculated in backend)
+                      const recharge = t.recharge !== undefined ? t.recharge : (isPaid ? parseFloat(t.amount || 0) : 0);
+                      const transactionOutstanding = t.outstanding_balance !== undefined 
+                        ? t.outstanding_balance 
+                        : (isPaid ? 0 : parseFloat(t.amount || 0));
+                      const outstandingAfter = t.outstanding_after_payment !== undefined 
+                        ? t.outstanding_after_payment 
+                        : (isPaid ? 0 : parseFloat(t.amount || 0));
+                      
+                      // Status: Paid, Open, or Overdue
+                      const status = t.overdue_status || (isPaid ? 'Paid' : overdue ? 'Overdue' : 'Open');
+                      
                       return (
-                        <tr key={t.id}>
+                        <tr key={t.id} className={overdue ? 'bg-red-50' : isPaid ? 'bg-green-50' : ''}>
                           <td className="px-4 py-2 text-sm">{t.station_name || 'N/A'}</td>
                           <td className="px-4 py-2 text-sm">{formatDateTime(t.completed_date)}</td>
                           <td className="px-4 py-2 text-sm">{t.pname || 'N/A'}</td>
                           <td className="px-4 py-2 text-sm">{t.vehicle_number || 'N/A'}</td>
                           <td className="px-4 py-2 text-sm">{t.trans_type || 'N/A'}</td>
                           <td className="px-4 py-2 text-sm">{t.loading_qty ?? t.aqty ?? 0}</td>
-                          <td className="px-4 py-2 text-sm">₹{formatCurrency(t.amount)}</td>
-                          <td className="px-4 py-2 text-sm">₹{formatCurrency(0)}</td>
-                          <td className="px-4 py-2 text-sm">{''}</td>
+                          <td className="px-4 py-2 text-sm font-semibold">₹{formatCurrency(t.amount)}</td>
                           <td className="px-4 py-2 text-sm">{dayLimit}</td>
-                          <td className="px-4 py-2 text-sm">₹{formatCurrency(balance)}</td>
-                          <td className="px-4 py-2 text-sm">{elapsedDays}</td>
+                          <td className="px-4 py-2 text-sm font-semibold">
+                            <span className={transactionOutstanding > 0 ? 'text-red-600' : 'text-green-600'}>
+                              ₹{formatCurrency(transactionOutstanding)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm font-semibold">
+                            <span className={remainingDays >= dayLimit ? 'text-red-600 font-bold' : remainingDays > dayLimit * 0.7 ? 'text-orange-600' : 'text-blue-600'}>
+                              {remainingDays}
+                            </span>
+                          </td>
                           <td className="px-4 py-2 text-sm">{dayLimit}</td>
-                          <td className="px-4 py-2 text-sm">₹{formatCurrency(recharge)}</td>
-                          <td className="px-4 py-2 text-sm">₹{formatCurrency(outstandingAfter)}</td>
-                          <td className="px-4 py-2 text-sm">{isPaid ? 'Paid' : overdue ? 'Overdue' : 'Open'}</td>
+                          <td className="px-4 py-2 text-sm">
+                            <span className={recharge > 0 ? 'text-green-600 font-semibold' : ''}>
+                              ₹{formatCurrency(recharge)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm font-semibold">
+                            <span className={outstandingAfter > 0 ? 'text-red-600' : 'text-green-600'}>
+                              ₹{formatCurrency(outstandingAfter)}
+                            </span>
+                          </td>
+                          <td className="px-4 py-2 text-sm">
+                            <span className={`px-2 py-1 rounded text-xs font-semibold ${
+                              status === 'Paid' 
+                                ? 'bg-green-100 text-green-800' 
+                                : status === 'Overdue' 
+                                  ? 'bg-red-100 text-red-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {status}
+                            </span>
+                          </td>
                         </tr>
                       );
                     })
                 ) : (
                     <tr>
-                      <td className="px-4 py-3 text-center text-sm text-gray-500" colSpan={12}>No day limit items</td>
+                      <td className="px-4 py-3 text-center text-sm text-gray-500" colSpan={14}>No day limit transactions found</td>
                     </tr>
                   )}
                 </tbody>

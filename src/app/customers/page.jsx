@@ -116,27 +116,46 @@ export default function CustomersPage() {
 
   const submitSwitch = async () => {
     if (!switchCustomer) return;
+    
     const valNum = Number(switchValue);
-    if (isNaN(valNum) || valNum < 0) {
-      alert('Enter a valid limit');
-      return;
+    
+    // Validation based on target type
+    if (switchTarget === 'day') {
+      // Switching TO Day Limit - validate day limit
+      if (isNaN(valNum) || valNum < 1) {
+        alert('Enter a valid day limit (minimum 1 day)');
+        return;
+      }
+    } else {
+      // Switching TO Postpaid - validate credit limit
+      if (isNaN(valNum) || valNum < 0) {
+        alert('Enter a valid credit limit');
+        return;
+      }
     }
+    
     try {
       setSwitchLoading(true);
       const res = await fetch('/api/customers', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId: switchCustomer.id, targetType: switchTarget, limitValue: valNum })
+        body: JSON.stringify({ 
+          customerId: switchCustomer.id, 
+          targetType: switchTarget, 
+          limitValue: valNum 
+        })
       });
+      
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to switch');
-      alert(data.message || 'Updated');
+      if (!res.ok) throw new Error(data.error || 'Failed to switch customer type');
+      
+      alert(data.message || 'Customer type updated successfully');
       setShowSwitchModal(false);
       setSwitchCustomer(null);
       setSwitchValue('');
-      fetchData();
+      fetchData(); // Refresh the data
     } catch (e) {
-      alert(e.message || 'Failed');
+      alert(e.message || 'Failed to switch customer type');
     } finally {
       setSwitchLoading(false);
     }
@@ -571,14 +590,14 @@ export default function CustomersPage() {
                                 </td>
                                 <td className="p-4">
                                   {c.client_type === "3" ? (
-                                    <span className="font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-lg border border-gray-200 cursor-not-allowed" title="Day Limit customer - credit limit disabled">
-                                      N/A
+                                    <span className="font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-lg border border-gray-200 cursor-not-allowed text-sm" title="Day Limit customer - credit limit disabled">
+                                      Disabled
                                     </span>
                                   ) : (
                                     <button
                                       onClick={() => handleLimitClick(c.id, c.name)}
-                                      className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200"
-                                      title="Click to view limit details"
+                                      className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200 text-sm"
+                                      title="Click to manage credit limit"
                                     >
                                       ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
                                     </button>
@@ -589,10 +608,16 @@ export default function CustomersPage() {
                                 </td>
                                 <td className="p-4">
                                   {c.client_type === "3" ? (
-                                    <span className="font-bold text-gray-400">N/A</span>
+                                    <span className="font-bold text-gray-400 text-sm">N/A</span>
                                   ) : (
-                                    <span className={`font-bold ${statusInfo}`}>
-                                      ₹{(Math.max(0, (c.cst_limit || 0) - (c.balance || 0)) || 0).toLocaleString('en-IN')}
+                                    <span className={`font-bold text-sm ${
+                                      calculateRemainingLimit(c.balance, c.cst_limit) <= 0 
+                                        ? "text-red-600" 
+                                        : calculateRemainingLimit(c.balance, c.cst_limit) < (c.cst_limit * 0.3) 
+                                          ? "text-yellow-600" 
+                                          : "text-green-600"
+                                    }`}>
+                                      ₹{calculateRemainingLimit(c.balance, c.cst_limit).toLocaleString('en-IN')}
                                     </span>
                                   )}
                                 </td>
@@ -600,7 +625,6 @@ export default function CustomersPage() {
                                   {dayLimitStatus ? (
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${dayLimitStatus.color}`}>
                                       {dayLimitStatus.text}
-                                      
                                     </span>
                                   ) : (
                                     <span className="text-gray-400 text-sm">N/A</span>
@@ -649,8 +673,12 @@ export default function CustomersPage() {
                                     )}
                                     <button
                                       onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
-                                      className="p-2 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
-                                      title={c.client_type === '3' ? 'Switch to Postpaid' : 'Switch to Day Limit'}
+                                      className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                                      title={
+                                        c.client_type === '3' 
+                                          ? 'Switch to Postpaid' 
+                                          : `Switch to Day Limit`
+                                      }
                                     >
                                       SW
                                     </button>
@@ -662,9 +690,9 @@ export default function CustomersPage() {
                         )}
                       </tbody>
                     </table>
-      </div>
+                  </div>
 
-      {/* Mobile Cards */}
+                  {/* Mobile Cards */}
                   <div className="lg:hidden space-y-4">
                     {currentCustomers.length === 0 ? (
                       <div className="text-center p-8 text-gray-700 font-semibold bg-white rounded-xl">
@@ -702,51 +730,8 @@ export default function CustomersPage() {
                                   </span>
                                 )}
                               </div>
-      </div>
+                            </div>
 
-      {showSwitchModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
-            <div className="p-6">
-              <h3 className="text-lg font-semibold mb-4">
-                {switchTarget === 'post' ? 'Switch to Postpaid' : 'Switch to Day Limit'}
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {switchTarget === 'post' ? 'Credit Limit (₹)' : 'Day Limit (Days)'}
-                  </label>
-                  <input
-                    type="number"
-                    step={switchTarget === 'post' ? '0.01' : '1'}
-                    min="0"
-                    value={switchValue}
-                    onChange={(e) => setSwitchValue(e.target.value)}
-                    placeholder={switchTarget === 'post' ? 'Enter credit limit' : 'Enter day limit'}
-                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-                <div className="flex justify-end space-x-3 pt-2">
-                  <button
-                    onClick={() => { setShowSwitchModal(false); setSwitchCustomer(null); setSwitchValue(''); }}
-                    disabled={switchLoading}
-                    className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={submitSwitch}
-                    disabled={switchLoading}
-                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {switchLoading ? 'Saving...' : 'Save'}
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
                             <div className="grid grid-cols-1 gap-3 text-sm mb-3">
                               <div className="grid grid-cols-2 gap-2">
                                 <div>
@@ -777,7 +762,7 @@ export default function CustomersPage() {
                                 <div>
                                   <div className="text-xs text-gray-600">Credit Limit</div>
                                   {c.client_type === "3" ? (
-                                    <span className="font-bold text-sm text-gray-400">N/A</span>
+                                    <span className="font-bold text-sm text-gray-400">Disabled</span>
                                   ) : (
                                     <button
                                       onClick={() => handleLimitClick(c.id, c.name)}
@@ -797,8 +782,14 @@ export default function CustomersPage() {
                                   {c.client_type === "3" ? (
                                     <div className="font-bold text-sm text-gray-400">N/A</div>
                                   ) : (
-                                    <div className={`font-bold text-sm ${statusInfo.includes('red') ? 'text-red-600' : statusInfo.includes('yellow') ? 'text-yellow-600' : 'text-green-600'}`}>
-                                      ₹{(Math.max(0, (c.cst_limit || 0) - (c.balance || 0)) || 0).toLocaleString('en-IN')}
+                                    <div className={`font-bold text-sm ${
+                                      calculateRemainingLimit(c.balance, c.cst_limit) <= 0 
+                                        ? "text-red-600" 
+                                        : calculateRemainingLimit(c.balance, c.cst_limit) < (c.cst_limit * 0.3) 
+                                          ? "text-yellow-600" 
+                                          : "text-green-600"
+                                    }`}>
+                                      ₹{calculateRemainingLimit(c.balance, c.cst_limit).toLocaleString('en-IN')}
                                     </div>
                                   )}
                                 </div>
@@ -812,7 +803,6 @@ export default function CustomersPage() {
                                   <div className="text-xs text-indigo-600">Day Limit</div>
                                   <div className="font-bold text-sm text-indigo-700">{c.day_limit || 0} days</div>
                                 </div>
-                                
                               </div>
                             )}
                             
@@ -847,6 +837,20 @@ export default function CustomersPage() {
                                     </Link>
                                   );
                                 })}
+                              {c.client_type === "3" && (
+                                <button
+                                  onClick={() => openDayLimitManager(c)}
+                                  className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all"
+                                >
+                                  <span>Day Limit</span>
+                                </button>
+                              )}
+                              <button
+                                onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
+                                className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all"
+                              >
+                                <span>Switch</span>
+                              </button>
                             </div>
                           </div>
                         );
@@ -908,6 +912,84 @@ export default function CustomersPage() {
         {/* Footer */}
         <Footer />
       </div>
+
+      {/* Switch Modal */}
+      {showSwitchModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+            <div className="p-6">
+              <h3 className="text-lg font-semibold mb-4">
+                {switchCustomer?.client_type === '3' 
+                  ? 'Switch to Postpaid' 
+                  : `Switch ${switchCustomer?.client_type === '1' ? 'Prepaid' : 'Postpaid'} to Day Limit`}
+              </h3>
+              
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-700">
+                  Customer: <strong>{switchCustomer?.name}</strong>
+                </p>
+                <p className="text-sm text-blue-600 mt-1">
+                  Current: <strong>
+                    {switchCustomer?.client_type === '1' ? 'Prepaid' : 
+                     switchCustomer?.client_type === '2' ? 'Postpaid' : 'Day Limit'}
+                  </strong>
+                </p>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    {switchCustomer?.client_type === '3' 
+                      ? 'Set Credit Limit (₹)' 
+                      : 'Set Day Limit (Days)'}
+                  </label>
+                  <input
+                    type="number"
+                    step={switchCustomer?.client_type === '3' ? "0.01" : "1"}
+                    min="0"
+                    value={switchValue}
+                    onChange={(e) => setSwitchValue(e.target.value)}
+                    placeholder={
+                      switchCustomer?.client_type === '3' 
+                        ? 'Enter credit limit amount' 
+                        : 'Enter day limit duration'
+                    }
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {switchCustomer?.client_type === '3' 
+                      ? 'Credit limit will be activated for postpaid billing'
+                      : 'Day limit will be activated, credit limit will be disabled'}
+                  </p>
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-2">
+                  <button
+                    onClick={() => { 
+                      setShowSwitchModal(false); 
+                      setSwitchCustomer(null); 
+                      setSwitchValue(''); 
+                    }}
+                    disabled={switchLoading}
+                    className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={submitSwitch}
+                    disabled={switchLoading || !switchValue}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {switchLoading ? 'Switching...' : 'Switch Type'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Day Limit Manager Modal */}
       {dayLimitCustomer && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto shadow-lg">
@@ -916,7 +998,7 @@ export default function CustomersPage() {
               <button onClick={closeDayLimitManager} className="text-gray-600 hover:text-gray-900">×</button>
             </div>
             <div className="p-4">
-              <DayLimitManager customer={dayLimitCustomer} onUpdate={() => { closeDayLimitManager(); fetchCustomers(); }} />
+              <DayLimitManager customer={dayLimitCustomer} onUpdate={() => { closeDayLimitManager(); fetchData(); }} />
             </div>
           </div>
         </div>

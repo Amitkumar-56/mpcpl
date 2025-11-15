@@ -142,71 +142,147 @@ export default function DashboardPage() {
   const initializeChat = useCallback(async () => {
     if (!showChat || !sessionUser?.id) return;
     
-    // Initialize WebSocket only when chat is opened
-    const newSocket = new WebSocket("ws://localhost:3001");
-    newSocket.onopen = () => {
-      setSocket(newSocket);
+    console.log('Dashboard: Initializing chat socket for employee:', sessionUser.id);
+    
+    // Initialize Socket.io for chat
+    try { 
+      await fetch('/api/socket');
+    } catch (e) {
+      console.error('Dashboard: Error fetching socket endpoint:', e);
+    }
+    
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+    
+    const chatSocket = io(socketUrl, {
+      path: '/api/socket',
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      withCredentials: true,
+    });
+    
+    chatSocket.on('connect', () => {
+      console.log('Dashboard: Chat socket connected!');
+      setSocket(chatSocket);
       if (sessionUser?.id) {
-        newSocket.send(JSON.stringify({
-          type: "employee_join",
-          employeeId: sessionUser.id,
-        }));
+        chatSocket.emit('employee_join', {
+          employeeId: String(sessionUser.id),
+          employeeName: sessionUser.name || 'Employee',
+          role: sessionUser.role,
+        });
       }
-    };
-
-    newSocket.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-      if (data.type === "new_message") {
-        // Handle new messages
+    });
+    
+    chatSocket.on('connect_error', (error) => {
+      console.error('Dashboard: Chat socket connection error:', error);
+    });
+    
+    chatSocket.on('new_message', (data) => {
+      console.log('Dashboard: Received new_message in chat:', data);
+      // Handle new messages
+      if (data.message) {
         setActiveChats(prev => {
-          const existingChat = prev.find(chat => chat.customerId === data.customerId);
+          const existingChat = prev.find(chat => chat.customerId === data.message.customer_id);
           if (existingChat) {
             return prev.map(chat =>
-              chat.customerId === data.customerId
+              chat.customerId === data.message.customer_id
                 ? { ...chat, lastMessage: data.message, unread: true }
                 : chat
             );
           }
           return [...prev, {
-            customerId: data.customerId,
-            customerName: data.customerName,
+            customerId: data.message.customer_id,
+            customerName: data.message.customer_name || 'Customer',
             lastMessage: data.message,
             unread: true,
           }];
         });
+        
+        // Update messages if customer is selected
+        if (selectedCustomer && selectedCustomer.customerId === data.message.customer_id) {
+          setEmployeeMessages(prev => {
+            const customerMessages = prev[data.message.customer_id] || [];
+            return {
+              ...prev,
+              [data.message.customer_id]: [...customerMessages, data.message]
+            };
+          });
+        }
       }
-    };
-
+    });
+    
+    chatSocket.on('message_sent', (data) => {
+      console.log('Dashboard: Message sent confirmation:', data);
+    });
+    
     return () => {
-      if (newSocket.readyState === WebSocket.OPEN) {
-        newSocket.close();
+      console.log('Dashboard: Cleaning up chat socket');
+      if (chatSocket && chatSocket.connected) {
+        chatSocket.disconnect();
       }
     };
-  }, [showChat, sessionUser]);
+  }, [showChat, sessionUser, selectedCustomer]);
 
   // Socket.io notifications for Support Chat (employees)
   useEffect(() => {
-    if (!sessionUser?.id) return;
+    if (!sessionUser?.id) {
+      console.log('Dashboard: No sessionUser, skipping socket setup');
+      return;
+    }
+    
+    console.log('Dashboard: Setting up socket connection for employee:', sessionUser.id);
     let s;
     (async () => {
-      try { await fetch('/api/socket'); } catch (e) {}
+      try { 
+        await fetch('/api/socket');
+        console.log('Dashboard: Socket API endpoint ready');
+      } catch (e) {
+        console.error('Dashboard: Error fetching socket endpoint:', e);
+      }
+      
       const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
       const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+      
+      console.log('Dashboard: Connecting to socket:', socketUrl);
       s = io(socketUrl, {
         path: '/api/socket',
         transports: ['websocket'],
         reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
         withCredentials: true,
       });
+      
       s.on('connect', () => {
+        console.log('Dashboard: Socket connected! Emitting employee_join');
         s.emit('employee_join', {
           employeeId: String(sessionUser.id),
           employeeName: sessionUser.name || 'Employee',
           role: sessionUser.role,
         });
       });
+      
+      s.on('connect_error', (error) => {
+        console.error('Dashboard: Socket connection error:', error);
+      });
+      
+      s.on('disconnect', (reason) => {
+        console.log('Dashboard: Socket disconnected:', reason);
+      });
+      
+      s.on('employee_joined', (data) => {
+        console.log('Dashboard: Employee joined successfully:', data);
+      });
+      
       s.on('customer_message_notification', (data) => {
-        setNotifCount((c) => c + 1);
+        console.log('Dashboard: Received customer_message_notification:', data);
+        setNotifCount((c) => {
+          const newCount = c + 1;
+          console.log('Dashboard: Notification count updated to:', newCount);
+          return newCount;
+        });
         setActiveChats((prev) => {
           const idx = prev.findIndex(c => c.customerId === data.customerId);
           const chatItem = {
@@ -223,12 +299,26 @@ export default function DashboardPage() {
           return [chatItem, ...prev];
         });
       });
+      
       s.on('chat_assigned', (data) => {
+        console.log('Dashboard: Chat assigned:', data);
         setActiveChats((prev) => prev.map(c => c.customerId === data.customerId ? { ...c, unread: false } : c));
       });
+      
       setNotifSocket(s);
+      console.log('Dashboard: Socket setup complete');
     })();
-    return () => { try { s && s.disconnect(); } catch (e) {} };
+    
+    return () => { 
+      console.log('Dashboard: Cleaning up socket connection');
+      try { 
+        if (s) {
+          s.disconnect();
+        }
+      } catch (e) {
+        console.error('Dashboard: Error disconnecting socket:', e);
+      }
+    };
   }, [sessionUser]);
 
   const acceptChat = (customerId) => {
@@ -455,6 +545,7 @@ export default function DashboardPage() {
           selectedCustomer={selectedCustomer}
           setSelectedCustomer={setSelectedCustomer}
           employeeMessages={employeeMessages}
+          setEmployeeMessages={setEmployeeMessages}
           newMessage={newMessage}
           setNewMessage={setNewMessage}
           setShowChat={setShowChat}
@@ -515,6 +606,7 @@ const ChatWidget = ({
   selectedCustomer,
   setSelectedCustomer,
   employeeMessages,
+  setEmployeeMessages,
   newMessage,
   setNewMessage,
   setShowChat,
@@ -522,18 +614,83 @@ const ChatWidget = ({
   socket
 }) => {
   const messagesEndRef = useRef(null);
+  const [loadingMessages, setLoadingMessages] = useState(false);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [employeeMessages, selectedCustomer]);
+
+  // Load message history when customer is selected
+  useEffect(() => {
+    if (selectedCustomer && sessionUser?.id && socket && socket.connected) {
+      const loadMessages = async () => {
+        setLoadingMessages(true);
+        try {
+          const response = await fetch(`/api/chat/messages?customerId=${selectedCustomer.customerId}&employeeId=${sessionUser.id}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.messages) {
+              setEmployeeMessages(prev => ({
+                ...prev,
+                [selectedCustomer.customerId]: data.messages || []
+              }));
+            }
+          }
+        } catch (error) {
+          console.error('Dashboard: Error loading messages:', error);
+        } finally {
+          setLoadingMessages(false);
+        }
+      };
+      loadMessages();
+    }
+  }, [selectedCustomer?.customerId, sessionUser?.id, socket?.connected]);
 
   const sendMessage = () => {
-    if (!newMessage.trim() || !selectedCustomer || !socket) return;
+    if (!newMessage.trim() || !selectedCustomer || !socket || !socket.connected) {
+      console.log('Dashboard: Cannot send message - missing requirements', {
+        hasMessage: !!newMessage.trim(),
+        hasCustomer: !!selectedCustomer,
+        hasSocket: !!socket,
+        socketConnected: socket?.connected
+      });
+      return;
+    }
     
     const messageData = {
-      type: "employee_message",
       customerId: selectedCustomer.customerId,
       text: newMessage.trim(),
       employeeId: sessionUser.id,
+      employeeName: sessionUser.name || 'Employee',
     };
     
-    socket.send(JSON.stringify(messageData));
+    console.log('Dashboard: Sending message via socket.emit:', messageData);
+    
+    // Use socket.emit for Socket.io, not socket.send
+    socket.emit('employee_message', messageData);
+    
+    // Add message to local state immediately for better UX
+    const tempMessage = {
+      id: `temp-${Date.now()}`,
+      text: newMessage.trim(),
+      sender: 'employee',
+      employee_id: sessionUser.id,
+      customer_id: selectedCustomer.customerId,
+      timestamp: new Date().toISOString(),
+      status: 'sending',
+    };
+    
+    setEmployeeMessages(prev => {
+      const customerMessages = prev[selectedCustomer.customerId] || [];
+      return {
+        ...prev,
+        [selectedCustomer.customerId]: [...customerMessages, tempMessage]
+      };
+    });
+    
     setNewMessage("");
   };
 
@@ -577,8 +734,39 @@ const ChatWidget = ({
               <div className="p-2 border-b bg-gray-50">
                 <p className="font-semibold text-sm">{selectedCustomer.customerName}</p>
               </div>
-              <div className="flex-1 p-2 overflow-y-auto">
+              <div className="flex-1 p-2 overflow-y-auto" style={{ maxHeight: '300px' }}>
                 {/* Messages content */}
+                {loadingMessages ? (
+                  <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                    Loading messages...
+                  </div>
+                ) : employeeMessages[selectedCustomer.customerId] && employeeMessages[selectedCustomer.customerId].length > 0 ? (
+                  <>
+                    {employeeMessages[selectedCustomer.customerId].map((msg, idx) => (
+                      <div
+                        key={msg.id || msg.tempId || idx}
+                        className={`mb-2 p-2 rounded text-sm ${
+                          msg.sender === 'employee' 
+                            ? 'bg-purple-100 ml-auto text-right max-w-[80%]' 
+                            : 'bg-gray-100 mr-auto max-w-[80%]'
+                        }`}
+                      >
+                        <p className="text-xs text-gray-600 mb-1">
+                          {msg.sender === 'employee' ? 'You' : selectedCustomer.customerName}
+                        </p>
+                        <p className="text-gray-800">{msg.text}</p>
+                        <p className="text-xs text-gray-500 mt-1">
+                          {new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+                        </p>
+                      </div>
+                    ))}
+                    <div ref={messagesEndRef} />
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                    No messages yet. Start the conversation!
+                  </div>
+                )}
               </div>
               <div className="p-2 border-t">
                 <div className="flex space-x-2">
@@ -586,10 +774,22 @@ const ChatWidget = ({
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                      }
+                    }}
                     placeholder="Type message..."
-                    className="flex-1 border rounded px-2 py-1 text-sm"
+                    className="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    disabled={!socket || !socket.connected}
                   />
-                  <button onClick={sendMessage} className="bg-purple-600 text-white px-3 rounded">
+                  <button 
+                    onClick={sendMessage} 
+                    disabled={!newMessage.trim() || !socket || !socket.connected}
+                    className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
+                    title={!socket || !socket.connected ? 'Socket not connected' : 'Send message'}
+                  >
                     <BiSend size={14} />
                   </button>
                 </div>
