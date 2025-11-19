@@ -121,28 +121,31 @@ export default function TransactionHistory() {
     }
   };
 
-  // Calculate day limit information
-  const calculateDayLimitInfo = (completedDate) => {
-    if (!isDayLimitCustomer || !completedDate) {
+  // Calculate day limit information - FIXED VERSION
+  const calculateDayLimitInfo = (transaction) => {
+    if (!isDayLimitCustomer || !transaction.completed_date) {
       return {
         remaining_days: 0,
         total_days: customerDetails?.day_limit || 0,
-        used_days: 0
+        used_days: 0,
+        is_overdue: false
       };
     }
 
     const totalDays = customerDetails?.day_limit || 0;
-    const usedDays = calculateDueDays(completedDate);
+    const usedDays = calculateDueDays(transaction.completed_date);
     const remainingDays = Math.max(0, totalDays - usedDays);
+    const isOverdue = usedDays >= totalDays;
 
     return {
       remaining_days: remainingDays,
       total_days: totalDays,
-      used_days: usedDays
+      used_days: usedDays,
+      is_overdue: isOverdue
     };
   };
 
-  // Get transaction status
+  // Get transaction status - FIXED VERSION
   const getTransactionStatus = (transaction) => {
     if (transaction.trans_type === 'inward') {
       return { status: 'Recharge', color: 'green' };
@@ -152,19 +155,27 @@ export default function TransactionHistory() {
       return { status: 'Paid', color: 'green' };
     }
 
-    const dueDays = calculateDueDays(transaction.completed_date);
-    const dayLimit = customerDetails?.day_limit || 0;
+    const dayLimitInfo = calculateDayLimitInfo(transaction);
     
     if (isDayLimitCustomer) {
-      if (dueDays >= dayLimit) {
-        return { status: 'Overdue - Stopped', color: 'red', days: dueDays };
-      } else if (dueDays > 0) {
-        return { status: 'Open', color: 'blue', days: dueDays };
+      if (dayLimitInfo.is_overdue) {
+        return { 
+          status: `Overdue - Stopped (${dayLimitInfo.used_days} days)`, 
+          color: 'red', 
+          days: dayLimitInfo.used_days 
+        };
+      } else if (dayLimitInfo.used_days > 0) {
+        return { 
+          status: `Open (${dayLimitInfo.used_days} days)`, 
+          color: 'blue', 
+          days: dayLimitInfo.used_days 
+        };
       }
       return { status: 'Open', color: 'blue', days: 0 };
     } else {
+      const dueDays = calculateDueDays(transaction.completed_date);
       if (dueDays > 7) {
-        return { status: 'Overdue', color: 'red', days: dueDays };
+        return { status: `Overdue (${dueDays} days)`, color: 'red', days: dueDays };
       }
       return { status: 'Pending', color: 'orange', days: dueDays };
     }
@@ -248,8 +259,7 @@ export default function TransactionHistory() {
         
         csvData = historyData.transactions.map(item => {
           const statusInfo = getTransactionStatus(item);
-          const dayLimitInfo = calculateDayLimitInfo(item.completed_date);
-          const isOverdue = (item.due_days || 0) >= (customerDetails?.day_limit || 0);
+          const dayLimitInfo = calculateDayLimitInfo(item);
           
           return [
             item.station_name || 'N/A',
@@ -265,7 +275,7 @@ export default function TransactionHistory() {
             dayLimitInfo.total_days.toString(),
             item.trans_type === 'inward' ? `₹${parseFloat(item.amount || 0).toFixed(2)}` : '0',
             item.payment_status === 1 ? '0' : `₹${parseFloat(item.outstanding_amount || 0).toFixed(2)}`,
-            isOverdue ? 'Yes' : 'No',
+            dayLimitInfo.is_overdue ? 'Yes' : 'No',
             statusInfo.status
           ];
         });
@@ -558,11 +568,7 @@ export default function TransactionHistory() {
                   {historyData.transactions?.length > 0 ? (
                     historyData.transactions.map((item, index) => {
                       const statusInfo = getTransactionStatus(item);
-                      const dueDays = calculateDueDays(item.completed_date);
-                      const dayLimitInfo = calculateDayLimitInfo(item.completed_date);
-                      const isOverdue = isDayLimitCustomer ? 
-                        dueDays >= (customerDetails?.day_limit || 0) : 
-                        dueDays > 7;
+                      const dayLimitInfo = calculateDayLimitInfo(item);
                       
                       return (
                         <tr key={item.id} className="hover:bg-gray-50 transition-colors">
@@ -625,9 +631,9 @@ export default function TransactionHistory() {
                               </td>
                               <td className="px-4 py-3 text-sm">
                                 <span className={`px-2 py-1 rounded-md text-white text-xs font-medium ${
-                                  isOverdue ? 'bg-red-500' : 'bg-green-500'
+                                  dayLimitInfo.is_overdue ? 'bg-red-500' : 'bg-green-500'
                                 }`}>
-                                  {isOverdue ? 'Yes' : 'No'}
+                                  {dayLimitInfo.is_overdue ? 'Yes' : 'No'}
                                 </span>
                               </td>
                               <td className="px-4 py-3 text-sm">
@@ -679,9 +685,9 @@ export default function TransactionHistory() {
                                 </span>
                               </td>
                               <td className={`px-4 py-3 text-sm font-semibold ${
-                                dueDays > 7 ? 'text-red-600' : 'text-gray-600'
+                                statusInfo.days > 7 ? 'text-red-600' : 'text-gray-600'
                               }`}>
-                                {dueDays} days
+                                {statusInfo.days} days
                               </td>
                               <td className="px-4 py-3 text-sm text-gray-900">
                                 {item.employee_name || 'System'}
@@ -708,8 +714,7 @@ export default function TransactionHistory() {
             {historyData.transactions?.length > 0 ? (
               historyData.transactions.map((item, index) => {
                 const statusInfo = getTransactionStatus(item);
-                const dueDays = calculateDueDays(item.completed_date);
-                const dayLimitInfo = calculateDayLimitInfo(item.completed_date);
+                const dayLimitInfo = calculateDayLimitInfo(item);
                 
                 return (
                   <div key={item.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
@@ -796,9 +801,9 @@ export default function TransactionHistory() {
                           <div className="flex justify-between">
                             <span className="text-gray-500">Overdue</span>
                             <span className={`font-semibold ${
-                              dueDays >= (customerDetails?.day_limit || 0) ? 'text-red-600' : 'text-green-600'
+                              dayLimitInfo.is_overdue ? 'text-red-600' : 'text-green-600'
                             }`}>
-                              {dueDays >= (customerDetails?.day_limit || 0) ? 'Yes' : 'No'}
+                              {dayLimitInfo.is_overdue ? 'Yes' : 'No'}
                             </span>
                           </div>
                           <div className="flex justify-between">
@@ -873,9 +878,9 @@ export default function TransactionHistory() {
                           <div className="flex justify-between">
                             <span className="text-gray-500">Due Days</span>
                             <span className={`font-semibold ${
-                              dueDays > 7 ? 'text-red-600' : 'text-gray-600'
+                              statusInfo.days > 7 ? 'text-red-600' : 'text-gray-600'
                             }`}>
-                              {dueDays} days
+                              {statusInfo.days} days
                             </span>
                           </div>
                           <div className="flex justify-between">

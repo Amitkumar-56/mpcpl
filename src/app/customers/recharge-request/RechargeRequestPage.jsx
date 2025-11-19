@@ -95,6 +95,7 @@ export default function RechargeRequestPage() {
 
     // First, calculate pending requests that can be paid
     if (pendingRequests > 0 && totalPendingAmount > 0) {
+      // For preview, we'll use average calculation
       const avgAmount = totalPendingAmount / pendingRequests;
       
       for (let i = 0; i < pendingRequests; i++) {
@@ -108,34 +109,23 @@ export default function RechargeRequestPage() {
       }
     }
 
-    // Calculate days that can be added with remaining amount
+    // Calculate days from payment amount
     let daysToAdd = 0;
     let amountUsedForDays = 0;
-    let remainingChange = remainingAmount;
+    let remainingChange = 0;
     
-    if (remainingAmount > 0) {
-      daysToAdd = Math.floor(remainingAmount / dayLimitAmount);
+    if (paymentAmount > 0) {
+      daysToAdd = Math.floor(paymentAmount / dayLimitAmount);
       amountUsedForDays = daysToAdd * dayLimitAmount;
-      remainingChange = remainingAmount - amountUsedForDays;
+      remainingChange = paymentAmount - amountUsedForDays;
     }
 
-    // Calculate new expiry date
-    let newExpiryDate = customerData.customer.day_limit_expiry;
-    const today = new Date();
-    
-    if (!newExpiryDate || new Date(newExpiryDate) < today) {
-      const newDate = new Date();
-      newDate.setDate(newDate.getDate() + daysToAdd);
-      newExpiryDate = newDate.toISOString().split('T')[0];
-    } else {
-      const currentExpiry = new Date(newExpiryDate);
-      currentExpiry.setDate(currentExpiry.getDate() + daysToAdd);
-      newExpiryDate = currentExpiry.toISOString().split('T')[0];
-    }
-
-    // BALANCE से MINUS होगा, TOTAL_DAY_AMOUNT में ADD होगा
+    // Balance से MINUS, Total Day Amount में ADD
     const newBalance = (customerData.balance.current_balance || 0) - paymentAmount;
     const newTotalDayAmount = (customerData.balance.total_day_amount || 0) + paymentAmount;
+    
+    // Day Limit में ADD
+    const newDayLimit = (customerData.customer.day_limit || 0) + daysToAdd;
 
     return {
       canPayRequests,
@@ -143,9 +133,9 @@ export default function RechargeRequestPage() {
       daysToAdd,
       amountUsedForDays,
       remainingChange,
-      newExpiryDate,
       newBalance,
       newTotalDayAmount,
+      newDayLimit,
       totalPendingAmount,
       dayLimitAmount,
       hasPendingRequests: pendingRequests > 0
@@ -192,14 +182,14 @@ export default function RechargeRequestPage() {
           if (data.data.old_total_day_amount !== undefined && data.data.new_total_day_amount !== undefined) {
             message += `\n\n📊 Total Day Amount: ₹${data.data.old_total_day_amount} → ₹${data.data.new_total_day_amount}`;
           }
+          if (data.data.old_day_limit !== undefined && data.data.new_day_limit !== undefined) {
+            message += `\n\n📅 Day Limit: ${data.data.old_day_limit} → ${data.data.new_day_limit} days`;
+          }
           if (data.data.paid_requests) {
             message += `\n\n✅ Cleared requests: ${data.data.paid_requests}`;
           }
           if (data.data.days_added) {
-            message += `\n\n📅 Days added: ${data.data.days_added}`;
-          }
-          if (data.data.new_expiry_date) {
-            message += `\n\n🗓️ New expiry date: ${formatDate(data.data.new_expiry_date)}`;
+            message += `\n\n➕ Days added: ${data.data.days_added}`;
           }
         }
         
@@ -234,15 +224,6 @@ export default function RechargeRequestPage() {
   const formatCurrency = (value) => {
     const numValue = Number(value);
     return `₹${isNaN(numValue) ? "0.00" : numValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return "Not set";
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
   };
 
   const getClientTypeText = (type) => {
@@ -352,17 +333,11 @@ export default function RechargeRequestPage() {
               </div>
 
               {isDayLimitCustomer && (
-                <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-4 gap-4 border-t border-gray-200 pt-6">
+                <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-gray-200 pt-6">
                   <div className="text-center p-4 bg-yellow-50 rounded-lg">
                     <div className="text-sm font-medium text-yellow-600 mb-1">Day Limit</div>
                     <div className="text-lg font-semibold text-gray-900">
                       {customerData?.customer.day_limit || 0} days
-                    </div>
-                  </div>
-                  <div className="text-center p-4 bg-red-50 rounded-lg">
-                    <div className="text-sm font-medium text-red-600 mb-1">Expiry Date</div>
-                    <div className="text-lg font-semibold text-gray-900">
-                      {formatDate(customerData?.customer.day_limit_expiry)}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-pink-50 rounded-lg">
@@ -496,7 +471,7 @@ export default function RechargeRequestPage() {
                         Amount used for days: {formatCurrency(paymentBreakdown.amountUsedForDays)}
                       </p>
                       <p className="text-xs text-orange-600">
-                        New expiry date: {formatDate(paymentBreakdown.newExpiryDate)}
+                        New Day Limit: {customerData.customer.day_limit || 0} → {paymentBreakdown.newDayLimit} days
                       </p>
                     </div>
                   )}
@@ -505,7 +480,7 @@ export default function RechargeRequestPage() {
                   {paymentBreakdown.remainingChange > 0 && (
                     <div className="p-3 bg-purple-50 rounded-lg">
                       <p className="text-sm font-semibold text-purple-700">
-                        💰 Remaining Change: {formatCurrency(paymentBreakdown.remainingChange)}
+                        💰 Remaining Credit: {formatCurrency(paymentBreakdown.remainingChange)}
                       </p>
                       <p className="text-xs text-purple-600">
                         This amount will be kept as credit for future
@@ -533,7 +508,7 @@ export default function RechargeRequestPage() {
                 />
                 {isDayLimitCustomer && (
                   <p className="text-xs text-gray-500 mt-1">
-                    This amount will be used to clear pending requests first, then remaining amount will buy additional days.
+                    ₹1,00,000 = 1 day. Amount will clear pending requests first, then add days to day limit.
                   </p>
                 )}
               </div>

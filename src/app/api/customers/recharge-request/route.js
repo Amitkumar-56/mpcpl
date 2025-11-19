@@ -60,7 +60,7 @@ export async function GET(request) {
     // Fetch balance and pending requests
     const [balanceResult, pendingResult] = await Promise.all([
       executeQuery(
-        `SELECT balance, amtlimit, total_day_amount, day_limit, day_limit_expiry
+        `SELECT balance, amtlimit, total_day_amount, day_limit
          FROM customer_balances 
          WHERE com_id = ?`,
         [customerId]
@@ -87,8 +87,7 @@ export async function GET(request) {
       balance: 0,
       amtlimit: 0,
       total_day_amount: 0,
-      day_limit: 30,
-      day_limit_expiry: null
+      day_limit: 0
     };
 
     const pending = pendingResult.length > 0 ? pendingResult[0] : {
@@ -102,8 +101,7 @@ export async function GET(request) {
         name: customer.name || 'No name found',
         phone: customer.phone || 'No phone found',
         client_type: customer.client_type,
-        day_limit: balance.day_limit || 0,
-        day_limit_expiry: balance.day_limit_expiry
+        day_limit: balance.day_limit || 0
       },
       balance: {
         current_balance: Number(balance.balance) || 0,
@@ -224,52 +222,49 @@ export async function POST(request) {
   }
 }
 
-// Day Limit Payment Handler
+// Day Limit Payment Handler - SIMPLE PAYMENT TO DAYS CONVERSION
 async function handleDayLimitPayment(customerId, amount, paymentDate, paymentType, transactionId, utrNo, comments) {
-  console.log('Processing day limit payment for customer:', customerId);
+  console.log('🚀 Processing day limit payment for customer:', customerId);
   
-  // Get current balance
+  // Get current balance and day limit data
   const balanceResult = await executeQuery(
-    `SELECT balance, total_day_amount FROM customer_balances WHERE com_id = ?`,
+    `SELECT balance, total_day_amount, day_limit FROM customer_balances WHERE com_id = ?`,
     [customerId]
   );
 
-  let currentBalance, currentTotalDayAmount;
+  let currentBalance, currentTotalDayAmount, currentDayLimit;
 
   if (balanceResult.length === 0) {
     // Create balance record
     await executeQuery(
-      `INSERT INTO customer_balances (com_id, balance, total_day_amount) VALUES (?, ?, ?)`,
-      [customerId, 0, 0]
+      `INSERT INTO customer_balances (com_id, balance, total_day_amount, day_limit) VALUES (?, ?, ?, ?)`,
+      [customerId, 0, 0, 0]
     );
     currentBalance = 0;
     currentTotalDayAmount = 0;
+    currentDayLimit = 0;
   } else {
     currentBalance = parseFloat(balanceResult[0].balance) || 0;
     currentTotalDayAmount = parseFloat(balanceResult[0].total_day_amount) || 0;
+    currentDayLimit = parseInt(balanceResult[0].day_limit) || 0;
   }
 
   const paymentAmount = parseFloat(amount);
+  
+  // ✅ BALANCE से PAYMENT AMOUNT CUT होगा
   const newBalance = currentBalance - paymentAmount;
+  // ✅ TOTAL_DAY_AMOUNT में PAYMENT AMOUNT ADD होगा
   const newTotalDayAmount = currentTotalDayAmount + paymentAmount;
 
-  console.log('Balance update:', {
-    currentBalance,
-    paymentAmount,
-    newBalance,
-    currentTotalDayAmount,
-    newTotalDayAmount
+  console.log('💰 Balance Update:', {
+    currentBalance: currentBalance,
+    paymentAmount: paymentAmount,
+    newBalance: newBalance,
+    currentTotalDayAmount: currentTotalDayAmount,
+    newTotalDayAmount: newTotalDayAmount
   });
 
-  // Update customer_balances
-  await executeQuery(
-    `UPDATE customer_balances 
-     SET balance = ?, total_day_amount = ?, updated_at = NOW()
-     WHERE com_id = ?`,
-    [newBalance, newTotalDayAmount, customerId]
-  );
-
-  // Get pending requests
+  // Step 1: Get pending requests
   const pendingRequests = await executeQuery(
     `SELECT id, totalamt as amount 
      FROM filling_requests 
@@ -278,11 +273,13 @@ async function handleDayLimitPayment(customerId, amount, paymentDate, paymentTyp
     [customerId]
   );
 
+  console.log('📋 Pending requests:', pendingRequests.length);
+
   let paidRequests = [];
   let clearedPendingAmount = 0;
   let remainingAmount = paymentAmount;
 
-  // Clear pending requests
+  // Step 2: Clear pending requests first
   for (const request of pendingRequests) {
     if (remainingAmount <= 0) break;
     
@@ -297,6 +294,12 @@ async function handleDayLimitPayment(customerId, amount, paymentDate, paymentTyp
     }
   }
 
+  console.log('✅ Pending Requests Cleared:', {
+    paidRequests: paidRequests.length,
+    clearedPendingAmount: clearedPendingAmount,
+    remainingAmount: remainingAmount
+  });
+
   // Mark paid requests as paid
   if (paidRequests.length > 0) {
     await executeQuery(
@@ -307,43 +310,45 @@ async function handleDayLimitPayment(customerId, amount, paymentDate, paymentTyp
     );
   }
 
-  // Calculate days to add (assuming ₹100,000 per day)
-  const dayLimitAmount = 100000;
+  // Step 3: ✅ SIMPLE DAY CALCULATION - Payment amount से direct days calculate करें
   let daysToAdd = 0;
   let amountUsedForDays = 0;
+  let remainingChange = 0;
   
-  if (remainingAmount > 0) {
-    daysToAdd = Math.floor(remainingAmount / dayLimitAmount);
-    amountUsedForDays = daysToAdd * dayLimitAmount;
-    remainingAmount -= amountUsedForDays;
+  // ✅ SIMPLE RULE: पूरा payment amount से days calculate करें
+  // ₹1,00,000 = 1 day
+  if (paymentAmount > 0) {
+    daysToAdd = Math.floor(paymentAmount / 100000);
+    amountUsedForDays = daysToAdd * 100000;
+    remainingChange = paymentAmount - amountUsedForDays;
+    
+    console.log('📅 Days Calculation from Payment:', {
+      paymentAmount: paymentAmount,
+      daysToAdd: daysToAdd,
+      amountUsedForDays: amountUsedForDays,
+      remainingChange: remainingChange,
+      perDayRate: 100000
+    });
   }
 
-  // Update day limit expiry if days were added
-  let newDayLimitExpiry = null;
-  if (daysToAdd > 0) {
-    const currentExpiryResult = await executeQuery(
-      `SELECT day_limit_expiry FROM customer_balances WHERE com_id = ?`,
-      [customerId]
-    );
-    
-    let currentExpiry = currentExpiryResult.length > 0 ? currentExpiryResult[0].day_limit_expiry : null;
-    const today = new Date();
-    
-    if (!currentExpiry || new Date(currentExpiry) < today) {
-      newDayLimitExpiry = new Date();
-      newDayLimitExpiry.setDate(newDayLimitExpiry.getDate() + daysToAdd);
-    } else {
-      newDayLimitExpiry = new Date(currentExpiry);
-      newDayLimitExpiry.setDate(newDayLimitExpiry.getDate() + daysToAdd);
-    }
+  // Step 4: ✅ DAY_LIMIT में DAYS ADD होंगे
+  let newDayLimit = currentDayLimit + daysToAdd;
+  
+  console.log('📈 Day Limit Update:', {
+    currentDayLimit: currentDayLimit,
+    daysAdded: daysToAdd,
+    newDayLimit: newDayLimit
+  });
 
-    await executeQuery(
-      `UPDATE customer_balances SET day_limit_expiry = ? WHERE com_id = ?`,
-      [newDayLimitExpiry, customerId]
-    );
-  }
+  // Step 5: ✅ FINAL DATABASE UPDATE
+  await executeQuery(
+    `UPDATE customer_balances 
+     SET balance = ?, total_day_amount = ?, day_limit = ?, updated_at = NOW()
+     WHERE com_id = ?`,
+    [newBalance, newTotalDayAmount, newDayLimit, customerId]
+  );
 
-  // Insert into recharge tables
+  // Step 6: Insert into recharge tables
   const paymentTypeText = getPaymentTypeForDB(paymentType);
   const safeUtrNo = utrNo || '';
   const safeTransactionId = transactionId || '';
@@ -361,31 +366,37 @@ async function handleDayLimitPayment(customerId, amount, paymentDate, paymentTyp
     [customerId, amount, paymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
   );
 
-  // Insert into filling_history
+  // Step 7: Insert into filling_history
   await executeQuery(
     `INSERT INTO filling_history (trans_type, credit, credit_date, old_amount, new_amount, cl_id, created_by) 
      VALUES ('inward', ?, ?, ?, ?, ?, 1)`,
     [amount, paymentDate, currentBalance, newBalance, customerId]
   );
 
-  return {
+  const result = {
     paid_requests: paidRequests.length,
     cleared_pending_amount: clearedPendingAmount,
     days_added: daysToAdd,
     amount_used_for_days: amountUsedForDays,
-    remaining_change: remainingAmount,
+    remaining_change: remainingChange,
     old_balance: currentBalance,
     new_balance: newBalance,
     old_total_day_amount: currentTotalDayAmount,
     new_total_day_amount: newTotalDayAmount,
-    new_expiry_date: newDayLimitExpiry,
+    old_day_limit: currentDayLimit,
+    new_day_limit: newDayLimit,
     payment_amount: paymentAmount,
-    message: `Payment successful! 
-Cleared ${paidRequests.length} pending requests (₹${clearedPendingAmount})
-Added ${daysToAdd} days (₹${amountUsedForDays})
-Balance: ₹${currentBalance} → ₹${newBalance}
-Total Day Amount: ₹${currentTotalDayAmount} → ₹${newTotalDayAmount}`
+    message: `Payment Successful! 
+✅ Cleared ${paidRequests.length} pending requests (₹${clearedPendingAmount})
+📅 Added ${daysToAdd} days from payment amount (₹${amountUsedForDays})
+💰 Balance: ₹${currentBalance} → ₹${newBalance}
+📊 Total Day Amount: ₹${currentTotalDayAmount} → ₹${newTotalDayAmount}
+📆 Day Limit: ${currentDayLimit} → ${newDayLimit} days
+💎 Remaining Credit: ₹${remainingChange}`
   };
+
+  console.log('🎉 FINAL RESULT:', result);
+  return result;
 }
 
 // Regular Customer Recharge Handler

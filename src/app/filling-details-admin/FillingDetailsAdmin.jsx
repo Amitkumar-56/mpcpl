@@ -19,7 +19,7 @@ export default function FillingDetailsAdmin() {
     doc2: null,
     doc3: null,
     aqty: '',
-    status: 'Processing',
+    status: 'pending',
     remarks: '',
     sub_product_id: ''
   });
@@ -64,6 +64,8 @@ export default function FillingDetailsAdmin() {
           remarks: data.data.remark || '',
           sub_product_id: data.data.sub_product_id || ''
         }));
+        
+        console.log('🔄 Current request status from API:', data.data.status);
       } else {
         throw new Error(data.error || 'Failed to fetch request details');
       }
@@ -169,14 +171,14 @@ export default function FillingDetailsAdmin() {
       
       submitData.append('billing_type', requestData.billing_type);
       submitData.append('oldstock', requestData.station_stock || 0);
-      submitData.append('cst_limit', requestData.cst_limit || 0);
-      submitData.append('amtlimit', requestData.amtlimit || 0);
+      submitData.append('credit_limit', requestData.credit_limit || 0);
+      submitData.append('available_balance', requestData.available_balance || 0);
       submitData.append('day_limit', requestData.day_limit || 0);
       submitData.append('day_amount', requestData.day_amount || 0);
       submitData.append('price', requestData.fuel_price || requestData.price || 0);
 
       console.log('📤 Submitting form data with status:', formData.status);
-      console.log('🔹 Sub-product ID:', formData.sub_product_id);
+      console.log('🔹 Current page status:', requestData.status);
 
       const response = await fetch('/api/filling-details-admin', {
         method: 'POST',
@@ -190,36 +192,51 @@ export default function FillingDetailsAdmin() {
       
       if (result.success) {
         if (result.limitOverdue) {
-          // Show limit overdue modal with renew option
           setLimitMessage(result.message || 'Your limit is over. Please recharge your account.');
           setShowLimitModal(true);
           setSubmitting(false);
           return;
         }
         
-        alert(result.message || 'Request updated successfully!');
-        
-        // Immediately update the local state to reflect the new status
-        if (result.status) {
-          setFormData(prev => ({
-            ...prev,
-            status: result.status
-          }));
-          
-          // Also update the requestData status immediately
-          setRequestData(prev => ({
-            ...prev,
-            status: result.status
-          }));
+        // Custom success messages based on status
+        let successMessage = '';
+        switch(formData.status) {
+          case 'Processing':
+            successMessage = 'Request marked as Processing! The status has been updated successfully.';
+            break;
+          case 'Completed':
+            successMessage = 'Request Completed Successfully!';
+            break;
+          case 'Cancel':
+            successMessage = 'Request Cancelled Successfully!';
+            break;
+          default:
+            successMessage = result.message || 'Request updated successfully!';
         }
         
-        await fetchRequestDetails(); // Refresh complete data from server
+        alert(successMessage);
         
-        // Redirect if completed or cancelled
+        // IMMEDIATELY update local state to show new status
+        setRequestData(prev => ({
+          ...prev,
+          status: formData.status // Use the status from form
+        }));
+        
+        console.log('🔄 Local state updated to:', formData.status);
+        
+        // Refresh data from server to confirm
+        await fetchRequestDetails();
+        
+        // ONLY redirect for Completed or Cancel status
+        // DO NOT redirect for Processing status
         if (formData.status === 'Completed' || formData.status === 'Cancel') {
+          console.log('🔀 Redirecting to filling-requests page');
           setTimeout(() => {
             router.push('/filling-requests');
           }, 1500);
+        } else {
+          console.log('📍 Staying on same page for Processing status');
+          // Stay on the same page for Processing status
         }
       } else {
         throw new Error(result.error || result.message || 'Unknown error');
@@ -286,7 +303,7 @@ export default function FillingDetailsAdmin() {
     router.push(`/credit-limit?id=${requestData.cid}`);
   };
 
-  // Calculate available balance
+  // Calculate available balance with CORRECTED logic including day limit
   const calculateAvailableBalance = () => {
     if (!requestData) {
       return {
@@ -297,56 +314,61 @@ export default function FillingDetailsAdmin() {
     }
     
     const dayLimit = parseFloat(requestData.day_limit) || 0;
-    const dayAmount = parseFloat(requestData.day_amount) || 0;
-    const creditLimit = parseFloat(requestData.cst_limit) || 0;
-    const usedAmount = parseFloat(requestData.amtlimit) || 0;
-    const isDayLimitClient = dayLimit > 0 && creditLimit <= 0;
+    const creditLimit = parseFloat(requestData.credit_limit) || 0;
+    const availableBalance = parseFloat(requestData.available_balance) || 0;
+    const usedAmount = parseFloat(requestData.used_amount) || 0;
+    const daysElapsed = parseFloat(requestData.days_elapsed) || 0;
+    const remainingDays = parseFloat(requestData.remaining_days) || 0;
     
-    let availableBalance = 0;
-    let limitType = 'none';
+    const isDayLimitClient = dayLimit > 0 && creditLimit <= 0;
     
     if (isDayLimitClient) {
       return {
         availableBalance: null,
-        isInsufficient: false,
+        isInsufficient: remainingDays <= 0,
         limitType: 'day',
         dayLimit,
-        dayAmount,
         creditLimit,
-        usedAmount
+        usedAmount,
+        daysElapsed,
+        remainingDays
       };
     }
 
     if (dayLimit > 0) {
-      // Day limit system active
-      availableBalance = Math.max(0, dayLimit - dayAmount);
-      limitType = 'daily';
+      // Daily limit system active
+      return {
+        availableBalance,
+        isInsufficient: availableBalance <= 0,
+        limitType: 'daily',
+        dayLimit,
+        creditLimit,
+        usedAmount,
+        daysElapsed,
+        remainingDays
+      };
     } else {
       // Credit limit system active
-      availableBalance = Math.max(0, creditLimit - usedAmount);
-      limitType = 'credit';
+      return {
+        availableBalance,
+        isInsufficient: availableBalance <= 0,
+        limitType: 'credit',
+        dayLimit,
+        creditLimit,
+        usedAmount,
+        daysElapsed,
+        remainingDays
+      };
     }
-    
-    return {
-      availableBalance,
-      isInsufficient: availableBalance <= 0,
-      limitType,
-      dayLimit,
-      dayAmount,
-      creditLimit,
-      usedAmount
-    };
   };
 
   const availableBalance = calculateAvailableBalance();
   const formatAmount = (value) => (Number(value || 0)).toLocaleString('en-IN');
   
-  // Calculate credit available amount properly
-  const creditLimitTotal = parseFloat(requestData?.cst_limit) || 0;
-  
-
-  const creditAvailableAmount = parseFloat(requestData?.amtlimit) || 0; 
-const creditUsedAmount = parseFloat(requestData?.balance) || 0; 
+  // Calculate values for display
+  const creditLimitTotal = parseFloat(requestData?.credit_limit) || 0;
+  const availableBalanceAmount = parseFloat(requestData?.available_balance) || 0;
+  const usedAmount = parseFloat(requestData?.used_amount) || 0;
   
   const dailyLimitTotal = parseFloat(requestData?.day_limit) || 0;
   const dailyUsedAmount = parseFloat(requestData?.day_amount) || 0;
@@ -361,10 +383,10 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
         : 'Limit';
         
   const limitBadgeValue = availableBalance.limitType === 'day'
-    ? `${dailyLimitTotal} days`
+    ? `${availableBalance.remainingDays} days remaining`
     : `₹${formatAmount(availableBalance.limitType === 'daily'
         ? dailyAvailableAmount
-        : creditAvailableAmount)}`;
+        : availableBalanceAmount)}`;
     
   const limitExceededLabel = availableBalance.limitType === 'daily'
     ? 'Daily Limit'
@@ -452,6 +474,7 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
       case 'Cancel': return 'bg-red-100 text-red-800 border-red-200';
       case 'Processing': return 'bg-blue-100 text-blue-800 border-blue-200';
       case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
+      case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -490,7 +513,7 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                   </h1>
                   <div className="flex items-center space-x-2">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
-                      {requestData.status}
+                      {requestData.status} {requestData.status === 'Processing' && '🔄'}
                     </span>
                     {availableBalance.isInsufficient && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
@@ -506,7 +529,7 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                      <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     <div>
                       <p className="text-red-700 font-medium">
@@ -517,9 +540,13 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                           <>
                             Daily Limit: ₹{formatAmount(dailyLimitTotal)}, Used: ₹{formatAmount(dailyUsedAmount)}, Available: ₹{formatAmount(dailyAvailableAmount)}
                           </>
+                        ) : availableBalance.limitType === 'credit' ? (
+                          <>
+                            Credit Limit: ₹{formatAmount(creditLimitTotal)}, Used: ₹{formatAmount(usedAmount)}, Available: ₹{formatAmount(availableBalanceAmount)}
+                          </>
                         ) : (
                           <>
-                            Credit Limit: ₹{formatAmount(creditLimitTotal)}, Used: ₹{formatAmount(creditUsedAmount)}, Available: ₹{formatAmount(creditAvailableAmount)}
+                            Day Limit: {dailyLimitTotal} days, Days Elapsed: {availableBalance.daysElapsed} days, Remaining: {availableBalance.remainingDays} days
                           </>
                         )}
                       </p>
@@ -569,7 +596,7 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                           <td className="px-4 py-3 text-sm text-gray-900">{requestData.client_phone}</td>
                         </tr>
                         
-                        {/* Limit Information */}
+                        {/* Limit Information - CORRECTED with Day Limit Details */}
                         {availableBalance.limitType === 'daily' && (
                           <>
                             <tr>
@@ -591,31 +618,53 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                           </>
                         )}
               
-{availableBalance.limitType === 'credit' && (
-  <>
-    <tr>
-      <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
-      <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(creditLimitTotal)}</td>
-    </tr>
-    <tr>
-      <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Used Amount</td>
-      <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(creditUsedAmount)}</td>
-    </tr>
-    <tr>
-      <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
-      <td className="px-4 py-3 text-sm font-medium">
-        <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
-          ₹{formatAmount(creditAvailableAmount)}
-        </span>
-      </td>
-    </tr>
-  </>
-)}
+                        {availableBalance.limitType === 'credit' && (
+                          <>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(creditLimitTotal)}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Used Amount</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(usedAmount)}</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
+                              <td className="px-4 py-3 text-sm font-medium">
+                                <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
+                                  ₹{formatAmount(availableBalanceAmount)}
+                                </span>
+                              </td>
+                            </tr>
+                          </>
+                        )}
+                        
                         {availableBalance.limitType === 'day' && (
                           <>
                             <tr>
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Day Limit (Credit Days)</td>
                               <td className="px-4 py-3 text-sm text-gray-900">{requestData.day_limit || 0} days</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Days Elapsed</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">{availableBalance.daysElapsed} days</td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Remaining Days</td>
+                              <td className="px-4 py-3 text-sm font-medium">
+                                <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
+                                  {availableBalance.remainingDays} days
+                                </span>
+                              </td>
+                            </tr>
+                            <tr>
+                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">First Transaction Date</td>
+                              <td className="px-4 py-3 text-sm text-gray-900">
+                                {requestData.first_completed_date ? 
+                                  new Date(requestData.first_completed_date).toLocaleDateString('en-IN') : 
+                                  'No completed transactions'
+                                }
+                              </td>
                             </tr>
                             <tr>
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Mode</td>
@@ -683,7 +732,7 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                                         />
                                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
                                           <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                            <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
                                           </svg>
                                         </div>
                                       </div>
@@ -891,14 +940,16 @@ const creditUsedAmount = parseFloat(requestData?.balance) || 0;
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                       </svg>
-                                      Updating...
+                                      {formData.status === 'Processing' ? 'Processing...' : 'Updating...'}
                                     </>
                                   ) : (
                                     <>
                                       <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                       </svg>
-                                      Update Request
+                                      {formData.status === 'Processing' ? 'Mark as Processing' : 
+                                       formData.status === 'Completed' ? 'Complete Request' : 
+                                       'Update Request'}
                                     </>
                                   )}
                                 </button>

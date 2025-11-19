@@ -25,10 +25,10 @@ export async function GET(req) {
           c.phone as client_phone,
           c.billing_type,
           cb.id as balance_id,
-          cb.balance,
+          cb.balance as used_amount,
           cb.hold_balance,
-          cb.amtlimit,
-          cb.cst_limit,
+          cb.amtlimit as available_balance,
+          cb.cst_limit as credit_limit,
           cb.com_id,
           cb.last_reset_date,
           cb.created_at,
@@ -91,45 +91,61 @@ export async function GET(req) {
         data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
       }
 
-      // Calculate remaining days for day limit customers based on oldest completed_date
-      // NOT based on expiry_date - only use completed_date from filling_requests
+      // Calculate remaining days for day limit customers based on FIRST completed_date
       if (data.day_limit && data.day_limit > 0) {
-        // Get oldest unpaid transaction's completed_date
-        const oldestUnpaid = await executeQuery(
+        // Get FIRST completed transaction's completed_date (oldest completed date)
+        const firstCompleted = await executeQuery(
           `SELECT completed_date 
            FROM filling_requests 
-           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           WHERE cid = ? AND status = 'Completed'
            ORDER BY completed_date ASC 
            LIMIT 1`,
           [data.com_id]
         );
         
-        if (oldestUnpaid.length > 0 && oldestUnpaid[0].completed_date) {
+        if (firstCompleted.length > 0 && firstCompleted[0].completed_date) {
           const currentDate = new Date();
           currentDate.setHours(0, 0, 0, 0);
-          const oldestCompletedDate = new Date(oldestUnpaid[0].completed_date);
-          oldestCompletedDate.setHours(0, 0, 0, 0);
+          const firstCompletedDate = new Date(firstCompleted[0].completed_date);
+          firstCompletedDate.setHours(0, 0, 0, 0);
           
-          // Calculate days elapsed: current_date - completed_date
-          const timeDiff = currentDate.getTime() - oldestCompletedDate.getTime();
+          // Calculate days elapsed: current_date - first_completed_date
+          const timeDiff = currentDate.getTime() - firstCompletedDate.getTime();
           const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
           
           // Remaining days = day_limit - days_elapsed
+          data.days_elapsed = daysElapsed;
           data.remaining_days = Math.max(0, data.day_limit - daysElapsed);
+          data.first_completed_date = firstCompletedDate;
+          
+          console.log('📅 Day Limit Calculation - FIRST COMPLETED DATE:', {
+            firstCompletedDate: firstCompletedDate.toISOString(),
+            currentDate: currentDate.toISOString(),
+            daysElapsed,
+            dayLimit: data.day_limit,
+            remainingDays: data.remaining_days
+          });
         } else {
-          // No unpaid transactions, so all days remaining
+          // No completed transactions, so all days remaining
+          data.days_elapsed = 0;
           data.remaining_days = data.day_limit;
+          data.first_completed_date = null;
         }
       } else {
+        data.days_elapsed = 0;
         data.remaining_days = 0;
+        data.first_completed_date = null;
       }
 
       console.log('✅ Final data prepared:', {
         day_limit: data.day_limit,
+        days_elapsed: data.days_elapsed,
         remaining_days: data.remaining_days,
+        first_completed_date: data.first_completed_date,
         is_active: data.is_active,
-        cst_limit: data.cst_limit,
-        amtlimit: data.amtlimit
+        credit_limit: data.credit_limit,
+        available_balance: data.available_balance,
+        used_amount: data.used_amount
       });
 
     } catch (dbErr) {
@@ -164,8 +180,8 @@ export async function POST(request) {
     const sub_product_id = formData.get('sub_product_id');
     const billing_type = formData.get('billing_type');
     const oldstock = parseFloat(formData.get('oldstock')) || 0;
-    const cst_limit = parseFloat(formData.get('cst_limit')) || 0;
-    const amtlimit = parseFloat(formData.get('amtlimit')) || 0;
+    const credit_limit = parseFloat(formData.get('credit_limit')) || 0;
+    const available_balance = parseFloat(formData.get('available_balance')) || 0;
     const day_limit = parseFloat(formData.get('day_limit')) || 0;
     const day_amount = parseFloat(formData.get('day_amount')) || 0;
     const price = parseFloat(formData.get('price')) || 0;
@@ -173,9 +189,8 @@ export async function POST(request) {
     const status = formData.get('status');
     const remarks = formData.get('remarks');
 
-    console.log('🔹 Extracted Form Data:', {
-      id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type, oldstock, 
-      cst_limit, amtlimit, day_limit, day_amount, price, aqty, status, remarks
+    console.log('🎯 CRITICAL FIELDS FOR PROCESSING:', {
+      id, rid, status, aqty
     });
 
     // Validate required fields
@@ -240,7 +255,7 @@ export async function POST(request) {
       
       resultMessage = await handleCompletedStatus({
         id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
-        oldstock, cst_limit, amtlimit, day_limit, day_amount,
+        oldstock, credit_limit, available_balance, day_limit, day_amount,
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId
       });
     } else if (status === 'Cancel') {
@@ -287,10 +302,12 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     // Calculate the amount for this transaction
     const calculatedAmount = aqty * defaultPrice;
     
-    // Get customer balance with day limit info (no expiry_date needed)
+    // Get customer balance with proper field mapping
     const balanceQuery = `
       SELECT 
-        amtlimit, 
+        amtlimit as available_balance,
+        balance as used_amount,
+        cst_limit as credit_limit,
         day_limit,
         is_active
       FROM customer_balances 
@@ -307,41 +324,44 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     
     const balanceData = balanceRows[0];
     const dayLimit = parseInt(balanceData.day_limit) || 0;
-    const currentAmtLimit = parseFloat(balanceData.amtlimit) || 0;
+    const availableBalance = parseFloat(balanceData.available_balance) || 0;
+    const creditLimit = parseFloat(balanceData.credit_limit) || 0;
+    const usedAmount = parseFloat(balanceData.used_amount) || 0;
     
-    console.log('💰 Balance Check:', {
-      dayLimit,
-      current_amtlimit: currentAmtLimit,
+    console.log('💰 Balance Check - Corrected:', {
+      credit_limit: creditLimit,
+      used_amount: usedAmount,
+      available_balance: availableBalance,
       required_amount: calculatedAmount,
+      day_limit: dayLimit,
       is_active: balanceData.is_active
     });
 
-    // DAY LIMIT CUSTOMER CHECK
+    // DAY LIMIT CUSTOMER CHECK - CORRECTED with FIRST COMPLETED DATE
     if (dayLimit > 0) {
-      // For day_limit customers: Check based on oldest completed_date from filling_requests
-      // Get oldest unpaid transaction's completed_date (first unpaid day)
-      const oldestUnpaidTransaction = await executeQuery(
+      // For day_limit customers: Check based on FIRST completed_date from filling_requests
+      const firstCompletedTransaction = await executeQuery(
         `SELECT completed_date 
          FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         WHERE cid = ? AND status = 'Completed'
          ORDER BY completed_date ASC 
          LIMIT 1`,
         [cl_id]
       );
       
       const currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0); // Reset to start of day for accurate calculation
+      currentDate.setHours(0, 0, 0, 0);
       
-      if (oldestUnpaidTransaction.length > 0 && oldestUnpaidTransaction[0].completed_date) {
-        const oldestCompletedDate = new Date(oldestUnpaidTransaction[0].completed_date);
-        oldestCompletedDate.setHours(0, 0, 0, 0); // Reset to start of day
+      if (firstCompletedTransaction.length > 0 && firstCompletedTransaction[0].completed_date) {
+        const firstCompletedDate = new Date(firstCompletedTransaction[0].completed_date);
+        firstCompletedDate.setHours(0, 0, 0, 0);
         
-        // Calculate days elapsed: current_date - completed_date
-        const timeDiff = currentDate.getTime() - oldestCompletedDate.getTime();
+        // Calculate days elapsed: current_date - first_completed_date
+        const timeDiff = currentDate.getTime() - firstCompletedDate.getTime();
         const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
         
-        console.log('📅 Day Limit Check:', {
-          oldestCompletedDate: oldestCompletedDate.toISOString(),
+        console.log('📅 Day Limit Check - FIRST COMPLETED DATE:', {
+          firstCompletedDate: firstCompletedDate.toISOString(),
           currentDate: currentDate.toISOString(),
           daysElapsed,
           dayLimit,
@@ -350,18 +370,17 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
         
         // If days elapsed >= day_limit, block the request
         if (daysElapsed >= dayLimit) {
-          console.log('❌ Day limit exceeded based on oldest completed_date');
+          console.log('❌ Day limit exceeded based on first completed_date');
           
           return { 
             sufficient: false, 
-            message: `Day limit exceeded. The oldest unpaid transaction is ${daysElapsed} days old (limit: ${dayLimit} days). Please clear the payment for the oldest day to continue.`,
+            message: `Day limit exceeded. First transaction was ${daysElapsed} days ago (limit: ${dayLimit} days). Please clear the payment to continue.`,
             isDayLimitExpired: true
           };
         }
       }
       
-      // Only check is_active if manually set by admin (not automatically due to day limit)
-      // This allows admin to manually block accounts for other reasons
+      // Only check is_active if manually set by admin
       if (balanceData.is_active === 0) {
         console.log('❌ Day limit account manually inactive');
         return { 
@@ -379,15 +398,15 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
       };
     }
 
-    // CREDIT LIMIT CUSTOMERS - Check amtlimit only
-    if (currentAmtLimit < calculatedAmount) {
+    // CREDIT LIMIT CUSTOMERS - Check available_balance only
+    if (availableBalance < calculatedAmount) {
       return { 
         sufficient: false, 
-        message: `Insufficient balance. Required: ₹${calculatedAmount.toFixed(2)}, Available: ₹${currentAmtLimit.toFixed(2)}. Please recharge your account.`
+        message: `Insufficient balance. Required: ₹${calculatedAmount.toFixed(2)}, Available: ₹${availableBalance.toFixed(2)}. Please recharge your account.`
       };
     }
     
-    console.log('✅ Amtlimit sufficient - Transaction allowed');
+    console.log('✅ Available balance sufficient - Transaction allowed');
     return { 
       sufficient: true, 
       mode: 'credit_limit',
@@ -454,35 +473,60 @@ async function updateFillingLogs(request_id, status, userId) {
 async function handleProcessingStatus(data) {
   const { id, rid, cl_id, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id } = data;
   
-  // Day limit check is already done in POST endpoint before calling this function
-  // This function will only be called if balance check passes
-  
   const now = getIndianTime();
-  const updateRequestQuery = `
-    UPDATE filling_requests 
-    SET status = 'Processing', 
-        pdate = ?,
-        pcid = ?,
-        remark = ?,
-        doc1 = COALESCE(?, doc1),
-        doc2 = COALESCE(?, doc2),
-        doc3 = COALESCE(?, doc3),
-        status_updated_by = ?,
-        sub_product_id = COALESCE(?, sub_product_id)
-    WHERE id = ? AND rid = ?
-  `;
   
-  await executeQuery(updateRequestQuery, [
-    now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
-  ]);
+  console.log('🔄 Processing Status Update Details:', {
+    id, rid, cl_id, remarks, 
+    doc1Path, doc2Path, doc3Path, 
+    userId, sub_product_id, now
+  });
 
-  return 'Status updated to Processing';
+  try {
+    const updateRequestQuery = `
+      UPDATE filling_requests 
+      SET status = 'Processing', 
+          pdate = ?,
+          pcid = ?,
+          remark = ?,
+          doc1 = ?,
+          doc2 = ?,
+          doc3 = ?,
+          status_updated_by = ?,
+          sub_product_id = ?
+      WHERE id = ? AND rid = ?
+    `;
+    
+    console.log('🔧 Executing Processing Update Query:', updateRequestQuery);
+    console.log('📋 Query Parameters:', [
+      now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
+    ]);
+
+    const result = await executeQuery(updateRequestQuery, [
+      now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
+    ]);
+
+    console.log('✅ Processing status update result:', {
+      affectedRows: result.affectedRows,
+      message: result.message,
+      changedRows: result.changedRows
+    });
+
+    if (result.affectedRows === 0) {
+      throw new Error('No rows updated - request not found or already processed');
+    }
+
+    return 'Status updated to Processing successfully';
+
+  } catch (error) {
+    console.error('❌ Error in handleProcessingStatus:', error);
+    throw new Error('Failed to update status to Processing: ' + error.message);
+  }
 }
 
 async function handleCompletedStatus(data) {
   const {
     id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
-    oldstock, cst_limit, amtlimit, day_limit, day_amount,
+    oldstock, credit_limit, available_balance, day_limit, day_amount,
     price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId
   } = data;
 
@@ -490,33 +534,38 @@ async function handleCompletedStatus(data) {
   const calculatedAmount = finalPrice * aqty;
   const newStock = oldstock - aqty;
 
-  // Get current balance data (no expiry_date needed - using completed_date only)
+  // Get current balance data with corrected field names
   const getLatestAmountQuery = `
-    SELECT amtlimit, balance, day_limit, is_active 
+    SELECT 
+      amtlimit as available_balance,
+      balance as used_amount,
+      cst_limit as credit_limit,
+      day_limit, 
+      is_active 
     FROM customer_balances 
     WHERE com_id = ?
   `;
   const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
   
-  let old_amtlimit = 0;
-  let old_balance = 0;
+  let old_available_balance = 0;
+  let old_used_amount = 0;
   let customerDayLimit = 0;
   
   if (latestAmountRows.length > 0) {
-    old_amtlimit = parseFloat(latestAmountRows[0].amtlimit) || 0;
-    old_balance = parseFloat(latestAmountRows[0].balance) || 0;
+    old_available_balance = parseFloat(latestAmountRows[0].available_balance) || 0;
+    old_used_amount = parseFloat(latestAmountRows[0].used_amount) || 0;
     customerDayLimit = parseInt(latestAmountRows[0].day_limit) || 0;
   }
 
-  const new_amtlimit = old_amtlimit - calculatedAmount;
-  const new_balance = old_balance + calculatedAmount;
+  const new_available_balance = old_available_balance - calculatedAmount;
+  const new_used_amount = old_used_amount + calculatedAmount;
 
-  console.log('💰 Balance Update Calculation:', {
-    old_amtlimit: old_amtlimit,
+  console.log('💰 Balance Update Calculation - Corrected:', {
+    old_available_balance: old_available_balance,
     calculated_amount: calculatedAmount,
-    new_amtlimit: new_amtlimit,
-    old_balance: old_balance,
-    new_balance: new_balance,
+    new_available_balance: new_available_balance,
+    old_used_amount: old_used_amount,
+    new_used_amount: new_used_amount,
     customerDayLimit,
     isDayLimitCustomer: customerDayLimit > 0
   });
@@ -529,7 +578,7 @@ async function handleCompletedStatus(data) {
   
   // DAY LIMIT CUSTOMER - No amount deduction, only balance update for record
   if (customerDayLimit > 0) {
-    // Day limit customers - NO AMTLIMIT DEDUCTION, only balance increase for tracking
+    // Day limit customers - NO AVAILABLE_BALANCE DEDUCTION, only used_amount increase for tracking
     updateBalanceQuery = `
       UPDATE customer_balances 
       SET balance = balance + ?,
@@ -538,9 +587,9 @@ async function handleCompletedStatus(data) {
     `;
     balanceType = 'day_limit';
     queryParams = [calculatedAmount, now, cl_id];
-    console.log('✅ Day limit customer - Only balance updated (no amtlimit deduction)');
+    console.log('✅ Day limit customer - Only used amount updated (no available balance deduction)');
   } else {
-    // CREDIT LIMIT CUSTOMER - Update amtlimit (amount deduction)
+    // CREDIT LIMIT CUSTOMER - Update available_balance (amount deduction) and used_amount
     updateBalanceQuery = `
       UPDATE customer_balances 
       SET amtlimit = amtlimit - ?, 
@@ -550,7 +599,7 @@ async function handleCompletedStatus(data) {
     `;
     balanceType = 'credit_limit';
     queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
-    console.log('✅ Credit limit customer - Amtlimit decreased, balance increased');
+    console.log('✅ Credit limit customer - Available balance decreased, used amount increased');
   }
   
   if (updateBalanceQuery) {
@@ -565,11 +614,11 @@ async function handleCompletedStatus(data) {
         completed_date = ?,
         ccid = ?,
         remark = ?,
-        doc1 = COALESCE(?, doc1),
-        doc2 = COALESCE(?, doc2),
-        doc3 = COALESCE(?, doc3),
+        doc1 = ?,
+        doc2 = ?,
+        doc3 = ?,
         status_updated_by = ?,
-        sub_product_id = COALESCE(?, sub_product_id),
+        sub_product_id = ?,
         price = ?,
         totalamt = ?
     WHERE id = ? AND rid = ?
@@ -591,8 +640,8 @@ async function handleCompletedStatus(data) {
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      customerDayLimit > 0 ? old_balance : old_amtlimit,
-      customerDayLimit > 0 ? new_balance : new_amtlimit,
+      customerDayLimit > 0 ? old_used_amount : old_available_balance,
+      customerDayLimit > 0 ? new_used_amount : new_available_balance,
       calculatedAmount
     ];
 
@@ -626,8 +675,8 @@ async function handleCompletedStatus(data) {
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      customerDayLimit > 0 ? old_balance : old_amtlimit,
-      customerDayLimit > 0 ? new_balance : new_amtlimit,
+      customerDayLimit > 0 ? old_used_amount : old_available_balance,
+      customerDayLimit > 0 ? new_used_amount : new_available_balance,
       calculatedAmount
     ]);
   }
@@ -642,7 +691,7 @@ async function handleCompletedStatus(data) {
   }
 
   // Update wallet history
-  await updateWalletHistory(cl_id, rid, calculatedAmount, balanceType);
+  await updateWalletHistory(cl_id, rid, calculatedAmount, balanceType, customerDayLimit > 0 ? old_used_amount : old_available_balance, customerDayLimit > 0 ? new_used_amount : new_available_balance);
 
   return 'Request Completed Successfully';
 }
@@ -695,9 +744,9 @@ async function handleCancelStatus(data) {
         cdate = ?,
         ccid = ?,
         cancel_remark = ?,
-        doc1 = COALESCE(?, doc1),
-        doc2 = COALESCE(?, doc2),
-        doc3 = COALESCE(?, doc3),
+        doc1 = ?,
+        doc2 = ?,
+        doc3 = ?,
         status_updated_by = ?
     WHERE id = ? AND rid = ?
   `;
@@ -722,13 +771,13 @@ async function updateFillingRequest(data) {
   if (status === 'Processing') {
     updateQuery = `
       UPDATE filling_requests 
-      SET doc1 = COALESCE(?, doc1), 
-          doc2 = COALESCE(?, doc2), 
-          doc3 = COALESCE(?, doc3), 
+      SET doc1 = ?, 
+          doc2 = ?, 
+          doc3 = ?, 
           aqty = ?, 
           status = ?, 
           remark = ?, 
-          sub_product_id = COALESCE(?, sub_product_id),
+          sub_product_id = ?,
           pdate = ?,
           pcid = ?,
           status_updated_by = ?
@@ -738,13 +787,13 @@ async function updateFillingRequest(data) {
   } else {
     updateQuery = `
       UPDATE filling_requests 
-      SET doc1 = COALESCE(?, doc1), 
-          doc2 = COALESCE(?, doc2), 
-          doc3 = COALESCE(?, doc3), 
+      SET doc1 = ?, 
+          doc2 = ?, 
+          doc3 = ?, 
           aqty = ?, 
           status = ?, 
           remark = ?, 
-          sub_product_id = COALESCE(?, sub_product_id),
+          sub_product_id = ?,
           status_updated_by = ?
       WHERE id = ?
     `;
@@ -755,25 +804,13 @@ async function updateFillingRequest(data) {
   return 'Request updated successfully';
 }
 
-async function updateWalletHistory(cl_id, rid, deductedAmount, balanceType) {
+async function updateWalletHistory(cl_id, rid, deductedAmount, balanceType, oldBalance, newBalance) {
   try {
-    // Get current balance data
-    const balanceQuery = `SELECT amtlimit, balance FROM customer_balances WHERE com_id = ?`;
-    const balanceRows = await executeQuery(balanceQuery, [cl_id]);
-    
-    if (balanceRows.length === 0) return;
-    
-    const balanceData = balanceRows[0];
-    
-    let oldBalance, newBalance, description;
+    let description;
     
     if (balanceType === 'day_limit') {
-      oldBalance = (balanceData.balance || 0) - deductedAmount;
-      newBalance = balanceData.balance || 0;
       description = 'Fuel Purchase - Day Limit';
     } else {
-      oldBalance = (balanceData.amtlimit || 0) + deductedAmount;
-      newBalance = balanceData.amtlimit || 0;
       description = 'Fuel Purchase - Credit Limit';
     }
 
@@ -834,17 +871,4 @@ async function handleFileUpload(file) {
     console.error('❌ File upload error:', error);
     return null;
   }
-}
-
-// Helper function to set day limit for customer
-function calculateDayLimit(dayLimit, currentDate = new Date()) {
-  const expiryDate = new Date(currentDate);
-  expiryDate.setDate(expiryDate.getDate() + dayLimit);
-  
-  const remainingDays = Math.ceil((expiryDate - currentDate) / (1000 * 60 * 60 * 24));
-  
-  return {
-    expiryDate: expiryDate.toISOString().slice(0, 19).replace('T', ' '),
-    remainingDays: Math.max(0, remainingDays)
-  };
 }
