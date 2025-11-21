@@ -70,7 +70,7 @@ export default function RechargeRequestPage() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  // Calculate payment breakdown based on amount
+  // Calculate payment breakdown based on amount - WITH DAY-WISE BREAKDOWN
   const calculatePaymentBreakdown = (amount) => {
     if (!customerData || customerData.customer.client_type !== "3") {
       return { 
@@ -79,66 +79,75 @@ export default function RechargeRequestPage() {
         daysToAdd: 0,
         amountUsedForDays: 0,
         remainingChange: 0,
-        hasPendingRequests: false
+        hasPendingRequests: false,
+        daysCleared: 0,
+        dayWiseBreakdown: []
       };
     }
 
     const paymentAmount = parseFloat(amount) || 0;
-    const pendingRequests = customerData.pending.request_count;
+    const dayWiseBreakdown = customerData.pending?.day_wise_breakdown || [];
     const totalPendingAmount = customerData.pending.total_amount;
-    const dayLimitAmount = 100000; // Fixed ₹1 lakh per day
 
-    // Calculate how many pending requests can be paid
-    let canPayRequests = 0;
-    let amountUsedForPending = 0;
+    // Calculate how many days can be paid
+    let daysCleared = 0;
+    let amountUsedForDays = 0;
     let remainingAmount = paymentAmount;
+    const daysToPay = [];
 
-    // First, calculate pending requests that can be paid
-    if (pendingRequests > 0 && totalPendingAmount > 0) {
-      // For preview, we'll use average calculation
-      const avgAmount = totalPendingAmount / pendingRequests;
-      
-      for (let i = 0; i < pendingRequests; i++) {
-        if (remainingAmount >= avgAmount) {
-          canPayRequests++;
-          amountUsedForPending += avgAmount;
-          remainingAmount -= avgAmount;
-        } else {
-          break;
-        }
+    // Process day-by-day
+    for (const dayData of dayWiseBreakdown) {
+      if (remainingAmount <= 0) break;
+
+      const dayTotal = parseFloat(dayData.day_total) || 0;
+
+      if (remainingAmount >= dayTotal) {
+        // Can pay for this entire day
+        daysCleared++;
+        amountUsedForDays += dayTotal;
+        remainingAmount -= dayTotal;
+        daysToPay.push({
+          day_date: dayData.day_date,
+          day_total: dayTotal,
+          transaction_count: dayData.transaction_count,
+          can_pay: true
+        });
+      } else {
+        // Cannot pay for this day (insufficient amount)
+        daysToPay.push({
+          day_date: dayData.day_date,
+          day_total: dayTotal,
+          transaction_count: dayData.transaction_count,
+          can_pay: false,
+          required_amount: dayTotal,
+          available_amount: remainingAmount
+        });
+        break;
       }
     }
 
-    // Calculate days from payment amount
-    let daysToAdd = 0;
-    let amountUsedForDays = 0;
-    let remainingChange = 0;
+    const remainingChange = remainingAmount;
     
-    if (paymentAmount > 0) {
-      daysToAdd = Math.floor(paymentAmount / dayLimitAmount);
-      amountUsedForDays = daysToAdd * dayLimitAmount;
-      remainingChange = paymentAmount - amountUsedForDays;
-    }
-
     // Balance से MINUS, Total Day Amount में ADD
     const newBalance = (customerData.balance.current_balance || 0) - paymentAmount;
     const newTotalDayAmount = (customerData.balance.total_day_amount || 0) + paymentAmount;
     
-    // Day Limit में ADD
-    const newDayLimit = (customerData.customer.day_limit || 0) + daysToAdd;
+    // DAY LIMIT NO CHANGE
+    const newDayLimit = customerData.customer.day_limit || 0;
 
     return {
-      canPayRequests,
-      amountUsed: amountUsedForPending,
-      daysToAdd,
-      amountUsedForDays,
+      canPayRequests: daysCleared > 0 ? dayWiseBreakdown.slice(0, daysCleared).reduce((sum, d) => sum + (d.transaction_count || 0), 0) : 0,
+      amountUsed: amountUsedForDays,
+      daysToAdd: 0, // Always 0 now
+      amountUsedForDays: amountUsedForDays,
       remainingChange,
       newBalance,
       newTotalDayAmount,
       newDayLimit,
       totalPendingAmount,
-      dayLimitAmount,
-      hasPendingRequests: pendingRequests > 0
+      hasPendingRequests: dayWiseBreakdown.length > 0,
+      daysCleared, // ✅ Days that will be cleared
+      dayWiseBreakdown: daysToPay // ✅ Day-wise breakdown for display
     };
   };
 
@@ -188,9 +197,7 @@ export default function RechargeRequestPage() {
           if (data.data.paid_requests) {
             message += `\n\n✅ Cleared requests: ${data.data.paid_requests}`;
           }
-          if (data.data.days_added) {
-            message += `\n\n➕ Days added: ${data.data.days_added}`;
-          }
+          // ❌ Days added message removed
         }
         
         setSuccessMessage(message);
@@ -333,7 +340,7 @@ export default function RechargeRequestPage() {
               </div>
 
               {isDayLimitCustomer && (
-                <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-gray-200 pt-6">
+                <div className="px-6 pb-6 grid grid-cols-1 md:grid-cols-4 gap-4 border-t border-gray-200 pt-6">
                   <div className="text-center p-4 bg-yellow-50 rounded-lg">
                     <div className="text-sm font-medium text-yellow-600 mb-1">Day Limit</div>
                     <div className="text-lg font-semibold text-gray-900">
@@ -344,6 +351,17 @@ export default function RechargeRequestPage() {
                     <div className="text-sm font-medium text-pink-600 mb-1">Pending Requests</div>
                     <div className="text-lg font-semibold text-gray-900">
                       {customerData?.pending.request_count} ({formatCurrency(customerData?.pending.total_amount)})
+                    </div>
+                  </div>
+                  <div className="text-center p-4 bg-red-50 rounded-lg">
+                    <div className="text-sm font-medium text-red-600 mb-1">Payment Days Pending</div>
+                    <div className="text-lg font-semibold text-red-700">
+                      {customerData?.pending.payment_days_pending || 0} days
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">
+                      {customerData?.pending.payment_days_pending > 0 
+                        ? `Oldest unpaid transaction is ${customerData?.pending.payment_days_pending} days old`
+                        : 'No pending payments'}
                     </div>
                   </div>
                   <div className="text-center p-4 bg-teal-50 rounded-lg">
@@ -449,6 +467,58 @@ export default function RechargeRequestPage() {
                     </p>
                   </div>
                   
+                  {/* Day-wise Breakdown */}
+                  {paymentBreakdown.dayWiseBreakdown && paymentBreakdown.dayWiseBreakdown.length > 0 && (
+                    <div className="mb-3 p-3 bg-yellow-50 rounded-lg">
+                      <p className="text-sm font-semibold text-yellow-800 mb-2">📅 Day-wise Payment Breakdown</p>
+                      <div className="space-y-2">
+                        {paymentBreakdown.dayWiseBreakdown.map((day, index) => (
+                          <div 
+                            key={index} 
+                            className={`p-2 rounded border ${
+                              day.can_pay 
+                                ? 'bg-green-100 border-green-300' 
+                                : 'bg-red-100 border-red-300'
+                            }`}
+                          >
+                            <div className="flex justify-between items-center">
+                              <div>
+                                <p className="text-xs font-medium text-gray-700">
+                                  {day.can_pay ? '✅' : '❌'} Day {index + 1}: {new Date(day.day_date).toLocaleDateString('en-IN')}
+                                </p>
+                                <p className="text-xs text-gray-600">
+                                  {day.transaction_count} transaction(s)
+                                </p>
+                              </div>
+                              <div className="text-right">
+                                <p className={`text-sm font-semibold ${
+                                  day.can_pay ? 'text-green-700' : 'text-red-700'
+                                }`}>
+                                  {formatCurrency(day.day_total)}
+                                </p>
+                                {!day.can_pay && (
+                                  <p className="text-xs text-red-600">
+                                    Need: {formatCurrency(day.required_amount)}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      {paymentBreakdown.daysCleared > 0 && (
+                        <div className="mt-2 p-2 bg-green-200 rounded">
+                          <p className="text-sm font-semibold text-green-800">
+                            ✅ {paymentBreakdown.daysCleared === 1 ? '1 day payment' : `${paymentBreakdown.daysCleared} days payment`} will be made
+                          </p>
+                          <p className="text-xs text-green-700">
+                            Account will open for {paymentBreakdown.daysCleared} day(s)
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   {/* Pending Requests Clearance */}
                   {paymentBreakdown.canPayRequests > 0 && (
                     <div className="mb-3 p-3 bg-green-50 rounded-lg">
@@ -457,21 +527,6 @@ export default function RechargeRequestPage() {
                       </p>
                       <p className="text-xs text-green-600">
                         Amount used for pending: {formatCurrency(paymentBreakdown.amountUsed)}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Days Added */}
-                  {paymentBreakdown.daysToAdd > 0 && (
-                    <div className="mb-3 p-3 bg-orange-50 rounded-lg">
-                      <p className="text-sm font-semibold text-orange-700">
-                        📅 Days Added: {paymentBreakdown.daysToAdd} day(s)
-                      </p>
-                      <p className="text-xs text-orange-600">
-                        Amount used for days: {formatCurrency(paymentBreakdown.amountUsedForDays)}
-                      </p>
-                      <p className="text-xs text-orange-600">
-                        New Day Limit: {customerData.customer.day_limit || 0} → {paymentBreakdown.newDayLimit} days
                       </p>
                     </div>
                   )}
@@ -508,7 +563,8 @@ export default function RechargeRequestPage() {
                 />
                 {isDayLimitCustomer && (
                   <p className="text-xs text-gray-500 mt-1">
-                    ₹1,00,000 = 1 day. Amount will clear pending requests first, then add days to day limit.
+                    Amount will clear pending requests first. Remaining amount will be kept as credit.
+                    {/* ❌ Days calculation message removed */}
                   </p>
                 )}
               </div>

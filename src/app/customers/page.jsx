@@ -68,9 +68,11 @@ export default function CustomersPage() {
   const filterCustomersByType = useCallback((customersList, filter) => {
     switch (filter) {
       case "prepaid":
-        return customersList.filter(c => c.client_type === "1");
+        // Exclude day_limit customers from prepaid list
+        return customersList.filter(c => c.client_type === "1" && c.client_type !== "3");
       case "postpaid":
-        return customersList.filter(c => c.client_type === "2");
+        // Exclude day_limit customers from postpaid list
+        return customersList.filter(c => c.client_type === "2" && c.client_type !== "3");
       case "daylimit":
         return customersList.filter(c => c.client_type === "3");
       case "all":

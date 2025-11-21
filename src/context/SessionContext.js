@@ -82,6 +82,15 @@ export function SessionProvider({ children }) {
   useEffect(() => {
     if (loading) return;
 
+    // ✅ Check for bypassAuth flag (for public pages like transport-receipt)
+    if (typeof window !== 'undefined') {
+      const bypassAuth = sessionStorage.getItem('bypassAuth');
+      if (bypassAuth === 'true') {
+        // Skip auth redirect for pages with bypassAuth
+        return;
+      }
+    }
+
     // ✅ CST routes के लिए अलग logic
     if (pathname.startsWith('/cst/')) {
       if (!user && pathname !== '/cst/login') {

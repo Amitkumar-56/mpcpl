@@ -600,6 +600,32 @@ function ClientHistoryContent() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Overdue Warning Banner */}
+        {isDayLimitCustomer && dayLimitInfo && dayLimitInfo.daysRemaining <= 0 && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
+                <div>
+                  <p className="font-medium text-red-800">
+                    Day Limit Exceeded - Account Inactive
+                  </p>
+                  <p className="text-sm text-red-600">
+                    Your day limit has been exceeded ({dayLimitInfo.daysUsed} days elapsed, limit: {dayLimitInfo.dayLimit} days). 
+                    Total outstanding: ₹{formatCurrency(totalPendingAmount)}. Please recharge your account to continue.
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={handleRechargeClick}
+                className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+              >
+                Recharge Now
+              </button>
+            </div>
+          </div>
+        )}
+
         {isDayLimitCustomer && (
           <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">Day Limit Summary</h3>
@@ -1086,9 +1112,28 @@ function ClientHistoryContent() {
           >
             <p className="font-semibold">{paymentResult.message}</p>
             {paymentResult.success && (
-              <p className="text-sm mt-1">
-                Invoices Paid: {paymentResult.invoicesPaid}
-              </p>
+              <div className="text-sm mt-2 space-y-1">
+                <p>
+                  Invoices Paid: {paymentResult.invoicesPaid}
+                </p>
+                {isDayLimitCustomer && paymentResult.daysCleared !== undefined && (
+                  <p className="font-semibold">
+                    {paymentResult.daysCleared === 1 
+                      ? '1 day payment made' 
+                      : `${paymentResult.daysCleared} days payment made`}
+                  </p>
+                )}
+                {paymentResult.amountPaid > 0 && (
+                  <p>
+                    Amount Paid: ₹{formatCurrency(paymentResult.amountPaid)}
+                  </p>
+                )}
+                {paymentResult.isOverdue !== undefined && (
+                  <p className={paymentResult.isOverdue ? "text-red-600 font-semibold" : "text-green-600 font-semibold"}>
+                    Status: {paymentResult.isOverdue ? 'Overdue - Please clear remaining payments' : 'Active'}
+                  </p>
+                )}
+              </div>
             )}
           </div>
         )}

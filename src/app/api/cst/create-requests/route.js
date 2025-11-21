@@ -29,11 +29,57 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    const dayLimitRows = await executeQuery(
-      'SELECT day_limit FROM customer_balances WHERE com_id = ?',
+    // Check if customer is active
+    const customerBalanceRows = await executeQuery(
+      'SELECT day_limit, is_active FROM customer_balances WHERE com_id = ?',
       [parseInt(customer_id)]
     );
-    const dayLimitVal = dayLimitRows.length > 0 ? parseInt(dayLimitRows[0].day_limit) || 0 : 0;
+    
+    if (customerBalanceRows.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Customer balance record not found'
+      }, { status: 404 });
+    }
+    
+    const isActive = customerBalanceRows[0].is_active === 1;
+    const dayLimitVal = customerBalanceRows.length > 0 ? parseInt(customerBalanceRows[0].day_limit) || 0 : 0;
+    
+    // Block request if customer is inactive
+    if (!isActive) {
+      // Check if it's due to day limit expiry
+      if (dayLimitVal > 0) {
+        const oldestUnpaid = await executeQuery(
+          `SELECT completed_date 
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+           ORDER BY completed_date ASC 
+           LIMIT 1`,
+          [parseInt(customer_id)]
+        );
+        
+        if (oldestUnpaid.length > 0) {
+          const oldestUnpaidDate = new Date(oldestUnpaid[0].completed_date);
+          oldestUnpaidDate.setHours(0, 0, 0, 0);
+          const currentDate = new Date();
+          currentDate.setHours(0, 0, 0, 0);
+          const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
+          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+          
+          if (daysElapsed >= dayLimitVal) {
+            return NextResponse.json({
+              success: false,
+              message: `Day limit exceeded. Your day limit has been exceeded (${daysElapsed} days elapsed, limit: ${dayLimitVal} days). Please recharge your account to continue.`
+            }, { status: 403 });
+          }
+        }
+      }
+      
+      return NextResponse.json({
+        success: false,
+        message: 'Your account is inactive. Please contact administrator.'
+      }, { status: 403 });
+    }
     if (dayLimitVal > 0) {
       // For day_limit customers: Check if oldest unpaid day is cleared
       // Get oldest unpaid day's total amount

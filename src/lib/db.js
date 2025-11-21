@@ -29,4 +29,24 @@ export async function executeQuery(query, params = []) {
   }
 }
 
+// Transaction helper - uses a single connection for all operations
+export async function executeTransaction(callback) {
+  const connection = await getConnection();
+  try {
+    // Use query() instead of execute() for transaction commands
+    await connection.query('START TRANSACTION');
+    
+    try {
+      const result = await callback(connection);
+      await connection.query('COMMIT');
+      return result;
+    } catch (error) {
+      await connection.query('ROLLBACK');
+      throw error;
+    }
+  } finally {
+    connection.release();
+  }
+}
+
 export default pool;

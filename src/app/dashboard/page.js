@@ -88,7 +88,7 @@ export default function DashboardPage() {
   };
 
   // Fast API request helper - only essential data
-  const apiRequest = async (url, options = {}) => {
+  const apiRequest = useCallback(async (url, options = {}) => {
     const token = getAuthToken();
     const defaultOptions = {
       headers: {
@@ -107,7 +107,7 @@ export default function DashboardPage() {
       console.error("API Request failed:", error);
       throw error;
     }
-  };
+  }, []);
 
   // Fast dashboard data fetch - only critical data
   const fetchDashboardData = useCallback(async () => {
@@ -120,7 +120,7 @@ export default function DashboardPage() {
       setError("Failed to fetch data");
       console.error("Error:", err);
     }
-  }, []);
+  }, [apiRequest]);
 
   // Quick refresh
   const handleRefresh = async () => {
@@ -647,7 +647,7 @@ const ChatWidget = ({
       };
       loadMessages();
     }
-  }, [selectedCustomer?.customerId, sessionUser?.id, socket?.connected]);
+  }, [selectedCustomer, sessionUser?.id, socket, setEmployeeMessages]);
 
   const sendMessage = () => {
     if (!newMessage.trim() || !selectedCustomer || !socket || !socket.connected) {

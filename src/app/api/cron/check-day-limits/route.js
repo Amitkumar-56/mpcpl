@@ -4,36 +4,47 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // Get current date at 12 AM (midnight)
+    const currentDate = new Date();
+    currentDate.setHours(0, 0, 0, 0);
+    const currentDateStr = currentDate.toISOString().slice(0, 10);
     
-    console.log('🔔 Running automatic day limit expiry check:', currentDate);
+    console.log('🔔 Running automatic day limit expiry check at 12 AM:', currentDateStr);
 
-    // Find active day limit customers whose expiry has passed
+    // Find active day limit customers where oldest unpaid completed_date + day_limit <= current_date
+    // This means: current_date - oldest_unpaid_date >= day_limit
     const expiredCustomersQuery = `
       SELECT 
         cb.com_id,
         c.name as customer_name,
-        cb.day_limit_expiry,
+        cb.day_limit,
+        MIN(fr.completed_date) as oldest_unpaid_date,
         COUNT(fr.id) as unpaid_invoices_count
       FROM customer_balances cb
-      LEFT JOIN customers c ON cb.com_id = c.id
+      INNER JOIN customers c ON cb.com_id = c.id
       LEFT JOIN filling_requests fr ON cb.com_id = fr.cid 
         AND fr.status = 'Completed' 
         AND fr.payment_status = 0
       WHERE c.client_type = '3'
-      AND cb.day_limit_expiry IS NOT NULL 
-      AND cb.day_limit_expiry <= ?
+      AND cb.day_limit > 0
       AND cb.is_active = 1
-      GROUP BY cb.com_id
+      GROUP BY cb.com_id, c.name, cb.day_limit
+      HAVING oldest_unpaid_date IS NOT NULL
+        AND DATEDIFF(?, oldest_unpaid_date) >= cb.day_limit
     `;
     
-    const expiredCustomers = await executeQuery(expiredCustomersQuery, [currentDate]);
+    const expiredCustomers = await executeQuery(expiredCustomersQuery, [currentDateStr]);
     
     let expiredCount = 0;
     let invoicesMarked = 0;
     
     for (const customer of expiredCustomers) {
       const customerId = customer.com_id;
+      const dayLimit = customer.day_limit;
+      const oldestUnpaidDate = customer.oldest_unpaid_date;
+      const daysElapsed = Math.floor((currentDate.getTime() - new Date(oldestUnpaidDate).getTime()) / (1000 * 60 * 60 * 24));
+      
+      console.log(`📅 Checking customer ${customer.customer_name}: day_limit=${dayLimit}, oldest_unpaid=${oldestUnpaidDate}, days_elapsed=${daysElapsed}`);
       
       // Mark customer as inactive (stop further transactions)
       await executeQuery(
@@ -41,27 +52,52 @@ export async function GET() {
         [customerId]
       );
       
-      // Mark all unpaid invoices as overdue
-      const markOverdueResult = await executeQuery(
-        `UPDATE filling_requests 
-         SET payment_status = 2 -- 2 = Overdue
-         WHERE cid = ? 
-         AND status = 'Completed' 
-         AND payment_status = 0`,
+      expiredCount++;
+      
+      console.log(`❌ Day Limit Exceeded: ${customer.customer_name} (ID: ${customerId}) - ${daysElapsed} days elapsed (limit: ${dayLimit} days). Customer deactivated.`);
+    }
+    
+    // Also check for customers who should be reactivated (no longer overdue)
+    const reactivateCustomersQuery = `
+      SELECT 
+        cb.com_id,
+        c.name as customer_name,
+        cb.day_limit,
+        MIN(fr.completed_date) as oldest_unpaid_date
+      FROM customer_balances cb
+      INNER JOIN customers c ON cb.com_id = c.id
+      LEFT JOIN filling_requests fr ON cb.com_id = fr.cid 
+        AND fr.status = 'Completed' 
+        AND fr.payment_status = 0
+      WHERE c.client_type = '3'
+      AND cb.day_limit > 0
+      AND cb.is_active = 0
+      GROUP BY cb.com_id, c.name, cb.day_limit
+      HAVING oldest_unpaid_date IS NULL
+         OR DATEDIFF(?, oldest_unpaid_date) < cb.day_limit
+    `;
+    
+    const reactivateCustomers = await executeQuery(reactivateCustomersQuery, [currentDateStr]);
+    let reactivatedCount = 0;
+    
+    for (const customer of reactivateCustomers) {
+      const customerId = customer.com_id;
+      
+      // Reactivate customer
+      await executeQuery(
+        `UPDATE customer_balances SET is_active = 1 WHERE com_id = ?`,
         [customerId]
       );
       
-      expiredCount++;
-      invoicesMarked += markOverdueResult.affectedRows || 0;
-      
-      console.log(`❌ Day Limit Expired: ${customer.customer_name} (ID: ${customerId}) - ${markOverdueResult.affectedRows} invoices marked overdue`);
+      reactivatedCount++;
+      console.log(`✅ Customer Reactivated: ${customer.customer_name} (ID: ${customerId}) - No longer overdue.`);
     }
     
     return NextResponse.json({ 
       success: true,
-      message: `Automatic day limit check completed. ${expiredCount} customers expired, ${invoicesMarked} invoices marked overdue.`,
+      message: `Automatic day limit check completed at 12 AM. ${expiredCount} customers expired, ${reactivatedCount} customers reactivated.`,
       expired_count: expiredCount,
-      invoices_marked: invoicesMarked
+      reactivated_count: reactivatedCount
     });
     
   } catch (error) {

@@ -1,8 +1,8 @@
 "use client";
 import { useSession } from '@/context/SessionContext';
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import {
   FaBars,
   FaBox,
@@ -66,13 +66,13 @@ export default function Sidebar() {
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
     { name: "Users", icon: <FaUsers />, module: "users", path: "/users" },
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
-    { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-management" },
-    { name: "Loading History", icon: <FaHistory />, module: "history", path: "/history" },
+    { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-list" },
+    { name: "Loading History", icon: <FaHistory />, module: "history", path: "/loading-unloading-history" },
     { name: "Tanker History", icon: <FaHistory />, module: "tanker_history", path: "/tanker-history" },
     { name: "Deepo History", icon: <FaHistory />, module: "deepo_history", path: "/deepo-history" },
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
-    { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/remarks" },
-    { name: "Settings", icon: <FaCog />, module: "settings", path: "/settings" },
+    { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
+    { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
   ], []);
 
   const moduleMapping = useMemo(() => ({
@@ -94,7 +94,7 @@ export default function Sidebar() {
     vouchers: "Voucher",
     stock: "Stock Transfer",
     remarks: "Remarks",
-    settings: "Settings",
+    items: "Items",
     customers: "Customer",
     tanker_history: "Tanker History",
     deepo_history: "Deepo History",

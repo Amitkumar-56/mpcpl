@@ -222,18 +222,18 @@ export async function GET(request) {
       collectionEfficiency = 0;
     }
 
-    // ✅ 8. PAYMENT STATUS COUNTS
+    // ✅ 8. PAYMENT STATUS COUNTS - Use filling_requests table which has status and payment_status
     let pendingPayments = 0;
     let clearedPayments = 0;
     try {
       if (totalTransactions > 0) {
         const paymentStatusQuery = `
           SELECT 
-            SUM(CASE WHEN status != 'completed' AND status != 'paid' THEN 1 ELSE 0 END) as pending,
-            SUM(CASE WHEN status = 'completed' OR status = 'paid' THEN 1 ELSE 0 END) as completed
-          FROM filling_history 
-          WHERE new_amount > 0
-            AND cl_id IS NOT NULL
+            SUM(CASE WHEN (status != 'Completed' OR payment_status IN (0, 2)) THEN 1 ELSE 0 END) as pending,
+            SUM(CASE WHEN status = 'Completed' AND payment_status = 1 THEN 1 ELSE 0 END) as completed
+          FROM filling_requests 
+          WHERE status = 'Completed'
+            AND cid IS NOT NULL
         `;
         const paymentStatusResult = await executeQuery(paymentStatusQuery);
         const payData = paymentStatusResult[0];
