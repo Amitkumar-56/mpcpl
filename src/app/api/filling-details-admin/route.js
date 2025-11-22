@@ -645,7 +645,7 @@ async function handleCompletedStatus(data) {
           updated_at = ? 
       WHERE com_id = ?
     `;
-    balanceType = 'day_limit';
+    balanceType = 'day';
     queryParams = [calculatedAmount, now, cl_id];
     console.log('✅ Day limit customer - Only used amount updated (no available balance deduction)');
   } else {
@@ -657,7 +657,7 @@ async function handleCompletedStatus(data) {
           updated_at = ? 
       WHERE com_id = ?
     `;
-    balanceType = 'credit_limit';
+    balanceType = 'credit';
     queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
     console.log('✅ Credit limit customer - Available balance decreased, used amount increased');
   }
@@ -885,7 +885,7 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, balanceType, oldB
   try {
     let description;
     
-    if (balanceType === 'day_limit') {
+    if (balanceType === 'day' || balanceType === 'day_limit') {
       description = 'Fuel Purchase - Day Limit';
     } else {
       description = 'Fuel Purchase - Credit Limit';
