@@ -19,7 +19,7 @@ export default function FillingDetailsAdmin() {
     doc2: null,
     doc3: null,
     aqty: '',
-    status: 'pending',
+    status: 'Pending',
     remarks: '',
     sub_product_id: ''
   });
@@ -60,12 +60,16 @@ export default function FillingDetailsAdmin() {
         setFormData(prev => ({
           ...prev,
           aqty: data.data.aqty || data.data.qty || '',
-          status: data.data.status || 'Processing',
+          status: data.data.status || 'Pending',
           remarks: data.data.remark || '',
           sub_product_id: data.data.sub_product_id || ''
         }));
         
         console.log('🔄 Current request status from API:', data.data.status);
+        console.log('📊 Form data set to:', {
+          aqty: data.data.aqty || data.data.qty || '',
+          status: data.data.status || 'Pending'
+        });
       } else {
         throw new Error(data.error || 'Failed to fetch request details');
       }
@@ -174,7 +178,6 @@ export default function FillingDetailsAdmin() {
       submitData.append('credit_limit', requestData.credit_limit || 0);
       submitData.append('available_balance', requestData.available_balance || 0);
       submitData.append('day_limit', requestData.day_limit || 0);
-      submitData.append('day_amount', requestData.day_amount || 0);
       submitData.append('price', requestData.fuel_price || requestData.price || 0);
 
       console.log('📤 Submitting form data with status:', formData.status);
@@ -227,10 +230,9 @@ export default function FillingDetailsAdmin() {
         // Refresh data from server to confirm
         await fetchRequestDetails();
         
-        // ONLY redirect for Completed or Cancel status
-        // DO NOT redirect for Processing status
+        // ✅✅✅ FIXED: Redirect ONLY for Completed and Cancel status
         if (formData.status === 'Completed' || formData.status === 'Cancel') {
-          console.log('🔀 Redirecting to filling-requests page');
+          console.log('🔀 Redirecting to filling-requests page for Completed/Cancel status');
           setTimeout(() => {
             router.push('/filling-requests');
           }, 1500);
@@ -238,6 +240,7 @@ export default function FillingDetailsAdmin() {
           console.log('📍 Staying on same page for Processing status');
           // Stay on the same page for Processing status
         }
+        
       } else {
         throw new Error(result.error || result.message || 'Unknown error');
       }
@@ -283,7 +286,8 @@ export default function FillingDetailsAdmin() {
         setCancelRemarks('');
         await fetchRequestDetails();
         
-        // Redirect back after cancellation
+        // ✅✅✅ FIXED: Redirect for Cancel status
+        console.log('🔀 Redirecting to filling-requests page for Cancel status');
         setTimeout(() => {
           router.push('/filling-requests');
         }, 1500);
@@ -371,7 +375,8 @@ export default function FillingDetailsAdmin() {
   const usedAmount = parseFloat(requestData?.used_amount) || 0;
   
   const dailyLimitTotal = parseFloat(requestData?.day_limit) || 0;
-  const dailyUsedAmount = parseFloat(requestData?.day_amount) || 0;
+  // ✅ FIXED: Since day_amount doesn't exist, set to 0
+  const dailyUsedAmount = 0;
   const dailyAvailableAmount = Math.max(0, dailyLimitTotal - dailyUsedAmount);
   
   const limitBadgeLabel = availableBalance.limitType === 'daily'
@@ -471,11 +476,17 @@ export default function FillingDetailsAdmin() {
 
   const getStatusClass = (status) => {
     switch (status) {
-      case 'Cancel': return 'bg-red-100 text-red-800 border-red-200';
-      case 'Processing': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'Pending': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
+      case 'Cancel': 
+      case 'Cancelled': 
+        return 'bg-red-100 text-red-800 border-red-200';
+      case 'Processing': 
+        return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'Completed': 
+        return 'bg-green-100 text-green-800 border-green-200';
+      case 'Pending': 
+        return 'bg-yellow-100 text-yellow-800 border-yellow-200';
+      default: 
+        return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
 
@@ -513,7 +524,10 @@ export default function FillingDetailsAdmin() {
                   </h1>
                   <div className="flex items-center space-x-2">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
-                      {requestData.status} {requestData.status === 'Processing' && '🔄'}
+                      {requestData.status} 
+                      {requestData.status === 'Processing' && ' 🔄'}
+                      {(requestData.status === 'Cancel' || requestData.status === 'Cancelled') && ' ❌'}
+                      {requestData.status === 'Completed' && ' ✅'}
                     </span>
                     {availableBalance.isInsufficient && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
@@ -754,6 +768,7 @@ export default function FillingDetailsAdmin() {
                 </div>
               </div>
 
+              {/* ✅✅✅ FIXED: Hide Update Request form for Completed and Cancel status */}
               {requestData.status !== 'Cancel' && requestData.status !== 'Cancelled' && requestData.status !== 'Completed' && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
@@ -890,6 +905,7 @@ export default function FillingDetailsAdmin() {
                                   onChange={handleInputChange}
                                   className="block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                 >
+                                  <option value="Pending">Pending</option>
                                   <option value="Processing">Processing</option>
                                   <option value="Completed">Completed</option>
                                   <option value="Cancel">Cancel</option>

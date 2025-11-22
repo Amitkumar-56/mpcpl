@@ -62,6 +62,7 @@ export default function Header() {
         });
       });
       s.on('customer_message_notification', (data) => {
+        console.log('Header: Received customer_message_notification:', data);
         setNotifCount((c) => c + 1);
         setNotifications((list) => [{
           id: `${data.messageId}`,
@@ -71,6 +72,12 @@ export default function Header() {
           timestamp: data.timestamp,
           status: data.status,
         }, ...list].slice(0, 20));
+        
+        // If not on dashboard, show notification and redirect to dashboard
+        if (pathname !== '/dashboard') {
+          // Optionally redirect to dashboard with chat open
+          // router.push('/dashboard?chat=true&customerId=' + data.customerId);
+        }
       });
       s.on('chat_assigned', (data) => {
         setNotifications((list) => [{

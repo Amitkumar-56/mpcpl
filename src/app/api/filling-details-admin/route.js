@@ -16,6 +16,7 @@ export async function GET(req) {
 
     let data;
     try {
+      // ✅ FIXED: Remove day_amount from query
       const query = `
         SELECT 
           fr.*,
@@ -36,7 +37,6 @@ export async function GET(req) {
           cb.created_at,
           cb.updated_at,
           cb.day_limit,
-          cb.day_amount,
           cb.is_active,
           fss.stock as station_stock,
           pc.pcode as sub_product_code
@@ -191,7 +191,7 @@ export async function POST(request) {
     const credit_limit = parseFloat(formData.get('credit_limit')) || 0;
     const available_balance = parseFloat(formData.get('available_balance')) || 0;
     const day_limit = parseFloat(formData.get('day_limit')) || 0;
-    const day_amount = parseFloat(formData.get('day_amount')) || 0;
+    // ✅ FIXED: Remove day_amount since column doesn't exist
     const price = parseFloat(formData.get('price')) || 0;
     const aqty = parseFloat(formData.get('aqty')) || 0;
     const status = formData.get('status');
@@ -211,7 +211,8 @@ export async function POST(request) {
     }
 
     // ✅ UPDATED: For ALL customer types, check balance (both day limit and amtlimit)
-    if (status === 'Processing' || status === 'Completed') {
+    // ✅ FIX: Only check balance for Completed status, NOT for Processing
+    if (status === 'Completed') {
       const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
       
       if (!balanceCheck.sufficient) {
@@ -273,7 +274,7 @@ export async function POST(request) {
       
       resultMessage = await handleCompletedStatus({
         id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
-        oldstock, credit_limit, available_balance, day_limit, day_amount,
+        oldstock, credit_limit, available_balance, day_limit,
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
         isDayLimitCustomer
       });
@@ -585,7 +586,7 @@ async function handleProcessingStatus(data) {
 async function handleCompletedStatus(data) {
   const {
     id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
-    oldstock, credit_limit, available_balance, day_limit, day_amount,
+    oldstock, credit_limit, available_balance, day_limit,
     price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
     isDayLimitCustomer = false
   } = data;
@@ -617,6 +618,7 @@ async function handleCompletedStatus(data) {
     customerDayLimit = parseInt(latestAmountRows[0].day_limit) || 0;
   }
 
+  // ✅ CORRECTED: Calculate new balances
   const new_available_balance = old_available_balance - calculatedAmount;
   const new_used_amount = old_used_amount + calculatedAmount;
 
@@ -627,13 +629,14 @@ async function handleCompletedStatus(data) {
     new_available_balance: new_available_balance,
     old_used_amount: old_used_amount,
     new_used_amount: new_used_amount,
-    customerDayLimit
+    customerDayLimit,
+    finalPrice,
+    aqty
   });
 
   const now = getIndianTime();
 
   let updateBalanceQuery = '';
-  let balanceType = '';
   let queryParams = [];
   
   // ✅ CORRECTED: Only apply day limit logic for day limit customers
@@ -645,7 +648,6 @@ async function handleCompletedStatus(data) {
           updated_at = ? 
       WHERE com_id = ?
     `;
-    balanceType = 'day';
     queryParams = [calculatedAmount, now, cl_id];
     console.log('✅ Day limit customer - Only used amount updated (no available balance deduction)');
   } else {
@@ -657,7 +659,6 @@ async function handleCompletedStatus(data) {
           updated_at = ? 
       WHERE com_id = ?
     `;
-    balanceType = 'credit';
     queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
     console.log('✅ Credit limit customer - Available balance decreased, used amount increased');
   }
@@ -700,7 +701,7 @@ async function handleCompletedStatus(data) {
     const baseCols = [
       'rid','fs_id','product_id','sub_product_id','trans_type','current_stock','filling_qty','amount',
       'available_stock','filling_date','cl_id','created_by','old_amount','new_amount','remaining_limit',
-      'payment_status', 'limit_type'
+      'payment_status'
     ];
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
@@ -708,8 +709,7 @@ async function handleCompletedStatus(data) {
       isDayLimitCustomer ? old_used_amount : old_available_balance,
       isDayLimitCustomer ? new_used_amount : new_available_balance,
       calculatedAmount,
-      paymentStatus, // payment_status
-      balanceType // limit_type
+      paymentStatus
     ];
 
     // Only add day limit columns for day limit customers
@@ -741,8 +741,8 @@ async function handleCompletedStatus(data) {
       INSERT INTO filling_history 
       (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
        available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit,
-       payment_status, limit_type) 
-      VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       payment_status) 
+      VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
@@ -750,8 +750,7 @@ async function handleCompletedStatus(data) {
       isDayLimitCustomer ? old_used_amount : old_available_balance,
       isDayLimitCustomer ? new_used_amount : new_available_balance,
       calculatedAmount,
-      paymentStatus, // payment_status
-      balanceType // limit_type
+      paymentStatus
     ]);
   }
 
@@ -764,8 +763,8 @@ async function handleCompletedStatus(data) {
     await handleNonBillingStocks(fs_id, product_id, aqty);
   }
 
-  // Update wallet history
-  await updateWalletHistory(cl_id, rid, calculatedAmount, balanceType, 
+  // Update wallet history - REMOVED balanceType parameter
+  await updateWalletHistory(cl_id, rid, calculatedAmount, 
     isDayLimitCustomer ? old_used_amount : old_available_balance, 
     isDayLimitCustomer ? new_used_amount : new_available_balance
   );
@@ -881,18 +880,12 @@ async function updateFillingRequest(data) {
   return 'Request updated successfully';
 }
 
-async function updateWalletHistory(cl_id, rid, deductedAmount, balanceType, oldBalance, newBalance) {
+// ✅ FIXED: Remove balanceType parameter
+async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBalance) {
   try {
-    let description;
+    const description = 'Fuel Purchase';
     
-    if (balanceType === 'day' || balanceType === 'day_limit') {
-      description = 'Fuel Purchase - Day Limit';
-    } else {
-      description = 'Fuel Purchase - Credit Limit';
-    }
-
     console.log('💰 Wallet History Update:', {
-      balanceType,
       oldBalance,
       deductedAmount,
       newBalance,

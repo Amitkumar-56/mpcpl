@@ -17,7 +17,7 @@ export async function GET() {
         COALESCE(cb.amtlimit, 0) AS amtlimit,
         COALESCE(cb.balance, 0) AS balance,
         COALESCE(cb.cst_limit, 0) AS cst_limit,
-        COALESCE(cb.day_amount, 0) AS day_amount,
+        
         COALESCE(cb.total_day_amount, 0) AS total_day_amount,
         COALESCE(cb.day_limit, 0) AS day_limit,
         COALESCE(cb.is_active, 1) AS is_active
@@ -33,7 +33,7 @@ export async function GET() {
       // Ensure all required fields are present
       is_active: row.is_active ?? 1,
       day_limit: row.day_limit ?? 0,
-      day_amount: row.day_amount ?? 0,
+  
       total_day_amount: row.total_day_amount ?? 0
     }));
 
@@ -83,7 +83,7 @@ export async function PATCH(req) {
         // Update existing balance record - disable credit limits, enable day limit
         await executeQuery(
           `UPDATE customer_balances 
-           SET day_limit = ?, day_amount = 0, total_day_amount = 0, day_limit_expiry = NULL,
+           SET day_limit = ?, total_day_amount = 0,
                amtlimit = 0, cst_limit = 0, is_active = 1
            WHERE com_id = ?`,
           [limitValue, customerId]
@@ -92,8 +92,8 @@ export async function PATCH(req) {
         // Insert new balance record for day limit
         await executeQuery(
           `INSERT INTO customer_balances 
-           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, total_day_amount, day_limit_expiry, is_active) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [0, 0, 0, 0, customerId, limitValue, 0, 0, null, 1]
         );
       }
@@ -124,15 +124,15 @@ export async function PATCH(req) {
         await executeQuery(
           `UPDATE customer_balances 
            SET cst_limit = ?, amtlimit = ?, 
-               day_limit = 0, day_amount = 0, total_day_amount = 0, day_limit_expiry = NULL
+               day_limit = 0, total_day_amount = 0
            WHERE com_id = ?`,
           [limitValue, limitValue, customerId]
         );
       } else {
         await executeQuery(
           `INSERT INTO customer_balances 
-           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, total_day_amount, day_limit_expiry, is_active) 
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [0, 0, limitValue, limitValue, customerId, 0, 0, 0, null, 1]
         );
       }

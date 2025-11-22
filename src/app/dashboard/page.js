@@ -298,6 +298,17 @@ export default function DashboardPage() {
           }
           return [chatItem, ...prev];
         });
+        // Auto-open chat widget when notification is received
+        if (!showChat) {
+          setShowChat(true);
+        }
+        // Auto-select the customer chat when notification is received
+        setSelectedCustomer({
+          customerId: data.customerId,
+          customerName: data.customerName,
+          lastMessage: { id: data.messageId, text: data.text, timestamp: data.timestamp, sender: 'customer' },
+          unread: true,
+        });
       });
       
       s.on('chat_assigned', (data) => {
