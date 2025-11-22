@@ -123,6 +123,12 @@ function ItemsListContent() {
     router.push(`/items?page=${page}`);
   };
 
+  // Format price in Indian Rupees
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return '₹0';
+    return `₹${new Intl.NumberFormat('en-IN').format(price)}`;
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -224,7 +230,7 @@ function ItemsListContent() {
                       Price
                     </th>
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Action
+                      Actions
                     </th>
                   </tr>
                 </thead>
@@ -239,7 +245,7 @@ function ItemsListContent() {
                           {item.item_name}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${parseFloat(item.price).toFixed(2)}
+                          {formatPrice(item.price)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-3">

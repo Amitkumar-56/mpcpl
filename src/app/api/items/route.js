@@ -8,16 +8,31 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 10;
     const offset = (page - 1) * limit;
 
+    // Validate parameters
+    if (isNaN(page) || page < 1) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid page parameter' },
+        { status: 400 }
+      );
+    }
+
+    if (isNaN(limit) || limit < 1 || limit > 100) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid limit parameter' },
+        { status: 400 }
+      );
+    }
+
     // Fetch total number of records
     const totalRecordsResult = await executeQuery('SELECT COUNT(*) as total FROM items');
-    const totalRecords = totalRecordsResult[0].total;
+    const totalRecords = parseInt(totalRecordsResult[0].total);
 
     // Calculate total pages
     const totalPages = Math.ceil(totalRecords / limit);
 
     // Fetch items data for the current page
     const items = await executeQuery(
-      'SELECT id, item_name, price, image_path FROM items LIMIT ? OFFSET ?',
+      'SELECT id, item_name, price, image_path FROM items ORDER BY id DESC LIMIT ? OFFSET ?',
       [limit, offset]
     );
 
@@ -38,7 +53,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error fetching items:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
@@ -56,13 +71,32 @@ export async function DELETE(request) {
       );
     }
 
-    // Delete item from database
-    const result = await executeQuery('DELETE FROM items WHERE id = ?', [id]);
+    // Convert id to integer and validate
+    const itemId = parseInt(id);
+    if (isNaN(itemId) || itemId < 1) {
+      return NextResponse.json(
+        { success: false, error: 'Invalid Item ID' },
+        { status: 400 }
+      );
+    }
 
-    if (result.affectedRows === 0) {
+    // First, check if item exists
+    const existingItem = await executeQuery('SELECT id FROM items WHERE id = ?', [itemId]);
+    
+    if (existingItem.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Item not found' },
         { status: 404 }
+      );
+    }
+
+    // Delete item from database
+    const result = await executeQuery('DELETE FROM items WHERE id = ?', [itemId]);
+
+    if (result.affectedRows === 0) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to delete item' },
+        { status: 500 }
       );
     }
 
@@ -74,7 +108,7 @@ export async function DELETE(request) {
   } catch (error) {
     console.error('Error deleting item:', error);
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: 'Internal server error' },
       { status: 500 }
     );
   }
