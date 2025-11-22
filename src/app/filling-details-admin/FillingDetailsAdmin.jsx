@@ -210,7 +210,7 @@ export default function FillingDetailsAdmin() {
           case 'Completed':
             successMessage = 'Request Completed Successfully!';
             break;
-          case 'Cancel':
+          case 'Cancelled':
             successMessage = 'Request Cancelled Successfully!';
             break;
           default:
@@ -230,9 +230,9 @@ export default function FillingDetailsAdmin() {
         // Refresh data from server to confirm
         await fetchRequestDetails();
         
-        // ✅✅✅ FIXED: Redirect ONLY for Completed and Cancel status
-        if (formData.status === 'Completed' || formData.status === 'Cancel') {
-          console.log('🔀 Redirecting to filling-requests page for Completed/Cancel status');
+        // ✅✅✅ FIXED: Redirect ONLY for Completed and Cancelled status
+        if (formData.status === 'Completed' || formData.status === 'Cancelled') {
+          console.log('🔀 Redirecting to filling-requests page for Completed/Cancelled status');
           setTimeout(() => {
             router.push('/filling-requests');
           }, 1500);
@@ -263,7 +263,7 @@ export default function FillingDetailsAdmin() {
       const submitData = new FormData();
       submitData.append('id', id);
       submitData.append('rid', requestData.rid);
-      submitData.append('status', 'Cancel');
+      submitData.append('status', 'Cancelled'); // ✅ FIXED: Use 'Cancelled' instead of 'Cancel'
       submitData.append('remarks', cancelRemarks);
 
       const response = await fetch('/api/filling-details-admin', {
@@ -279,15 +279,15 @@ export default function FillingDetailsAdmin() {
         // Immediately update local state
         setRequestData(prev => ({
           ...prev,
-          status: 'Cancel'
+          status: 'Cancelled'
         }));
         
         setShowCancelModal(false);
         setCancelRemarks('');
         await fetchRequestDetails();
         
-        // ✅✅✅ FIXED: Redirect for Cancel status
-        console.log('🔀 Redirecting to filling-requests page for Cancel status');
+        // ✅✅✅ FIXED: Redirect for Cancelled status
+        console.log('🔀 Redirecting to filling-requests page for Cancelled status');
         setTimeout(() => {
           router.push('/filling-requests');
         }, 1500);
@@ -476,7 +476,6 @@ export default function FillingDetailsAdmin() {
 
   const getStatusClass = (status) => {
     switch (status) {
-      case 'Cancel': 
       case 'Cancelled': 
         return 'bg-red-100 text-red-800 border-red-200';
       case 'Processing': 
@@ -495,6 +494,11 @@ export default function FillingDetailsAdmin() {
     const price = requestData.fuel_price || requestData.price || 0;
     return (aqty * price).toFixed(2);
   };
+
+  // ✅ FIXED: Check for all cancelled status variations
+  const isFinalStatus = requestData.status === 'Cancel' || 
+                       requestData.status === 'Cancelled' || 
+                       requestData.status === 'Completed';
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -768,8 +772,8 @@ export default function FillingDetailsAdmin() {
                 </div>
               </div>
 
-              {/* ✅✅✅ FIXED: Hide Update Request form for Completed and Cancel status */}
-              {requestData.status !== 'Cancel' && requestData.status !== 'Cancelled' && requestData.status !== 'Completed' && (
+              {/* ✅✅✅ FIXED: Hide Update Request form for Completed and ALL Cancelled status variations */}
+              {!isFinalStatus && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
                     <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
@@ -908,7 +912,7 @@ export default function FillingDetailsAdmin() {
                                   <option value="Pending">Pending</option>
                                   <option value="Processing">Processing</option>
                                   <option value="Completed">Completed</option>
-                                  <option value="Cancel">Cancel</option>
+                                  <option value="Cancelled">Cancelled</option>
                                 </select>
                               </div>
                             </td>
@@ -965,6 +969,7 @@ export default function FillingDetailsAdmin() {
                                       </svg>
                                       {formData.status === 'Processing' ? 'Mark as Processing' : 
                                        formData.status === 'Completed' ? 'Complete Request' : 
+                                       formData.status === 'Cancelled' ? 'Cancel Request' : 
                                        'Update Request'}
                                     </>
                                   )}
@@ -975,6 +980,48 @@ export default function FillingDetailsAdmin() {
                         </tbody>
                       </table>
                     </form>
+                  </div>
+                </div>
+              )}
+
+              {/* Final Status Message */}
+              {isFinalStatus && (
+                <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-900">
+                      Request Status
+                    </h2>
+                  </div>
+                  <div className="p-6 text-center">
+                    <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full ${getStatusClass(requestData.status)} mb-4`}>
+                      {requestData.status === 'Completed' && (
+                        <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {(requestData.status === 'Cancel' || requestData.status === 'Cancelled') && (
+                        <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-2">
+                      This request is {requestData.status.toLowerCase()}
+                    </h3>
+                    <p className="text-gray-600 mb-4">
+                      {requestData.status === 'Completed' 
+                        ? 'This filling request has been completed successfully.' 
+                        : 'This filling request has been cancelled.'}
+                    </p>
+                    <button 
+                      onClick={() => router.push('/filling-requests')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors inline-flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                      </svg>
+                      Back to Requests
+                    </button>
                   </div>
                 </div>
               )}
@@ -997,7 +1044,7 @@ export default function FillingDetailsAdmin() {
                         className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg transition-colors"
                         disabled={submitting}
                       >
-                        Cancel
+                        Close
                       </button>
                       <button
                         onClick={handleCancelRequest}
