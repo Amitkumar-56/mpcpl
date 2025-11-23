@@ -69,8 +69,10 @@ export async function POST(request) {
       params.push(from_date, to_date);
     }
 
-    queryStr += " ORDER BY fr.created DESC LIMIT ? OFFSET ?";
-    params.push(parseInt(limit), parseInt(offset));
+    // Use direct values for LIMIT and OFFSET to avoid MySQL prepared statement issues
+    const limitValue = parseInt(limit) || 100;
+    const offsetValue = parseInt(offset) || 0;
+    queryStr += ` ORDER BY fr.created DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
 
     console.log('📝 Query:', queryStr);
     console.log('🔢 Params:', params);
