@@ -694,6 +694,17 @@ async function handleCompletedStatus(data) {
     sub_product_id, finalPrice, calculatedAmount, paymentStatus, id, rid
   ]);
 
+  // Get last new_amount from filling_history for this customer (for old_amount calculation)
+  const getLastNewAmountQuery = `
+    SELECT new_amount 
+    FROM filling_history 
+    WHERE cl_id = ? 
+    ORDER BY filling_date DESC, id DESC 
+    LIMIT 1
+  `;
+  const lastNewAmountRows = await executeQuery(getLastNewAmountQuery, [cl_id]);
+  const previous_new_amount = lastNewAmountRows.length > 0 ? parseFloat(lastNewAmountRows[0].new_amount) || 0 : 0;
+
   try {
     const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
     const colSet = new Set(colsInfo.map(r => r.Field));
@@ -706,8 +717,8 @@ async function handleCompletedStatus(data) {
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      isDayLimitCustomer ? old_used_amount : old_available_balance,
-      isDayLimitCustomer ? (old_used_amount + calculatedAmount) : (old_available_balance + calculatedAmount), // new_amount = old_amount + amount
+      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
+      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
       isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
       paymentStatus
     ];
@@ -744,8 +755,8 @@ async function handleCompletedStatus(data) {
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      isDayLimitCustomer ? old_used_amount : old_available_balance,
-      isDayLimitCustomer ? (old_used_amount + calculatedAmount) : (old_available_balance + calculatedAmount), // new_amount = old_amount + amount
+      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
+      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
       isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
       paymentStatus
     ]);
@@ -760,10 +771,10 @@ async function handleCompletedStatus(data) {
     await handleNonBillingStocks(fs_id, product_id, aqty);
   }
 
-  // Update wallet history - REMOVED balanceType parameter
+  // Update wallet history - using same logic as filling_history
   await updateWalletHistory(cl_id, rid, calculatedAmount, 
-    isDayLimitCustomer ? old_used_amount : old_available_balance, 
-    isDayLimitCustomer ? new_used_amount : new_available_balance
+    previous_new_amount || 0, // old_balance: previous new_amount (0 if first request)
+    previous_new_amount + calculatedAmount // new_balance: old_amount + amount
   );
 
   return 'Request Completed Successfully';
@@ -889,11 +900,28 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
       description
     });
 
-    await executeQuery(
-      `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type, description) 
-       VALUES (?, ?, ?, ?, ?, NOW(), 4, ?)`,
-      [cl_id, rid, oldBalance, deductedAmount, newBalance, description]
-    );
+    // Check if record exists for this rid
+    const checkQuery = `SELECT id FROM wallet_history WHERE rid = ? LIMIT 1`;
+    const existingRecord = await executeQuery(checkQuery, [rid]);
+
+    if (existingRecord.length > 0) {
+      // Update existing record
+      await executeQuery(
+        `UPDATE wallet_history 
+         SET old_balance = ?, deducted = ?, c_balance = ?, d_date = NOW(), description = ?
+         WHERE rid = ?`,
+        [oldBalance, deductedAmount, newBalance, description, rid]
+      );
+      console.log('✅ Wallet history updated for rid:', rid);
+    } else {
+      // Insert new record
+      await executeQuery(
+        `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type, description) 
+         VALUES (?, ?, ?, ?, ?, NOW(), 4, ?)`,
+        [cl_id, rid, oldBalance, deductedAmount, newBalance, description]
+      );
+      console.log('✅ Wallet history inserted for rid:', rid);
+    }
   } catch (error) {
     console.error('❌ Error in updateWalletHistory:', error);
   }
