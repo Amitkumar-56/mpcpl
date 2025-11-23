@@ -706,9 +706,9 @@ async function handleCompletedStatus(data) {
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      isDayLimitCustomer ? old_used_amount : old_available_balance,
-      calculatedAmount, // new_amount should be total calculated amount (qty * deal_price)
-      isDayLimitCustomer ? new_used_amount : new_available_balance, // remaining_limit = amtlimit - total_calculate_amount
+      isDayLimitCustomer ? old_used_amount : new_available_balance, // old_amount: old balance for day_limit, new_balance for regular
+      isDayLimitCustomer ? new_used_amount : (old_available_balance + calculatedAmount), // new_amount: old balance + amount for both
+      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, amtlimit - total_calculate_amount for others
       paymentStatus
     ];
 
@@ -726,10 +726,7 @@ async function handleCompletedStatus(data) {
         baseCols.push('day_limit_validity_days');
         baseVals.push(dayValidityDays);
       }
-      if (colSet.has('day_limit_amount')) {
-        baseCols.push('day_limit_amount');
-        baseVals.push(calculatedAmount);
-      }
+      // day_limit_amount should NOT be inserted for day limit customers
     }
 
     const placeholders = baseCols.map(() => '?').join(', ');
@@ -747,9 +744,9 @@ async function handleCompletedStatus(data) {
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      isDayLimitCustomer ? old_used_amount : old_available_balance,
-      calculatedAmount, // new_amount should be total calculated amount (qty * deal_price)
-      isDayLimitCustomer ? new_used_amount : new_available_balance, // remaining_limit = amtlimit - total_calculate_amount
+      isDayLimitCustomer ? old_used_amount : new_available_balance, // old_amount: old balance for day_limit, new_balance for regular
+      isDayLimitCustomer ? new_used_amount : (old_available_balance + calculatedAmount), // new_amount: old balance + amount for both
+      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, amtlimit - total_calculate_amount for others
       paymentStatus
     ]);
   }
