@@ -707,8 +707,8 @@ async function handleCompletedStatus(data) {
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
       isDayLimitCustomer ? old_used_amount : old_available_balance,
-      isDayLimitCustomer ? new_used_amount : new_available_balance,
-      calculatedAmount,
+      calculatedAmount, // new_amount should be total calculated amount (qty * deal_price)
+      isDayLimitCustomer ? new_used_amount : new_available_balance, // remaining_limit = amtlimit - total_calculate_amount
       paymentStatus
     ];
 
@@ -748,8 +748,8 @@ async function handleCompletedStatus(data) {
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
       isDayLimitCustomer ? old_used_amount : old_available_balance,
-      isDayLimitCustomer ? new_used_amount : new_available_balance,
-      calculatedAmount,
+      calculatedAmount, // new_amount should be total calculated amount (qty * deal_price)
+      isDayLimitCustomer ? new_used_amount : new_available_balance, // remaining_limit = amtlimit - total_calculate_amount
       paymentStatus
     ]);
   }
