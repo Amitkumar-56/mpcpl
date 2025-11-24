@@ -36,6 +36,9 @@ export async function POST(request) {
         fr.is_checked,
         fr.checked_by,
         fr.checked_at,
+         fr.is_invoiced,           -- NEW COLUMN
+        fr.invoiced_by,           -- NEW COLUMN  
+        fr.invoiced_at,           -- NEW COLUMN
         COALESCE(fr.totalamt, 0) as amount,
         p.pname AS product_name, 
         fs.station_name, 
@@ -46,6 +49,7 @@ export async function POST(request) {
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
       LEFT JOIN employee_profile ep ON fr.checked_by = ep.id
+      LEFT JOIN employee_profile ep_invoice ON fr.invoiced_by = ep_invoice.id  -- NEW JOIN
       WHERE fr.status = 'Completed'
     `;
 

@@ -39,21 +39,22 @@ function ReportHistoryContent() {
   
   const [loading, setLoading] = useState(false);
   const [selectedRecords, setSelectedRecords] = useState(new Set());
+  const [invoicedRecords, setInvoicedRecords] = useState(new Set());
   const [employeeProfile, setEmployeeProfile] = useState(null);
+  const [checkingRecords, setCheckingRecords] = useState(new Set());
+  const [invoicingRecords, setInvoicingRecords] = useState(new Set());
 
-  // Get employee profile - सिर्फ ID और Name लें
+  // Get employee profile
   useEffect(() => {
     const getEmployeeProfile = () => {
       try {
-        // Check multiple storage keys - login system stores as 'user' in sessionStorage
-        const sessionUser = sessionStorage.getItem('user'); // SessionContext stores here
+        const sessionUser = sessionStorage.getItem('user');
         const localStorageUser = localStorage.getItem('user');
         const localStorageProfile = localStorage.getItem('employee_profile');
         const sessionStorageProfile = sessionStorage.getItem('employee_profile');
         
         let profile = null;
         
-        // Priority: sessionStorage 'user' > localStorage 'user' > sessionStorage 'employee_profile' > localStorage 'employee_profile'
         if (sessionUser) {
           profile = JSON.parse(sessionUser);
         } else if (localStorageUser) {
@@ -65,19 +66,9 @@ function ReportHistoryContent() {
         }
         
         if (profile && profile.id) {
-          // सिर्फ ID और Name लें - बाकी कुछ नहीं
           setEmployeeProfile({
             id: profile.id,
             name: profile.name || 'Unknown'
-          });
-          console.log('✅ Employee Profile Loaded:', { id: profile.id, name: profile.name });
-        } else {
-          console.warn('❌ No employee profile found');
-          console.log('Checked storage:', {
-            sessionUser: !!sessionUser,
-            localStorageUser: !!localStorageUser,
-            sessionStorageProfile: !!sessionStorageProfile,
-            localStorageProfile: !!localStorageProfile
           });
         }
       } catch (error) {
@@ -86,16 +77,10 @@ function ReportHistoryContent() {
     };
     
     getEmployeeProfile();
-    
-    // Listen for storage changes (in case user logs in on another tab)
-    const handleStorageChange = () => {
-      getEmployeeProfile();
-    };
-    
-    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('storage', getEmployeeProfile);
     
     return () => {
-      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('storage', getEmployeeProfile);
     };
   }, []);
 
@@ -149,14 +134,21 @@ function ReportHistoryContent() {
         setPagination(result.data.pagination);
         setTotals(result.data.totals);
         
-        // Update selected records based on is_checked from database
+        // Update selected records based on is_checked and is_invoiced from database
         const checkedRecords = new Set();
+        const invoicedRecords = new Set();
+        
         result.data.records.forEach(record => {
           if (record.is_checked) {
             checkedRecords.add(record.id);
           }
+          if (record.is_invoiced) {
+            invoicedRecords.add(record.id);
+          }
         });
+        
         setSelectedRecords(checkedRecords);
+        setInvoicedRecords(invoicedRecords);
       }
     } catch (error) {
       console.error('Error fetching report data:', error);
@@ -186,7 +178,6 @@ function ReportHistoryContent() {
       const result = await response.json();
       
       if (result.success && result.csv) {
-        // Convert to CSV and download
         const csvContent = [
           result.csv.headers.join(','),
           ...result.csv.data.map(row => row.join(','))
@@ -205,12 +196,14 @@ function ReportHistoryContent() {
     }
   };
 
-  // Handle check record - सिर्फ ID भेजें
+  // Handle check record with button
   const handleCheckRecord = async (recordId, isChecked) => {
     if (!employeeProfile) {
       alert('❌ Please login to check records');
       return;
     }
+
+    setCheckingRecords(prev => new Set(prev).add(recordId));
 
     try {
       const response = await fetch('/api/reports/update-check-status', {
@@ -221,7 +214,7 @@ function ReportHistoryContent() {
         body: JSON.stringify({
           record_id: recordId,
           is_checked: isChecked,
-          checked_by: employeeProfile.id // सिर्फ ID भेजें
+          checked_by: employeeProfile.id
         })
       });
       
@@ -238,27 +231,141 @@ function ReportHistoryContent() {
           return newSet;
         });
 
-        // Refresh data from API to get the actual checked_by_name from employee_profile
+        // Show success message
+        if (isChecked) {
+          const element = document.getElementById(`check-btn-${recordId}`);
+          if (element) {
+            element.classList.add('checked-success');
+            setTimeout(() => {
+              element.classList.remove('checked-success');
+            }, 2000);
+          }
+        }
+
+        // Refresh data from API
         await fetchReportData();
       }
     } catch (error) {
       console.error('Update check status error:', error);
+      alert('❌ Error updating check status');
+    } finally {
+      setCheckingRecords(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(recordId);
+        return newSet;
+      });
     }
   };
 
-  const handleSelectAll = (isChecked) => {
+  // Handle invoice record with button
+  const handleInvoiceRecord = async (recordId, isInvoiced) => {
+    if (!employeeProfile) {
+      alert('❌ Please login to invoice records');
+      return;
+    }
+
+    setInvoicingRecords(prev => new Set(prev).add(recordId));
+
+    try {
+      const response = await fetch('/api/reports/update-invoice-status', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          record_id: recordId,
+          is_invoiced: isInvoiced,
+          invoiced_by: employeeProfile.id
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        setInvoicedRecords(prev => {
+          const newSet = new Set(prev);
+          if (isInvoiced) {
+            newSet.add(recordId);
+          } else {
+            newSet.delete(recordId);
+          }
+          return newSet;
+        });
+
+        // Show success message
+        if (isInvoiced) {
+          const element = document.getElementById(`invoice-btn-${recordId}`);
+          if (element) {
+            element.classList.add('invoiced-success');
+            setTimeout(() => {
+              element.classList.remove('invoiced-success');
+            }, 2000);
+          }
+        }
+
+        // Refresh data from API
+        await fetchReportData();
+      }
+    } catch (error) {
+      console.error('Update invoice status error:', error);
+      alert('❌ Error updating invoice status');
+    } finally {
+      setInvoicingRecords(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(recordId);
+        return newSet;
+      });
+    }
+  };
+
+  const handleSelectAll = async (isChecked) => {
     if (!employeeProfile) {
       alert('❌ Please login to check records');
       return;
     }
 
-    data.records.forEach(record => {
+    // Show confirmation for uncheck all
+    if (!isChecked && selectedRecords.size > 0) {
+      const confirmUncheck = confirm(`Are you sure you want to uncheck all ${selectedRecords.size} records?`);
+      if (!confirmUncheck) return;
+    }
+
+    // Process all records
+    const promises = data.records.map(record => {
       if (isChecked && !selectedRecords.has(record.id)) {
-        handleCheckRecord(record.id, true);
+        return handleCheckRecord(record.id, true);
       } else if (!isChecked && selectedRecords.has(record.id)) {
-        handleCheckRecord(record.id, false);
+        return handleCheckRecord(record.id, false);
       }
+      return Promise.resolve();
     });
+
+    await Promise.all(promises);
+  };
+
+  const handleInvoiceAll = async (isInvoiced) => {
+    if (!employeeProfile) {
+      alert('❌ Please login to invoice records');
+      return;
+    }
+
+    // Show confirmation for uninvoice all
+    if (!isInvoiced && invoicedRecords.size > 0) {
+      const confirmUninvoice = confirm(`Are you sure you want to uninvoice all ${invoicedRecords.size} records?`);
+      if (!confirmUninvoice) return;
+    }
+
+    // Process all records
+    const promises = data.records.map(record => {
+      if (isInvoiced && !invoicedRecords.has(record.id)) {
+        return handleInvoiceRecord(record.id, true);
+      } else if (!isInvoiced && invoicedRecords.has(record.id)) {
+        return handleInvoiceRecord(record.id, false);
+      }
+      return Promise.resolve();
+    });
+
+    await Promise.all(promises);
   };
 
   const handleViewChecked = () => {
@@ -274,6 +381,21 @@ function ReportHistoryContent() {
     });
     
     router.push(`/reports/checked-records?${queryParams}`);
+  };
+
+  const handleViewInvoiced = () => {
+    if (invoicedRecords.size === 0) {
+      alert('Please select at least one record to view invoiced.');
+      return;
+    }
+    
+    const invoicedIds = Array.from(invoicedRecords).join(',');
+    const queryParams = new URLSearchParams({
+      invoiced_ids: invoicedIds,
+      ...filters
+    });
+    
+    router.push(`/reports/invoiced-records?${queryParams}`);
   };
 
   const getStatusClass = (status) => {
@@ -292,6 +414,188 @@ function ReportHistoryContent() {
     return `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
   };
 
+  // Check button component for each record
+  const CheckButton = ({ record }) => {
+    const isChecked = selectedRecords.has(record.id);
+    const isLoading = checkingRecords.has(record.id);
+    
+    return (
+      <button
+        id={`check-btn-${record.id}`}
+        onClick={() => handleCheckRecord(record.id, !isChecked)}
+        disabled={!employeeProfile || isLoading}
+        className={`
+          px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105
+          ${isChecked
+            ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg'
+            : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md'
+          }
+          ${!employeeProfile || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+          flex items-center justify-center space-x-2 min-w-[100px]
+        `}
+      >
+        {isLoading ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-xs">Processing</span>
+          </>
+        ) : isChecked ? (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span className="text-xs">Checked</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span className="text-xs">Check</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  // Invoice button component for each record
+  const InvoiceButton = ({ record }) => {
+    const isInvoiced = invoicedRecords.has(record.id);
+    const isLoading = invoicingRecords.has(record.id);
+    
+    return (
+      <button
+        id={`invoice-btn-${record.id}`}
+        onClick={() => handleInvoiceRecord(record.id, !isInvoiced)}
+        disabled={!employeeProfile || isLoading}
+        className={`
+          px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105
+          ${isInvoiced
+            ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg'
+            : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-md'
+          }
+          ${!employeeProfile || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+          flex items-center justify-center space-x-2 min-w-[100px]
+        `}
+      >
+        {isLoading ? (
+          <>
+            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-xs">Processing</span>
+          </>
+        ) : isInvoiced ? (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span className="text-xs">Invoiced</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span className="text-xs">Invoice</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  // Select All Check Button Component
+  const SelectAllCheckButton = () => {
+    const allChecked = selectedRecords.size === data.records.length && data.records.length > 0;
+    const someChecked = selectedRecords.size > 0 && selectedRecords.size < data.records.length;
+    
+    return (
+      <button
+        onClick={() => handleSelectAll(!allChecked)}
+        disabled={!employeeProfile || data.records.length === 0}
+        className={`
+          px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform hover:scale-105
+          ${allChecked
+            ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg'
+            : someChecked
+            ? 'bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white shadow-lg'
+            : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md'
+          }
+          ${!employeeProfile || data.records.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+          flex items-center space-x-3
+        `}
+      >
+        {allChecked ? (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            <span>Uncheck All ({selectedRecords.size})</span>
+          </>
+        ) : someChecked ? (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>Check All ({selectedRecords.size} of {data.records.length})</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+            </svg>
+            <span>Check All ({data.records.length})</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
+  // Select All Invoice Button Component
+  const SelectAllInvoiceButton = () => {
+    const allInvoiced = invoicedRecords.size === data.records.length && data.records.length > 0;
+    const someInvoiced = invoicedRecords.size > 0 && invoicedRecords.size < data.records.length;
+    
+    return (
+      <button
+        onClick={() => handleInvoiceAll(!allInvoiced)}
+        disabled={!employeeProfile || data.records.length === 0}
+        className={`
+          px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform hover:scale-105
+          ${allInvoiced
+            ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg'
+            : someInvoiced
+            ? 'bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white shadow-lg'
+            : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-md'
+          }
+          ${!employeeProfile || data.records.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+          flex items-center space-x-3
+        `}
+      >
+        {allInvoiced ? (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>Uninvoice All ({invoicedRecords.size})</span>
+          </>
+        ) : someInvoiced ? (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+            <span>Invoice All ({invoicedRecords.size} of {data.records.length})</span>
+          </>
+        ) : (
+          <>
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span>Invoice All ({data.records.length})</span>
+          </>
+        )}
+      </button>
+    );
+  };
+
   return (
     <div className="p-6">
       {/* Header */}
@@ -299,7 +603,7 @@ function ReportHistoryContent() {
         <div className="flex items-center space-x-4">
           <button 
             onClick={() => router.back()}
-            className="p-2 text-gray-600 hover:text-gray-900"
+            className="p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
@@ -309,31 +613,63 @@ function ReportHistoryContent() {
         </div>
         
         <div className="flex items-center space-x-4">
-          {/* Employee Profile Info - सिर्फ Name दिखाएं */}
+          {/* Employee Profile Info */}
           {employeeProfile ? (
-            <div className="bg-green-50 px-3 py-2 rounded-md border border-green-200">
-              <span className="text-sm font-medium text-green-700">
+            <div className="bg-green-50 px-4 py-2 rounded-lg border border-green-200 shadow-sm">
+              <span className="text-sm font-medium text-green-700 flex items-center">
+                <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
                 ✅ {employeeProfile.name}
               </span>
             </div>
           ) : (
-            <div className="bg-red-50 px-3 py-2 rounded-md border border-red-200">
-              <span className="text-sm font-medium text-red-700">
+            <div className="bg-red-50 px-4 py-2 rounded-lg border border-red-200 shadow-sm">
+              <span className="text-sm font-medium text-red-700 flex items-center">
+                <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
                 ❌ Not Logged In
               </span>
             </div>
           )}
           
+          {/* View Checked Records Button */}
           <button
             onClick={handleViewChecked}
             disabled={selectedRecords.size === 0}
-            className={`px-4 py-2 rounded-md ${
-              selectedRecords.size > 0 
-                ? 'bg-green-600 hover:bg-green-700 text-white' 
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+            className={`
+              px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform hover:scale-105
+              ${selectedRecords.size > 0 
+                ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg hover:shadow-xl' 
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-sm'
+              }
+              flex items-center space-x-2
+            `}
           >
-            View Checked Records ({selectedRecords.size})
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span>
+              View Checked ({selectedRecords.size})
+            </span>
+          </button>
+
+          {/* View Invoiced Records Button */}
+          <button
+            onClick={handleViewInvoiced}
+            disabled={invoicedRecords.size === 0}
+            className={`
+              px-6 py-3 rounded-lg font-semibold text-sm transition-all duration-300 transform hover:scale-105
+              ${invoicedRecords.size > 0 
+                ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg hover:shadow-xl' 
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed shadow-sm'
+              }
+              flex items-center space-x-2
+            `}
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+            </svg>
+            <span>
+              View Invoiced ({invoicedRecords.size})
+            </span>
           </button>
         </div>
       </div>
@@ -341,7 +677,7 @@ function ReportHistoryContent() {
       {/* Breadcrumb */}
       <nav className="mb-6">
         <ol className="flex items-center space-x-2 text-sm text-gray-600">
-          <li><a href="/" className="hover:text-gray-900">Home</a></li>
+          <li><a href="/" className="hover:text-gray-900 transition-colors">Home</a></li>
           <li>→</li>
           <li className="text-gray-900">Create Report</li>
         </ol>
@@ -357,7 +693,7 @@ function ReportHistoryContent() {
             <select
               value={filters.product}
               onChange={(e) => handleFilterChange('product', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             >
               <option value="">All Products</option>
               {data.products.map(product => (
@@ -374,7 +710,7 @@ function ReportHistoryContent() {
             <select
               value={filters.loading_station}
               onChange={(e) => handleFilterChange('loading_station', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             >
               <option value="">All Stations</option>
               {data.stations.map(station => (
@@ -391,7 +727,7 @@ function ReportHistoryContent() {
             <select
               value={filters.customer}
               onChange={(e) => handleFilterChange('customer', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             >
               <option value="">All Customers</option>
               {data.customers.map(customer => (
@@ -409,7 +745,7 @@ function ReportHistoryContent() {
               type="date"
               value={filters.from_date}
               onChange={(e) => handleFilterChange('from_date', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
 
@@ -420,7 +756,7 @@ function ReportHistoryContent() {
               type="date"
               value={filters.to_date}
               onChange={(e) => handleFilterChange('to_date', e.target.value)}
-              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
             />
           </div>
 
@@ -428,13 +764,13 @@ function ReportHistoryContent() {
           <div className="flex items-end space-x-2">
             <button
               onClick={fetchReportData}
-              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 transition-colors"
             >
               Filter
             </button>
             <button
               onClick={handleExport}
-              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500"
+              className="px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500 transition-colors"
             >
               Export
             </button>
@@ -444,46 +780,58 @@ function ReportHistoryContent() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4">
+        <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg p-4 shadow-sm">
           <div className="text-sm font-medium text-gray-600">Total Quantity (Filtered)</div>
           <div className="text-2xl font-bold text-blue-600">{totals.grandTotalQty.toFixed(2)}</div>
           <div className="text-xs text-gray-500">Showing: {totals.pageQty.toFixed(2)} (This Page)</div>
         </div>
         
-        <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4">
+        <div className="bg-green-50 border-l-4 border-green-500 rounded-lg p-4 shadow-sm">
           <div className="text-sm font-medium text-gray-600">Total Amount (Filtered)</div>
           <div className="text-2xl font-bold text-green-600">₹{totals.grandTotalAmount.toFixed(2)}</div>
           <div className="text-xs text-gray-500">Showing: ₹{totals.pageAmount.toFixed(2)} (This Page)</div>
         </div>
         
-        <div className="bg-purple-50 border-l-4 border-purple-500 rounded-lg p-4">
+        <div className="bg-purple-50 border-l-4 border-purple-500 rounded-lg p-4 shadow-sm">
           <div className="text-sm font-medium text-gray-600">Total Records (Filtered)</div>
           <div className="text-2xl font-bold text-purple-600">{totals.grandTotalRecords}</div>
           <div className="text-xs text-gray-500">Showing: {totals.pageRecords} (This Page)</div>
         </div>
       </div>
 
-      {/* Select All */}
-      <div className="bg-gray-50 rounded-lg p-4 mb-4">
-        <label className="flex items-center space-x-2">
-          <input
-            type="checkbox"
-            checked={selectedRecords.size === data.records.length && data.records.length > 0}
-            onChange={(e) => handleSelectAll(e.target.checked)}
-            disabled={!employeeProfile}
-            className={`w-5 h-5 ${
-              employeeProfile 
-                ? 'text-blue-600 bg-blue-100 border-blue-300 rounded focus:ring-blue-500 focus:ring-2' 
-                : 'text-gray-400 bg-gray-100 border-gray-300 cursor-not-allowed'
-            }`}
-          />
-          <span className={`text-sm font-medium ${
-            !employeeProfile ? 'text-gray-400' : 'text-gray-700'
-          }`}>
-            Select All ({data.records.length} records on this page)
-            {!employeeProfile && " - Please login to select records"}
-          </span>
-        </label>
+      {/* Select All Buttons - New Design */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+        {/* Check All Section */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Check Records</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {employeeProfile 
+                  ? `Mark records as checked for verification`
+                  : 'Please login to check records'
+                }
+              </p>
+            </div>
+            <SelectAllCheckButton />
+          </div>
+        </div>
+
+        {/* Invoice All Section */}
+        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-4 border border-orange-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800">Invoice Records</h3>
+              <p className="text-sm text-gray-600 mt-1">
+                {employeeProfile 
+                  ? `Mark records as invoiced for billing`
+                  : 'Please login to invoice records'
+                }
+              </p>
+            </div>
+            <SelectAllInvoiceButton />
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -492,7 +840,8 @@ function ReportHistoryContent() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Select</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Check</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoice</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
@@ -506,6 +855,8 @@ function ReportHistoryContent() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Checked By</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Checked At</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoiced By</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoiced At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
@@ -513,7 +864,7 @@ function ReportHistoryContent() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="16" className="px-6 py-4 text-center">
+                  <td colSpan="19" className="px-6 py-4 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
@@ -521,19 +872,21 @@ function ReportHistoryContent() {
                 </tr>
               ) : data.records.length > 0 ? (
                 data.records.map((record, index) => (
-                  <tr key={record.id} className="hover:bg-gray-50">
+                  <tr 
+                    key={record.id} 
+                    className={`
+                      hover:bg-gray-50 transition-colors
+                      ${selectedRecords.has(record.id) ? 'bg-green-50 border-l-4 border-l-green-500' : ''}
+                      ${invoicedRecords.has(record.id) ? 'bg-purple-50 border-r-4 border-r-purple-500' : ''}
+                      ${checkingRecords.has(record.id) ? 'bg-blue-50' : ''}
+                      ${invoicingRecords.has(record.id) ? 'bg-orange-50' : ''}
+                    `}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <input
-                        type="checkbox"
-                        checked={selectedRecords.has(record.id)}
-                        onChange={(e) => handleCheckRecord(record.id, e.target.checked)}
-                        disabled={!employeeProfile}
-                        className={`w-5 h-5 ${
-                          employeeProfile 
-                            ? 'text-blue-600 bg-blue-100 border-blue-300 rounded focus:ring-blue-500 focus:ring-2' 
-                            : 'text-gray-400 bg-gray-100 border-gray-300 cursor-not-allowed'
-                        }`}
-                      />
+                      <CheckButton record={record} />
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <InvoiceButton record={record} />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       {(pagination.currentPage - 1) * 100 + index + 1}
@@ -559,6 +912,12 @@ function ReportHistoryContent() {
                       {record.checked_at ? formatDateTime(record.checked_at) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.invoiced_by_name || '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.invoiced_at ? formatDateTime(record.invoiced_at) : '-'}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex space-x-1">
                         {['doc1', 'doc2', 'doc3'].map((doc) => (
                           <a
@@ -566,12 +925,12 @@ function ReportHistoryContent() {
                             href={record[doc] || '/assets/4595376-200.png'}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="block"
+                            className="block transition-transform hover:scale-110"
                           >
                             <img
                               src={record[doc] || '/assets/4595376-200.png'}
                               alt="Document"
-                              className="w-10 h-10 object-cover rounded border"
+                              className="w-10 h-10 object-cover rounded border shadow-sm"
                             />
                           </a>
                         ))}
@@ -586,7 +945,7 @@ function ReportHistoryContent() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="16" className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan="19" className="px-6 py-4 text-center text-sm text-gray-500">
                     No filling requests found
                   </td>
                 </tr>
@@ -603,7 +962,7 @@ function ReportHistoryContent() {
             <button
               onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }))}
               disabled={pagination.currentPage === 1}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Previous
             </button>
@@ -612,9 +971,9 @@ function ReportHistoryContent() {
               <button
                 key={page}
                 onClick={() => setPagination(prev => ({ ...prev, currentPage: page }))}
-                className={`px-3 py-2 text-sm font-medium rounded-md ${
+                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
                   page === pagination.currentPage
-                    ? 'bg-blue-600 text-white'
+                    ? 'bg-blue-600 text-white shadow-md'
                     : 'text-gray-500 bg-white border border-gray-300 hover:bg-gray-50'
                 }`}
               >
@@ -625,7 +984,7 @@ function ReportHistoryContent() {
             <button
               onClick={() => setPagination(prev => ({ ...prev, currentPage: prev.currentPage + 1 }))}
               disabled={pagination.currentPage === pagination.totalPages}
-              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-3 py-2 text-sm font-medium text-gray-500 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               Next
             </button>

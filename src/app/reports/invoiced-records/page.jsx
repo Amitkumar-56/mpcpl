@@ -1,12 +1,11 @@
-
-//src/app/reports/checked-records/page.jsx
+// src/app/reports/invoiced-records/page.jsx
 'use client';
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
-function CheckedRecordsContent() {
+function InvoicedRecordsContent() {
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState({ totalQty: 0, totalAmount: 0, totalRecords: 0 });
   const [loading, setLoading] = useState(true);
@@ -16,12 +15,12 @@ function CheckedRecordsContent() {
   const router = useRouter();
 
   useEffect(() => {
-    const fetchCheckedRecords = async () => {
+    const fetchInvoicedRecords = async () => {
       try {
         setLoading(true);
-        const checkedIds = searchParams.get('checked_ids');
+        const invoicedIds = searchParams.get('invoiced_ids');
         
-        if (!checkedIds) {
+        if (!invoicedIds) {
           setError('No records selected.');
           setLoading(false);
           return;
@@ -29,7 +28,7 @@ function CheckedRecordsContent() {
 
         // Get all search params
         const params = new URLSearchParams();
-        params.append('checked_ids', checkedIds);
+        params.append('invoiced_ids', invoicedIds);
         
         const product = searchParams.get('product');
         const loading_station = searchParams.get('loading_station');
@@ -43,7 +42,7 @@ function CheckedRecordsContent() {
         if (from_date) params.append('from_date', from_date);
         if (to_date) params.append('to_date', to_date);
 
-        const response = await fetch(`/api/reports/checked-records?${params.toString()}`);
+        const response = await fetch(`/api/reports/invoiced-records?${params.toString()}`);
         
         if (!response.ok) {
           throw new Error('Failed to fetch records');
@@ -65,7 +64,7 @@ function CheckedRecordsContent() {
       }
     };
 
-    fetchCheckedRecords();
+    fetchInvoicedRecords();
   }, [searchParams]);
 
   const getStatusClass = (status) => {
@@ -90,7 +89,7 @@ function CheckedRecordsContent() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
       </div>
     );
   }
@@ -102,7 +101,7 @@ function CheckedRecordsContent() {
           <div className="text-red-600 text-xl mb-4">{error}</div>
           <Link 
             href="/reports/filling-report"
-            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+            className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
           >
             Back to Report
           </Link>
@@ -128,7 +127,7 @@ function CheckedRecordsContent() {
                 Back to Report
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">
-                Checked Records ({summary.totalRecords})
+                Invoiced Records ({summary.totalRecords})
               </h1>
             </div>
           </div>
@@ -138,23 +137,23 @@ function CheckedRecordsContent() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gray-50 border-l-4 border-blue-600 rounded-lg p-6 shadow-sm">
+          <div className="bg-purple-50 border-l-4 border-purple-600 rounded-lg p-6 shadow-sm">
             <div className="text-sm font-medium text-gray-600 mb-2">Total Quantity</div>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-purple-600">
               {summary.totalQty.toFixed(2)}
             </div>
           </div>
           
-          <div className="bg-gray-50 border-l-4 border-blue-600 rounded-lg p-6 shadow-sm">
+          <div className="bg-purple-50 border-l-4 border-purple-600 rounded-lg p-6 shadow-sm">
             <div className="text-sm font-medium text-gray-600 mb-2">Total Amount</div>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-purple-600">
               ₹{summary.totalAmount.toFixed(2)}
             </div>
           </div>
           
-          <div className="bg-gray-50 border-l-4 border-blue-600 rounded-lg p-6 shadow-sm">
+          <div className="bg-purple-50 border-l-4 border-purple-600 rounded-lg p-6 shadow-sm">
             <div className="text-sm font-medium text-gray-600 mb-2">Total Records</div>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-purple-600">
               {summary.totalRecords}
             </div>
           </div>
@@ -177,6 +176,8 @@ function CheckedRecordsContent() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created at</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoiced By</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoiced At</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 </tr>
@@ -197,6 +198,12 @@ function CheckedRecordsContent() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(row.created)}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {row.completed_date ? formatDate(row.completed_date) : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {row.invoiced_by_name || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {row.invoiced_at ? formatDate(row.invoiced_at) : '-'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div className="flex space-x-2">
@@ -226,7 +233,7 @@ function CheckedRecordsContent() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="13" className="px-6 py-4 text-center text-sm text-gray-500">
+                    <td colSpan="15" className="px-6 py-4 text-center text-sm text-gray-500">
                       No records found
                     </td>
                   </tr>
@@ -241,19 +248,19 @@ function CheckedRecordsContent() {
 }
 
 // Loading fallback component
-function CheckedRecordsLoading() {
+function InvoicedRecordsLoading() {
   return (
     <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
     </div>
   );
 }
 
 // Main component with Suspense boundary
-export default function CheckedRecords() {
+export default function InvoicedRecords() {
   return (
-    <Suspense fallback={<CheckedRecordsLoading />}>
-      <CheckedRecordsContent />
+    <Suspense fallback={<InvoicedRecordsLoading />}>
+      <InvoicedRecordsContent />
     </Suspense>
   );
 }
