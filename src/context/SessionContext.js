@@ -30,13 +30,31 @@ export function SessionProvider({ children }) {
       }
 
       // ✅ Employee routes के लिए conditional check
-      // Skip auth check if already have user data in sessionStorage
+      // Check both sessionStorage and localStorage for mobile compatibility
       const sessionUser = sessionStorage.getItem('user');
-      if (sessionUser) {
-        const userData = JSON.parse(sessionUser);
-        setUser(userData);
-        setLoading(false);
-        return;
+      const localUser = localStorage.getItem('user');
+      
+      // Prefer sessionStorage, fallback to localStorage
+      const cachedUser = sessionUser || localUser;
+      if (cachedUser) {
+        try {
+          const userData = JSON.parse(cachedUser);
+          setUser(userData);
+          // Sync to both storages for consistency
+          if (!sessionUser && localUser) {
+            sessionStorage.setItem('user', localUser);
+          }
+          if (!localUser && sessionUser) {
+            localStorage.setItem('user', sessionUser);
+          }
+          setLoading(false);
+          return;
+        } catch (e) {
+          console.error('Error parsing cached user:', e);
+          // Clear invalid data
+          sessionStorage.removeItem('user');
+          localStorage.removeItem('user');
+        }
       }
 
       const res = await fetch('/api/auth/verify', {

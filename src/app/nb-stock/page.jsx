@@ -1,26 +1,48 @@
 // src/app/nb-stock/page.jsx
-export const dynamic = "force-dynamic";
-export const fetchCache = "force-no-store";
-export const revalidate = 0;
+"use client";
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
+import { useSession } from "@/context/SessionContext";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 
 // ✅ Component for displaying the table content
-async function StocksTable() {
-  const apiResponse = await getNonBillingStocks();
-  const stocks = apiResponse.success ? apiResponse.data : [];
-  const isEmpty = apiResponse.isEmpty || stocks.length === 0;
+function StocksTable() {
+  const [stocks, setStocks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [isEmpty, setIsEmpty] = useState(false);
 
-  console.log('📋 Stocks data for rendering:', {
-    stocksCount: stocks.length,
-    isEmpty: isEmpty,
-    stocks: stocks
-  });
+  useEffect(() => {
+    const fetchStocks = async () => {
+      try {
+        setLoading(true);
+        const response = await fetch('/api/nb-stock');
+        const apiResponse = await response.json();
+        
+        const stocksData = apiResponse.success ? apiResponse.data : [];
+        setStocks(stocksData);
+        setIsEmpty(apiResponse.isEmpty || stocksData.length === 0);
+
+        console.log('📋 Stocks data for rendering:', {
+          stocksCount: stocksData.length,
+          isEmpty: apiResponse.isEmpty || stocksData.length === 0,
+          stocks: stocksData
+        });
+      } catch (error) {
+        console.error('Error fetching stocks:', error);
+        setStocks([]);
+        setIsEmpty(true);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStocks();
+  }, []);
 
   // अगर data है तो table show करें
   if (stocks.length > 0) {
@@ -180,6 +202,33 @@ function LoadingSkeleton() {
 }
 
 export default function NonBillingStocksPage() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
+
+  // Check authentication
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex bg-gray-50 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Don't render if not authenticated (redirect will happen)
+  if (!user) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen flex bg-gray-50">
       <Sidebar />
@@ -229,10 +278,12 @@ export default function NonBillingStocksPage() {
               </p>
             </div>
 
-            {/* ✅ Suspense Wrap for Data Loading */}
-            <Suspense fallback={<LoadingSkeleton />}>
+            {/* ✅ Stocks Table */}
+            {loading ? (
+              <LoadingSkeleton />
+            ) : (
               <StocksTable />
-            </Suspense>
+            )}
           </div>
         </main>
 

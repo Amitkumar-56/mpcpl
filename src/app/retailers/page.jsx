@@ -149,11 +149,11 @@ export default function RetailersPage() {
               </div>
             </div>
 
-            {/* Retailers Table */}
+            {/* Retailers Table - Desktop */}
             <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
               <div className="bg-gradient-to-r from-green-500 to-blue-500 p-1"></div>
-              <div className="p-4 lg:p-6 overflow-auto max-h-[70vh]">
-                <table className="w-full min-w-[900px]">
+              <div className="hidden lg:block p-4 lg:p-6 overflow-auto max-h-[70vh]">
+                <table className="w-full">
                   <thead>
                     <tr className="bg-gradient-to-r from-green-50 to-blue-50">
                       <th className="text-left p-4 font-bold text-blue-700">ID</th>
@@ -243,6 +243,104 @@ export default function RetailersPage() {
                         Previous
                       </button>
                       <span>
+                        Page {currentPage} of {totalPages}
+                      </span>
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-2 bg-blue-500 text-white rounded-lg disabled:bg-gray-300 text-sm"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {/* Mobile Cards View */}
+              <div className="lg:hidden p-4 space-y-4 max-h-[70vh] overflow-auto">
+                {currentRetailers.length === 0 ? (
+                  <div className="p-8 text-center text-gray-700 font-semibold">
+                    No retailers found
+                  </div>
+                ) : (
+                  currentRetailers.map((r) => (
+                    <div
+                      key={r.id}
+                      className="bg-white rounded-xl shadow-md border border-gray-200 p-4 space-y-3"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <div className="font-mono text-blue-600 font-bold text-sm">#{r.id}</div>
+                          <div className="font-bold text-lg mt-1">{r.name}</div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {actionButtons.map((action) =>
+                            action.key === "delete" ? (
+                              <button
+                                key={action.key}
+                                onClick={() => action.onClick(r.id)}
+                                className={`p-2 ${action.color} text-white rounded-lg`}
+                                title={action.label}
+                              >
+                                <action.icon className="w-4 h-4" />
+                              </button>
+                            ) : (
+                              <Link
+                                key={action.key}
+                                href={action.href(r.id)}
+                                className={`p-2 ${action.color} text-white rounded-lg`}
+                                title={action.label}
+                              >
+                                <action.icon className="w-4 h-4" />
+                              </Link>
+                            )
+                          )}
+                        </div>
+                      </div>
+                      <div className="space-y-2 text-sm">
+                        <div>
+                          <span className="font-semibold text-gray-600">Email:</span> {r.email}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-600">Phone:</span> {r.phone}
+                        </div>
+                        <div>
+                          <span className="font-semibold text-gray-600">Region:</span> {r.region}
+                        </div>
+                        <div className="pt-2 border-t border-gray-200">
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <div>
+                              <div className="text-gray-500">Limit</div>
+                              <div className="font-bold">{r.cst_limit}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Balance</div>
+                              <div className="font-bold">{r.balance}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Remaining</div>
+                              <div className="font-bold">{r.amtlimit}</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                {/* Mobile Pagination */}
+                {currentRetailers.length > 0 && (
+                  <div className="border-t border-blue-200 pt-4 mt-4">
+                    <div className="flex justify-between items-center">
+                      <button
+                        onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-2 bg-blue-500 text-white rounded-lg disabled:bg-gray-300 text-sm"
+                      >
+                        Previous
+                      </button>
+                      <span className="text-sm">
                         Page {currentPage} of {totalPages}
                       </span>
                       <button

@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useSession } from "@/context/SessionContext";
 import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
@@ -506,9 +507,9 @@ const SearchBar = ({ onSearch, initialValue = "" }) => {
 export default function FillingRequests() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useSession();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
   const [expandedRequest, setExpandedRequest] = useState(null);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -520,15 +521,12 @@ export default function FillingRequests() {
   const statusFilter = searchParams.get("status") || "";
   const search = searchParams.get("search") || "";
 
-  // Load user data
+  // Redirect if not authenticated (handled by SessionContext, but double-check)
   useEffect(() => {
-    const userData = localStorage.getItem("user");
-    if (!userData) {
+    if (!authLoading && !user) {
       router.push("/login");
-      return;
     }
-    setUser(JSON.parse(userData));
-  }, [router]);
+  }, [user, authLoading, router]);
 
   // Fetch requests with detailed logging
   useEffect(() => {

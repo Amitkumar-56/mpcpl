@@ -31,9 +31,9 @@ export async function GET(request) {
     const totalPages = Math.ceil(totalRecords / limit);
 
     // Fetch items data for the current page
+    // Use direct values instead of placeholders for LIMIT/OFFSET to avoid prepared statement issues
     const items = await executeQuery(
-      'SELECT id, item_name, price, image_path FROM items ORDER BY id DESC LIMIT ? OFFSET ?',
-      [limit, offset]
+      `SELECT id, item_name, price, image_path FROM items ORDER BY id DESC LIMIT ${limit} OFFSET ${offset}`
     );
 
     return NextResponse.json({

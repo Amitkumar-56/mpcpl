@@ -3,6 +3,8 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from "@/context/SessionContext";
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -38,6 +40,8 @@ function ExpensesError({ error, onRetry }) {
 
 // Main Expenses Content Component
 function ExpensesContent() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [expenses, setExpenses] = useState([]);
   const [permissions, setPermissions] = useState({});
   const [error, setError] = useState('');
@@ -56,9 +60,18 @@ function ExpensesContent() {
     maxAmount: ''
   });
 
+  // Check authentication
   useEffect(() => {
-    fetchExpenses();
-  }, []);
+    if (!authLoading && !user) {
+      router.push('/login');
+    }
+  }, [user, authLoading, router]);
+
+  useEffect(() => {
+    if (user) {
+      fetchExpenses();
+    }
+  }, [user]);
 
   // Function to remove duplicate expenses
   const removeDuplicateExpenses = (expensesArray) => {

@@ -158,22 +158,22 @@ function CreateVoucherContent() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Fixed Sidebar */}
-      <div className="fixed left-0 top-0 h-screen w-64 z-30">
+    <div className="min-h-screen flex bg-gray-50">
+      {/* Sidebar - Mobile responsive */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen w-64 z-30">
         <Sidebar activePage="CreateVoucher" />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col ml-64">
-        {/* Fixed Header */}
-        <div className="fixed top-0 right-0 left-64 z-20">
+      <div className="flex-1 flex flex-col lg:ml-64">
+        {/* Header - Mobile responsive */}
+        <div className="sticky top-0 z-20 bg-white shadow-sm">
           <Header />
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 mt-16 overflow-auto">
-          <div className="p-6">
+        <div className="flex-1 overflow-auto">
+          <div className="p-3 sm:p-4 lg:p-6">
             <div className="max-w-7xl mx-auto">
               <div className="bg-white shadow rounded-lg">
                 <div className="px-6 py-4 border-b border-gray-200">
@@ -197,8 +197,8 @@ function CreateVoucherContent() {
                     </div>
                   )}
 
-                  <form onSubmit={handleSubmit} className="space-y-6">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                       <div>
                         <label htmlFor="exp_date" className="block text-sm font-medium text-gray-700">
                           Voucher Date
@@ -326,9 +326,9 @@ function CreateVoucherContent() {
                       <h3 className="text-lg font-medium text-gray-900 mb-4">Voucher Items</h3>
                       
                       {voucherItems.map((item, index) => (
-                        <div key={index} className="bg-gray-50 p-4 rounded-lg mb-4">
-                          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-                            <div className="md:col-span-5">
+                        <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
+                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 items-end">
+                            <div className="sm:col-span-5">
                               <label className="block text-sm font-medium text-gray-700">
                                 Item Details
                               </label>
@@ -342,7 +342,7 @@ function CreateVoucherContent() {
                               />
                             </div>
 
-                            <div className="md:col-span-3">
+                            <div className="sm:col-span-3">
                               <label className="block text-sm font-medium text-gray-700">
                                 Amount
                               </label>
@@ -351,13 +351,13 @@ function CreateVoucherContent() {
                                 step="0.01"
                                 value={item.amount}
                                 onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
-                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                                 placeholder="Enter amount"
                                 required
                               />
                             </div>
 
-                            <div className="md:col-span-3">
+                            <div className="sm:col-span-3">
                               <label className="block text-sm font-medium text-gray-700">
                                 Item Image
                               </label>
@@ -365,11 +365,11 @@ function CreateVoucherContent() {
                                 type="file"
                                 accept="image/*"
                                 onChange={(e) => handleImageChange(index, e.target.files[0])}
-                                className="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                                className="mt-1 block w-full text-xs sm:text-sm text-gray-500 file:mr-2 sm:file:mr-4 file:py-1.5 sm:file:py-2 file:px-2 sm:file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                               />
                             </div>
 
-                            <div className="md:col-span-1">
+                            <div className="sm:col-span-1">
                               <button
                                 type="button"
                                 onClick={() => removeVoucherItem(index)}
@@ -415,8 +415,8 @@ function CreateVoucherContent() {
           </div>
         </div>
 
-        {/* Fixed Footer */}
-        <div className="fixed bottom-0 right-0 left-64 z-10">
+        {/* Footer */}
+        <div className="mt-auto">
           <Footer />
         </div>
       </div>

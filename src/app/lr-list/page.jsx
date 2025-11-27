@@ -107,14 +107,16 @@ function LRManagementContent() {
       {permissions.can_edit === 1 && (
         <Link 
           href="/create-lr"
-          className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg transition duration-200 z-50 flex items-center space-x-2"
-          style={{ width: '150px', height: '40px', paddingTop: '7px' }}
+          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg transition duration-200 z-50 flex items-center space-x-2 text-sm sm:text-base"
         >
-          <span>Create LR</span>
+          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+          </svg>
+          <span className="hidden sm:inline">Create LR</span>
         </Link>
       )}
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
         {error && (
           <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center justify-between">
@@ -137,11 +139,12 @@ function LRManagementContent() {
         )}
 
         <div className="bg-white rounded-lg shadow-sm border">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Shipment List</h2>
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Shipment List</h2>
           </div>
           
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden lg:block overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50">
                 <tr>
@@ -228,9 +231,28 @@ function LRManagementContent() {
           </div>
         </div>
 
-        <div className="lg:hidden mt-6 space-y-4">
-          {shipments.map((shipment) => (
-            <div key={shipment.id} className="bg-white rounded-lg shadow-sm border p-4">
+        {/* Mobile Cards View */}
+        <div className="lg:hidden mt-4 space-y-3">
+          {shipments.length === 0 ? (
+            <div className="bg-white rounded-lg shadow-sm border p-8 text-center">
+              <div className="text-gray-500">
+                <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-base font-medium">No shipments found</p>
+                {permissions.can_edit === 1 && (
+                  <Link 
+                    href="/create-lr"
+                    className="mt-3 inline-block bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition duration-200 text-sm"
+                  >
+                    Create First LR
+                  </Link>
+                )}
+              </div>
+            </div>
+          ) : (
+            shipments.map((shipment) => (
+              <div key={shipment.id} className="bg-white rounded-lg shadow-sm border p-3 sm:p-4">
               <div className="space-y-2">
                 <div className="flex justify-between items-start">
                   <div>
@@ -287,7 +309,8 @@ function LRManagementContent() {
                 </div>
               </div>
             </div>
-          ))}
+          ))
+          )}
         </div>
       </main>
     </div>

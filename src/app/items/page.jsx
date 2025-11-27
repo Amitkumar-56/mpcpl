@@ -164,24 +164,24 @@ function ItemsListContent() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 py-4 sm:py-6">
             <div className="flex items-center">
-              <h1 className="text-3xl font-bold text-gray-900">Items</h1>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Items</h1>
             </div>
             <nav className="flex" aria-label="Breadcrumb">
-              <ol className="flex items-center space-x-4">
+              <ol className="flex items-center space-x-2 sm:space-x-4">
                 <li>
-                  <Link href="/" className="text-gray-400 hover:text-gray-500">
+                  <Link href="/" className="text-xs sm:text-sm text-gray-400 hover:text-gray-500">
                     Home
                   </Link>
                 </li>
                 <li>
                   <div className="flex items-center">
-                    <svg className="flex-shrink-0 h-5 w-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
+                    <svg className="flex-shrink-0 h-4 w-4 sm:h-5 sm:w-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
                     </svg>
-                    <span className="ml-4 text-sm font-medium text-gray-500">Items List</span>
+                    <span className="ml-2 sm:ml-4 text-xs sm:text-sm font-medium text-gray-500">Items List</span>
                   </div>
                 </li>
               </ol>
@@ -190,33 +190,34 @@ function ItemsListContent() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
+      <main className="max-w-7xl mx-auto py-4 sm:py-6 px-3 sm:px-4 lg:px-8">
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="text-red-700">{error}</div>
+          <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+            <div className="text-sm sm:text-base text-red-700">{error}</div>
           </div>
         )}
 
         {/* Floating Add Button */}
         <Link
           href="/add-items"
-          className="fixed bottom-8 right-8 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200"
+          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200 text-sm sm:text-base"
         >
           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
           </svg>
-          <span>Add Items</span>
+          <span className="hidden sm:inline">Add Items</span>
         </Link>
 
         {/* Items List Section */}
-        <div className="px-4 py-6 sm:px-0">
+        <div className="py-4 sm:py-6">
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
-            <div className="px-6 py-4 border-b border-gray-200">
-              <h2 className="text-lg font-semibold text-gray-900">Items List</h2>
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Items List</h2>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -287,11 +288,65 @@ function ItemsListContent() {
                 </tbody>
               </table>
             </div>
+            
+            {/* Mobile Cards View */}
+            <div className="lg:hidden p-4 space-y-3">
+              {items.length > 0 ? (
+                items.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-3"
+                  >
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="text-xs text-gray-500 mb-1">
+                          S.No: {(pagination.currentPage - 1) * pagination.limit + index + 1}
+                        </div>
+                        <div className="font-semibold text-base text-gray-900">{item.item_name}</div>
+                        <div className="text-lg font-bold text-purple-600 mt-1">
+                          {formatPrice(item.price)}
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-3 ml-4">
+                        <Link
+                          href={`/edit-item?id=${item.id}`}
+                          className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
+                          title="Edit"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </Link>
+                        <span className="text-gray-300">|</span>
+                        <button
+                          onClick={() => handleDelete(item.id)}
+                          disabled={deleteLoading === item.id}
+                          className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
+                          title="Delete"
+                        >
+                          {deleteLoading === item.id ? (
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                          ) : (
+                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-sm text-gray-500">
+                  No items found. <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Pagination */}
           {pagination.totalPages > 1 && (
-            <nav className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-6 sm:px-6 mt-6 rounded-lg shadow-sm">
+            <nav className="flex items-center justify-between border-t border-gray-200 bg-white px-3 sm:px-4 lg:px-6 py-4 sm:py-6 mt-4 sm:mt-6 rounded-lg shadow-sm">
               <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm text-gray-700">
