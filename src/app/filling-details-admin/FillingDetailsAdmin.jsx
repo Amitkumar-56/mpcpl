@@ -526,13 +526,22 @@ export default function FillingDetailsAdmin() {
                   <h1 className="text-2xl font-bold text-gray-900">
                     Filling Request: <span className="text-blue-600">{requestData.rid}</span>
                   </h1>
-                  <div className="flex items-center space-x-2">
+                  <div className="flex flex-col items-end space-y-1">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
                       {requestData.status} 
                       {requestData.status === 'Processing' && ' 🔄'}
                       {(requestData.status === 'Cancel' || requestData.status === 'Cancelled') && ' ❌'}
                       {requestData.status === 'Completed' && ' ✅'}
                     </span>
+                    {requestData.status === 'Processing' && requestData.processing_by_name && (
+                      <span className="text-xs text-gray-600">By: {requestData.processing_by_name}</span>
+                    )}
+                    {requestData.status === 'Completed' && requestData.completed_by_name && (
+                      <span className="text-xs text-gray-600">By: {requestData.completed_by_name}</span>
+                    )}
+                    {requestData.status_updated_by_name && requestData.status !== 'Processing' && requestData.status !== 'Completed' && (
+                      <span className="text-xs text-gray-600">By: {requestData.status_updated_by_name}</span>
+                    )}
                     {availableBalance.isInsufficient && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
                         {limitExceededLabel} Exceeded
@@ -1008,6 +1017,16 @@ export default function FillingDetailsAdmin() {
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">
                       This request is {requestData.status.toLowerCase()}
                     </h3>
+                    {requestData.status === 'Completed' && requestData.completed_by_name && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        Completed by: <span className="font-semibold">{requestData.completed_by_name}</span>
+                      </p>
+                    )}
+                    {requestData.status === 'Processing' && requestData.processing_by_name && (
+                      <p className="text-sm text-gray-600 mb-2">
+                        Processing by: <span className="font-semibold">{requestData.processing_by_name}</span>
+                      </p>
+                    )}
                     <p className="text-gray-600 mb-4">
                       {requestData.status === 'Completed' 
                         ? 'This filling request has been completed successfully.' 

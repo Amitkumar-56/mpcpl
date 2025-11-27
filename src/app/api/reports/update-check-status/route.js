@@ -15,6 +15,19 @@ export async function POST(request) {
       );
     }
 
+    // Check if record is already checked - prevent unchecking
+    const existingRecord = await executeQuery(
+      'SELECT is_checked FROM filling_requests WHERE id = ?',
+      [record_id]
+    );
+
+    if (existingRecord.length > 0 && existingRecord[0].is_checked && !is_checked) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot uncheck. Once checked, it cannot be unchecked.' },
+        { status: 400 }
+      );
+    }
+
     // Update the check status in the database
     const query = `
       UPDATE filling_requests 

@@ -81,9 +81,13 @@ export async function GET(request) {
     const dataParams = [...queryParams, limit, offset];
     const expenses = await executeQuery(dataQuery, dataParams);
 
-    // Get total cash balance
-    const cashBalanceQuery = `SELECT balance FROM cash_balance LIMIT 1`;
-    const cashBalanceResult = await executeQuery(cashBalanceQuery);
+    // Get total cash balance - initialize if empty
+    let cashBalanceResult = await executeQuery(`SELECT balance FROM cash_balance LIMIT 1`);
+    if (cashBalanceResult.length === 0) {
+      // Initialize cash_balance if empty
+      await executeQuery('INSERT INTO cash_balance (balance, updated_at) VALUES (0, NOW())');
+      cashBalanceResult = await executeQuery(`SELECT balance FROM cash_balance LIMIT 1`);
+    }
     const totalCash = cashBalanceResult[0]?.balance || 0;
 
     return NextResponse.json({
@@ -158,9 +162,10 @@ export async function POST(request) {
       );
     }
 
+    // Note: expenses table doesn't have created_at column based on schema
     const insertQuery = `
-      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount)
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
 
     const result = await executeQuery(insertQuery, [

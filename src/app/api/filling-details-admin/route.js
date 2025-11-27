@@ -39,7 +39,10 @@ export async function GET(req) {
           cb.day_limit,
           cb.is_active,
           fss.stock as station_stock,
-          pc.pcode as sub_product_code
+          pc.pcode as sub_product_code,
+          ep_processing.name as processing_by_name,
+          ep_completed.name as completed_by_name,
+          ep_status.name as status_updated_by_name
         FROM filling_requests fr
         LEFT JOIN products p ON fr.product = p.id
         LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
@@ -47,6 +50,11 @@ export async function GET(req) {
         LEFT JOIN customer_balances cb ON c.id = cb.com_id
         LEFT JOIN filling_station_stocks fss ON (fr.fs_id = fss.fs_id AND fr.product = fss.product)
         LEFT JOIN product_codes pc ON fr.sub_product_id = pc.id
+        LEFT JOIN filling_logs fl_processing ON fr.rid = fl_processing.request_id
+        LEFT JOIN employee_profile ep_processing ON fl_processing.processed_by = ep_processing.id
+        LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id
+        LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
+        LEFT JOIN employee_profile ep_status ON fr.status_updated_by = ep_status.id
         WHERE fr.id = ?
       `;
       
@@ -929,21 +937,26 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
 
 async function handleNonBillingStocks(station_id, product_id, aqty) {
   try {
+    // For outward transactions, ADD stock to non_billing_stocks
+    // When non-billing customer completes request, stock is added (outward)
     const checkQuery = `SELECT stock FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
     const result = await executeQuery(checkQuery, [station_id, product_id]);
 
     if (result.length > 0) {
-      const existingStock = result[0].stock;
-      const updatedStock = existingStock + aqty;
+      const existingStock = parseFloat(result[0].stock) || 0;
+      const updatedStock = existingStock + aqty; // ADD stock (outward transaction)
       await executeQuery(
         `UPDATE non_billing_stocks SET stock = ? WHERE station_id = ? AND product_id = ?`,
         [updatedStock, station_id, product_id]
       );
+      console.log(`✅ Added non-billing stock (outward): ${existingStock} + ${aqty} = ${updatedStock}`);
     } else {
+      // If no stock record exists, create one with the quantity (outward adds stock)
       await executeQuery(
-        `INSERT INTO non_billing_stocks (station_id, product_id, stock) VALUES (?, ?, ?)`,
+        `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at) VALUES (?, ?, ?, NOW())`,
         [station_id, product_id, aqty]
       );
+      console.log(`✅ Created new non-billing stock record with ${aqty} (outward)`);
     }
   } catch (error) {
     console.error('❌ Error in handleNonBillingStocks:', error);

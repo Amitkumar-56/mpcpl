@@ -204,7 +204,7 @@ export async function GET(request) {
         const efficiencyQuery = `
           SELECT 
             COUNT(*) as total,
-            SUM(CASE WHEN status = 'completed' OR status = 'paid' THEN 1 ELSE 0 END) as completed
+            SUM(CASE WHEN payment_status = 1 THEN 1 ELSE 0 END) as completed
           FROM filling_history 
           WHERE new_amount > 0
             AND cl_id IS NOT NULL

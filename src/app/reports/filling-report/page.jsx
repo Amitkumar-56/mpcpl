@@ -203,6 +203,13 @@ function ReportHistoryContent() {
       return;
     }
 
+    // Prevent unchecking if already checked
+    const record = data.records.find(r => r.id === recordId);
+    if (record && record.is_checked && !isChecked) {
+      alert('❌ Cannot uncheck. Once checked, it cannot be unchecked.');
+      return;
+    }
+
     setCheckingRecords(prev => new Set(prev).add(recordId));
 
     try {
@@ -230,6 +237,12 @@ function ReportHistoryContent() {
           }
           return newSet;
         });
+
+        // Auto-invoice when checked
+        if (isChecked) {
+          // Automatically invoice the record
+          await handleInvoiceRecord(recordId, true);
+        }
 
         // Show success message
         if (isChecked) {
@@ -261,6 +274,13 @@ function ReportHistoryContent() {
   const handleInvoiceRecord = async (recordId, isInvoiced) => {
     if (!employeeProfile) {
       alert('❌ Please login to invoice records');
+      return;
+    }
+
+    // Prevent uninvoicing if already invoiced
+    const record = data.records.find(r => r.id === recordId);
+    if (record && record.is_invoiced && !isInvoiced) {
+      alert('❌ Cannot uninvoice. Once invoiced, it cannot be uninvoiced.');
       return;
     }
 
@@ -416,89 +436,105 @@ function ReportHistoryContent() {
 
   // Check button component for each record
   const CheckButton = ({ record }) => {
-    const isChecked = selectedRecords.has(record.id);
+    const isChecked = record.is_checked || selectedRecords.has(record.id);
     const isLoading = checkingRecords.has(record.id);
+    const isDisabled = !employeeProfile || isLoading || record.is_checked; // Disable if already checked
     
     return (
-      <button
-        id={`check-btn-${record.id}`}
-        onClick={() => handleCheckRecord(record.id, !isChecked)}
-        disabled={!employeeProfile || isLoading}
-        className={`
-          px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105
-          ${isChecked
-            ? 'bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white shadow-lg'
-            : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md'
-          }
-          ${!employeeProfile || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
-          flex items-center justify-center space-x-2 min-w-[100px]
-        `}
-      >
-        {isLoading ? (
-          <>
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs">Processing</span>
-          </>
-        ) : isChecked ? (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-            </svg>
-            <span className="text-xs">Checked</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            <span className="text-xs">Check</span>
-          </>
+      <div className="flex flex-col items-center space-y-1">
+        <button
+          id={`check-btn-${record.id}`}
+          onClick={() => handleCheckRecord(record.id, !isChecked)}
+          disabled={isDisabled}
+          className={`
+            px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform
+            ${isChecked
+              ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg cursor-not-allowed'
+              : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:scale-105 hover:shadow-xl'
+            }
+            ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+            flex items-center justify-center space-x-2 min-w-[100px]
+          `}
+        >
+          {isLoading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-xs">Processing</span>
+            </>
+          ) : isChecked ? (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-xs">Checked</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              <span className="text-xs">Check</span>
+            </>
+          )}
+        </button>
+        {record.is_checked && record.checked_by_name && (
+          <span className="text-xs text-gray-600 text-center">
+            By: {record.checked_by_name}
+          </span>
         )}
-      </button>
+      </div>
     );
   };
 
   // Invoice button component for each record
   const InvoiceButton = ({ record }) => {
-    const isInvoiced = invoicedRecords.has(record.id);
+    const isInvoiced = record.is_invoiced || invoicedRecords.has(record.id);
     const isLoading = invoicingRecords.has(record.id);
+    const isDisabled = !employeeProfile || isLoading || record.is_invoiced; // Disable if already invoiced
     
     return (
-      <button
-        id={`invoice-btn-${record.id}`}
-        onClick={() => handleInvoiceRecord(record.id, !isInvoiced)}
-        disabled={!employeeProfile || isLoading}
-        className={`
-          px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform hover:scale-105
-          ${isInvoiced
-            ? 'bg-gradient-to-r from-purple-500 to-pink-600 hover:from-purple-600 hover:to-pink-700 text-white shadow-lg'
-            : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-md'
-          }
-          ${!employeeProfile || isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
-          flex items-center justify-center space-x-2 min-w-[100px]
-        `}
-      >
-        {isLoading ? (
-          <>
-            <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            <span className="text-xs">Processing</span>
-          </>
-        ) : isInvoiced ? (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span className="text-xs">Invoiced</span>
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            <span className="text-xs">Invoice</span>
-          </>
+      <div className="flex flex-col items-center space-y-1">
+        <button
+          id={`invoice-btn-${record.id}`}
+          onClick={() => handleInvoiceRecord(record.id, !isInvoiced)}
+          disabled={isDisabled}
+          className={`
+            px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform
+            ${isInvoiced
+              ? 'bg-gradient-to-r from-purple-500 to-pink-600 text-white shadow-lg cursor-not-allowed'
+              : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-md hover:scale-105 hover:shadow-xl'
+            }
+            ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
+            flex items-center justify-center space-x-2 min-w-[100px]
+          `}
+        >
+          {isLoading ? (
+            <>
+              <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+              <span className="text-xs">Processing</span>
+            </>
+          ) : isInvoiced ? (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <span className="text-xs">Invoiced</span>
+            </>
+          ) : (
+            <>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
+              <span className="text-xs">Invoice</span>
+            </>
+          )}
+        </button>
+        {record.is_invoiced && record.invoiced_by_name && (
+          <span className="text-xs text-gray-600 text-center">
+            By: {record.invoiced_by_name}
+          </span>
         )}
-      </button>
+      </div>
     );
   };
 
@@ -853,10 +889,6 @@ function ReportHistoryContent() {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created at</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Checked By</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Checked At</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoiced By</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Invoiced At</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
               </tr>
@@ -864,7 +896,7 @@ function ReportHistoryContent() {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="19" className="px-6 py-4 text-center">
+                  <td colSpan="15" className="px-6 py-4 text-center">
                     <div className="flex justify-center items-center">
                       <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                     </div>
@@ -906,18 +938,6 @@ function ReportHistoryContent() {
                       {record.completed_date ? formatDateTime(record.completed_date) : '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.checked_by_name || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.checked_at ? formatDateTime(record.checked_at) : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.invoiced_by_name || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {record.invoiced_at ? formatDateTime(record.invoiced_at) : '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                       <div className="flex space-x-1">
                         {['doc1', 'doc2', 'doc3'].map((doc) => (
                           <a
@@ -945,7 +965,7 @@ function ReportHistoryContent() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="19" className="px-6 py-4 text-center text-sm text-gray-500">
+                  <td colSpan="15" className="px-6 py-4 text-center text-sm text-gray-500">
                     No filling requests found
                   </td>
                 </tr>

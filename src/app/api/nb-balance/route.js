@@ -3,9 +3,20 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const result = await executeQuery(
+    let result = await executeQuery(
       'SELECT balance FROM cash_balance ORDER BY id DESC LIMIT 1'
     );
+
+    // If no cash balance record exists, initialize it with 0
+    if (result.length === 0) {
+      await executeQuery(
+        'INSERT INTO cash_balance (balance, updated_at) VALUES (0, NOW())'
+      );
+      // Fetch the newly created record
+      result = await executeQuery(
+        'SELECT balance FROM cash_balance ORDER BY id DESC LIMIT 1'
+      );
+    }
 
     const balance = result.length > 0 ? parseFloat(result[0].balance) : 0;
 

@@ -1,10 +1,10 @@
+// src/app/dashboard/page.js
 "use client";
 import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
-import { io } from "socket.io-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   BiCalendar,
@@ -23,6 +23,7 @@ import {
   BiTrendingUp,
   BiX
 } from "react-icons/bi";
+import { io } from "socket.io-client";
 
 // Indian Rupee formatting function
 const formatIndianRupees = (amount) => {
@@ -68,7 +69,7 @@ export default function DashboardPage() {
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [error, setError] = useState(null);
 
-  // Real-time Chat States - Lazy loaded
+  // Real-time Chat States
   const [socket, setSocket] = useState(null);
   const [showChat, setShowChat] = useState(false);
   const [activeChats, setActiveChats] = useState([]);
@@ -76,8 +77,41 @@ export default function DashboardPage() {
   const [employeeMessages, setEmployeeMessages] = useState({});
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef(null);
-  const [notifSocket, setNotifSocket] = useState(null);
   const [notifCount, setNotifCount] = useState(0);
+  const [socketConnected, setSocketConnected] = useState(false);
+
+  // Helper function to remove duplicates from activeChats based on customerId
+  const deduplicateChats = useCallback((chats) => {
+    if (!Array.isArray(chats)) return [];
+    const seen = new Map();
+    const result = [];
+    
+    // Process in reverse to keep the most recent one
+    for (let i = chats.length - 1; i >= 0; i--) {
+      const chat = chats[i];
+      if (!chat || !chat.customerId) continue;
+      
+      if (!seen.has(chat.customerId)) {
+        seen.set(chat.customerId, chat);
+        result.unshift(chat); // Add to beginning to maintain order
+      } else {
+        // If duplicate found, keep the one with more recent timestamp
+        const existing = seen.get(chat.customerId);
+        const existingTime = existing.lastMessage?.timestamp || '';
+        const currentTime = chat.lastMessage?.timestamp || '';
+        if (currentTime > existingTime) {
+          // Replace with more recent one
+          const index = result.findIndex(c => c.customerId === chat.customerId);
+          if (index !== -1) {
+            result[index] = chat;
+          }
+          seen.set(chat.customerId, chat);
+        }
+      }
+    }
+    
+    return result;
+  }, []);
 
   // Get authentication token
   const getAuthToken = () => {
@@ -87,7 +121,7 @@ export default function DashboardPage() {
     return null;
   };
 
-  // Fast API request helper - only essential data
+  // Fast API request helper
   const apiRequest = useCallback(async (url, options = {}) => {
     const token = getAuthToken();
     const defaultOptions = {
@@ -109,16 +143,20 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Fast dashboard data fetch - only critical data
+  // Fast dashboard data fetch
   const fetchDashboardData = useCallback(async () => {
     try {
-      const result = await apiRequest("/api/dashboard?type=essential");
-      setStats(result.data);
-      setLastUpdated(new Date());
-      setError(null);
+      const result = await apiRequest("/api/dashboard");
+      if (result.success) {
+        setStats(result.data);
+        setLastUpdated(new Date());
+        setError(null);
+      } else {
+        throw new Error(result.error || 'Failed to fetch data');
+      }
     } catch (err) {
-      setError("Failed to fetch data");
-      console.error("Error:", err);
+      setError("Failed to fetch dashboard data");
+      console.error("Dashboard data error:", err);
     }
   }, [apiRequest]);
 
@@ -138,210 +176,192 @@ export default function DashboardPage() {
     router.push('/all-stock');
   };
 
-  // Lazy load chat only when needed
-  const initializeChat = useCallback(async () => {
-    if (!showChat || !sessionUser?.id) return;
-    
-    console.log('Dashboard: Initializing chat socket for employee:', sessionUser.id);
-    
-    // Initialize Socket.io for chat
-    try { 
-      await fetch('/api/socket');
-    } catch (e) {
-      console.error('Dashboard: Error fetching socket endpoint:', e);
-    }
-    
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-    
-    const chatSocket = io(socketUrl, {
-      path: '/api/socket',
-      transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      withCredentials: true,
-    });
-    
-    chatSocket.on('connect', () => {
-      console.log('Dashboard: Chat socket connected!');
-      setSocket(chatSocket);
-      if (sessionUser?.id) {
-        chatSocket.emit('employee_join', {
-          employeeId: String(sessionUser.id),
-          employeeName: sessionUser.name || 'Employee',
-          role: sessionUser.role,
-        });
-      }
-    });
-    
-    chatSocket.on('connect_error', (error) => {
-      console.error('Dashboard: Chat socket connection error:', error);
-    });
-    
-    chatSocket.on('new_message', (data) => {
-      console.log('Dashboard: Received new_message in chat:', data);
-      // Handle new messages
-      if (data.message) {
-        setActiveChats(prev => {
-          const existingChat = prev.find(chat => chat.customerId === data.message.customer_id);
-          if (existingChat) {
-            return prev.map(chat =>
-              chat.customerId === data.message.customer_id
-                ? { ...chat, lastMessage: data.message, unread: true }
-                : chat
-            );
-          }
-          return [...prev, {
-            customerId: data.message.customer_id,
-            customerName: data.message.customer_name || 'Customer',
-            lastMessage: data.message,
-            unread: true,
-          }];
-        });
-        
-        // Update messages if customer is selected
-        if (selectedCustomer && selectedCustomer.customerId === data.message.customer_id) {
-          setEmployeeMessages(prev => {
-            const customerMessages = prev[data.message.customer_id] || [];
-            return {
-              ...prev,
-              [data.message.customer_id]: [...customerMessages, data.message]
-            };
-          });
+  // Load active chat sessions
+  const loadActiveChatSessions = useCallback(async () => {
+    try {
+      const response = await fetch('/api/chat/sessions');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          const deduplicated = deduplicateChats(data.sessions || []);
+          setActiveChats(deduplicated);
+          console.log('Loaded active chat sessions:', deduplicated.length);
         }
       }
-    });
-    
-    chatSocket.on('message_sent', (data) => {
-      console.log('Dashboard: Message sent confirmation:', data);
-    });
-    
-    return () => {
-      console.log('Dashboard: Cleaning up chat socket');
-      if (chatSocket && chatSocket.connected) {
-        chatSocket.disconnect();
-      }
-    };
-  }, [showChat, sessionUser, selectedCustomer]);
+    } catch (error) {
+      console.error('Error loading chat sessions:', error);
+    }
+  }, []);
 
-  // Socket.io notifications for Support Chat (employees)
-  useEffect(() => {
-    if (!sessionUser?.id) {
-      console.log('Dashboard: No sessionUser, skipping socket setup');
-      return;
+  // Mark messages as read
+  const markMessagesAsRead = useCallback(async (customerId) => {
+    try {
+      await fetch('/api/chat/mark-read', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: customerId,
+          userId: sessionUser?.id,
+          userType: 'employee'
+        })
+      });
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
     }
-    
-    console.log('Dashboard: Setting up socket connection for employee:', sessionUser.id);
-    let s;
-    (async () => {
-      try { 
-        await fetch('/api/socket');
-        console.log('Dashboard: Socket API endpoint ready');
-      } catch (e) {
-        console.error('Dashboard: Error fetching socket endpoint:', e);
-      }
-      
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-      
-      console.log('Dashboard: Connecting to socket:', socketUrl);
-      s = io(socketUrl, {
-        path: '/api/socket',
-        transports: ['websocket'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        withCredentials: true,
-      });
-      
-      s.on('connect', () => {
-        console.log('Dashboard: Socket connected! Emitting employee_join');
-        s.emit('employee_join', {
-          employeeId: String(sessionUser.id),
-          employeeName: sessionUser.name || 'Employee',
-          role: sessionUser.role,
-        });
-      });
-      
-      s.on('connect_error', (error) => {
-        console.error('Dashboard: Socket connection error:', error);
-      });
-      
-      s.on('disconnect', (reason) => {
-        console.log('Dashboard: Socket disconnected:', reason);
-      });
-      
-      s.on('employee_joined', (data) => {
-        console.log('Dashboard: Employee joined successfully:', data);
-      });
-      
-      s.on('customer_message_notification', (data) => {
-        console.log('Dashboard: Received customer_message_notification:', data);
-        setNotifCount((c) => {
-          const newCount = c + 1;
-          console.log('Dashboard: Notification count updated to:', newCount);
-          return newCount;
-        });
-        setActiveChats((prev) => {
-          const idx = prev.findIndex(c => c.customerId === data.customerId);
-          const chatItem = {
-            customerId: data.customerId,
-            customerName: data.customerName,
-            lastMessage: { id: data.messageId, text: data.text, timestamp: data.timestamp, sender: 'customer' },
-            unread: true,
-          };
-          if (idx >= 0) {
-            const copy = [...prev];
-            copy[idx] = { ...copy[idx], ...chatItem };
-            return copy;
-          }
-          return [chatItem, ...prev];
-        });
-        // Auto-open chat widget when notification is received
-        if (!showChat) {
-          setShowChat(true);
-        }
-        // Auto-select the customer chat when notification is received
-        setSelectedCustomer({
-          customerId: data.customerId,
-          customerName: data.customerName,
-          lastMessage: { id: data.messageId, text: data.text, timestamp: data.timestamp, sender: 'customer' },
-          unread: true,
-        });
-      });
-      
-      s.on('chat_assigned', (data) => {
-        console.log('Dashboard: Chat assigned:', data);
-        setActiveChats((prev) => prev.map(c => c.customerId === data.customerId ? { ...c, unread: false } : c));
-      });
-      
-      setNotifSocket(s);
-      console.log('Dashboard: Socket setup complete');
-    })();
-    
-    return () => { 
-      console.log('Dashboard: Cleaning up socket connection');
-      try { 
-        if (s) {
-          s.disconnect();
-        }
-      } catch (e) {
-        console.error('Dashboard: Error disconnecting socket:', e);
-      }
-    };
   }, [sessionUser]);
 
-  const acceptChat = (customerId) => {
-    if (!notifSocket || !notifSocket.connected) return;
-    notifSocket.emit('employee_accept_chat', {
-      customerId,
-      employeeId: String(sessionUser.id),
-      employeeName: sessionUser.name || 'Employee',
-    });
-  };
+  // SINGLE Socket Connection Setup
+  useEffect(() => {
+    if (!sessionUser?.id) {
+      console.log('Dashboard: No session user, skipping socket setup');
+      return;
+    }
 
-  // Load essential data first
+    console.log('Dashboard: Setting up socket connection for employee:', sessionUser.id);
+    
+    let socketInstance;
+
+    const initializeSocket = async () => {
+      try {
+        await fetch('/api/socket');
+        
+        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+        
+        console.log('Dashboard: Connecting to socket:', socketUrl);
+        socketInstance = io(socketUrl, {
+          path: '/api/socket',
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 1000,
+        });
+
+        socketInstance.on('connect', () => {
+          console.log('Dashboard: Socket connected successfully!');
+          setSocket(socketInstance);
+          setSocketConnected(true);
+          
+          socketInstance.emit('employee_join', {
+            employeeId: String(sessionUser.id),
+            employeeName: sessionUser.name || 'Employee',
+            role: sessionUser.role,
+          });
+        });
+
+        socketInstance.on('employee_joined', (data) => {
+          console.log('Dashboard: Employee joined room:', data);
+          loadActiveChatSessions();
+        });
+
+        socketInstance.on('connect_error', (error) => {
+          console.error('Dashboard: Socket connection error:', error);
+          setSocketConnected(false);
+        });
+
+        socketInstance.on('disconnect', (reason) => {
+          console.log('Dashboard: Socket disconnected:', reason);
+          setSocketConnected(false);
+        });
+
+        // Handle new messages from customers
+        socketInstance.on('customer_message', (data) => {
+          console.log('Dashboard: Received customer message:', data);
+          
+          setNotifCount(prev => prev + 1);
+          
+          // Update active chats
+          setActiveChats(prev => {
+            const existingChatIndex = prev.findIndex(chat => chat.customerId === data.customerId);
+            const newChatItem = {
+              customerId: data.customerId,
+              customerName: data.customerName || `Customer ${data.customerId}`,
+              lastMessage: {
+                text: data.message,
+                timestamp: data.timestamp || new Date().toISOString(),
+                sender: 'customer'
+              },
+              unread: true
+            };
+            
+            if (existingChatIndex >= 0) {
+              const updatedChats = [...prev];
+              updatedChats[existingChatIndex] = newChatItem;
+              return deduplicateChats(updatedChats);
+            } else {
+              return deduplicateChats([newChatItem, ...prev]);
+            }
+          });
+
+          // Update messages if this customer is selected
+          if (selectedCustomer && selectedCustomer.customerId === data.customerId) {
+            setEmployeeMessages(prev => {
+              const currentMessages = prev[data.customerId] || [];
+              return {
+                ...prev,
+                [data.customerId]: [
+                  ...currentMessages,
+                  {
+                    id: `msg-${Date.now()}`,
+                    text: data.message,
+                    sender: 'customer',
+                    timestamp: data.timestamp || new Date().toISOString(),
+                    customer_id: data.customerId
+                  }
+                ]
+              };
+            });
+            
+            // Mark as read automatically when viewing
+            markMessagesAsRead(data.customerId);
+          }
+        });
+
+        // Handle message sent confirmation
+        socketInstance.on('message_sent', (data) => {
+          console.log('Dashboard: Message sent confirmation:', data);
+          
+          if (selectedCustomer && data.message) {
+            setEmployeeMessages(prev => {
+              const customerMessages = prev[selectedCustomer.customerId] || [];
+              return {
+                ...prev,
+                [selectedCustomer.customerId]: customerMessages.map(msg => 
+                  msg.id && msg.id.startsWith('temp-') && msg.status === 'sending'
+                    ? { ...msg, id: data.message.id, status: 'sent' }
+                    : msg
+                )
+              };
+            });
+          }
+        });
+
+        // Handle chat assignment
+        socketInstance.on('chat_assigned', (data) => {
+          console.log('Dashboard: Chat assigned:', data);
+          loadActiveChatSessions();
+        });
+
+      } catch (error) {
+        console.error('Dashboard: Socket initialization error:', error);
+        setSocketConnected(false);
+      }
+    };
+
+    initializeSocket();
+
+    return () => {
+      console.log('Dashboard: Cleaning up socket connection');
+      if (socketInstance) {
+        socketInstance.disconnect();
+        setSocketConnected(false);
+      }
+    };
+  }, [sessionUser, selectedCustomer, loadActiveChatSessions, markMessagesAsRead]);
+
+  // Load dashboard data
   useEffect(() => {
     if (!sessionUser) {
       router.push("/login");
@@ -357,12 +377,19 @@ export default function DashboardPage() {
     loadData();
   }, [sessionUser, router, fetchDashboardData]);
 
-  // Initialize chat only when needed
+  // Load active chats when chat is opened
   useEffect(() => {
     if (showChat) {
-      initializeChat();
+      loadActiveChatSessions();
     }
-  }, [showChat, initializeChat]);
+  }, [showChat, loadActiveChatSessions]);
+
+  // Auto-scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [employeeMessages, selectedCustomer]);
 
   // Fast loading component
   if (loading) {
@@ -370,7 +397,7 @@ export default function DashboardPage() {
       <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-50 to-purple-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto mb-3"></div>
-          <p className="text-gray-600 text-sm">Loading...</p>
+          <p className="text-gray-600 text-sm">Loading Dashboard...</p>
         </div>
       </div>
     );
@@ -410,6 +437,9 @@ export default function DashboardPage() {
                 {lastUpdated && (
                   <p className="text-gray-500 text-xs mt-1">
                     Updated: {lastUpdated.toLocaleTimeString('en-IN')}
+                    {socketConnected && (
+                      <span className="ml-2 text-green-600">● Live</span>
+                    )}
                   </p>
                 )}
               </div>
@@ -436,9 +466,9 @@ export default function DashboardPage() {
                   className="p-2 bg-green-500 text-white rounded-lg shadow hover:bg-green-600 transition-all relative"
                 >
                   <BiMessageRounded />
-                  {activeChats.filter(chat => chat.unread).length > 0 && (
+                  {notifCount > 0 && (
                     <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-xs rounded-full flex items-center justify-center">
-                      {activeChats.filter(chat => chat.unread).length}
+                      {notifCount}
                     </span>
                   )}
                 </button>
@@ -549,7 +579,7 @@ export default function DashboardPage() {
         <Footer />
       </div>
 
-      {/* Chat Widget - Only renders when showChat is true */}
+      {/* Chat Widget */}
       {showChat && (
         <ChatWidget
           activeChats={activeChats}
@@ -562,6 +592,12 @@ export default function DashboardPage() {
           setShowChat={setShowChat}
           sessionUser={sessionUser}
           socket={socket}
+          socketConnected={socketConnected}
+          setNotifCount={setNotifCount}
+          messagesEndRef={messagesEndRef}
+          markMessagesAsRead={markMessagesAsRead}
+          deduplicateChats={deduplicateChats}
+          setActiveChats={setActiveChats}
         />
       )}
     </div>
@@ -611,7 +647,7 @@ const InfoCard = ({ title, value, icon, color }) => {
   );
 };
 
-// Separate Chat Widget Component - Lazy loaded
+// Chat Widget Component
 const ChatWidget = ({
   activeChats,
   selectedCustomer,
@@ -622,25 +658,23 @@ const ChatWidget = ({
   setNewMessage,
   setShowChat,
   sessionUser,
-  socket
+  socket,
+  socketConnected,
+  setNotifCount,
+  messagesEndRef,
+  markMessagesAsRead,
+  deduplicateChats,
+  setActiveChats
 }) => {
-  const messagesEndRef = useRef(null);
   const [loadingMessages, setLoadingMessages] = useState(false);
-
-  // Auto-scroll to bottom when messages change
-  useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-    }
-  }, [employeeMessages, selectedCustomer]);
 
   // Load message history when customer is selected
   useEffect(() => {
-    if (selectedCustomer && sessionUser?.id && socket && socket.connected) {
+    if (selectedCustomer && sessionUser?.id) {
       const loadMessages = async () => {
         setLoadingMessages(true);
         try {
-          const response = await fetch(`/api/chat/messages?customerId=${selectedCustomer.customerId}&employeeId=${sessionUser.id}`);
+          const response = await fetch(`/api/chat/messages?customerId=${selectedCustomer.customerId}`);
           if (response.ok) {
             const data = await response.json();
             if (data.success && data.messages) {
@@ -648,45 +682,47 @@ const ChatWidget = ({
                 ...prev,
                 [selectedCustomer.customerId]: data.messages || []
               }));
+              
+              // Mark messages as read
+              markMessagesAsRead(selectedCustomer.customerId);
+              
+              setNotifCount(prev => Math.max(0, prev - 1));
+              setActiveChats(prev => 
+                deduplicateChats(
+                  prev.map(chat => 
+                    chat.customerId === selectedCustomer.customerId 
+                      ? { ...chat, unread: false }
+                      : chat
+                  )
+                )
+              );
             }
+          } else {
+            console.error('Failed to fetch messages:', response.status);
           }
         } catch (error) {
-          console.error('Dashboard: Error loading messages:', error);
+          console.error('Error loading messages:', error);
         } finally {
           setLoadingMessages(false);
         }
       };
       loadMessages();
     }
-  }, [selectedCustomer, sessionUser?.id, socket, setEmployeeMessages]);
+  }, [selectedCustomer, sessionUser?.id, setEmployeeMessages, setNotifCount, markMessagesAsRead]);
 
-  const sendMessage = () => {
-    if (!newMessage.trim() || !selectedCustomer || !socket || !socket.connected) {
-      console.log('Dashboard: Cannot send message - missing requirements', {
-        hasMessage: !!newMessage.trim(),
-        hasCustomer: !!selectedCustomer,
-        hasSocket: !!socket,
-        socketConnected: socket?.connected
-      });
+  const sendMessage = async () => {
+    if (!newMessage.trim() || !selectedCustomer || !socket || !socketConnected) {
+      console.log('Cannot send message - missing requirements');
       return;
     }
     
-    const messageData = {
-      customerId: selectedCustomer.customerId,
-      text: newMessage.trim(),
-      employeeId: sessionUser.id,
-      employeeName: sessionUser.name || 'Employee',
-    };
+    const messageText = newMessage.trim();
+    const tempMessageId = `temp-${Date.now()}`;
     
-    console.log('Dashboard: Sending message via socket.emit:', messageData);
-    
-    // Use socket.emit for Socket.io, not socket.send
-    socket.emit('employee_message', messageData);
-    
-    // Add message to local state immediately for better UX
+    // Create temporary message for immediate UI update
     const tempMessage = {
-      id: `temp-${Date.now()}`,
-      text: newMessage.trim(),
+      id: tempMessageId,
+      text: messageText,
       sender: 'employee',
       employee_id: sessionUser.id,
       customer_id: selectedCustomer.customerId,
@@ -694,6 +730,7 @@ const ChatWidget = ({
       status: 'sending',
     };
     
+    // Update UI immediately
     setEmployeeMessages(prev => {
       const customerMessages = prev[selectedCustomer.customerId] || [];
       return {
@@ -703,114 +740,311 @@ const ChatWidget = ({
     });
     
     setNewMessage("");
+    
+    try {
+      // Save message using your send-message API
+      const saveResponse = await fetch('/api/chat/send-message', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: selectedCustomer.customerId,
+          employeeId: sessionUser.id,
+          employeeName: sessionUser.name,
+          text: messageText
+        })
+      });
+      
+      const saveResult = await saveResponse.json();
+      
+      if (saveResult.success) {
+        // Update temporary message with real ID
+        setEmployeeMessages(prev => {
+          const customerMessages = prev[selectedCustomer.customerId] || [];
+          return {
+            ...prev,
+            [selectedCustomer.customerId]: customerMessages.map(msg => 
+              msg.id === tempMessageId 
+                ? { 
+                    ...msg, 
+                    id: saveResult.messageId,
+                    status: 'delivered' 
+                  }
+                : msg
+            )
+          };
+        });
+        
+        // Send via socket
+        socket.emit('employee_message', {
+          customerId: selectedCustomer.customerId,
+          message: messageText,
+          employeeId: sessionUser.id,
+          employeeName: sessionUser.name || 'Employee',
+          messageId: saveResult.messageId
+        });
+        
+        console.log('Message sent successfully via socket');
+        
+        // Update active chats with new last message
+        setActiveChats(prev => 
+          deduplicateChats(
+            prev.map(chat => 
+              chat.customerId === selectedCustomer.customerId 
+                ? {
+                    ...chat,
+                    lastMessage: {
+                      text: messageText,
+                      sender: 'employee',
+                      timestamp: new Date().toISOString()
+                    }
+                  }
+                : chat
+            )
+          )
+        );
+      } else {
+        throw new Error(saveResult.error);
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
+      // Mark message as failed
+      setEmployeeMessages(prev => {
+        const customerMessages = prev[selectedCustomer.customerId] || [];
+        return {
+          ...prev,
+          [selectedCustomer.customerId]: customerMessages.map(msg => 
+            msg.id === tempMessageId 
+              ? { ...msg, status: 'failed' }
+              : msg
+          )
+        };
+      });
+    }
+  };
+
+  const handleCustomerSelect = (chat) => {
+    setSelectedCustomer(chat);
+    // Mark as read when selected
+    markMessagesAsRead(chat.customerId);
+    setNotifCount(prev => Math.max(0, prev - 1));
+    setActiveChats(prev => 
+      deduplicateChats(
+        prev.map(c => 
+          c.customerId === chat.customerId 
+            ? { ...c, unread: false }
+            : c
+        )
+      )
+    );
+  };
+
+  const acceptChat = async (customerId) => {
+    try {
+      const response = await fetch('/api/chat/accept-chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          customerId: customerId,
+          employeeId: sessionUser.id
+        })
+      });
+      
+      const result = await response.json();
+      
+      if (result.success) {
+        console.log('Chat accepted successfully');
+        // Reload chat sessions
+        const sessionsResponse = await fetch('/api/chat/sessions');
+        if (sessionsResponse.ok) {
+          const sessionsData = await sessionsResponse.json();
+          if (sessionsData.success) {
+            const deduplicated = deduplicateChats(sessionsData.sessions || []);
+            setActiveChats(deduplicated);
+          }
+        }
+      } else {
+        console.error('Failed to accept chat:', result.message);
+      }
+    } catch (error) {
+      console.error('Error accepting chat:', error);
+    }
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 bg-white rounded-lg shadow-xl border">
+    <div className="fixed bottom-4 right-4 z-50 w-80 bg-white rounded-lg shadow-xl border border-gray-200">
       <div className="bg-purple-600 rounded-t-lg p-3 text-white flex justify-between items-center">
-        <h3 className="font-bold">Support Chat</h3>
-        <button onClick={() => setShowChat(false)}>
-          <BiX />
-        </button>
+        <h3 className="font-bold text-sm">Support Chat</h3>
+        <div className="flex items-center space-x-2">
+          {socketConnected ? (
+            <span className="w-2 h-2 bg-green-400 rounded-full" title="Connected"></span>
+          ) : (
+            <span className="w-2 h-2 bg-red-400 rounded-full" title="Disconnected"></span>
+          )}
+          <button 
+            onClick={() => setShowChat(false)}
+            className="hover:bg-purple-700 rounded p-1"
+          >
+            <BiX size={16} />
+          </button>
+        </div>
       </div>
       
-      <div className="max-h-96 overflow-hidden flex">
+      <div className="h-96 overflow-hidden flex flex-col">
         {/* Chat list */}
-        <div className="w-1/3 border-r">
-          <div className="p-2 border-b bg-gray-50">
-            <h4 className="font-semibold text-sm">Chats</h4>
-          </div>
-          <div className="h-64 overflow-y-auto">
-            {activeChats.map(chat => (
-              <div
-                key={chat.customerId}
-                className={`p-2 border-b cursor-pointer text-sm ${
-                  selectedCustomer?.customerId === chat.customerId ? 'bg-blue-50' : 'hover:bg-gray-50'
-                }`}
-                onClick={() => setSelectedCustomer(chat)}
-              >
-                <p className="font-medium">{chat.customerName}</p>
-                <p className="text-xs text-gray-600 truncate">
-                  {chat.lastMessage?.text || 'No messages'}
-                </p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="w-2/3 flex flex-col">
-          {selectedCustomer ? (
-            <>
-              <div className="p-2 border-b bg-gray-50">
-                <p className="font-semibold text-sm">{selectedCustomer.customerName}</p>
-              </div>
-              <div className="flex-1 p-2 overflow-y-auto" style={{ maxHeight: '300px' }}>
-                {/* Messages content */}
-                {loadingMessages ? (
-                  <div className="flex items-center justify-center h-full text-gray-500 text-xs">
-                    Loading messages...
-                  </div>
-                ) : employeeMessages[selectedCustomer.customerId] && employeeMessages[selectedCustomer.customerId].length > 0 ? (
-                  <>
-                    {employeeMessages[selectedCustomer.customerId].map((msg, idx) => (
-                      <div
-                        key={msg.id || msg.tempId || idx}
-                        className={`mb-2 p-2 rounded text-sm ${
-                          msg.sender === 'employee' 
-                            ? 'bg-purple-100 ml-auto text-right max-w-[80%]' 
-                            : 'bg-gray-100 mr-auto max-w-[80%]'
-                        }`}
-                      >
-                        <p className="text-xs text-gray-600 mb-1">
-                          {msg.sender === 'employee' ? 'You' : selectedCustomer.customerName}
-                        </p>
-                        <p className="text-gray-800">{msg.text}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          {new Date(msg.timestamp).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
-                        </p>
-                      </div>
-                    ))}
-                    <div ref={messagesEndRef} />
-                  </>
-                ) : (
-                  <div className="flex items-center justify-center h-full text-gray-500 text-xs">
-                    No messages yet. Start the conversation!
-                  </div>
-                )}
-              </div>
-              <div className="p-2 border-t">
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={(e) => {
-                      if (e.key === 'Enter' && !e.shiftKey) {
-                        e.preventDefault();
-                        sendMessage();
-                      }
-                    }}
-                    placeholder="Type message..."
-                    className="flex-1 border rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                    disabled={!socket || !socket.connected}
-                  />
-                  <button 
-                    onClick={sendMessage} 
-                    disabled={!newMessage.trim() || !socket || !socket.connected}
-                    className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors"
-                    title={!socket || !socket.connected ? 'Socket not connected' : 'Send message'}
-                  >
-                    <BiSend size={14} />
-                  </button>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
-              Select a chat
+        <div className="flex-1 flex">
+          <div className="w-1/3 border-r border-gray-200 flex flex-col">
+            <div className="p-2 border-b bg-gray-50">
+              <h4 className="font-semibold text-xs">Active Chats ({activeChats.length})</h4>
             </div>
-          )}
+            <div className="flex-1 overflow-y-auto">
+              {activeChats.length > 0 ? (
+                activeChats.map((chat, index) => (
+                  <div
+                    key={`${chat.customerId}-${chat.lastMessage?.timestamp || index}-${index}`}
+                    className={`p-2 border-b cursor-pointer text-xs ${
+                      selectedCustomer?.customerId === chat.customerId 
+                        ? 'bg-blue-50 border-blue-200' 
+                        : 'hover:bg-gray-50'
+                    } ${chat.unread ? 'bg-yellow-50' : ''}`}
+                    onClick={() => handleCustomerSelect(chat)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <p className="font-medium truncate">{chat.customerName || `Customer ${chat.customerId}`}</p>
+                      {chat.unread && (
+                        <span className="w-2 h-2 bg-red-500 rounded-full ml-1 flex-shrink-0"></span>
+                      )}
+                    </div>
+                    <p className="text-gray-600 truncate text-xs mt-1">
+                      {chat.lastMessage?.text || 'No messages'}
+                    </p>
+                    {chat.lastMessage?.timestamp && (
+                      <p className="text-gray-400 text-xs mt-1">
+                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString('en-IN', { 
+                          hour: '2-digit', 
+                          minute: '2-digit' 
+                        })}
+                      </p>
+                    )}
+                    {!chat.employeeId && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          acceptChat(chat.customerId);
+                        }}
+                        className="mt-1 w-full bg-green-500 text-white text-xs py-1 rounded hover:bg-green-600"
+                      >
+                        Accept
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="p-4 text-center text-gray-500 text-xs">
+                  No active chats
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Messages */}
+          <div className="w-2/3 flex flex-col">
+            {selectedCustomer ? (
+              <>
+                <div className="p-2 border-b bg-gray-50 flex justify-between items-center">
+                  <p className="font-semibold text-sm">
+                    {selectedCustomer.customerName || `Customer ${selectedCustomer.customerId}`}
+                  </p>
+                  {!selectedCustomer.employeeId && (
+                    <button
+                      onClick={() => acceptChat(selectedCustomer.customerId)}
+                      className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600"
+                    >
+                      Accept Chat
+                    </button>
+                  )}
+                </div>
+                <div className="flex-1 p-2 overflow-y-auto" style={{ maxHeight: '280px' }}>
+                  {loadingMessages ? (
+                    <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                      Loading messages...
+                    </div>
+                  ) : employeeMessages[selectedCustomer.customerId] && 
+                     employeeMessages[selectedCustomer.customerId].length > 0 ? (
+                    <>
+                      {employeeMessages[selectedCustomer.customerId].map((msg, idx) => (
+                        <div
+                          key={msg.id || idx}
+                          className={`mb-2 p-2 rounded text-sm ${
+                            msg.sender === 'employee' 
+                              ? 'bg-purple-100 ml-auto text-right max-w-[80%]' 
+                              : 'bg-gray-100 mr-auto max-w-[80%]'
+                          }`}
+                        >
+                          <p className="text-xs text-gray-600 mb-1">
+                            {msg.sender === 'employee' ? 'You' : selectedCustomer.customerName || 'Customer'}
+                          </p>
+                          <p className="text-gray-800 break-words">{msg.text}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(msg.timestamp).toLocaleTimeString('en-IN', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                            {msg.status === 'sending' && ' • Sending...'}
+                            {msg.status === 'failed' && ' • Failed'}
+                          </p>
+                        </div>
+                      ))}
+                      <div ref={messagesEndRef} />
+                    </>
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                      No messages yet. Start the conversation!
+                    </div>
+                  )}
+                </div>
+                <div className="p-2 border-t">
+                  <div className="flex space-x-2">
+                    <input
+                      type="text"
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault();
+                          sendMessage();
+                        }
+                      }}
+                      placeholder="Type message..."
+                      className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      disabled={!socketConnected || !selectedCustomer.employeeId}
+                    />
+                    <button 
+                      onClick={sendMessage} 
+                      disabled={!newMessage.trim() || !socketConnected || !selectedCustomer.employeeId}
+                      className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
+                      title={!socketConnected ? 'Socket not connected' : !selectedCustomer.employeeId ? 'Accept chat first' : 'Send message'}
+                    >
+                      <BiSend size={14} />
+                    </button>
+                  </div>
+                  {!socketConnected && (
+                    <p className="text-red-500 text-xs mt-1">Connection lost</p>
+                  )}
+                  {!selectedCustomer.employeeId && (
+                    <p className="text-yellow-600 text-xs mt-1">Accept chat to send messages</p>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+                Select a chat to start messaging
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

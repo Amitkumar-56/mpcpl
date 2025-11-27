@@ -15,6 +15,19 @@ export async function POST(request) {
       );
     }
 
+    // Check if record is already invoiced - prevent uninvoicing
+    const existingRecord = await executeQuery(
+      'SELECT is_invoiced FROM filling_requests WHERE id = ?',
+      [record_id]
+    );
+
+    if (existingRecord.length > 0 && existingRecord[0].is_invoiced && !is_invoiced) {
+      return NextResponse.json(
+        { success: false, error: 'Cannot uninvoice. Once invoiced, it cannot be uninvoiced.' },
+        { status: 400 }
+      );
+    }
+
     // Update the invoice status in the database
     const query = `
       UPDATE filling_requests 

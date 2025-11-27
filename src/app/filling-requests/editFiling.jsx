@@ -285,7 +285,15 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
           : "-"}
       </td>
       <td className="py-3 px-4 text-sm">
-        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+        <div className="flex flex-col">
+          <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+          {request.status === "Processing" && request.processing_by_name && (
+            <span className="text-xs text-gray-600 mt-1">By: {request.processing_by_name}</span>
+          )}
+          {request.status === "Completed" && request.completed_by_name && (
+            <span className="text-xs text-gray-600 mt-1">By: {request.completed_by_name}</span>
+          )}
+        </div>
       </td>
       <td className="py-3 px-4 text-sm">
         {request.status === "Pending" && request.eligibility && (
@@ -302,7 +310,13 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         )}
         {request.status !== "Pending" && <span className="text-gray-400 text-xs">N/A</span>}
       </td>
-      <td className="py-3 px-4 text-sm">{request.updated_by_name || "System"}</td>
+      <td className="py-3 px-4 text-sm">
+        {request.status === "Processing" && request.processing_by_name 
+          ? request.processing_by_name
+          : request.status === "Completed" && request.completed_by_name
+          ? request.completed_by_name
+          : request.updated_by_name || "System"}
+      </td>
       <td className="py-3 px-4 text-sm">
         <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
       </td>

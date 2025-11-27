@@ -410,14 +410,14 @@ export default function StockRequest() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <div className="flex h-screen bg-gray-100">
       <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <Header />
 
-        <div className="min-h-screen bg-gray-50">
+        <div className="flex-1 overflow-y-auto bg-gray-50">
           {/* Header Section */}
-          <div className="bg-white shadow-sm border-b">
+          <div className="bg-white shadow-sm border-b sticky top-0 z-10">
             <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
@@ -447,7 +447,7 @@ export default function StockRequest() {
           </div>
 
           {/* Main Content */}
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1">
             <div className="max-w-7xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
               {error && (
                 <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
@@ -484,8 +484,8 @@ export default function StockRequest() {
               )}
             </div>
           </main>
+          <Footer />
         </div>
-        <Footer />
       </div>
     </div>
   );

@@ -4,18 +4,24 @@ import { NextResponse } from "next/server";
 
 export async function GET() {
   try {
-    const data = await executeQuery({
-      query: `
-        SELECT n.station_id, f.station_name, n.product_id, p.pname, n.stock
-        FROM non_billing_stocks n
-        JOIN filling_stations f ON n.station_id = f.id
-        JOIN product p ON n.product_id = p.id
-        WHERE n.stock > 0
-        ORDER BY f.station_name, p.pname
-      `,
-    });
+    // Fetch all non-billing stocks with station and product names
+    // Show all records (even if stock is 0 or negative) for dropdown
+    const data = await executeQuery(
+      `SELECT 
+        n.station_id, 
+        f.station_name, 
+        n.product_id, 
+        p.pname, 
+        COALESCE(SUM(n.stock), 0) as stock
+       FROM non_billing_stocks n
+       LEFT JOIN filling_stations f ON n.station_id = f.id
+       LEFT JOIN products p ON n.product_id = p.id
+       GROUP BY n.station_id, n.product_id, f.station_name, p.pname
+       ORDER BY f.station_name, p.pname`
+    );
     return NextResponse.json({ success: true, data });
   } catch (err) {
+    console.error('Error fetching non-billing stocks for dropdown:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
@@ -49,13 +55,11 @@ export async function POST(req) {
     }
 
     // Check stock availability
-    const stockCheck = await executeQuery({
-      query: `
-        SELECT stock FROM non_billing_stocks 
-        WHERE station_id = ? AND product_id = ?
-      `,
-      values: [station_id, product_id],
-    });
+    const stockCheck = await executeQuery(
+      `SELECT stock FROM non_billing_stocks 
+       WHERE station_id = ? AND product_id = ?`,
+      [station_id, product_id]
+    );
 
     if (stockCheck.length === 0) {
       return NextResponse.json(
@@ -76,24 +80,20 @@ export async function POST(req) {
     }
 
     // Insert expense record
-    await executeQuery({
-      query: `
-        INSERT INTO nb_expense 
-          (payment_date, title, reason, paid_to, amount, station_id, product_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-      `,
-      values: [payment_date, title, reason, paid_to, amount, station_id, product_id],
-    });
+    await executeQuery(
+      `INSERT INTO nb_expense 
+       (payment_date, title, reason, paid_to, amount, station_id, product_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [payment_date, title, reason, paid_to, amount, station_id, product_id]
+    );
 
     // Update stock
-    await executeQuery({
-      query: `
-        UPDATE non_billing_stocks 
-        SET stock = stock - ?, updated_at = NOW()
-        WHERE station_id = ? AND product_id = ?
-      `,
-      values: [amount, station_id, product_id],
-    });
+    await executeQuery(
+      `UPDATE non_billing_stocks 
+       SET stock = stock - ?, updated_at = NOW()
+       WHERE station_id = ? AND product_id = ?`,
+      [amount, station_id, product_id]
+    );
 
     return NextResponse.json({
       success: true,

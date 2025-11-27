@@ -60,7 +60,7 @@ export default function Sidebar() {
     { name: "NB Accounts", icon: <FaClipboard />, module: "nb_balance", path: "/nb-balance" },
     { name: "NB Expenses", icon: <FaMoneyBill />, module: "nb_expenses", path: "/nb-expenses" },
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
-    { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock", path: "/stock" },
+    { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock_transfers", path: "/stock-transfers" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Retailers", icon: <FaUsers />, module: "retailers", path: "/retailers" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },

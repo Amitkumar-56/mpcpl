@@ -1,927 +1,1308 @@
-// app/customers/client-history/page.jsx
+//src/app/customers/customer-details/customerDetailsClients.jsx
 "use client";
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 
-// --- MOCK COMPONENTS (Replace with your actual components) ---
-const Modal = ({ show, onClose, title, children }) => {
-  if (!show) return null;
-  return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex justify-center items-center">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
-        <div className="flex justify-between items-center p-4 border-b">
-          <h3 className="text-xl font-semibold text-gray-900">{title}</h3>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M6 18L18 6M6 6l12 12"
-              />
-            </svg>
-          </button>
-        </div>
-        <div className="p-6">{children}</div>
-      </div>
-    </div>
-  );
+// Status utility function
+const getStatusInfo = (status) => {
+  const activeStatuses = [
+    "Yes",
+    "yes",
+    "Active",
+    "active",
+    "true",
+    true,
+    1,
+    "1",
+  ];
+  const isActive = activeStatuses.includes(status);
+
+  return {
+    isActive,
+    displayText: isActive ? "Active" : "Inactive",
+    className: isActive
+      ? "bg-green-100 text-green-800"
+      : "bg-red-100 text-red-800",
+  };
 };
-// ----------------------------------------------------------
 
-function ClientHistoryContent() {
-  const [transactions, setTransactions] = useState([]);
-  const [products, setProducts] = useState([]);
-  const [balance, setBalance] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState("");
-  const [exportLoading, setExportLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage, setItemsPerPage] = useState(10);
+// Eligibility utility function
+const getEligibilityInfo = (eligibility) => {
+  if (!eligibility) return { isEligible: false, reason: "Unknown status" };
 
-  const [error, setError] = useState("");
-  const [customerName, setCustomerName] = useState("");
-  const [customerBalanceInfo, setCustomerBalanceInfo] = useState(null);
+  return {
+    isEligible: eligibility.eligible,
+    reason: eligibility.reason || "Eligible",
+    className: eligibility.eligible
+      ? "bg-green-100 text-green-800"
+      : "bg-red-100 text-red-800",
+  };
+};
 
+// Overdue check function
+const checkOverdueAndShowMessage = (customer) => {
+  if (customer.eligibility?.hasOverdue) {
+    const overdueAmount = customer.eligibility.totalOverdue || 0;
+    const message = `OVERDUE ALERT: You have overdue invoices totaling ₹${overdueAmount.toLocaleString(
+      "en-IN"
+    )}. 
+    Your account has been blocked. Please make payment to automatically unblock your account. 
+    After payment, your account will be automatically activated.`;
+
+    // Show alert
+    alert(message);
+
+    return true;
+  }
+  return false;
+};
+
+// Error Boundary Component
+const ErrorBoundary = ({ error, onRetry }) => (
+  <div className="min-h-screen bg-gray-50 flex">
+    <Sidebar />
+    <div className="flex-1 flex flex-col">
+      <Header />
+      <div className="flex-1 flex items-center justify-center">
+        <div className="text-center max-w-md mx-auto p-6">
+          <div className="text-red-600 text-xl mb-4">Error Loading Customer Details</div>
+          <p className="text-gray-600 mb-6">{error}</p>
+          <div className="space-x-4">
+            <button
+              onClick={() => window.history.back()}
+              className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+            >
+              Go Back
+            </button>
+            <button
+              onClick={onRetry}
+              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+      <Footer />
+    </div>
+  </div>
+);
+
+export default function CustomerDetailsClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const cid = searchParams.get("id");
+  const id = searchParams.get("id");
 
-  // Check if customer is day_limit type
-  const isDayLimitCustomer = customerBalanceInfo?.day_limit > 0;
-
-  // Filter transactions based on search
-  const filteredTransactions = transactions.filter((transaction) => {
-    if (!searchTerm) return true;
-
-    const searchLower = searchTerm.toLowerCase();
-    return (
-      transaction.station_name?.toLowerCase().includes(searchLower) ||
-      transaction.pname?.toLowerCase().includes(searchLower) ||
-      transaction.vehicle_number?.toLowerCase().includes(searchLower) ||
-      transaction.trans_type?.toLowerCase().includes(searchLower) ||
-      transaction.updated_by_name?.toLowerCase().includes(searchLower)
-    );
-  });
-
-  // Pagination
-  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
-  const startIndex = (currentPage - 1) * itemsPerPage;
-  const displayTransactions = filteredTransactions.slice(
-    startIndex,
-    startIndex + itemsPerPage
-  );
+  const [customer, setCustomer] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("details");
+  const [showAddUserModal, setShowAddUserModal] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [actionLoading, setActionLoading] = useState(false);
 
   useEffect(() => {
-    if (cid) {
-      fetchTransactions();
+    if (id) {
+      fetchCustomerDetails();
+    } else {
+      setError("Customer ID is missing");
+      setLoading(false);
     }
-  }, [cid, filter]);
+  }, [id]);
 
-  const fetchTransactions = async () => {
+  const fetchCustomerDetails = async () => {
     try {
       setLoading(true);
       setError("");
 
-      const params = new URLSearchParams({ id: cid });
-      if (filter) params.append("pname", filter);
-
-      const response = await fetch(`/api/customers/client-history?${params}`);
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      console.log("Fetching customer details for ID:", id);
+      
+      const res = await fetch(`/api/customers/customer-details?id=${id}`);
+      
+      console.log("Response status:", res.status);
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(
+          errorData.error || errorData.details || `HTTP error! status: ${res.status}`
+        );
       }
 
-      const result = await response.json();
+      const data = await res.json();
+      console.log("Response data:", data);
 
-      if (result.success) {
-        setTransactions(result.data.transactions || []);
-        setProducts(result.data.products || []);
-        setBalance(result.data.balance || 0);
-        setCustomerName(result.data.customerName || `Customer ${cid}`);
-        setCustomerBalanceInfo(result.data.customerBalanceInfo || null);
-      } else {
-        setError(result.error || "Failed to fetch data");
+      if (data.error) {
+        throw new Error(data.error);
       }
-    } catch (error) {
-      console.error('Fetch error:', error);
-      setError("Network error: " + error.message);
+
+      if (!data.customer) {
+        throw new Error("Customer data not found in response");
+      }
+
+      setCustomer(data.customer);
+
+      // Check for overdue and show message
+      setTimeout(() => {
+        checkOverdueAndShowMessage(data.customer);
+      }, 1000);
+    } catch (err) {
+      console.error("Error in fetchCustomerDetails:", err);
+      setError(err.message || "Failed to load customer details");
     } finally {
       setLoading(false);
     }
   };
 
-  // Calculate actual days used based on transactions
-  const calculateActualDaysUsed = () => {
-    if (!isDayLimitCustomer) return 0;
-
+  const handleUpdateProfile = async (formData) => {
     try {
-      const today = new Date();
-      const currentMonth = today.getMonth();
-      const currentYear = today.getFullYear();
-
-      // Filter transactions for current month (outward transactions only)
-      const currentMonthTransactions = transactions.filter(transaction => {
-        if (!transaction.completed_date && !transaction.filling_date) return false;
-        if (transaction.trans_type !== 'outward') return false; // Only count fuel transactions
-        
-        const transDate = new Date(transaction.completed_date || transaction.filling_date);
-        return transDate.getMonth() === currentMonth && transDate.getFullYear() === currentYear;
+      setActionLoading(true);
+      const res = await fetch("/api/customers/customer-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_customer_profile",
+          id,
+          ...formData,
+        }),
       });
 
-      // Get unique dates (days) with transactions
-      const uniqueDates = new Set();
-      currentMonthTransactions.forEach(transaction => {
-        const transDate = new Date(transaction.completed_date || transaction.filling_date);
-        const dateKey = transDate.toISOString().split('T')[0]; // YYYY-MM-DD format
-        uniqueDates.add(dateKey);
-      });
+      const data = await res.json();
 
-      return uniqueDates.size;
-    } catch (error) {
-      console.error('Error calculating days used:', error);
-      return 0;
-    }
-  };
-
-  // Calculate days used and remaining for day_limit customers
-  const getDayLimitInfo = () => {
-    if (!isDayLimitCustomer) return null;
-
-    const dayLimit = customerBalanceInfo?.day_limit || 0;
-    const lastResetDate = customerBalanceInfo?.last_reset_date;
-    const dayLimitExpiry = customerBalanceInfo?.day_limit_expiry;
-
-    // Calculate actual days used based on transactions
-    const daysUsed = calculateActualDaysUsed();
-    const daysRemaining = Math.max(0, dayLimit - daysUsed);
-
-    return {
-      dayLimit,
-      daysUsed,
-      daysRemaining,
-      lastResetDate,
-      dayLimitExpiry
-    };
-  };
-
-  // Calculate transaction status - ONLY for day_limit customers
-  const getTransactionStatus = (transaction) => {
-    // For inward transactions (recharges), always show as "Recharge"
-    if (transaction.trans_type === "inward") {
-      return { status: "Recharge", color: "green" };
-    }
-
-    // For outward transactions, check payment_status
-    if (transaction.payment_status === 1) {
-      return { status: "Paid", color: "green" };
-    }
-
-    // If payment_status is 0 (Unpaid), check if it's overdue
-    // BUT ONLY if customer has day_limit type
-    if (transaction.payment_status === 0 && isDayLimitCustomer) {
-      const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
-      const currentDate = new Date();
-      const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
-      
-      if (daysDifference > 30) {
-        return { status: "Overdue", color: "red" };
-      } else {
-        return { status: "Pending", color: "orange" };
-      }
-    }
-
-    // For amt_limit customers OR non-day_limit, return null (no status)
-    return null;
-  };
-
-  // Export function
-  const handleExport = async () => {
-    try {
-      setExportLoading(true);
-      
-      const params = new URLSearchParams();
-      params.append('id', cid);
-      if (filter) params.append('pname', filter);
-
-      const response = await fetch('/api/customers/client-history', {
-        method: 'POST',
-        body: params
-      });
-
-      if (!response.ok) {
-        throw new Error('Export failed');
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update profile");
       }
 
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.style.display = 'none';
-      a.href = url;
-      a.download = `transaction_history_${cid}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Export error:', error);
-      alert('Export failed: ' + error.message);
+      alert(data.message || "Profile updated successfully");
+      setShowEditModal(false);
+      fetchCustomerDetails();
+    } catch (err) {
+      alert(err.message || "Error updating profile");
     } finally {
-      setExportLoading(false);
+      setActionLoading(false);
     }
   };
 
-  const formatCurrency = (amount) =>
-    new Intl.NumberFormat("en-IN").format(amount || 0);
-    
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-IN');
+  const handleAddUser = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    try {
+      setActionLoading(true);
+      const res = await fetch("/api/customers/customer-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "add_user",
+          com_id: id,
+          name: formData.get("client_name"),
+          phone: formData.get("phone"),
+          email: formData.get("email"),
+          password: formData.get("password"),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to add user");
+      }
+
+      alert(data.message || "User added successfully");
+      setShowAddUserModal(false);
+      fetchCustomerDetails();
+    } catch (err) {
+      alert(err.message || "Error adding user");
+    } finally {
+      setActionLoading(false);
+    }
   };
-  
-  const formatDateTime = (dateString) => {
-    if (!dateString) return 'N/A';
-    const date = new Date(dateString);
-    return date.toLocaleString('en-IN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+
+  const handleUpdatePassword = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+
+    try {
+      setActionLoading(true);
+      const res = await fetch("/api/customers/customer-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update_password",
+          userId: selectedUser.id,
+          newPassword: formData.get("password"),
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update password");
+      }
+
+      alert(data.message || "Password updated successfully");
+      setShowPasswordModal(false);
+      setSelectedUser(null);
+    } catch (err) {
+      alert(err.message || "Error updating password");
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  const PaymentStatusBadge = ({ status, transactionType }) => {
-    if (!status) return null; // Don't render anything if no status
+  const handleDeleteUser = async (userId) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this user? This action cannot be undone."
+      )
+    )
+      return;
 
-    const styles = {
-      paid: "bg-green-100 text-green-800 border-green-200",
-      overdue: "bg-red-100 text-red-800 border-red-200",
-      pending: "bg-orange-100 text-orange-800 border-orange-200",
-      recharge: "bg-blue-100 text-blue-800 border-blue-200",
-    };
+    try {
+      const res = await fetch("/api/customers/customer-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete_user", userId }),
+      });
 
-    const style =
-      transactionType === "inward"
-        ? styles.recharge
-        : styles[status?.toLowerCase()] ||
-          "bg-gray-100 text-gray-800 border-gray-200";
+      const data = await res.json();
 
-    const displayStatus = transactionType === "inward" ? "Recharge" : status;
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete user");
+      }
 
+      alert(data.message || "User deleted successfully");
+      fetchCustomerDetails();
+    } catch (err) {
+      alert(err.message || "Error deleting user");
+    }
+  };
+
+  const handleProcessPayment = async (paymentData) => {
+    try {
+      setActionLoading(true);
+      const res = await fetch("/api/customers/customer-details", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "process_payment",
+          id,
+          ...paymentData,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to process payment");
+      }
+
+      if (data.unblocked) {
+        alert(
+          `Payment processed successfully! Your account has been unblocked. New limit: ₹${data.newLimit.toLocaleString(
+            "en-IN"
+          )}`
+        );
+      } else {
+        alert("Payment processed successfully!");
+      }
+
+      setShowPaymentModal(false);
+      fetchCustomerDetails();
+    } catch (err) {
+      alert(err.message || "Error processing payment");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Show error boundary if there's an error
+  if (error && !loading) {
+    return <ErrorBoundary error={error} onRetry={fetchCustomerDetails} />;
+  }
+
+  // Loading state
+  if (loading) {
     return (
-      <span
-        className={`px-2 py-1 text-xs font-medium rounded-full border ${style}`}
-      >
-        {displayStatus || "N/A"}
-      </span>
-    );
-  };
-
-  const TransactionTypeBadge = ({ type }) => {
-    const styles = {
-      outward: "bg-red-100 text-red-800 border-red-200",
-      inward: "bg-green-100 text-green-800 border-green-200",
-    };
-
-    const style =
-      styles[type?.toLowerCase()] ||
-      "bg-gray-100 text-gray-800 border-gray-200";
-    const displayText =
-      type === "outward" ? "Fuel" : type === "inward" ? "Recharge" : type;
-
-    return (
-      <span
-        className={`px-2 py-1 text-xs font-medium rounded-full border ${style}`}
-      >
-        {displayText}
-      </span>
-    );
-  };
-
-  // Mobile Card View - WITH ALL COLUMNS
-  const TransactionCard = ({ transaction }) => {
-    const statusInfo = getTransactionStatus(transaction);
-
-    return (
-      <div className="bg-white rounded-lg shadow-sm border p-4 mb-3 hover:shadow-md transition-shadow">
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-gray-500 text-xs font-medium">ID</p>
-            <p className="font-medium">{transaction.id}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Station</p>
-            <p className="font-medium truncate">
-              {transaction.station_name || "N/A"}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Completed Date</p>
-            <p className="font-medium">
-              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Product</p>
-            <p className="font-medium">{transaction.pname || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Vehicle #</p>
-            <p className="font-medium">{transaction.vehicle_number || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Trans Type</p>
-            <TransactionTypeBadge type={transaction.trans_type} />
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Loading Qty</p>
-            <p className="font-medium">{transaction.filling_qty || "0"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Amount</p>
-            <p className="font-bold text-blue-600">
-              ₹{formatCurrency(transaction.amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Credit</p>
-            <p className="font-bold text-green-600">
-              ₹{formatCurrency(transaction.credit)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Credit Date</p>
-            <p className="font-medium">
-              {formatDate(transaction.credit_date)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Balance</p>
-            <p className="font-bold">
-              ₹{formatCurrency(transaction.new_amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Remaining Limit</p>
-            <p className="font-medium">
-              {isDayLimitCustomer ? 
-                (transaction.remaining_day_limit || "N/A") : 
-                (transaction.remaining_limit || "N/A")}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Limit</p>
-            <p className="font-medium">{transaction.limit_type || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Increase Amount</p>
-            <p className="font-bold text-green-600">
-              ₹{formatCurrency(transaction.in_amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Decrease Amount</p>
-            <p className="font-bold text-red-600">
-              ₹{formatCurrency(transaction.d_amount)}
-            </p>
-          </div>
-          {/* Conditionally render status only for day_limit customers */}
-          {isDayLimitCustomer && (
-            <div className="col-span-2">
-              <p className="text-gray-500 text-xs font-medium">Status</p>
-              <PaymentStatusBadge
-                status={statusInfo?.status}
-                transactionType={transaction.trans_type}
-              />
+      <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading customer details...</p>
             </div>
-          )}
-          <div className="col-span-2">
-            <p className="text-gray-500 text-xs font-medium">Updated By</p>
-            <p className="font-medium">
-              {transaction.updated_by_name || "Unknown"}
-            </p>
           </div>
-        </div>
-      </div>
-    );
-  };
-
-  if (!cid) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-500 text-lg">Customer ID is required</div>
-          <button
-            onClick={() => router.back()}
-            className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-          >
-            Go Back
-          </button>
+          <Footer />
         </div>
       </div>
     );
   }
 
-  // Get day limit info
-  const dayLimitInfo = getDayLimitInfo();
-
-  return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center space-x-4">
+  // No customer found
+  if (!customer) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-gray-600 text-xl mb-4">
+                Customer not found
+              </div>
               <button
                 onClick={() => router.back()}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                  />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Transaction History
-                </h1>
-                <p className="text-gray-500">
-                  Customer: {customerName} (ID: {cid})
-                </p>
-                {customerBalanceInfo && (
-                  <div className="text-sm text-gray-600 space-y-1">
-                    <p>
-                      Limit Type: {isDayLimitCustomer ? 'Day Limit' : 'Amount Limit'} | 
-                      {isDayLimitCustomer ? ` Day Limit: ${customerBalanceInfo.day_limit}` : ` Amount Limit: ₹${formatCurrency(customerBalanceInfo.amtlimit)}`}
-                    </p>
-                    {/* Day Limit Information - ONLY for day_limit customers */}
-                    {isDayLimitCustomer && dayLimitInfo && (
-                      <div className="flex space-x-4 text-xs">
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                          Days Used: {dayLimitInfo.daysUsed}/{dayLimitInfo.dayLimit}
-                        </span>
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Days Remaining: {dayLimitInfo.daysRemaining}
-                        </span>
-                        {dayLimitInfo.dayLimitExpiry && (
-                          <span className="bg-orange-100 text-orange-800 px-2 py-1 rounded">
-                            Expiry: {formatDate(dayLimitInfo.dayLimitExpiry)}
-                          </span>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-                {error && <p className="text-red-500 text-sm mt-1">{error}</p>}
-              </div>
-            </div>
-
-            <div className="flex items-center space-x-4">
-              <div className="text-right">
-                <p className="text-sm text-gray-500">Available Balance</p>
-                <p
-                  className={`text-lg font-bold ${
-                    balance < 0 ? "text-red-600" : "text-green-600"
-                  }`}
-                >
-                  ₹{formatCurrency(balance)}
-                </p>
-              </div>
-
-              {/* ONLY EXPORT BUTTON - RECHARGE/PAY BUTTON REMOVED */}
-              <button
-                onClick={handleExport}
-                disabled={exportLoading || transactions.length === 0}
-                className="flex items-center space-x-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {exportLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>Exporting...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg
-                      className="w-4 h-4"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <span>Export CSV</span>
-                  </>
-                )}
+                Go Back
               </button>
             </div>
           </div>
+          <Footer />
         </div>
       </div>
+    );
+  }
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters Section */}
-        <div className="bg-white rounded-lg shadow-sm border p-6 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {/* Product Filter */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by Product
-              </label>
-              <select
-                value={filter}
-                onChange={(e) => setFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Products</option>
-                {products.map((product, index) => (
-                  <option key={index} value={product}>
-                    {product}
-                  </option>
-                ))}
-              </select>
-            </div>
+  const statusInfo = getStatusInfo(customer.status);
+  const eligibilityInfo = getEligibilityInfo(customer.eligibility);
+  const isOverdue = customer.eligibility?.hasOverdue;
 
-            {/* Search */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Search Transactions
-              </label>
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-                <svg
-                  className="absolute left-3 top-2.5 w-4 h-4 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-              </div>
-            </div>
+  return (
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
 
-            {/* Items Per Page */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Items per page
-              </label>
-              <select
-                value={itemsPerPage}
-                onChange={(e) => {
-                  setItemsPerPage(Number(e.target.value));
-                  setCurrentPage(1);
-                }}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value={5}>5</option>
-                <option value={10}>10</option>
-                <option value={25}>25</option>
-                <option value={50}>50</option>
-              </select>
-            </div>
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
 
-            {/* Stats */}
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Quick Stats
-              </label>
-              <div className="text-sm text-gray-600">
-                <div>Total Records: {filteredTransactions.length}</div>
-                <div>Current Balance: ₹{formatCurrency(balance)}</div>
-                {isDayLimitCustomer && (
-                  <div className="text-blue-600 font-semibold">
-                    Day Limit Customer
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Results Section - WITH ALL COLUMNS */}
-        <div className="bg-white rounded-lg shadow-sm border">
-          {loading ? (
-            <div className="flex justify-center items-center py-12">
-              <div className="text-center">
-                <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="mt-3 text-gray-600">Loading transactions...</p>
-              </div>
-            </div>
-          ) : error ? (
-            <div className="text-center py-12">
-              <div className="text-red-500 text-lg mb-4">Error: {error}</div>
-              <button
-                onClick={fetchTransactions}
-                className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-              >
-                Retry
-              </button>
-            </div>
-          ) : (
-            <>
-              {/* Mobile View - WITH ALL FIELDS */}
-              <div className="md:hidden p-4">
-                {displayTransactions.length > 0 ? (
-                  displayTransactions.map((transaction) => (
-                    <TransactionCard
-                      key={transaction.id}
-                      transaction={transaction}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-8">
-                    <svg
-                      className="w-16 h-16 mx-auto text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+        {/* Main Content Area */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="min-h-full">
+            {/* Header */}
+            <div className="bg-white shadow-sm border-b">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 space-y-4 sm:space-y-0">
+                  <div className="flex items-center space-x-4">
+                    <Link
+                      href="/customers"
+                      className="text-gray-600 hover:text-gray-900 transition-colors"
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                      />
-                    </svg>
-                    <p className="mt-4 text-gray-600">No transactions found</p>
-                    <p className="text-sm text-gray-500">
-                      Try adjusting your filters or search terms
-                    </p>
-                    <button
-                      onClick={fetchTransactions}
-                      className="mt-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                    >
-                      Refresh Data
-                    </button>
+                      <svg
+                        className="w-6 h-6"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M10 19l-7-7m0 0l7-7m-7 7h18"
+                        />
+                      </svg>
+                    </Link>
+                    <h1 className="text-2xl font-bold text-gray-900">
+                      Customer Details
+                    </h1>
                   </div>
-                )}
-              </div>
-
-              {/* Desktop Table View - WITH ALL COLUMNS */}
-              <div className="hidden md:block overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        #
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Station
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Completed Date
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Product
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Vehicle #
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Trans Type
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Loading Qty
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Amount
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Credit
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Credit Date
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Balance
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Remaining Limit
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Limit
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Increase Amount
-                      </th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Decrease Amount
-                      </th>
-                      {/* Conditionally render Status column only for day_limit customers */}
-                      {isDayLimitCustomer && (
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Status
-                        </th>
-                      )}
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Updated By
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {displayTransactions.length > 0 ? (
-                      displayTransactions.map((transaction) => {
-                        const statusInfo = getTransactionStatus(transaction);
-
-                        return (
-                          <tr
-                            key={transaction.id}
-                            className="hover:bg-gray-50 transition-colors"
-                          >
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {transaction.id}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.station_name || "N/A"}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.pname || "N/A"}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.vehicle_number || "N/A"}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap">
-                              <TransactionTypeBadge
-                                type={transaction.trans_type}
-                              />
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.filling_qty || "0"}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-blue-600">
-                              ₹{formatCurrency(transaction.amount)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
-                              ₹{formatCurrency(transaction.credit)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">
-                              {formatDate(transaction.credit_date)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold">
-                              ₹{formatCurrency(transaction.new_amount)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {isDayLimitCustomer ? 
-                                (transaction.remaining_day_limit || "N/A") : 
-                                (transaction.remaining_limit || "N/A")}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.limit_type || "N/A"}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
-                              ₹{formatCurrency(transaction.in_amount)}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-red-600">
-                              ₹{formatCurrency(transaction.d_amount)}
-                            </td>
-                            {/* Conditionally render Status cell only for day_limit customers */}
-                            {isDayLimitCustomer && (
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <PaymentStatusBadge
-                                  status={statusInfo?.status}
-                                  transactionType={transaction.trans_type}
-                                />
-                              </td>
-                            )}
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {transaction.updated_by_name || "Unknown"}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    ) : (
-                      <tr>
-                        <td colSpan={isDayLimitCustomer ? "17" : "16"} className="px-6 py-8 text-center">
-                          <div className="flex flex-col items-center text-gray-500">
-                            <svg
-                              className="w-16 h-16 mb-4"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                              />
-                            </svg>
-                            <p className="text-lg font-medium">
-                              No transactions found
-                            </p>
-                            <p className="text-sm mb-4">
-                              Try adjusting your filters or search terms
-                            </p>
-                            <button
-                              onClick={fetchTransactions}
-                              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                            >
-                              Refresh Data
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
+                  <div className="flex flex-wrap gap-2">
+                    {isOverdue && (
+                      <button
+                        onClick={() => setShowPaymentModal(true)}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm"
+                      >
+                        Make Payment
+                      </button>
                     )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Pagination */}
-              {filteredTransactions.length > 0 && (
-                <div className="px-6 py-4 flex justify-between items-center border-t">
-                  <p className="text-sm text-gray-600">
-                    Showing {startIndex + 1} to{" "}
-                    {Math.min(
-                      startIndex + itemsPerPage,
-                      filteredTransactions.length
-                    )}{" "}
-                    of {filteredTransactions.length} results
-                  </p>
-                  <div className="flex space-x-2">
                     <button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.max(1, prev - 1))
-                      }
-                      disabled={currentPage === 1}
-                      className="px-3 py-1 text-sm rounded-lg border bg-gray-50 hover:bg-gray-100 disabled:opacity-50"
+                      onClick={() => setShowEditModal(true)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm"
                     >
-                      Previous
-                    </button>
-                    <button
-                      onClick={() =>
-                        setCurrentPage((prev) => Math.min(totalPages, prev + 1))
-                      }
-                      disabled={currentPage === totalPages}
-                      className="px-3 py-1 text-sm rounded-lg border bg-gray-50 hover:bg-gray-100 disabled:opacity-50"
-                    >
-                      Next
+                      Edit Profile
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+
+            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+              {/* Overdue Alert */}
+              {isOverdue && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <svg
+                      className="w-5 h-5 text-red-400 mr-2"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                      />
+                    </svg>
+                    <h3 className="text-red-800 font-semibold">
+                      Account Blocked Due to Overdue Invoices
+                    </h3>
+                  </div>
+                  <p className="text-red-700 mt-2">
+                    Total Overdue: ₹
+                    {(customer.eligibility.totalOverdue || 0).toLocaleString(
+                      "en-IN"
+                    )}{" "}
+                    | Please make payment to automatically unblock your account.
+                  </p>
+                </div>
               )}
-            </>
-          )}
+
+              {/* Customer Summary Card */}
+              <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+                <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold text-gray-900">
+                      {customer.name}
+                    </h2>
+                    <p className="text-gray-600 mt-1">ID: {customer.id}</p>
+                    <p className="text-gray-600">
+                      Customer Type:{" "}
+                      <span className="font-semibold">
+                        {customer.client_type === "3" 
+                          ? "Day Limit" 
+                          : parseInt(customer.billing_type) === 2
+                          ? "Prepaid"
+                          : parseInt(customer.billing_type) === 1
+                          ? "Postpaid"
+                          : customer.payment_type || "N/A"}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="mt-4 lg:mt-0 flex flex-wrap gap-2">
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${statusInfo.className}`}
+                    >
+                      Status: {statusInfo.displayText}
+                    </span>
+                    <span
+                      className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${eligibilityInfo.className}`}
+                    >
+                      {eligibilityInfo.reason}
+                    </span>
+                    {isOverdue && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                        Overdue: ₹
+                        {(
+                          customer.eligibility.totalOverdue || 0
+                        ).toLocaleString("en-IN")}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Quick Stats - Only Daily Limit */}
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mt-6">
+                  <div className="rounded-lg p-4 bg-orange-50">
+                    <div className="text-sm font-medium text-orange-600">
+                      Daily Limit
+                    </div>
+                    <div className="text-2xl font-bold text-orange-900">
+                      ₹{(customer.day_limit || 0).toLocaleString("en-IN")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Navigation Tabs */}
+              <div className="bg-white rounded-xl shadow-sm border mb-6">
+                <nav className="flex overflow-x-auto">
+                  {[
+                    "details",
+                    "users",
+                    "outstanding",
+                    "history",
+                    "activity",
+                  ].map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => setActiveTab(tab)}
+                      className={`flex-shrink-0 py-4 px-6 border-b-2 font-medium text-sm capitalize transition-colors whitespace-nowrap ${
+                        activeTab === tab
+                          ? "border-blue-500 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+                      }`}
+                    >
+                      {tab.replace("-", " ")}
+                    </button>
+                  ))}
+                </nav>
+              </div>
+
+              {/* Tab Content */}
+              <div className="bg-white rounded-xl shadow-sm border">
+                {activeTab === "details" && <DetailsTab customer={customer} />}
+                {activeTab === "users" && (
+                  <UsersTab
+                    customer={customer}
+                    onAddUser={() => setShowAddUserModal(true)}
+                    onEditUser={(user) => {
+                      setSelectedUser(user);
+                      setShowPasswordModal(true);
+                    }}
+                    onDeleteUser={handleDeleteUser}
+                  />
+                )}
+                {activeTab === "outstanding" && (
+                  <OutstandingTab customer={customer} />
+                )}
+                {activeTab === "history" && <HistoryTab customer={customer} />}
+                {activeTab === "activity" && (
+                  <ActivityTab customer={customer} />
+                )}
+              </div>
+            </main>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <Footer />
+      </div>
+
+      {/* Modals */}
+      {showAddUserModal && (
+        <AddUserModal
+          onClose={() => setShowAddUserModal(false)}
+          onSubmit={handleAddUser}
+          loading={actionLoading}
+        />
+      )}
+      {showPasswordModal && selectedUser && (
+        <UpdatePasswordModal
+          user={selectedUser}
+          onClose={() => {
+            setShowPasswordModal(false);
+            setSelectedUser(null);
+          }}
+          onSubmit={handleUpdatePassword}
+          loading={actionLoading}
+        />
+      )}
+      {showEditModal && (
+        <EditProfileModal
+          customer={customer}
+          onClose={() => setShowEditModal(false)}
+          onSubmit={handleUpdateProfile}
+          loading={actionLoading}
+        />
+      )}
+      {showPaymentModal && (
+        <PaymentModal
+          customer={customer}
+          onClose={() => setShowPaymentModal(false)}
+          onSubmit={handleProcessPayment}
+          loading={actionLoading}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Tab Components ---
+
+function DetailsTab({ customer }) {
+  const details = [
+    { label: "Phone", value: customer.phone },
+    { label: "Email", value: customer.email },
+    { label: "Address", value: customer.address },
+    { label: "City", value: customer.city },
+    { label: "State", value: customer.region },
+    { label: "Country", value: customer.country },
+    { label: "GST Name", value: customer.gst_name },
+    { label: "GST Number", value: customer.gst_number },
+    { label: "Products", value: customer.productNames?.join(", ") || "N/A" },
+    {
+      label: "Block Locations",
+      value: customer.blockLocations?.length > 0 ? customer.blockLocations.join(", ") : "No block locations",
+    },
+    {
+      label: "Daily Limit", 
+      value: customer.day_limit ? `₹${customer.day_limit.toLocaleString("en-IN")}` : "Not set",
+    },
+    // Validity Days removed
+  ];
+
+  return (
+    <div className="p-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {details.map((detail, index) => (
+          <div key={index} className="space-y-1">
+            <label className="text-sm font-medium text-gray-500">
+              {detail.label}
+            </label>
+            <div className="text-gray-900">{detail.value || "N/A"}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function UsersTab({ customer, onAddUser, onEditUser, onDeleteUser }) {
+  return (
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h3 className="text-lg font-semibold text-gray-900">Users</h3>
+        <button
+          onClick={onAddUser}
+          className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 4v16m8-8H4"
+            />
+          </svg>
+          <span>Add User</span>
+        </button>
+      </div>
+
+      {customer.users && customer.users.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  #
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Name
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Email
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Phone
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Actions
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {customer.users.map((user, index) => (
+                <tr key={user.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {index + 1}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {user.name}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {user.email}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {user.phone}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+                    <button
+                      onClick={() => onEditUser(user)}
+                      className="text-blue-600 hover:text-blue-900 transition-colors"
+                    >
+                      Update Password
+                    </button>
+                    <button
+                      onClick={() => onDeleteUser(user.id)}
+                      className="text-red-600 hover:text-red-900 transition-colors"
+                    >
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          No users found for this customer.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OutstandingTab({ customer }) {
+  if (parseInt(customer.billing_type) !== 1) {
+    return (
+      <div className="p-6 text-center text-gray-500">
+        This customer is on prepaid billing. No outstanding invoices.
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-6">
+        Outstanding Invoices
+      </h3>
+
+      {customer.outstandingInvoices &&
+      customer.outstandingInvoices.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Invoice #
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Total Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Paid Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Due Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Due Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {customer.outstandingInvoices.map((invoice) => (
+                <tr key={invoice.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {invoice.invoice_number}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ₹{invoice.total_amount?.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ₹{invoice.paid_amount?.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-red-600 font-semibold">
+                    ₹{invoice.remaining_amount?.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {new Date(invoice.due_date).toLocaleDateString("en-IN")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        invoice.status === "paid"
+                          ? "bg-green-100 text-green-800"
+                          : invoice.status === "partially_paid"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {invoice.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          No outstanding invoices found.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function HistoryTab({ customer }) {
+  return (
+    <div className="p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-6">
+        Transaction History
+      </h3>
+
+      {customer.transactionHistory && customer.transactionHistory.length > 0 ? (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Date
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Amount
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Description
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {customer.transactionHistory.map((transaction) => (
+                <tr key={transaction.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {new Date(transaction.created_date).toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    ₹{transaction.amount?.toLocaleString("en-IN")}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 capitalize">
+                    {transaction.type}
+                  </td>
+                  <td className="px-6 py-4 text-sm text-gray-900">
+                    {transaction.description}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span
+                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        transaction.status === "completed"
+                          ? "bg-green-100 text-green-800"
+                          : transaction.status === "pending"
+                          ? "bg-yellow-100 text-yellow-800"
+                          : "bg-red-100 text-red-800"
+                      }`}
+                    >
+                      {transaction.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          No transaction history found.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ActivityTab({ customer }) {
+  return (
+    <div className="p-6">
+      <h3 className="text-lg font-semibold text-gray-900 mb-6">
+        Activity Logs
+      </h3>
+
+      <div className="space-y-6">
+        {Object.entries(customer.logs).map(([action, log]) => (
+          <div
+            key={action}
+            className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg"
+          >
+            <div className="flex-shrink-0 w-3 h-3 bg-blue-500 rounded-full mt-2"></div>
+            <div className="flex-1">
+              <div className="flex justify-between items-start">
+                <h4 className="text-sm font-medium text-gray-900 capitalize">
+                  {action}
+                </h4>
+                <span className="text-xs text-gray-500">{log.date}</span>
+              </div>
+              <p className="text-sm text-gray-600 mt-1">
+                By: {log.name || "Not available"}
+              </p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Modal Components ---
+
+function AddUserModal({ onClose, onSubmit, loading }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Add User</h3>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <input
+                name="client_name"
+                placeholder="Full Name"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <input
+                name="email"
+                type="email"
+                placeholder="Email Address"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <input
+                name="phone"
+                placeholder="Phone Number"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div>
+              <input
+                name="password"
+                type="password"
+                placeholder="Password"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? "Adding..." : "Add User"}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
     </div>
   );
 }
 
-// Loading component for Suspense fallback
-function ClientHistoryLoading() {
+function UpdatePasswordModal({ user, onClose, onSubmit, loading }) {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-        <p className="mt-3 text-gray-600">Loading client history...</p>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">
+            Update Password for {user.name}
+          </h3>
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <input
+                name="password"
+                type="password"
+                placeholder="New Password"
+                required
+                minLength={6}
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? "Updating..." : "Update Password"}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );
 }
 
-// Main component wrapped with Suspense
-export default function ClientHistory() {
+function EditProfileModal({ customer, onClose, onSubmit, loading }) {
+  const [formData, setFormData] = useState({
+    name: customer.name || "",
+    phone: customer.phone || "",
+    email: customer.email || "",
+    address: customer.address || "",
+    gst_name: customer.gst_name || "",
+    gst_number: customer.gst_number || "",
+    status: customer.status || 1,
+  });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
+    });
+  };
+
   return (
-    <Suspense fallback={<ClientHistoryLoading />}>
-      <ClientHistoryContent />
-    </Suspense>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Edit Customer Profile</h3>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Full Name
+                </label>
+                <input
+                  type="text"
+                  name="name"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Phone
+                </label>
+                <input
+                  type="text"
+                  name="phone"
+                  value={formData.phone}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Status
+                </label>
+                <select
+                  name="status"
+                  value={formData.status}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value={1}>Active</option>
+                  <option value={0}>Inactive</option>
+                </select>
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Address
+                </label>
+                <input
+                  type="text"
+                  name="address"
+                  value={formData.address}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  GST Name
+                </label>
+                <input
+                  type="text"
+                  name="gst_name"
+                  value={formData.gst_name}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  GST Number
+                </label>
+                <input
+                  type="text"
+                  name="gst_number"
+                  value={formData.gst_number}
+                  onChange={handleChange}
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                />
+              </div>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? "Updating..." : "Update Profile"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentModal({ customer, onClose, onSubmit, loading }) {
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const totalOverdue = customer.eligibility?.totalOverdue || 0;
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    if (!paymentAmount || parseFloat(paymentAmount) <= 0) {
+      alert("Please enter a valid payment amount");
+      return;
+    }
+
+    onSubmit({
+      paymentAmount: parseFloat(paymentAmount),
+    });
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
+        <div className="p-6">
+          <h3 className="text-lg font-semibold mb-4">Process Payment</h3>
+
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center">
+              <svg
+                className="w-5 h-5 text-red-400 mr-2"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                />
+              </svg>
+              <h4 className="text-red-800 font-semibold">
+                {customer.credit_days
+                  ? "Credit Days Expired"
+                  : "Account Blocked Due to Overdue"}
+              </h4>
+            </div>
+            <p className="text-red-700 mt-2">
+              Total Overdue Amount: ₹{totalOverdue.toLocaleString("en-IN")}
+            </p>
+            {customer.credit_days && customer.limit_expiry && (
+              <p className="text-red-700 mt-1">
+                Credit Period Expired:{" "}
+                {new Date(customer.limit_expiry).toLocaleDateString("en-IN")}(
+                {Math.floor(
+                  (new Date() - new Date(customer.limit_expiry)) /
+                    (1000 * 60 * 60 * 24)
+                )}{" "}
+                days ago)
+              </p>
+            )}
+            <p className="text-green-600 text-sm mt-2">
+              After payment, your account will be automatically unblocked and
+              {customer.credit_days
+                ? ` credit period will be reset to ${customer.credit_days} days`
+                : " limit restored"}
+              .
+            </p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Payment Amount (₹)
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(e) => setPaymentAmount(e.target.value)}
+                placeholder="Enter payment amount"
+                required
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Recommended: ₹{totalOverdue.toLocaleString("en-IN")} (total
+                overdue amount)
+              </p>
+            </div>
+
+            <div className="flex justify-end space-x-3 pt-4">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
+              >
+                {loading ? "Processing..." : "Process Payment"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
   );
 }

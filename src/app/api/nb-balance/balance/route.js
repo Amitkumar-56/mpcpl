@@ -1,38 +1,36 @@
-// src/app/api/nb-balance/balance/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    console.log('Fetching balance...');
-    const balanceResult = await executeQuery(
+    let result = await executeQuery(
       'SELECT balance FROM cash_balance ORDER BY id DESC LIMIT 1'
     );
-    
-    console.log('Balance query result:', balanceResult);
-    
-    if (balanceResult.length === 0) {
-      return NextResponse.json(
-        { success: false, message: "Balance not found" },
-        { status: 404 }
+
+    // If no cash balance record exists, initialize it with 0
+    if (result.length === 0) {
+      await executeQuery(
+        'INSERT INTO cash_balance (balance, updated_at) VALUES (0, NOW())'
+      );
+      // Fetch the newly created record
+      result = await executeQuery(
+        'SELECT balance FROM cash_balance ORDER BY id DESC LIMIT 1'
       );
     }
 
     return NextResponse.json({
       success: true,
-      balance: parseFloat(balanceResult[0].balance)
+      balance: parseFloat(result[0].balance),
+      message: 'Balance fetched successfully'
     });
-
   } catch (error) {
-    console.error("Error fetching balance:", error);
-    console.error("Error code:", error.code);
-    console.error("Error message:", error.message);
-    
+    console.error('Error fetching balance:', error);
     return NextResponse.json(
       { 
         success: false, 
-        message: "Error fetching balance",
-        error: process.env.NODE_ENV === 'development' ? error.message : 'Check server logs'
+        message: 'Database error occurred', 
+        balance: 0,
+        error: error.message 
       },
       { status: 500 }
     );

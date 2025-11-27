@@ -115,6 +115,11 @@ function CreateExpenseContent() {
       });
 
       const data = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(data.message || `HTTP error! status: ${res.status}`);
+      }
+      
       if (data.success) {
         alert("Expense added successfully!");
         setForm({
@@ -126,13 +131,13 @@ function CreateExpenseContent() {
           amount: "",
         });
         setErrors({});
-        await fetchBalance();
+        await fetchBalance(); // Refresh balance
       } else {
-        alert(data.message || "Error adding expense");
+        throw new Error(data.message || "Error adding expense");
       }
     } catch (err) {
       console.error("Submission error:", err);
-      alert("Network error. Please try again.");
+      alert(`Error: ${err.message}`);
     }
     setLoading(false);
   };
@@ -363,6 +368,7 @@ function CreateExpenseContent() {
     </div>
   );
 }
+
 // Main page component with Suspense
 export default function CreateExpense() {
   return (

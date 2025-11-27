@@ -36,20 +36,21 @@ export async function POST(request) {
         fr.is_checked,
         fr.checked_by,
         fr.checked_at,
-         fr.is_invoiced,           -- NEW COLUMN
-        fr.invoiced_by,           -- NEW COLUMN  
-        fr.invoiced_at,           -- NEW COLUMN
+         fr.is_invoiced,
+        fr.invoiced_by,
+        fr.invoiced_at,
         COALESCE(fr.totalamt, 0) as amount,
         p.pname AS product_name, 
         fs.station_name, 
         c.name AS client_name,
-        ep.name as checked_by_name
+        ep.name as checked_by_name,
+        ep_invoice.name as invoiced_by_name
       FROM filling_requests fr
       LEFT JOIN products p ON fr.product = p.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
       LEFT JOIN employee_profile ep ON fr.checked_by = ep.id
-      LEFT JOIN employee_profile ep_invoice ON fr.invoiced_by = ep_invoice.id  -- NEW JOIN
+      LEFT JOIN employee_profile ep_invoice ON fr.invoiced_by = ep_invoice.id
       WHERE fr.status = 'Completed'
     `;
 

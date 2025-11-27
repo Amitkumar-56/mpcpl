@@ -27,13 +27,19 @@ export async function GET(request) {
         pc.pcode as product_name,
         ep.name as updated_by_name,
         cb.amtlimit as customer_balance,
-        cb.day_limit as customer_day_limit
+        cb.day_limit as customer_day_limit,
+        ep_processing.name as processing_by_name,
+        ep_completed.name as completed_by_name
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
       LEFT JOIN product_codes pc ON pc.id = fr.sub_product_id
       LEFT JOIN employee_profile ep ON ep.id = fr.status_updated_by
       LEFT JOIN customer_balances cb ON cb.com_id = fr.cid
+      LEFT JOIN filling_logs fl_processing ON fr.rid = fl_processing.request_id
+      LEFT JOIN employee_profile ep_processing ON fl_processing.processed_by = ep_processing.id
+      LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id
+      LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
       WHERE 1=1
     `;
 
