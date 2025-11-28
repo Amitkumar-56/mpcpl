@@ -164,12 +164,24 @@ export async function GET() {
       Promise.all([
         // Total Filling (completed filling requests)
         executeQuery("SELECT COUNT(*) as total FROM filling_requests WHERE status = 'Completed'").catch(() => [{ total: 0 }]),
-        // Total Stock (from filling_station_stocks)
-        executeQuery("SELECT COUNT(*) as total FROM filling_station_stocks").catch(() => [{ total: 0 }]),
+        // Total Stock (from stock table - all stock entries)
+        executeQuery("SELECT COUNT(*) as total FROM stock").catch(() => [{ total: 0 }]),
         // Total Invoice (invoiced filling requests)
         executeQuery("SELECT COUNT(*) as total FROM filling_requests WHERE status = 'Completed' AND is_invoiced = 1").catch(() => [{ total: 0 }]),
-        // Total Recharge (from customer_balances or recharge requests)
-        executeQuery("SELECT COUNT(*) as total FROM customer_balances WHERE balance > 0").catch(() => [{ total: 0 }])
+        // Total Recharge (try recharge_requests first, then recharge_wallets as fallback)
+        (async () => {
+          try {
+            const result = await executeQuery("SELECT COUNT(*) as total FROM recharge_requests WHERE status = 'Approved'");
+            return result;
+          } catch (error) {
+            try {
+              const result = await executeQuery("SELECT COUNT(*) as total FROM recharge_wallets WHERE status = 'Approved'");
+              return result;
+            } catch (error2) {
+              return [{ total: 0 }];
+            }
+          }
+        })()
       ])
     ]);
 

@@ -23,6 +23,17 @@ export async function GET() {
       }, { status: 401 });
     }
 
+    // Get user ID from token (try userId first, then id)
+    const userId = decoded.userId || decoded.id;
+    if (!userId) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'User ID not found in token' 
+      }, { status: 401 });
+    }
+
+    console.log('🔍 Fetching profile for user ID:', userId);
+
     // Fetch user profile from employee_profile
     const users = await executeQuery(
       `SELECT id, emp_code, name, email, role, status, fs_id, fl_id, station, client,
@@ -30,7 +41,7 @@ export async function GET() {
               picture, salary, account_details, created_at
        FROM employee_profile 
        WHERE id = ?`,
-      [decoded.userId]
+      [userId]
     );
 
     if (users.length === 0) {

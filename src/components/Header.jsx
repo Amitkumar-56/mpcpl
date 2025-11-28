@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import { io } from 'socket.io-client';
 import { FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
-export default function Header() {
+export default function Header({ onMenuToggle }) {
   const { user, logout, loading } = useSession();
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -212,7 +212,7 @@ export default function Header() {
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">{user.name}</p>
                 <p className="text-xs text-gray-500">
-                  {user.role === 5 ? 'Administrator' : 'User'} • {user.emp_code}
+                  {user.emp_code || user.emp_id || 'Employee'}
                 </p>
               </div>
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
@@ -286,8 +286,14 @@ export default function Header() {
 
           {/* Mobile Menu Button */}
           <button
-            onClick={() => setShowSidebar(true)}
-            className="sm:hidden p-2 text-gray-600 hover:text-blue-600"
+            onClick={() => {
+              if (onMenuToggle) {
+                onMenuToggle();
+              } else {
+                setShowSidebar(true);
+              }
+            }}
+            className="lg:hidden p-2 text-gray-600 hover:text-blue-600"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
