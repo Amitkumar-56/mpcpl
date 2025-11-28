@@ -17,6 +17,7 @@ function SchedulePriceContent() {
   const [scheduledPrices, setScheduledPrices] = useState([]);
   const [requireApproval, setRequireApproval] = useState(true);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
+  const [bulkUpdateSamePrice, setBulkUpdateSamePrice] = useState(true); // Enable bulk update by default
 
   useEffect(() => {
     fetchSetupData();
@@ -184,7 +185,8 @@ function SchedulePriceContent() {
         body: JSON.stringify({ 
           customerIds: selectedCustomers,
           updates,
-          requireApproval
+          requireApproval,
+          bulkUpdateSamePrice // Enable bulk update for customers with same price
         }),
       });
 
@@ -311,6 +313,25 @@ function SchedulePriceContent() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Bulk Update Setting */}
+            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <div className="flex items-center">
+                <input
+                  type="checkbox"
+                  id="bulk-update"
+                  checked={bulkUpdateSamePrice}
+                  onChange={(e) => setBulkUpdateSamePrice(e.target.checked)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                />
+                <label htmlFor="bulk-update" className="ml-2 text-sm font-medium text-gray-700">
+                  Bulk Update Same Price (Within Selected Customers Only)
+                </label>
+              </div>
+              <p className="text-xs text-gray-600 mt-1 ml-6">
+                If enabled, when you set the same price for multiple selected customers, updating one will update all selected customers with that same price. Only selected customers will be affected, not all customers in the system.
+              </p>
             </div>
 
             {/* Approval Settings */}

@@ -47,92 +47,165 @@ function StocksTable() {
   // अगर data है तो table show करें
   if (stocks.length > 0) {
     return (
-      <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-full">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                  Station Name
-                </th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                  Product Name
-                </th>
-                <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                  Stock
-                </th>
-                <th className="p-4 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
-                  Action
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {stocks.map((row) => (
-                <tr
-                  key={`${row.station_id}-${row.product_id}`}
-                  className="hover:bg-gray-50 transition-colors"
-                >
-                  <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                    {row.station_name}
-                  </td>
-                  <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                    {row.pname}
-                  </td>
-                  <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                      {row.stock} units
-                    </span>
-                  </td>
-                  <td className="p-4 text-center whitespace-nowrap">
-                    <div className="flex items-center justify-center gap-2">
-                      <Link
-                        href={`/nb-stock/create-nb-expense?edit=true&station_id=${row.station_id}&product_id=${row.product_id}`}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-                        title="Edit"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
-                        </svg>
-                        <span className="hidden sm:inline">Edit</span>
-                      </Link>
-                      <Link
-                        href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
-                        className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200"
-                        title="View History"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        <span className="hidden sm:inline">History</span>
-                      </Link>
-                    </div>
-                  </td>
+      <>
+        {/* Desktop Table View */}
+        <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    Station Name
+                  </th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    Product Name
+                  </th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    Stock
+                  </th>
+                  <th className="p-4 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    Action
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {stocks.map((row) => (
+                  <tr
+                    key={`${row.station_id}-${row.product_id}`}
+                    className="hover:bg-gray-50 transition-colors"
+                  >
+                    <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                      {row.station_name}
+                    </td>
+                    <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                      {row.pname}
+                    </td>
+                    <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        {row.stock} units
+                      </span>
+                    </td>
+                    <td className="p-4 text-center whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-2">
+                        <Link
+                          href={`/nb-stock/create-nb-expense?edit=true&station_id=${row.station_id}&product_id=${row.product_id}`}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+                          title="Edit"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                          <span>Edit</span>
+                        </Link>
+                        <Link
+                          href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
+                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200"
+                          title="View History"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                            />
+                          </svg>
+                          <span>History</span>
+                        </Link>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
-      </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden space-y-4">
+          {stocks.map((row) => (
+            <div
+              key={`${row.station_id}-${row.product_id}-mobile`}
+              className="bg-white rounded-lg shadow-sm border border-gray-200 p-4"
+            >
+              <div className="space-y-3">
+                <div className="flex items-center justify-between border-b pb-2">
+                  <div>
+                    <p className="text-xs font-medium text-gray-500">Station</p>
+                    <p className="text-sm font-semibold text-gray-900 mt-1">
+                      {row.station_name}
+                    </p>
+                  </div>
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    {row.stock} units
+                  </span>
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Product</p>
+                  <p className="text-sm text-gray-900 mt-1">{row.pname}</p>
+                </div>
+
+                <div className="flex gap-2 pt-2 border-t">
+                  <Link
+                    href={`/nb-stock/create-nb-expense?edit=true&station_id=${row.station_id}&product_id=${row.product_id}`}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                      />
+                    </svg>
+                    <span>Edit</span>
+                  </Link>
+                  <Link
+                    href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
+                    className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200"
+                  >
+                    <svg
+                      className="w-4 h-4"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                      />
+                    </svg>
+                    <span>History</span>
+                  </Link>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </>
     );
   }
 
@@ -236,54 +309,45 @@ export default function NonBillingStocksPage() {
         <Header />
 
         <main className="flex-1 overflow-auto">
-          <div className="container mx-auto px-4 py-6 sm:px-6 lg:px-8">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
+              <div className="w-full sm:w-auto">
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
                   Non-Billing Stocks
                 </h1>
-                <p className="text-gray-600 mt-1 text-sm sm:text-base">
+                <p className="text-gray-600 mt-1 text-xs sm:text-sm lg:text-base">
                   Manage and track non-billing stock inventory
                 </p>
-              </div>
-
-              {/* Floating Action Button (Mobile) */}
-              <div className="sm:hidden fixed bottom-6 right-6 z-10">
-                <Link
-                  href="/nb-stock/create-nb-expense"
-                  className="bg-purple-700 text-white p-4 rounded-full shadow-lg hover:bg-purple-800 transition-all flex items-center justify-center"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                  </svg>
-                </Link>
               </div>
 
               {/* Desktop Button */}
               <Link
                 href="/nb-stock/create-nb-expense"
-                className="hidden sm:flex bg-purple-700 text-white px-6 py-3 rounded-lg shadow hover:bg-purple-800 transition-all items-center gap-2"
+                className="hidden sm:flex bg-purple-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow hover:bg-purple-800 transition-all items-center gap-2 text-sm sm:text-base"
+              >
+                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="hidden lg:inline">Add NB Stock</span>
+                <span className="lg:hidden">Add</span>
+              </Link>
+            </div>
+
+            {/* Mobile Add Button */}
+            <div className="sm:hidden mb-4">
+              <Link
+                href="/nb-stock/create-nb-expense"
+                className="w-full flex items-center justify-center gap-2 bg-purple-700 text-white px-4 py-3 rounded-lg shadow hover:bg-purple-800 transition-all"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
-                Add NB Stock
+                <span>Add NB Stock</span>
               </Link>
             </div>
 
-            {/* Debug Info */}
-            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <p className="text-sm text-blue-800">
-                <strong>Debug:</strong> Check browser console for API response details
-              </p>
-            </div>
-
             {/* ✅ Stocks Table */}
-            {loading ? (
-              <LoadingSkeleton />
-            ) : (
-              <StocksTable />
-            )}
+            <StocksTable />
           </div>
         </main>
 

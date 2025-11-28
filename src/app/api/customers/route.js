@@ -14,6 +14,7 @@ export async function GET() {
         c.email,
         c.billing_type,
         c.client_type,
+        c.status,
         COALESCE(cb.amtlimit, 0) AS amtlimit,
         COALESCE(cb.balance, 0) AS balance,
         COALESCE(cb.cst_limit, 0) AS cst_limit,
@@ -24,6 +25,7 @@ export async function GET() {
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
       WHERE c.roleid IN (1, 3) 
+        AND c.status = 1
       ORDER BY c.id DESC
     `);
 

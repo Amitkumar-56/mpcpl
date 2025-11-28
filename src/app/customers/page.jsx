@@ -5,6 +5,7 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import DayLimitManager from "components/DayLimitManager";
+import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -17,6 +18,7 @@ import {
   BiShow,
   BiTrash
 } from "react-icons/bi";
+import { FaToggleOn, FaToggleOff } from "react-icons/fa";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -32,6 +34,9 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all"); // "all", "prepaid", "postpaid", "daylimit"
+  const [updatingStatus, setUpdatingStatus] = useState({});
+  const { user } = useSession();
+  const isAdmin = user?.role === 5;
 
   const fetchData = useCallback(async () => {
     try {
@@ -186,6 +191,44 @@ export default function CustomersPage() {
     } catch (err) {
       console.error(err);
       alert("Something went wrong");
+    }
+  };
+
+  const handleStatusToggle = async (customerId, currentStatus) => {
+    if (!isAdmin) {
+      alert('Only admin can change customer status');
+      return;
+    }
+
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    const action = newStatus === 1 ? 'activate' : 'deactivate';
+    
+    if (!confirm(`Are you sure you want to ${action} this customer?`)) {
+      return;
+    }
+
+    try {
+      setUpdatingStatus(prev => ({ ...prev, [customerId]: true }));
+      
+      const res = await fetch('/api/customers/update-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId, status: newStatus })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Failed to update status');
+      }
+
+      alert(result.message || `Customer ${action}d successfully`);
+      fetchData();
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert(err.message || 'Failed to update customer status');
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [customerId]: false }));
     }
   };
 
@@ -414,6 +457,13 @@ export default function CustomersPage() {
                     ? "Manage all your customers efficiently with real-time data" 
                     : `Showing ${activeFilter} customers only`}
                 </p>
+                <p className="text-gray-600 text-sm mt-1">
+                  Total Customers: <span className="font-bold text-indigo-600">{customers.length}</span>
+                  {' | '}
+                  Active: <span className="font-bold text-green-600">{customers.filter(c => c.status === 1).length}</span>
+                  {' | '}
+                  Inactive: <span className="font-bold text-red-600">{customers.filter(c => c.status === 0).length}</span>
+                </p>
               </div>
 
               <div className="flex flex-col sm:flex-row gap-3">
@@ -540,7 +590,7 @@ export default function CustomersPage() {
                       <tbody>
                         {currentCustomers.length === 0 ? (
                           <tr>
-                            <td colSpan="11" className="p-8 text-center text-gray-700 font-semibold">
+                            <td colSpan="12" className="p-8 text-center text-gray-700 font-semibold">
                               {search ? 'No customers found matching your search' : `No ${activeFilter !== 'all' ? activeFilter : ''} customers found`}
                             </td>
                           </tr>
@@ -664,6 +714,26 @@ export default function CustomersPage() {
                                           </Link>
                                         );
                                       })}
+                                    {isAdmin && (
+                                      <button
+                                        onClick={() => handleStatusToggle(c.id, c.status)}
+                                        disabled={updatingStatus[c.id]}
+                                        className={`p-2 rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200 ${
+                                          c.status === 1
+                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                            : 'bg-gray-500 text-white hover:bg-gray-600'
+                                        }`}
+                                        title={c.status === 1 ? 'Deactivate' : 'Activate'}
+                                      >
+                                        {updatingStatus[c.id] ? (
+                                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                        ) : c.status === 1 ? (
+                                          <FaToggleOn className="text-sm" />
+                                        ) : (
+                                          <FaToggleOff className="text-sm" />
+                                        )}
+                                      </button>
+                                    )}
                                     {c.client_type === "3" && (
                                       <button
                                         onClick={() => openDayLimitManager(c)}
@@ -807,6 +877,45 @@ export default function CustomersPage() {
                                 </div>
                               </div>
                             )}
+
+                            {/* Status for Mobile */}
+                            <div className="mb-3 flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-600">Status:</span>
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  c.status === 1 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {c.status === 1 ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                              {isAdmin && (
+                                <button
+                                  onClick={() => handleStatusToggle(c.id, c.status)}
+                                  disabled={updatingStatus[c.id]}
+                                  className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1 ${
+                                    c.status === 1
+                                      ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                      : 'bg-gray-500 text-white hover:bg-gray-600'
+                                  }`}
+                                >
+                                  {updatingStatus[c.id] ? (
+                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                  ) : c.status === 1 ? (
+                                    <>
+                                      <FaToggleOn className="text-sm" />
+                                      <span>Deactivate</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FaToggleOff className="text-sm" />
+                                      <span>Activate</span>
+                                    </>
+                                  )}
+                                </button>
+                              )}
+                            </div>
                             
                             {/* Mobile Action Buttons */}
                             <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-200">

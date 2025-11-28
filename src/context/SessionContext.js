@@ -17,11 +17,40 @@ export function SessionProvider({ children }) {
     try {
       setLoading(true);
       
+      // ✅ Skip auth check if logout is in progress
+      if (typeof window !== 'undefined') {
+        const isLoggingOut = sessionStorage.getItem('isLoggingOut');
+        if (isLoggingOut === 'true') {
+          setLoading(false);
+          return;
+        }
+      }
+      
       // ✅ CST routes के लिए अलग handling
       if (pathname.startsWith('/cst/')) {
-        const savedCustomer = localStorage.getItem("customer");
+        // Check both localStorage and sessionStorage for customer data
+        const savedCustomer = localStorage.getItem("customer") || sessionStorage.getItem("customer");
         if (savedCustomer) {
-          setUser(JSON.parse(savedCustomer));
+          try {
+            const customerData = JSON.parse(savedCustomer);
+            // Verify customer has valid roleid
+            if (Number(customerData.roleid) === 1) {
+              setUser(customerData);
+              // Sync to both storages for consistency
+              localStorage.setItem("customer", savedCustomer);
+              sessionStorage.setItem("customer", savedCustomer);
+            } else {
+              // Invalid role, clear and set user to null
+              localStorage.removeItem("customer");
+              sessionStorage.removeItem("customer");
+              setUser(null);
+            }
+          } catch (e) {
+            console.error('Error parsing customer data:', e);
+            localStorage.removeItem("customer");
+            sessionStorage.removeItem("customer");
+            setUser(null);
+          }
         } else {
           setUser(null);
         }
@@ -39,6 +68,16 @@ export function SessionProvider({ children }) {
       if (cachedUser) {
         try {
           const userData = JSON.parse(cachedUser);
+          // ✅ Verify token exists before using cached user
+          const token = localStorage.getItem('token');
+          if (!token) {
+            // No token means logged out, clear cache
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+            setLoading(false);
+            return;
+          }
+          
           setUser(userData);
           // Sync to both storages for consistency
           if (!sessionUser && localUser) {
@@ -111,8 +150,28 @@ export function SessionProvider({ children }) {
 
     // ✅ CST routes के लिए अलग logic
     if (pathname.startsWith('/cst/')) {
+      // For CST routes, check localStorage directly if user is null
+      // This handles the case where login just happened but checkAuth hasn't run yet
       if (!user && pathname !== '/cst/login') {
+        const savedCustomer = localStorage.getItem("customer") || sessionStorage.getItem("customer");
+        if (savedCustomer) {
+          try {
+            const customerData = JSON.parse(savedCustomer);
+            if (Number(customerData.roleid) === 1) {
+              // Customer exists and is valid, set user and don't redirect
+              setUser(customerData);
+              return;
+            }
+          } catch (e) {
+            // Invalid data, continue to redirect
+          }
+        }
+        // No valid customer found, redirect to login
         router.push('/cst/login');
+      }
+      // If user is logged in and on login page, redirect to dashboard
+      if (user && pathname === '/cst/login') {
+        router.push('/cst/cstdashboard');
       }
       return;
     }
@@ -149,6 +208,14 @@ export function SessionProvider({ children }) {
   // ✅ Optimized logout function
   const logout = useCallback(async () => {
     try {
+      // ✅ Set loading to prevent race conditions
+      setLoading(true);
+      
+      // ✅ Set logout flag to prevent checkAuth from running
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('isLoggingOut', 'true');
+      }
+      
       // ✅ Current route के based पर अलग logout
       if (pathname.startsWith('/cst/')) {
         // Customer logout
@@ -157,31 +224,56 @@ export function SessionProvider({ children }) {
       } else {
         // Employee logout - only call API if actually logged in
         if (user) {
-          await fetch('/api/auth/logout', { 
-            method: 'POST',
-            credentials: 'include'
-          });
+          try {
+            await fetch('/api/auth/logout', { 
+              method: 'POST',
+              credentials: 'include'
+            });
+          } catch (error) {
+            console.error('Logout API error:', error);
+            // Continue with logout even if API fails
+          }
         }
       }
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
+      // ✅ Clear user state first
       setUser(null);
+      
+      // ✅ Clear ALL storage items completely
       if (typeof window !== 'undefined') {
+        // Clear session storage
         sessionStorage.removeItem('user');
+        // Clear local storage
+        localStorage.removeItem('user');
         localStorage.removeItem('token');
         localStorage.removeItem('customer');
         localStorage.removeItem('cst_token');
       }
       
-      // ✅ Use setTimeout to avoid race conditions
-      setTimeout(() => {
+      // ✅ Set loading to false after clearing
+      setLoading(false);
+      
+      // ✅ Immediate redirect to login using window.location for reliable mobile redirect
+      if (typeof window !== 'undefined') {
+        // Clear logout flag
+        sessionStorage.removeItem('isLoggingOut');
+        
+        // Use window.location.href for hard redirect (clears history and prevents back button)
         if (pathname.startsWith('/cst/')) {
-          router.push('/cst/login');
+          window.location.replace('/cst/login');
         } else {
-          router.push('/login');
+          window.location.replace('/login');
         }
-      }, 100);
+      } else {
+        // Fallback for SSR
+        if (pathname.startsWith('/cst/')) {
+          router.replace('/cst/login');
+        } else {
+          router.replace('/login');
+        }
+      }
     }
   }, [pathname, user, router]);
 

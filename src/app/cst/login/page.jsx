@@ -45,8 +45,14 @@ export default function CustomerLoginPage() {
       // ✅ Customer data को localStorage में save करें
       localStorage.setItem("customer", JSON.stringify(data.customer));
       
-      // ✅ CST dashboard पर redirect करें
-      router.push("/cst/cstdashboard");
+      // ✅ Also save to sessionStorage for consistency
+      sessionStorage.setItem("customer", JSON.stringify(data.customer));
+      
+      // ✅ Use window.location for reliable redirect (prevents race conditions)
+      // Small delay to ensure localStorage is set
+      setTimeout(() => {
+        window.location.href = "/cst/cstdashboard";
+      }, 100);
       
     } catch (err) {
       console.error("Login error:", err);

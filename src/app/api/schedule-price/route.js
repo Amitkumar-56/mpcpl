@@ -78,11 +78,11 @@ export async function GET(req) {
   }
 }
 
-// POST: Handle price scheduling
+// POST: Handle price scheduling with bulk update support (only for selected customers)
 export async function POST(req) {
   try {
     const body = await req.json();
-    const { customerIds, updates, requireApproval = true } = body;
+    const { customerIds, updates, requireApproval = true, bulkUpdateSamePrice = false } = body;
 
     if (!customerIds || !customerIds.length) {
       return NextResponse.json({ success: false, message: "Customer IDs are required" }, { status: 400 });
@@ -94,7 +94,53 @@ export async function POST(req) {
 
     let totalInserted = 0;
     let totalUpdated = 0;
+    let bulkUpdated = 0;
 
+    // If bulkUpdateSamePrice is true, update only SELECTED customers with same price
+    // This ensures we only update the customers that were explicitly selected
+    if (bulkUpdateSamePrice) {
+      for (const u of updates) {
+        // Find selected customers with same price for this station/product combination
+        const placeholders = customerIds.map(() => '?').join(',');
+        const samePriceCustomers = await executeQuery(
+          `SELECT DISTINCT com_id FROM deal_price 
+           WHERE com_id IN (${placeholders})
+           AND station_id = ? AND product_id = ? AND sub_product_id = ? 
+           AND price = ? AND Schedule_Date = ? AND Schedule_Time = ? 
+           AND is_active = 1 AND status = 'scheduled' AND is_applied = 0`,
+          [...customerIds, u.station_id, u.product_id, u.sub_product_id, u.price, u.schedule_date, u.schedule_time]
+        );
+
+        const customerIdsToUpdate = samePriceCustomers.map(row => row.com_id);
+        
+        // Update only selected customers with same price
+        for (const customerId of customerIdsToUpdate) {
+          // Only update if this customer is in the selected list
+          if (!customerIds.includes(customerId)) continue;
+          
+          const existingRecord = await executeQuery(
+            `SELECT id, is_applied FROM deal_price 
+             WHERE com_id = ? AND station_id = ? AND sub_product_id = ? 
+             AND Schedule_Date = ? AND Schedule_Time = ? AND is_active = 1`,
+            [customerId, u.station_id, u.sub_product_id, u.schedule_date, u.schedule_time]
+          );
+
+          if (existingRecord.length > 0) {
+            const record = existingRecord[0];
+            if (!record.is_applied) {
+              await executeQuery(`
+                UPDATE deal_price 
+                SET price = ?, updated_date = CURDATE()
+                WHERE id = ?
+              `, [u.price, record.id]);
+              bulkUpdated++;
+            }
+          }
+        }
+      }
+    }
+
+    // Process updates for selected customers only
     for (const customerId of customerIds) {
       for (const u of updates) {
         // Check if record already exists for same schedule
@@ -158,13 +204,15 @@ export async function POST(req) {
     }
 
     const approvalStatus = requireApproval ? " (Pending Approval)" : " (Auto-Applied)";
+    const bulkStatus = bulkUpdated > 0 ? `, ${bulkUpdated} bulk updated within selected customers` : "";
     
     return NextResponse.json({ 
       success: true, 
       totalInserted,
       totalUpdated,
+      bulkUpdated,
       requireApproval,
-      message: `Success: ${totalInserted} inserted, ${totalUpdated} updated${approvalStatus}`
+      message: `Success: ${totalInserted} inserted, ${totalUpdated} updated${bulkStatus}${approvalStatus}`
     });
   } catch (err) {
     console.error(err);
@@ -201,39 +249,69 @@ export async function PUT(req) {
   }
 }
 
-// PATCH: Auto-update price status based on schedule
+// PATCH: Auto-update price status based on schedule (Cron job endpoint)
 export async function PATCH(req) {
   try {
     const now = new Date();
     const currentDate = now.toISOString().split('T')[0];
     const currentTime = now.toTimeString().slice(0, 8);
     
-    // Activate scheduled prices whose time has come
+    console.log(`🕐 Running scheduled price update at ${currentDate} ${currentTime}`);
+    
+    // Activate scheduled prices whose time has come (at midnight 12:00 AM)
+    // Check for prices scheduled for today at 00:00:00 or earlier
     const activated = await executeQuery(`
       UPDATE deal_price 
-      SET status = 'active', is_applied = 1, applied_at = ?
-      WHERE Schedule_Date = ? AND Schedule_Time <= ? 
-      AND status = 'scheduled' AND is_applied = 0
+      SET status = 'active', is_applied = 1, applied_at = ?, updated_date = CURDATE()
+      WHERE Schedule_Date = ? 
+      AND (Schedule_Time = '00:00:00' OR Schedule_Time <= ?)
+      AND status = 'scheduled' 
+      AND is_applied = 0
       AND is_active = 1
     `, [now, currentDate, currentTime]);
     
-    // Expire old prices (previous day prices)
+    console.log(`✅ Activated ${activated.affectedRows} scheduled prices`);
+    
+    // Deactivate old active prices for the same station/product/customer combination
+    // when new scheduled price is activated
+    const deactivated = await executeQuery(`
+      UPDATE deal_price dp1
+      INNER JOIN deal_price dp2 ON 
+        dp1.com_id = dp2.com_id 
+        AND dp1.station_id = dp2.station_id 
+        AND dp1.product_id = dp2.product_id 
+        AND dp1.sub_product_id = dp2.sub_product_id
+      SET dp1.status = 'expired', dp1.is_active = 0
+      WHERE dp2.status = 'active' 
+        AND dp2.is_applied = 1
+        AND dp2.Schedule_Date = ?
+        AND dp1.id != dp2.id
+        AND dp1.status = 'active'
+        AND dp1.is_active = 1
+    `, [currentDate]);
+    
+    console.log(`🔄 Deactivated ${deactivated.affectedRows} old active prices`);
+    
+    // Expire old prices (previous day prices that are still active)
     const expired = await executeQuery(`
       UPDATE deal_price 
-      SET status = 'expired'
+      SET status = 'expired', is_active = 0
       WHERE Schedule_Date < ? 
-      AND status = 'active' 
+      AND status IN ('active', 'scheduled')
       AND is_active = 1
     `, [currentDate]);
+    
+    console.log(`⏰ Expired ${expired.affectedRows} old prices`);
 
     return NextResponse.json({ 
       success: true, 
       activated: activated.affectedRows,
+      deactivated: deactivated.affectedRows,
       expired: expired.affectedRows,
-      message: `Auto-updated: ${activated.affectedRows} activated, ${expired.affectedRows} expired` 
+      message: `Auto-updated: ${activated.affectedRows} activated, ${deactivated.affectedRows} deactivated, ${expired.affectedRows} expired` 
     });
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error in scheduled price update:', err);
     return NextResponse.json({ success: false, message: err.message }, { status: 500 });
   }
 }

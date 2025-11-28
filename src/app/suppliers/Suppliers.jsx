@@ -75,31 +75,6 @@ export default function SuppliersPage() {
     };
   };
 
-  // Generate mock purchase history
-  const generatePurchaseHistory = (supplierId) => {
-    return [
-      {
-        id: 1,
-        date: '2024-01-15',
-        invoiceNo: `INV-${supplierId}-001`,
-        description: 'Raw Materials Purchase',
-        items: ['Steel Sheets', 'Aluminum Bars'],
-        amount: 25000,
-        status: 'completed',
-        paymentDue: '2024-02-15'
-      },
-      {
-        id: 2,
-        date: '2024-01-20',
-        invoiceNo: `INV-${supplierId}-002`,
-        description: 'Electronic Components',
-        items: ['Resistors', 'Capacitors', 'PCBs'],
-        amount: 18000,
-        status: 'pending',
-        paymentDue: '2024-02-20'
-      }
-    ];
-  };
 
   // Load purchase history
   const loadPurchaseHistory = (supplier) => {
@@ -215,16 +190,11 @@ export default function SuppliersPage() {
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
           {/* Sidebar */}
           <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-            <Sidebar activePage="Customers" onClose={() => setSidebarOpen(false)} />
+            <Sidebar  />
           </div>
     
-          {/* Mobile Overlay */}
-          {sidebarOpen && (
-            <div
-              className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-              onClick={() => setSidebarOpen(false)}
-            />
-          )}
+        
+      
     
           {/* Main Content */}
           <div className="flex-1 flex flex-col">
@@ -232,41 +202,32 @@ export default function SuppliersPage() {
             <Header/>
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           {/* Header */}
-          <div className="flex justify-between items-center mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Supplier Management</h1>
-              <p className="text-gray-600 mt-2">Manage your suppliers and track purchases</p>
-            </div>
-            <button 
-              onClick={() => router.push('/suppliers/purchase')}
-              className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-xl transition-all duration-200 flex items-center space-x-2 shadow-md"
-            >
-              <span>📦</span>
-              <span>Go to Purchase</span>
-            </button>
+          <div className="mb-4 sm:mb-6 lg:mb-8">
+            <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Supplier Management</h1>
+            <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Manage your suppliers and track purchases</p>
           </div>
 
           {/* Action Bar */}
-          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 mb-6 bg-white p-4 rounded-xl shadow-sm">
-            <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-3 sm:gap-4 mb-4 sm:mb-6 bg-white p-3 sm:p-4 rounded-xl shadow-sm">
+            <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full lg:w-auto">
               <div className="relative flex-1 sm:flex-none">
                 <input
                   type="text"
                   placeholder="Search suppliers..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-64 transition-all"
+                  className="pl-10 pr-4 py-2.5 sm:py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-full sm:w-64 transition-all text-sm sm:text-base"
                 />
-                <div className="absolute left-3 top-3.5 text-gray-400">
+                <div className="absolute left-3 top-2.5 sm:top-3.5 text-gray-400">
                   🔍
                 </div>
               </div>
               <select 
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                className="border border-gray-300 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all text-sm sm:text-base w-full sm:w-auto"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -275,7 +236,7 @@ export default function SuppliersPage() {
             </div>
             <button
               onClick={() => setShowForm(!showForm)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center space-x-2 shadow-md w-full lg:w-auto justify-center"
+              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
             >
               <span className="text-lg">+</span>
               <span>{showForm ? 'Cancel' : 'Add New Supplier'}</span>
@@ -284,9 +245,9 @@ export default function SuppliersPage() {
 
           {/* Add Supplier Form */}
           {showForm && (
-            <div className="bg-white p-6 rounded-xl shadow-lg mb-6 border border-gray-200 animate-fade-in">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Add New Supplier</h2>
-              <form onSubmit={handleAddSupplier} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg mb-4 sm:mb-6 border border-gray-200 animate-fade-in">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Add New Supplier</h2>
+              <form onSubmit={handleAddSupplier} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {[
                   { label: 'Supplier Name *', name: 'name', type: 'text', required: true },
                   { label: 'Phone', name: 'phone', type: 'tel', required: false },
@@ -299,53 +260,53 @@ export default function SuppliersPage() {
                   { label: 'Picture URL', name: 'picture', type: 'text', required: false },
                 ].map((field) => (
                   <div key={field.name}>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">{field.label}</label>
+                    <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">{field.label}</label>
                     <input
                       type={field.type}
                       name={field.name}
                       value={formData[field.name]}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                       required={field.required}
                     />
                   </div>
                 ))}
                 
                 <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Address</label>
                   <textarea
                     name="address"
                     value={formData.address}
                     onChange={handleInputChange}
                     rows="3"
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   />
                 </div>
 
                 <div className="md:col-span-2 lg:col-span-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                  <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1 sm:mb-2">Status</label>
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                   >
                     <option value="active">Active</option>
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
                 
-                <div className="md:col-span-2 lg:col-span-3 flex justify-end space-x-3">
+                <div className="md:col-span-2 lg:col-span-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:space-x-0">
                   <button
                     type="button"
                     onClick={() => setShowForm(false)}
-                    className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm sm:text-base"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="bg-green-600 text-white px-6 py-2 rounded-lg hover:bg-green-700 transition-colors"
+                    className="w-full sm:w-auto bg-green-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
                   >
                     Add Supplier
                   </button>
@@ -355,7 +316,7 @@ export default function SuppliersPage() {
           )}
 
           {/* Dashboard Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6 lg:mb-8">
             {[
               { title: 'Total Suppliers', value: stats.totalCustomers, color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
               { title: 'Active Suppliers', value: stats.activeSuppliers, color: 'bg-gradient-to-r from-green-500 to-green-600' },
@@ -364,169 +325,260 @@ export default function SuppliersPage() {
               { title: 'Overdue 2-7 Days', value: `₹${stats.overdue2to7.toLocaleString()}`, color: 'bg-gradient-to-r from-red-500 to-red-600' },
               { title: 'Overdue 8+ Days', value: `₹${stats.overdue8Plus.toLocaleString()}`, color: 'bg-gradient-to-r from-pink-500 to-pink-600' },
             ].map((stat, index) => (
-              <div key={index} className={`${stat.color} text-white p-4 rounded-xl shadow-md transform hover:scale-105 transition-transform duration-200`}>
-                <h3 className="text-sm font-medium opacity-90">{stat.title}</h3>
-                <p className="text-2xl font-bold mt-2">{stat.value}</p>
+              <div key={index} className={`${stat.color} text-white p-3 sm:p-4 rounded-xl shadow-md transform hover:scale-105 transition-transform duration-200`}>
+                <h3 className="text-xs sm:text-sm font-medium opacity-90">{stat.title}</h3>
+                <p className="text-lg sm:text-xl lg:text-2xl font-bold mt-1 sm:mt-2">{stat.value}</p>
               </div>
             ))}
           </div>
 
           {/* Suppliers List */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-              <h2 className="text-xl font-semibold text-gray-900">Suppliers List</h2>
-              <div className="text-sm text-gray-500">
+            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Suppliers List</h2>
+              <div className="text-xs sm:text-sm text-gray-500">
                 Showing {filteredSuppliers.length} of {suppliers.length} suppliers
               </div>
             </div>
             
             {loading ? (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-4 text-gray-600">Loading supplier data...</p>
+              <div className="p-6 sm:p-8 text-center">
+                <div className="animate-spin rounded-full h-10 w-10 sm:h-12 sm:w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600 text-sm sm:text-base">Loading supplier data...</p>
               </div>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Details</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Info</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-6 py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200">
-                    {filteredSuppliers.map((supplier) => (
-                      <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4">
-                          <div className="flex items-center">
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Details</th>
+                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Info</th>
+                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
+                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {filteredSuppliers.map((supplier) => (
+                        <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 lg:h-12 lg:w-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs lg:text-sm">
+                                {supplier.name.split(' ').map(w => w[0]).join('').toUpperCase()}
+                              </div>
+                              <div className="ml-3 lg:ml-4">
+                                <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
+                                <div className="text-xs lg:text-sm text-gray-500">PAN: {supplier.pan}</div>
+                                <div className="text-xs text-gray-400">GST: {supplier.gstin}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                            <div className="text-sm text-gray-900">{supplier.email}</div>
+                            <div className="text-xs lg:text-sm text-gray-500">{supplier.phone}</div>
+                            <div className="text-xs text-gray-400 truncate max-w-xs">{supplier.address}</div>
+                          </td>
+                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                            <div className="text-sm text-gray-900">{supplier.supplier_type}</div>
+                            <div className="text-xs lg:text-sm text-gray-500">Postbox: {supplier.postbox}</div>
+                          </td>
+                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                            <span className={`inline-flex px-2 lg:px-3 py-1 text-xs font-semibold rounded-full ${statusColors[supplier.status]}`}>
+                              {supplier.status}
+                            </span>
+                            <div className="text-xs text-gray-400 mt-1">
+                              Since {new Date(supplier.created_at).toLocaleDateString()}
+                            </div>
+                          </td>
+                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                            <div className="flex flex-wrap gap-2">
+                              <button 
+                                onClick={() => loadPurchaseHistory(supplier)}
+                                className="text-blue-600 hover:text-blue-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-blue-50 rounded-lg transition-colors"
+                              >
+                                History
+                              </button>
+                              <button 
+                                onClick={() => toggleSupplierStatus(supplier.id)}
+                                className={`text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 rounded-lg transition-colors ${
+                                  supplier.status === 'active' 
+                                    ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
+                                    : 'text-green-600 hover:text-green-900 bg-green-50'
+                                }`}
+                              >
+                                {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
+                              </button>
+                              <button 
+                                onClick={() => handleDeleteSupplier(supplier.id)}
+                                className="text-red-600 hover:text-red-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-red-50 rounded-lg transition-colors"
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-4 p-4">
+                  {filteredSuppliers.map((supplier) => (
+                    <div
+                      key={`${supplier.id}-mobile`}
+                      className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                    >
+                      <div className="space-y-3">
+                        {/* Supplier Header */}
+                        <div className="flex items-start justify-between border-b pb-3">
+                          <div className="flex items-center flex-1">
                             <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
                               {supplier.name.split(' ').map(w => w[0]).join('').toUpperCase()}
                             </div>
-                            <div className="ml-4">
-                              <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
-                              <div className="text-sm text-gray-500">PAN: {supplier.pan}</div>
-                              <div className="text-xs text-gray-400">GST: {supplier.gstin}</div>
+                            <div className="ml-3 flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-gray-900 truncate">{supplier.name}</div>
+                              <div className="text-xs text-gray-500 mt-1">{supplier.supplier_type}</div>
                             </div>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">{supplier.email}</div>
-                          <div className="text-sm text-gray-500">{supplier.phone}</div>
-                          <div className="text-xs text-gray-400 truncate max-w-xs">{supplier.address}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-900">{supplier.supplier_type}</div>
-                          <div className="text-sm text-gray-500">Postbox: {supplier.postbox}</div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${statusColors[supplier.status]}`}>
+                          <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${statusColors[supplier.status]}`}>
                             {supplier.status}
                           </span>
-                          <div className="text-xs text-gray-400 mt-1">
-                            Since {new Date(supplier.created_at).toLocaleDateString()}
+                        </div>
+
+                        {/* Contact Info */}
+                        <div className="grid grid-cols-1 gap-2">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Email</p>
+                            <p className="text-sm text-gray-900 truncate">{supplier.email}</p>
                           </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex flex-wrap gap-2">
-                            <button 
-                              onClick={() => loadPurchaseHistory(supplier)}
-                              className="text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-1 bg-blue-50 rounded-lg transition-colors"
-                            >
-                              History
-                            </button>
-                            <button 
-                              onClick={() => toggleSupplierStatus(supplier.id)}
-                              className={`text-sm font-medium px-3 py-1 rounded-lg transition-colors ${
-                                supplier.status === 'active' 
-                                  ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
-                                  : 'text-green-600 hover:text-green-900 bg-green-50'
-                              }`}
-                            >
-                              {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
-                            </button>
-                            <button 
-                              onClick={() => handleDeleteSupplier(supplier.id)}
-                              className="text-red-600 hover:text-red-900 text-sm font-medium px-3 py-1 bg-red-50 rounded-lg transition-colors"
-                            >
-                              Delete
-                            </button>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Phone</p>
+                            <p className="text-sm text-gray-900">{supplier.phone}</p>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Address</p>
+                            <p className="text-xs text-gray-600 line-clamp-2">{supplier.address}</p>
+                          </div>
+                        </div>
+
+                        {/* Business Details */}
+                        <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">PAN</p>
+                            <p className="text-xs text-gray-900">{supplier.pan}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">GSTIN</p>
+                            <p className="text-xs text-gray-900">{supplier.gstin}</p>
+                          </div>
+                          <div className="col-span-2">
+                            <p className="text-xs font-medium text-gray-500">Postbox</p>
+                            <p className="text-xs text-gray-900">{supplier.postbox}</p>
+                          </div>
+                        </div>
+
+                        {/* Actions */}
+                        <div className="flex flex-wrap gap-2 pt-2 border-t">
+                          <button 
+                            onClick={() => loadPurchaseHistory(supplier)}
+                            className="flex-1 text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-2 bg-blue-50 rounded-lg transition-colors"
+                          >
+                            History
+                          </button>
+                          <button 
+                            onClick={() => toggleSupplierStatus(supplier.id)}
+                            className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
+                              supplier.status === 'active' 
+                                ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
+                                : 'text-green-600 hover:text-green-900 bg-green-50'
+                            }`}
+                          >
+                            {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteSupplier(supplier.id)}
+                            className="flex-1 text-red-600 hover:text-red-900 text-sm font-medium px-3 py-2 bg-red-50 rounded-lg transition-colors"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 {filteredSuppliers.length === 0 && (
-                  <div className="p-8 text-center text-gray-500">
+                  <div className="p-6 sm:p-8 text-center text-gray-500 text-sm sm:text-base">
                     No suppliers found matching your criteria.
                   </div>
                 )}
-              </div>
+              </>
             )}
           </div>
 
           {/* Purchase History Modal */}
           {showPurchaseHistory && selectedSupplier && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
-              <div className="bg-white rounded-xl w-full max-w-6xl max-h-[90vh] overflow-y-auto">
-                <div className="p-6 border-b flex justify-between items-center sticky top-0 bg-white">
-                  <div>
-                    <h2 className="text-2xl font-bold text-gray-900">
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-2 sm:p-4 z-50 animate-fade-in">
+              <div className="bg-white rounded-xl w-full max-w-6xl max-h-[95vh] sm:max-h-[90vh] overflow-y-auto">
+                <div className="p-3 sm:p-4 lg:p-6 border-b flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4 sticky top-0 bg-white z-10">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-lg sm:text-xl lg:text-2xl font-bold text-gray-900 truncate">
                       Purchase History - {selectedSupplier.name}
                     </h2>
-                    <p className="text-gray-600">GST: {selectedSupplier.gstin}</p>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-1">GST: {selectedSupplier.gstin}</p>
                   </div>
                   <button 
                     onClick={() => setShowPurchaseHistory(false)}
-                    className="text-gray-500 hover:text-gray-700 text-2xl p-2"
+                    className="text-gray-500 hover:text-gray-700 text-xl sm:text-2xl p-2 flex-shrink-0"
                   >
                     ✕
                   </button>
                 </div>
-                <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div className="p-3 sm:p-4 lg:p-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
                     {[
                       { title: 'Supplier Type', value: selectedSupplier.supplier_type },
                       { title: 'Phone', value: selectedSupplier.phone },
                       { title: 'Email', value: selectedSupplier.email },
                       { title: 'Status', value: selectedSupplier.status },
                     ].map((stat, index) => (
-                      <div key={index} className="bg-gray-50 p-4 rounded-lg text-center">
-                        <div className="text-sm text-gray-600">{stat.title}</div>
-                        <div className="text-xl font-bold text-gray-900 mt-1">{stat.value}</div>
+                      <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg text-center">
+                        <div className="text-xs sm:text-sm text-gray-600">{stat.title}</div>
+                        <div className="text-base sm:text-lg lg:text-xl font-bold text-gray-900 mt-1 truncate">{stat.value}</div>
                       </div>
                     ))}
                   </div>
 
-                  <div className="overflow-x-auto">
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto">
                     <table className="w-full">
                       <thead className="bg-gray-50">
                         <tr>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Date</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Invoice</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Items</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                          <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Due Date</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {purchaseHistory.map((purchase) => (
                           <tr key={purchase.id} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap">
+                            <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-sm">
                               {new Date(purchase.date).toLocaleDateString()}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap font-mono text-sm">
+                            <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap font-mono text-xs lg:text-sm">
                               {purchase.invoiceNo}
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 lg:px-6 py-3 lg:py-4">
                               <div className="text-sm font-medium text-gray-900">{purchase.description}</div>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 lg:px-6 py-3 lg:py-4">
                               <div className="text-sm text-gray-900">
                                 {purchase.items.map((item, idx) => (
                                   <div key={idx} className="flex items-center">
@@ -536,23 +588,81 @@ export default function SuppliersPage() {
                                 ))}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="text-lg font-bold text-gray-900">
+                            <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
+                              <div className="text-base lg:text-lg font-bold text-gray-900">
                                 ₹{purchase.amount.toLocaleString()}
                               </div>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${statusColors[purchase.status]}`}>
+                            <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap">
+                              <span className={`inline-flex px-2 lg:px-3 py-1 text-xs font-semibold rounded-full ${statusColors[purchase.status]}`}>
                                 {purchase.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            <td className="px-4 lg:px-6 py-3 lg:py-4 whitespace-nowrap text-xs lg:text-sm text-gray-500">
                               {new Date(purchase.paymentDue).toLocaleDateString()}
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
+                  </div>
+
+                  {/* Mobile Card View */}
+                  <div className="md:hidden space-y-4">
+                    {purchaseHistory.map((purchase) => (
+                      <div key={`${purchase.id}-mobile`} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div className="space-y-3">
+                          <div className="flex items-center justify-between border-b pb-2">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Date</p>
+                              <p className="text-sm font-semibold text-gray-900 mt-1">
+                                {new Date(purchase.date).toLocaleDateString()}
+                              </p>
+                            </div>
+                            <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full ${statusColors[purchase.status]}`}>
+                              {purchase.status}
+                            </span>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Invoice</p>
+                            <p className="text-sm font-mono text-gray-900 mt-1">{purchase.invoiceNo}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Description</p>
+                            <p className="text-sm text-gray-900 mt-1">{purchase.description}</p>
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Items</p>
+                            <div className="mt-1 space-y-1">
+                              {purchase.items.map((item, idx) => (
+                                <div key={idx} className="flex items-center text-sm text-gray-900">
+                                  <span className="w-2 h-2 bg-gray-400 rounded-full mr-2"></span>
+                                  {item}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-3 pt-2 border-t">
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Amount</p>
+                              <p className="text-base font-bold text-gray-900 mt-1">
+                                ₹{purchase.amount.toLocaleString()}
+                              </p>
+                            </div>
+                            <div>
+                              <p className="text-xs font-medium text-gray-500">Due Date</p>
+                              <p className="text-sm text-gray-900 mt-1">
+                                {new Date(purchase.paymentDue).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>

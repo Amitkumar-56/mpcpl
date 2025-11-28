@@ -17,10 +17,14 @@ export default function Header() {
   const router = useRouter();
   const pathname = usePathname();
 
-  const handleLogout = () => {
-    logout();
-    setShowProfileMenu(false);
-    setShowSidebar(false);
+  const handleLogout = async () => {
+    try {
+      await logout();
+      setShowProfileMenu(false);
+      setShowSidebar(false);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   // Close dropdowns when clicking outside

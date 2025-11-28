@@ -67,27 +67,25 @@ function NBStockHistoryContent() {
         <Header />
 
         <main className="flex-1 overflow-auto">
-          <div className="container mx-auto px-4 py-6 sm:px-6 lg:px-8">
+          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
             {/* Header */}
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <button
-                  onClick={() => router.back()}
-                  className="mb-4 p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                  </svg>
-                </button>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  Non-Billing Stock History
-                </h1>
-                <p className="text-gray-600 mt-1 text-sm sm:text-base">
-                  {stationName && productName && (
-                    <>Outward transactions for <strong>{stationName}</strong> - <strong>{productName}</strong></>
-                  )}
-                </p>
-              </div>
+            <div className="mb-4 sm:mb-6">
+              <button
+                onClick={() => router.back()}
+                className="mb-3 sm:mb-4 p-2 text-gray-600 hover:text-gray-900 transition-colors rounded-lg hover:bg-gray-100"
+              >
+                <svg className="w-5 h-5 sm:w-6 sm:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
+                Non-Billing Stock History
+              </h1>
+              <p className="text-gray-600 mt-1 text-xs sm:text-sm lg:text-base">
+                {stationName && productName && (
+                  <>Outward transactions for <strong>{stationName}</strong> - <strong>{productName}</strong></>
+                )}
+              </p>
             </div>
 
             {/* History Table */}
@@ -122,75 +120,137 @@ function NBStockHistoryContent() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          #
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Request ID
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Outward Qty
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Amount
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Customer Name
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Vehicle Number
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Employee Name
-                        </th>
-                        <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
-                          Date & Time
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {history.map((record, index) => (
-                        <tr
-                          key={record.id}
-                          className="hover:bg-gray-50 transition-colors"
-                        >
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            {index + 1}
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            {record.rid}
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+              <>
+                {/* Desktop Table View */}
+                <div className="hidden md:block bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full min-w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            #
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Request ID
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Outward Qty
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Amount
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Customer Name
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Vehicle Number
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Employee Name
+                          </th>
+                          <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                            Date & Time
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {history.map((record, index) => (
+                          <tr
+                            key={record.id}
+                            className="hover:bg-gray-50 transition-colors"
+                          >
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              {index + 1}
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              {record.rid}
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                {record.outward_qty}
+                              </span>
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              ₹{parseFloat(record.amount || 0).toFixed(2)}
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              {record.customer_name || '-'}
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              {record.vehicle_number || '-'}
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              {record.employee_name || '-'}
+                            </td>
+                            <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
+                              {formatDateTime(record.filling_date)}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Mobile Card View */}
+                <div className="md:hidden space-y-4">
+                  {history.map((record, index) => (
+                    <div
+                      key={`${record.id}-mobile`}
+                      className="bg-white rounded-lg shadow-sm border border-gray-200 p-4"
+                    >
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">#</p>
+                            <p className="text-sm font-semibold text-gray-900 mt-1">{index + 1}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs font-medium text-gray-500">Request ID</p>
+                            <p className="text-sm font-semibold text-gray-900 mt-1">{record.rid}</p>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Outward Qty</p>
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 mt-1">
                               {record.outward_qty}
                             </span>
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            ₹{parseFloat(record.amount || 0).toFixed(2)}
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            {record.customer_name || '-'}
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            {record.vehicle_number || '-'}
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            {record.employee_name || '-'}
-                          </td>
-                          <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                            {formatDateTime(record.filling_date)}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Amount</p>
+                            <p className="text-sm font-semibold text-gray-900 mt-1">
+                              ₹{parseFloat(record.amount || 0).toFixed(2)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-xs font-medium text-gray-500">Customer Name</p>
+                          <p className="text-sm text-gray-900 mt-1">{record.customer_name || '-'}</p>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Vehicle Number</p>
+                            <p className="text-sm text-gray-900 mt-1">{record.vehicle_number || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">Employee Name</p>
+                            <p className="text-sm text-gray-900 mt-1">{record.employee_name || '-'}</p>
+                          </div>
+                        </div>
+
+                        <div className="pt-2 border-t">
+                          <p className="text-xs font-medium text-gray-500">Date & Time</p>
+                          <p className="text-sm text-gray-900 mt-1">{formatDateTime(record.filling_date)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
-              </div>
+              </>
             )}
           </div>
         </main>

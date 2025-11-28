@@ -3,13 +3,17 @@
 import Footer from 'components/Footer';
 import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
+import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaEdit, FaEye, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaEye, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [updatingStatus, setUpdatingStatus] = useState({});
+  const { user } = useSession();
+  const isAdmin = user?.role === 5;
   const router = useRouter();
 
   const fetchEmployees = async () => {
@@ -39,6 +43,44 @@ export default function EmployeeHistory() {
     }
   };
 
+  const handleStatusToggle = async (employeeId, currentStatus) => {
+    if (!isAdmin) {
+      alert('Only admin can change employee status');
+      return;
+    }
+
+    const newStatus = currentStatus === 1 ? 0 : 1;
+    const action = newStatus === 1 ? 'activate' : 'deactivate';
+    
+    if (!confirm(`Are you sure you want to ${action} this employee?`)) {
+      return;
+    }
+
+    try {
+      setUpdatingStatus(prev => ({ ...prev, [employeeId]: true }));
+      
+      const res = await fetch('/api/employee/update-status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId, status: newStatus })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Failed to update status');
+      }
+
+      alert(result.message || `Employee ${action}d successfully`);
+      fetchEmployees();
+    } catch (err) {
+      console.error('Error updating status:', err);
+      alert(err.message || 'Failed to update employee status');
+    } finally {
+      setUpdatingStatus(prev => ({ ...prev, [employeeId]: false }));
+    }
+  };
+
   return (
     <div className="flex flex-col md:flex-row min-h-screen bg-gray-50">
       {/* Sidebar */}
@@ -56,7 +98,16 @@ export default function EmployeeHistory() {
         {/* Main content area */}
         <div className="flex-1 flex flex-col p-4 md:p-6">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
-            <h1 className="text-2xl font-bold">Employee History</h1>
+            <div>
+              <h1 className="text-2xl font-bold">Employee History</h1>
+              <p className="text-gray-600 text-sm mt-1">
+                Total Employees: <span className="font-bold text-indigo-600">{employees.length}</span>
+                {' | '}
+                Active: <span className="font-bold text-green-600">{employees.filter(e => e.status === 1).length}</span>
+                {' | '}
+                Inactive: <span className="font-bold text-red-600">{employees.filter(e => e.status === 0).length}</span>
+              </p>
+            </div>
             <button
               onClick={() => router.push('/employees/add')}
               className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-1"
@@ -81,18 +132,28 @@ export default function EmployeeHistory() {
                       <th className="border px-4 py-2 text-left">Email</th>
                       <th className="border px-4 py-2 text-left">Role</th>
                       <th className="border px-4 py-2 text-left">Salary</th>
+                      <th className="border px-4 py-2 text-left">Status</th>
                       <th className="border px-4 py-2 text-left">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {employees.length > 0 ? (
                       employees.map((emp, idx) => (
-                        <tr key={emp.id} className="hover:bg-gray-50">
+                        <tr key={emp.id} className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
                           <td className="border px-4 py-2">{idx + 1}</td>
                           <td className="border px-4 py-2">{emp.name}</td>
                           <td className="border px-4 py-2">{emp.email}</td>
                           <td className="border px-4 py-2">{roleName(emp.role)}</td>
-                          <td className="border px-4 py-2">{emp.salary}</td>
+                          <td className="border px-4 py-2">₹{emp.salary?.toLocaleString('en-IN') || '0'}</td>
+                          <td className="border px-4 py-2">
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              emp.status === 1 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {emp.status === 1 ? 'Active' : 'Inactive'}
+                            </span>
+                          </td>
                           <td className="border px-4 py-2 flex flex-wrap gap-2">
                             <button
                               onClick={() => router.push(`/employees/view/${emp.id}`)}
@@ -108,6 +169,26 @@ export default function EmployeeHistory() {
                             >
                               <FaEdit />
                             </button>
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleStatusToggle(emp.id, emp.status)}
+                                disabled={updatingStatus[emp.id]}
+                                className={`p-2 rounded hover:opacity-80 ${
+                                  emp.status === 1
+                                    ? 'bg-yellow-500 text-white'
+                                    : 'bg-gray-500 text-white'
+                                }`}
+                                title={emp.status === 1 ? 'Deactivate' : 'Activate'}
+                              >
+                                {updatingStatus[emp.id] ? (
+                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                ) : emp.status === 1 ? (
+                                  <FaToggleOn className="text-lg" />
+                                ) : (
+                                  <FaToggleOff className="text-lg" />
+                                )}
+                              </button>
+                            )}
                             <button
                               onClick={() => handleDelete(emp.id)}
                               className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
@@ -120,7 +201,7 @@ export default function EmployeeHistory() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="6" className="border px-4 py-4 text-center">
+                        <td colSpan="7" className="border px-4 py-4 text-center">
                           No employees found. Click "Add Employee" to create one.
                         </td>
                       </tr>

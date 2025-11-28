@@ -26,7 +26,7 @@ export async function POST(request) {
       return NextResponse.json({ success: false, message: "Invalid password" }, { status: 401 });
 
     if (user.status === 0)
-      return NextResponse.json({ success: false, message: "Your account is disabled" }, { status: 403 });
+      return NextResponse.json({ success: false, message: "Your account has been deactivated by admin. Please contact administrator." }, { status: 403 });
 
     const [permissions] = await connection.execute(
       `SELECT module_name, can_view, can_edit, can_delete

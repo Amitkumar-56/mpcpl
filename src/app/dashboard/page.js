@@ -270,7 +270,11 @@ export default function DashboardPage() {
         socketInstance.on('customer_message', (data) => {
           console.log('Dashboard: Received customer message:', data);
           
-          setNotifCount(prev => prev + 1);
+          // Only increment notification if chat is not currently selected
+          const isCurrentChat = selectedCustomer && selectedCustomer.customerId === data.customerId;
+          if (!isCurrentChat) {
+            setNotifCount(prev => prev + 1);
+          }
           
           // Update active chats
           setActiveChats(prev => {
@@ -283,7 +287,7 @@ export default function DashboardPage() {
                 timestamp: data.timestamp || new Date().toISOString(),
                 sender: 'customer'
               },
-              unread: true
+              unread: !isCurrentChat // Only mark as unread if not current chat
             };
             
             if (existingChatIndex >= 0) {
@@ -316,6 +320,8 @@ export default function DashboardPage() {
             
             // Mark as read automatically when viewing
             markMessagesAsRead(data.customerId);
+            // Don't increment notification count if viewing the chat
+            setNotifCount(prev => Math.max(0, prev - 1));
           }
         });
 
@@ -875,7 +881,7 @@ const ChatWidget = ({
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-80 bg-white rounded-lg shadow-xl border border-gray-200">
+    <div className="fixed bottom-4 right-4 z-50 w-full sm:w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200">
       <div className="bg-purple-600 rounded-t-lg p-3 text-white flex justify-between items-center">
         <h3 className="font-bold text-sm">Support Chat</h3>
         <div className="flex items-center space-x-2">
@@ -893,10 +899,10 @@ const ChatWidget = ({
         </div>
       </div>
       
-      <div className="h-96 overflow-hidden flex flex-col">
+      <div className="h-[calc(100vh-12rem)] sm:h-96 overflow-hidden flex flex-col">
         {/* Chat list */}
-        <div className="flex-1 flex">
-          <div className="w-1/3 border-r border-gray-200 flex flex-col">
+        <div className="flex-1 flex flex-col sm:flex-row">
+          <div className="w-full sm:w-1/3 border-r border-gray-200 flex flex-col">
             <div className="p-2 border-b bg-gray-50">
               <h4 className="font-semibold text-xs">Active Chats ({activeChats.length})</h4>
             </div>
@@ -951,7 +957,7 @@ const ChatWidget = ({
           </div>
 
           {/* Messages */}
-          <div className="w-2/3 flex flex-col">
+          <div className="w-full sm:w-2/3 flex flex-col">
             {selectedCustomer ? (
               <>
                 <div className="p-2 border-b bg-gray-50 flex justify-between items-center">
@@ -1006,8 +1012,8 @@ const ChatWidget = ({
                     </div>
                   )}
                 </div>
-                <div className="p-2 border-t">
-                  <div className="flex space-x-2">
+                <div className="p-2 border-t bg-white">
+                  <div className="flex space-x-2 items-center">
                     <input
                       type="text"
                       value={newMessage}
@@ -1019,16 +1025,16 @@ const ChatWidget = ({
                         }
                       }}
                       placeholder="Type message..."
-                      className="flex-1 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      className="flex-1 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-0"
                       disabled={!socketConnected || !selectedCustomer.employeeId}
                     />
                     <button 
                       onClick={sendMessage} 
                       disabled={!newMessage.trim() || !socketConnected || !selectedCustomer.employeeId}
-                      className="bg-purple-600 text-white px-3 py-1 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center"
+                      className="bg-purple-600 text-white px-3 py-2 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0 min-w-[44px]"
                       title={!socketConnected ? 'Socket not connected' : !selectedCustomer.employeeId ? 'Accept chat first' : 'Send message'}
                     >
-                      <BiSend size={14} />
+                      <BiSend size={18} className="sm:w-4 sm:h-4" />
                     </button>
                   </div>
                   {!socketConnected && (

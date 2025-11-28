@@ -141,7 +141,7 @@ export default function Sidebar() {
       {/* Mobile toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 right-16 z-50 p-2 bg-gray-900 text-white rounded"
+        className="md:hidden fixed top-7 right-12 z-50 p-1 bg-gray-900 text-white rounded"
       >
         {isOpen ? <FaTimes /> : <FaBars />}
       </button>

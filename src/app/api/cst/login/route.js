@@ -42,6 +42,13 @@ export async function POST(req) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
+    // Check if customer is active (status = 1)
+    if (customer.status === 0) {
+      return NextResponse.json({ 
+        error: "Your account has been deactivated by admin. Please contact administrator." 
+      }, { status: 403 });
+    }
+
     // Return customer info (exclude password)
     return NextResponse.json({
       success: true,
