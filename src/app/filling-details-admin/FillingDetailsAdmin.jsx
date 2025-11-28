@@ -647,15 +647,15 @@ export default function FillingDetailsAdmin() {
               
                         {availableBalance.limitType === 'credit' && (
                           <>
-                            <tr>
+                            <tr className="hidden">
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
                               <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(creditLimitTotal)}</td>
                             </tr>
-                            <tr>
+                            <tr className="hidden">
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Used Amount</td>
                               <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(usedAmount)}</td>
                             </tr>
-                            <tr>
+                            <tr className="hidden">
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Available Balance</td>
                               <td className="px-4 py-3 text-sm font-medium">
                                 <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
@@ -898,7 +898,7 @@ export default function FillingDetailsAdmin() {
                                   Available stock: <span className="font-medium">{requestData.station_stock || 0} Ltr</span>
                                 </p>
                                 {formData.aqty && !isNaN(parseFloat(formData.aqty)) && (
-                                  <p className="mt-1 text-sm text-green-600">
+                                  <p className="mt-1 text-sm text-green-600 hidden">
                                     Calculated Amount: <span className="font-bold">₹{calculateAmount()}</span>
                                   </p>
                                 )}
