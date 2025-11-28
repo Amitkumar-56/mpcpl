@@ -255,19 +255,6 @@ export default function Header({ onMenuToggle }) {
                     <FaKey className="text-gray-400" />
                     <span>Change Password</span>
                   </button>
-
-                  {user.role === 5 && (
-                    <button
-                      onClick={() => { 
-                        router.push('/roles'); 
-                        setShowProfileMenu(false); 
-                      }}
-                      className="flex items-center gap-3 px-4 py-3 w-full text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
-                    >
-                      <FaCog className="text-gray-400" />
-                      <span>Role Settings</span>
-                    </button>
-                  )}
                 </div>
 
                 {/* Logout */}
@@ -342,16 +329,6 @@ export default function Header({ onMenuToggle }) {
                 <FaKey className="text-gray-400 text-lg" />
                 <span className="font-medium">Change Password</span>
               </button>
-
-              {user.role === 5 && (
-                <button
-                  onClick={() => { router.push('/roles'); setShowSidebar(false); }}
-                  className="flex items-center gap-4 px-6 py-4 w-full text-left text-gray-700 hover:bg-blue-50 border-b border-gray-100"
-                >
-                  <FaCog className="text-gray-400 text-lg" />
-                  <span className="font-medium">Role Settings</span>
-                </button>
-              )}
 
               {/* Notifications in mobile */}
               <div className="flex items-center gap-4 px-6 py-4 border-b border-gray-100">
