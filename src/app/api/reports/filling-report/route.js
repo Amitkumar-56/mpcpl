@@ -153,24 +153,58 @@ export async function POST(request) {
   }
 }
 
-// GET for dropdowns
+// GET for dropdowns and stats
 export async function GET() {
   try {
-    const [products, stations, customers] = await Promise.all([
+    const [products, stations, customers, stats] = await Promise.all([
       executeQuery("SELECT id, pname FROM products"),
       executeQuery("SELECT id, station_name FROM filling_stations"),
-      executeQuery("SELECT id, name FROM customers")
+      executeQuery("SELECT id, name FROM customers"),
+      // Get stats: Total Filling, Total Stock, Total Invoice, Total Recharge
+      Promise.all([
+        // Total Filling (completed filling requests)
+        executeQuery("SELECT COUNT(*) as total FROM filling_requests WHERE status = 'Completed'").catch(() => [{ total: 0 }]),
+        // Total Stock (from filling_station_stocks)
+        executeQuery("SELECT COUNT(*) as total FROM filling_station_stocks").catch(() => [{ total: 0 }]),
+        // Total Invoice (invoiced filling requests)
+        executeQuery("SELECT COUNT(*) as total FROM filling_requests WHERE status = 'Completed' AND is_invoiced = 1").catch(() => [{ total: 0 }]),
+        // Total Recharge (from customer_balances or recharge requests)
+        executeQuery("SELECT COUNT(*) as total FROM customer_balances WHERE balance > 0").catch(() => [{ total: 0 }])
+      ])
     ]);
+
+    const statsData = {
+      totalFilling: stats[0][0]?.total || 0,
+      totalStock: stats[1][0]?.total || 0,
+      totalInvoice: stats[2][0]?.total || 0,
+      totalRecharge: stats[3][0]?.total || 0
+    };
 
     return NextResponse.json({
       success: true,
       data: {
         products: products || [],
         stations: stations || [], 
-        customers: customers || []
+        customers: customers || [],
+        stats: statsData
       }
     });
   } catch (error) {
-    return NextResponse.json({ success: false, error: error.message });
+    console.error('Error in GET /api/reports/filling-report:', error);
+    return NextResponse.json({ 
+      success: false, 
+      error: error.message,
+      data: {
+        products: [],
+        stations: [],
+        customers: [],
+        stats: {
+          totalFilling: 0,
+          totalStock: 0,
+          totalInvoice: 0,
+          totalRecharge: 0
+        }
+      }
+    });
   }
 }

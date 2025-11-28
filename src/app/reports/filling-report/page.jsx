@@ -47,6 +47,12 @@ function ReportHistoryContent() {
   const [checkingRecords, setCheckingRecords] = useState(new Set());
   const [invoicingRecords, setInvoicingRecords] = useState(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [stats, setStats] = useState({
+    totalFilling: 0,
+    totalStock: 0,
+    totalInvoice: 0,
+    totalRecharge: 0
+  });
 
   // Get employee profile
   useEffect(() => {
@@ -106,13 +112,30 @@ function ReportHistoryContent() {
       if (result.success) {
         setData(prev => ({
           ...prev,
-          products: result.data.products,
-          stations: result.data.stations,
-          customers: result.data.customers
+          products: result.data.products || [],
+          stations: result.data.stations || [],
+          customers: result.data.customers || []
         }));
+        
+        // Set stats
+        if (result.data.stats) {
+          setStats({
+            totalFilling: result.data.stats.totalFilling || 0,
+            totalStock: result.data.stats.totalStock || 0,
+            totalInvoice: result.data.stats.totalInvoice || 0,
+            totalRecharge: result.data.stats.totalRecharge || 0
+          });
+        }
       }
     } catch (error) {
       console.error('Error fetching dropdown data:', error);
+      // Set default stats on error
+      setStats({
+        totalFilling: 0,
+        totalStock: 0,
+        totalInvoice: 0,
+        totalRecharge: 0
+      });
     }
   };
 
@@ -754,6 +777,26 @@ function ReportHistoryContent() {
               <li className="text-gray-900">Create Report</li>
             </ol>
           </nav>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-4 sm:mb-6">
+            <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-lg p-3 sm:p-4 shadow-md text-white">
+              <div className="text-xs sm:text-sm font-medium opacity-90 mb-1">Total Filling</div>
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{stats.totalFilling || 0}</div>
+            </div>
+            <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-lg p-3 sm:p-4 shadow-md text-white">
+              <div className="text-xs sm:text-sm font-medium opacity-90 mb-1">Total Stock</div>
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{stats.totalStock || 0}</div>
+            </div>
+            <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-lg p-3 sm:p-4 shadow-md text-white">
+              <div className="text-xs sm:text-sm font-medium opacity-90 mb-1">Total Invoice</div>
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{stats.totalInvoice || 0}</div>
+            </div>
+            <div className="bg-gradient-to-br from-orange-500 to-orange-700 rounded-lg p-3 sm:p-4 shadow-md text-white">
+              <div className="text-xs sm:text-sm font-medium opacity-90 mb-1">Total Recharge</div>
+              <div className="text-xl sm:text-2xl lg:text-3xl font-bold">{stats.totalRecharge || 0}</div>
+            </div>
+          </div>
 
           {/* Filters */}
           <div className="bg-white rounded-lg shadow-md p-4 sm:p-6 mb-4 sm:mb-6">
