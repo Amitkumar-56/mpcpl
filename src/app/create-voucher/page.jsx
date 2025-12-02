@@ -42,8 +42,15 @@ function CreateVoucherContent() {
 
   const fetchFormData = async () => {
     try {
+      setLoading(true);
       const response = await fetch('/api/create-voucher');
       const data = await response.json();
+      
+      console.log('📡 Fetched form data:', {
+        stationsCount: data.stations?.length,
+        employeesCount: data.employees?.length,
+        employees: data.employees
+      });
       
       if (!response.ok) {
         throw new Error(data.error || 'Failed to fetch form data');
@@ -51,9 +58,17 @@ function CreateVoucherContent() {
       
       setStations(data.stations || []);
       setEmployees(data.employees || []);
+      
+      // ✅ Debug: Log if employees are empty
+      if (!data.employees || data.employees.length === 0) {
+        console.warn('⚠️ No employees found in response');
+        setError('No employees available. Please check database.');
+      }
     } catch (error) {
-      console.error('Error fetching form data:', error);
+      console.error('❌ Error fetching form data:', error);
       setError('Failed to load form data: ' + error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -225,14 +240,25 @@ function CreateVoucherContent() {
                           onChange={handleInputChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           required
+                          disabled={loading}
                         >
-                          <option value="">Select Employee</option>
-                          {employees.map(employee => (
-                            <option key={employee.id} value={employee.id}>
-                              {employee.name}
-                            </option>
-                          ))}
+                          <option value="">{loading ? 'Loading employees...' : 'Select Employee'}</option>
+                          {employees.length > 0 ? (
+                            employees.map(employee => (
+                              <option key={employee.id} value={employee.id}>
+                                {employee.name || employee.emp_code || `Employee ${employee.id}`}
+                                {employee.emp_code && employee.name !== employee.emp_code ? ` (${employee.emp_code})` : ''}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>No employees available</option>
+                          )}
                         </select>
+                        {employees.length === 0 && !loading && (
+                          <p className="mt-1 text-sm text-red-600">
+                            No employees found. Please check database or contact administrator.
+                          </p>
+                        )}
                       </div>
 
                       <div>

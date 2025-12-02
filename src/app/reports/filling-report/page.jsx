@@ -505,9 +505,23 @@ function ReportHistoryContent() {
           )}
         </button>
         {record.is_checked && record.checked_by_name && (
-          <span className="text-xs text-gray-600 text-center">
-            By: {record.checked_by_name}
-          </span>
+          <div className="flex flex-col items-center space-y-0.5 mt-1">
+            <span className="text-xs font-medium text-green-700 text-center">
+              ✓ Checked by: {record.checked_by_name}
+            </span>
+            {record.checked_at && (
+              <span className="text-xs text-gray-500 text-center">
+                {new Date(record.checked_at).toLocaleString('en-IN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </span>
+            )}
+          </div>
         )}
       </div>
     );
@@ -557,9 +571,23 @@ function ReportHistoryContent() {
           )}
         </button>
         {record.is_invoiced && record.invoiced_by_name && (
-          <span className="text-xs text-gray-600 text-center">
-            By: {record.invoiced_by_name}
-          </span>
+          <div className="flex flex-col items-center space-y-0.5 mt-1">
+            <span className="text-xs font-medium text-purple-700 text-center">
+              📄 Invoiced by: {record.invoiced_by_name}
+            </span>
+            {record.invoiced_at && (
+              <span className="text-xs text-gray-500 text-center">
+                {new Date(record.invoiced_at).toLocaleString('en-IN', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  hour12: true
+                })}
+              </span>
+            )}
+          </div>
         )}
       </div>
     );
@@ -1043,38 +1071,87 @@ function ReportHistoryContent() {
                           </span>
                         </td>
                         <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          <div className="flex flex-col space-y-1">
-                            {record.created_by_name && (
-                              <div className="text-xs">
-                                <span className="font-medium">Created:</span> {record.created_by_name}
-                                {record.created_date && (
-                                  <span className="text-gray-500 ml-1">
-                                    ({new Date(record.created_date).toLocaleDateString('en-IN')})
-                                  </span>
+                          <div className="flex flex-col space-y-2">
+                            {/* Verification Logs */}
+                            {(record.is_checked && record.checked_by_name) || (record.is_invoiced && record.invoiced_by_name) ? (
+                              <div className="space-y-1">
+                                {record.is_checked && record.checked_by_name && (
+                                  <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                    <div className="text-xs text-green-700">
+                                      <span className="font-medium">✓ Checked:</span> {record.checked_by_name}
+                                      {record.checked_at && (
+                                        <span className="text-green-600 ml-1 text-xs">
+                                          ({new Date(record.checked_at).toLocaleString('en-IN', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            hour12: true
+                                          })})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {record.is_invoiced && record.invoiced_by_name && (
+                                  <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                                    <div className="text-xs text-purple-700">
+                                      <span className="font-medium">📄 Invoiced:</span> {record.invoiced_by_name}
+                                      {record.invoiced_at && (
+                                        <span className="text-purple-600 ml-1 text-xs">
+                                          ({new Date(record.invoiced_at).toLocaleString('en-IN', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            year: 'numeric',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            hour12: true
+                                          })})
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ) : null}
+                            {/* Activity Logs */}
+                            {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
+                              <div className="space-y-1 pt-1 border-t border-gray-200">
+                                {record.created_by_name && (
+                                  <div className="text-xs">
+                                    <span className="font-medium">Created:</span> {record.created_by_name}
+                                    {record.created_date && (
+                                      <span className="text-gray-500 ml-1">
+                                        ({new Date(record.created_date).toLocaleDateString('en-IN')})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {record.processed_by_name && (
+                                  <div className="text-xs">
+                                    <span className="font-medium">Processed:</span> {record.processed_by_name}
+                                    {record.processed_date && (
+                                      <span className="text-gray-500 ml-1">
+                                        ({new Date(record.processed_date).toLocaleDateString('en-IN')})
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                                {record.completed_by_name && (
+                                  <div className="text-xs">
+                                    <span className="font-medium">Completed:</span> {record.completed_by_name}
+                                    {record.completed_date && (
+                                      <span className="text-gray-500 ml-1">
+                                        ({new Date(record.completed_date).toLocaleDateString('en-IN')})
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
                             )}
-                            {record.processed_by_name && (
-                              <div className="text-xs">
-                                <span className="font-medium">Processed:</span> {record.processed_by_name}
-                                {record.processed_date && (
-                                  <span className="text-gray-500 ml-1">
-                                    ({new Date(record.processed_date).toLocaleDateString('en-IN')})
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {record.completed_by_name && (
-                              <div className="text-xs">
-                                <span className="font-medium">Completed:</span> {record.completed_by_name}
-                                {record.completed_date && (
-                                  <span className="text-gray-500 ml-1">
-                                    ({new Date(record.completed_date).toLocaleDateString('en-IN')})
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && (
+                            {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
+                             !record.is_checked && !record.is_invoiced && (
                               <span className="text-xs text-gray-400">No logs</span>
                             )}
                           </div>
@@ -1136,7 +1213,53 @@ function ReportHistoryContent() {
                           <p className="text-xs font-medium text-gray-500">Vehicle</p>
                           <p className="text-sm text-gray-900">{record.vehicle_number}</p>
                         </div>
-                        {/* Logs Section */}
+                        {/* Check/Invoice Logs Section */}
+                        {(record.is_checked && record.checked_by_name) || (record.is_invoiced && record.invoiced_by_name) ? (
+                          <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-500 mb-1">Verification Logs</p>
+                            <div className="space-y-1">
+                              {record.is_checked && record.checked_by_name && (
+                                <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                  <p className="text-xs text-green-700">
+                                    <span className="font-medium">✓ Checked by:</span> {record.checked_by_name}
+                                    {record.checked_at && (
+                                      <span className="text-green-600 ml-1">
+                                        ({new Date(record.checked_at).toLocaleString('en-IN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })})
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                              {record.is_invoiced && record.invoiced_by_name && (
+                                <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                                  <p className="text-xs text-purple-700">
+                                    <span className="font-medium">📄 Invoiced by:</span> {record.invoiced_by_name}
+                                    {record.invoiced_at && (
+                                      <span className="text-purple-600 ml-1">
+                                        ({new Date(record.invoiced_at).toLocaleString('en-IN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })})
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
+                        {/* Activity Logs Section */}
                         {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
                           <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
                             <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>

@@ -207,23 +207,45 @@ export async function GET(request) {
     console.log('Fetching form data...');
     
     // Fetch stations and employees for the form
+    // ✅ FIX: Include status check and ensure proper field selection
     const [stations, employees] = await Promise.all([
-      executeQuery('SELECT id, station_name FROM filling_stations'),
-      executeQuery('SELECT id, name FROM employee_profile WHERE role <> 5')
+      executeQuery('SELECT id, station_name FROM filling_stations WHERE status = 1 ORDER BY station_name'),
+      executeQuery(`
+        SELECT 
+          id, 
+          name,
+          emp_code,
+          phone,
+          role,
+          status
+        FROM employee_profile 
+        WHERE role <> 5 AND status = 1
+        ORDER BY name ASC
+      `)
     ]);
 
     console.log('Form data fetched successfully:', {
       stations: stations?.length,
-      employees: employees?.length
+      employees: employees?.length,
+      employeeIds: employees?.map(emp => ({ id: emp.id, name: emp.name }))
     });
+
+    // ✅ FIX: Ensure employees have proper structure
+    const formattedEmployees = (employees || []).map(emp => ({
+      id: emp.id,
+      name: emp.name || emp.emp_code || `Employee ${emp.id}`,
+      emp_code: emp.emp_code,
+      phone: emp.phone
+    }));
 
     return NextResponse.json({
       stations: stations || [],
-      employees: employees || []
+      employees: formattedEmployees
     });
 
   } catch (error) {
     console.error('Error fetching form data:', error);
+    console.error('Error stack:', error.stack);
     return NextResponse.json(
       { 
         error: 'Failed to fetch form data',
