@@ -38,6 +38,16 @@ export async function POST(request) {
       );
     }
 
+    // ✅ FIX: Truncate map_link to 255 characters (database column limit)
+    let processedMapLink = null;
+    if (map_link && map_link.trim()) {
+      // Truncate to 255 characters if longer
+      processedMapLink = map_link.trim().substring(0, 255);
+      if (map_link.length > 255) {
+        console.warn(`⚠️ Map link truncated from ${map_link.length} to 255 characters`);
+      }
+    }
+
     // Insert new station
     const insertQuery = `
       INSERT INTO filling_stations 
@@ -52,7 +62,7 @@ export async function POST(request) {
       address,
       gst_name,
       gst_number,
-      map_link || null,
+      processedMapLink,
       email,
       phone,
       manager
@@ -65,8 +75,18 @@ export async function POST(request) {
     });
   } catch (error) {
     console.error('Database error:', error);
+    
+    // ✅ Better error messages for common issues
+    let errorMessage = error.message || 'Failed to add station';
+    
+    if (error.message && error.message.includes('Data too long')) {
+      errorMessage = 'One or more fields exceed the maximum length. Please shorten the map link (max 255 characters).';
+    } else if (error.message && error.message.includes('map_link')) {
+      errorMessage = 'Map link is too long. Please use a shorter link (max 255 characters).';
+    }
+    
     return NextResponse.json(
-      { success: false, error: error.message || 'Failed to add station' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

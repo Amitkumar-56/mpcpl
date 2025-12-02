@@ -39,7 +39,8 @@ function PDFModalContent() {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/generate-pdf?request_id=${requestId}`);
+        // ✅ FIX: Use 'id' parameter to match URL
+        const response = await fetch(`/api/generate-pdf?id=${requestId}`);
         
         if (response.ok) {
           const result = await response.json();
@@ -51,7 +52,8 @@ function PDFModalContent() {
           }
         } else {
           const errorData = await response.json();
-          throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+          const errorMsg = errorData.error || errorData.details || `HTTP error! status: ${response.status}`;
+          throw new Error(errorMsg);
         }
       } catch (error) {
         console.error("❌ Error fetching request:", error);

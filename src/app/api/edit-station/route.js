@@ -25,12 +25,22 @@ export async function PUT(request) {
       );
     }
 
+    // ✅ FIX: Truncate map_link to 255 characters (database column limit)
+    let processedMapLink = null;
+    if (map_link && map_link.trim()) {
+      // Truncate to 255 characters if longer
+      processedMapLink = map_link.trim().substring(0, 255);
+      if (map_link.length > 255) {
+        console.warn(`⚠️ Map link truncated from ${map_link.length} to 255 characters`);
+      }
+    }
+
     // Update the station
     const result = await executeQuery(
       `UPDATE filling_stations 
        SET manager = ?, phone = ?, email = ?, gst_name = ?, gst_number = ?, map_link = ?
        WHERE id = ?`,
-      [manager, phone, email, gst_name, gst_number, map_link, id]
+      [manager, phone, email, gst_name, gst_number, processedMapLink, id]
     );
 
     return NextResponse.json({
@@ -39,8 +49,18 @@ export async function PUT(request) {
     });
   } catch (error) {
     console.error('Database error:', error);
+    
+    // ✅ Better error messages for common issues
+    let errorMessage = error.message || 'Failed to update station';
+    
+    if (error.message && error.message.includes('Data too long')) {
+      errorMessage = 'One or more fields exceed the maximum length. Please shorten the map link (max 255 characters).';
+    } else if (error.message && error.message.includes('map_link')) {
+      errorMessage = 'Map link is too long. Please use a shorter link (max 255 characters).';
+    }
+    
     return NextResponse.json(
-      { success: false, error: error.message },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }

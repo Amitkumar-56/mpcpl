@@ -4,10 +4,14 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const requestId = searchParams.get("request_id");
+    // ✅ FIX: Accept both 'id' and 'request_id' parameters
+    const requestId = searchParams.get("request_id") || searchParams.get("id");
 
     if (!requestId) {
-      return NextResponse.json({ error: "Request ID is required" }, { status: 400 });
+      return NextResponse.json({ 
+        success: false,
+        error: "Request ID is required" 
+      }, { status: 400 });
     }
 
     // Fetch request data with all necessary details including logs
@@ -55,27 +59,50 @@ export async function GET(request) {
         WHERE fl.created_by IS NOT NULL
         GROUP BY fl.request_id
       ) fl_created ON fr.rid = fl_created.request_id
-      LEFT JOIN filling_logs fl_processed ON fr.rid = fl_processed.request_id AND fl_processed.processed_by IS NOT NULL
-      LEFT JOIN employee_profile ep_processed ON fl_processed.processed_by = ep_processed.id
-      LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id AND fl_completed.completed_by IS NOT NULL
-      LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          MAX(ep.name) as processed_by_name,
+          MAX(fl.processed_date) as processed_date
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
+        WHERE fl.processed_by IS NOT NULL
+        GROUP BY fl.request_id
+      ) fl_processed ON fr.rid = fl_processed.request_id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          MAX(ep.name) as completed_by_name,
+          MAX(fl.completed_date) as completed_date
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
+        WHERE fl.completed_by IS NOT NULL
+        GROUP BY fl.request_id
+      ) fl_completed ON fr.rid = fl_completed.request_id
       WHERE fr.id = ?
     `;
 
+    console.log('🔍 Fetching request for PDF with ID:', requestId);
     const requestData = await executeQuery(query, [requestId]);
+    console.log('📦 Request data found:', requestData.length > 0);
 
     if (requestData.length === 0) {
-      return NextResponse.json({ error: "Request not found" }, { status: 404 });
+      return NextResponse.json({ 
+        success: false,
+        error: "Request not found" 
+      }, { status: 404 });
     }
 
     const request = requestData[0];
 
-    // Check if request is completed
-    if (request.status !== "Completed") {
-      return NextResponse.json({ 
-        error: "PDF can only be generated for completed requests" 
-      }, { status: 400 });
-    }
+    // ✅ FIX: Allow PDF generation for all statuses, not just Completed
+    // (User requested to show PDF modal for all requests)
+    // if (request.status !== "Completed") {
+    //   return NextResponse.json({ 
+    //     success: false,
+    //     error: "PDF can only be generated for completed requests" 
+    //   }, { status: 400 });
+    // }
 
     // Format dates
     const createdDate = request.created ? new Date(request.created).toLocaleString('en-IN') : 'N/A';
@@ -96,8 +123,13 @@ export async function GET(request) {
 
   } catch (error) {
     console.error("❌ PDF Generation API Error:", error);
+    console.error("Error stack:", error.stack);
     return NextResponse.json(
-      { error: "Server error", details: error.message },
+      { 
+        success: false,
+        error: "Server error", 
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+      },
       { status: 500 }
     );
   }

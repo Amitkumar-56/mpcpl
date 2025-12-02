@@ -56,6 +56,8 @@ export default function AddStationPage() {
       case "mapsLink":
         if (value && !value.startsWith("http"))
           return "Please enter a valid URL starting with http:// or https://";
+        if (value && value.length > 255)
+          return "Map link is too long (max 255 characters). It will be truncated.";
         return "";
       default:
         return "";
