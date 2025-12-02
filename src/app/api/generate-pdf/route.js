@@ -1,10 +1,9 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
-export async function GET(request) {
+export async function GET(req) {
   try {
-    const { searchParams } = new URL(request.url);
-    // ✅ FIX: Accept both 'id' and 'request_id' parameters
+    const { searchParams } = new URL(req.url);
     const requestId = searchParams.get("request_id") || searchParams.get("id");
 
     if (!requestId) {
@@ -14,8 +13,6 @@ export async function GET(request) {
       }, { status: 400 });
     }
 
-    // Fetch request data with all necessary details including logs
-    // ✅ Simplified query similar to working queries in other files
     const query = `
       SELECT 
         fr.*,
@@ -73,22 +70,8 @@ export async function GET(request) {
     let requestData;
     try {
       requestData = await executeQuery(query, [requestId]);
-      console.log('📦 Request data found:', requestData.length > 0);
-      
-      if (requestData.length > 0) {
-        console.log('✅ Request data sample:', {
-          rid: requestData[0].rid,
-          customer_name: requestData[0].customer_name,
-          status: requestData[0].status,
-          created_by_name: requestData[0].created_by_name,
-          processed_by_name: requestData[0].processed_by_name,
-          completed_by_name: requestData[0].completed_by_name
-        });
-      }
     } catch (queryError) {
       console.error('❌ SQL Query Error:', queryError);
-      console.error('Error message:', queryError.message);
-      console.error('Error code:', queryError.code);
       throw queryError;
     }
 
@@ -100,15 +83,6 @@ export async function GET(request) {
     }
 
     const request = requestData[0];
-
-    // ✅ FIX: Allow PDF generation for all statuses, not just Completed
-    // (User requested to show PDF modal for all requests)
-    // if (request.status !== "Completed") {
-    //   return NextResponse.json({ 
-    //     success: false,
-    //     error: "PDF can only be generated for completed requests" 
-    //   }, { status: 400 });
-    // }
 
     // Format dates
     const createdDate = request.created ? new Date(request.created).toLocaleString('en-IN') : 'N/A';
@@ -129,26 +103,11 @@ export async function GET(request) {
 
   } catch (error) {
     console.error("❌ PDF Generation API Error:", error);
-    console.error("Error stack:", error.stack);
-    console.error("Error message:", error.message);
-    console.error("Error code:", error.code);
-    console.error("Error sqlMessage:", error.sqlMessage);
-    
-    // Return detailed error in development, generic in production
-    const errorDetails = process.env.NODE_ENV === 'development' 
-      ? {
-          message: error.message,
-          code: error.code,
-          sqlMessage: error.sqlMessage,
-          stack: error.stack
-        }
-      : undefined;
     
     return NextResponse.json(
       { 
         success: false,
-        error: "Server error", 
-        details: errorDetails
+        error: "Server error"
       },
       { status: 500 }
     );

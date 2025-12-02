@@ -63,7 +63,9 @@ function PDFGenerationContent() {
       }
     };
 
-    fetchRequest();
+    if (user && requestId) {
+      fetchRequest();
+    }
   }, [requestId, user]);
 
   // PDF Generation Function
@@ -107,18 +109,18 @@ function PDFGenerationContent() {
       doc.setTextColor(...darkColor);
       doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.text(`REQUEST ID: ${request.rid}`, 25, yPosition + 8);
+      doc.text(`REQUEST ID: ${request.rid || request.id}`, 25, yPosition + 8);
       
       doc.setFont("helvetica", "normal");
-      doc.text(`Created: ${request.formatted_created}`, 25, yPosition + 15);
+      doc.text(`Created: ${request.formatted_created || 'N/A'}`, 25, yPosition + 15);
       
-      if (request.completed_date && request.completed_date !== "0000-00-00 00:00:00") {
+      if (request.formatted_completed && request.formatted_completed !== "0000-00-00 00:00:00") {
         doc.text(`Completed: ${request.formatted_completed}`, 110, yPosition + 15);
       }
       
       doc.setFont("helvetica", "bold");
       doc.setTextColor(...successColor);
-      doc.text(`Status: ${request.status}`, pageWidth - 25, yPosition + 8, { align: "right" });
+      doc.text(`Status: ${request.status || 'N/A'}`, pageWidth - 25, yPosition + 8, { align: "right" });
       
       yPosition += 30;
       
@@ -167,7 +169,7 @@ function PDFGenerationContent() {
       
       doc.setFont("helvetica", "normal");
       doc.text(request.product_name || 'N/A', 25, yPosition + 16);
-      doc.text(`${request.qty} liters`, 80, yPosition + 16);
+      doc.text(`${request.qty || 0} liters`, 80, yPosition + 16);
       doc.text(request.vehicle_number || 'N/A', 120, yPosition + 16);
       doc.text(request.driver_number || 'N/A', 170, yPosition + 16);
       
@@ -249,7 +251,7 @@ function PDFGenerationContent() {
       doc.text(`Generated on: ${request.current_date}`, pageWidth / 2, 280, { align: "center" });
       
       // Save PDF
-      const fileName = `Filling_Request_${request.rid}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const fileName = `Filling_Request_${request.rid || request.id}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
       
       setPdfGenerated(true);
@@ -363,7 +365,7 @@ function PDFGenerationContent() {
                 </svg>
               </div>
               <h2 className="text-xl font-bold text-gray-800 mb-2">Request Not Found</h2>
-              <p className="text-gray-600 mb-6">The requested filling request could not be found or is not completed.</p>
+              <p className="text-gray-600 mb-6">The requested filling request could not be found.</p>
               <button 
                 onClick={handleBack}
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
@@ -395,7 +397,7 @@ function PDFGenerationContent() {
                 Back to Requests
               </button>
               <h1 className="text-2xl font-bold text-gray-800">
-                PDF Generation - {request.rid}
+                PDF Generation - {request.rid || request.id}
               </h1>
             </div>
 
@@ -437,24 +439,24 @@ function PDFGenerationContent() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                 <div className="bg-blue-50 p-4 rounded-lg border border-blue-100">
                   <h3 className="font-semibold text-blue-800 mb-2">Request Summary</h3>
-                  <p className="mb-1"><strong>ID:</strong> {request.rid}</p>
+                  <p className="mb-1"><strong>ID:</strong> {request.rid || request.id}</p>
                   <p className="mb-1"><strong>Status:</strong> 
                     <span className={`ml-2 px-2 py-1 rounded-full text-xs ${
                       request.status === "Completed" ? "bg-green-100 text-green-800" :
                       request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
                       "bg-blue-100 text-blue-800"
                     }`}>
-                      {request.status}
+                      {request.status || "N/A"}
                     </span>
                   </p>
                   <p className="mb-1"><strong>Client:</strong> {request.customer_name || "N/A"}</p>
-                  <p><strong>Created:</strong> {request.formatted_created}</p>
+                  <p><strong>Created:</strong> {request.formatted_created || "N/A"}</p>
                 </div>
                 
                 <div className="bg-green-50 p-4 rounded-lg border border-green-100">
                   <h3 className="font-semibold text-green-800 mb-2">Filling Details</h3>
                   <p className="mb-1"><strong>Product:</strong> {request.product_name || "N/A"}</p>
-                  <p className="mb-1"><strong>Quantity:</strong> {request.qty} liters</p>
+                  <p className="mb-1"><strong>Quantity:</strong> {request.qty || 0} liters</p>
                   <p className="mb-1"><strong>Vehicle:</strong> {request.vehicle_number || "N/A"}</p>
                   <p><strong>Driver:</strong> {request.driver_number || "N/A"}</p>
                 </div>
@@ -522,8 +524,6 @@ function PDFLoading() {
     </div>
   );
 }
-
-
 
 export default function PDFGenerationPage() {
   return (

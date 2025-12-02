@@ -39,7 +39,6 @@ function PDFModalContent() {
         setLoading(true);
         setError(null);
         
-        // ✅ FIX: Use 'id' parameter to match URL
         const response = await fetch(`/api/generate-pdf?id=${requestId}`);
         
         if (response.ok) {
@@ -58,7 +57,6 @@ function PDFModalContent() {
             errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
           }
           
-          // ✅ Show detailed error in development
           let errorMsg = errorData.error || `HTTP error! status: ${response.status}`;
           if (errorData.details) {
             if (typeof errorData.details === 'object') {
@@ -73,11 +71,6 @@ function PDFModalContent() {
         }
       } catch (error) {
         console.error("❌ Error fetching request:", error);
-        console.error("Error details:", {
-          message: error.message,
-          requestId: requestId,
-          user: user?.id
-        });
         setError(error.message || "Failed to load request data. Please try again.");
       } finally {
         setLoading(false);
@@ -87,7 +80,7 @@ function PDFModalContent() {
     fetchRequest();
   }, [requestId, user]);
 
-  // PDF Generation Function
+  // PDF Generation Function - Single Page (without Financial Information)
   const generatePDF = () => {
     if (!request) return;
 
@@ -95,199 +88,234 @@ function PDFModalContent() {
       setGenerating(true);
       setError(null);
       
-      const doc = new jsPDF();
+      // Create PDF in portrait mode (A4 size: 210x297 mm)
+      const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth = doc.internal.pageSize.getWidth();
       
       // Colors
       const primaryColor = [41, 128, 185];
-      const secondaryColor = [52, 152, 219];
       const darkColor = [44, 62, 80];
-      const lightColor = [236, 240, 241];
-      const successColor = [39, 174, 96];
+      const lightColor = [240, 244, 247];
       
-      // Add header with background
+      // ========== HEADER SECTION ==========
+      // Company Name - Main Header
       doc.setFillColor(...primaryColor);
-      doc.rect(0, 0, pageWidth, 40, 'F');
+      doc.rect(0, 0, pageWidth, 18, 'F');
       
-      // Company Name
       doc.setTextColor(255, 255, 255);
-      doc.setFontSize(20);
-      doc.setFont("helvetica", "bold");
-      doc.text("PETROLEUM COMPANY LTD", pageWidth / 2, 15, { align: "center" });
-      
-      // Invoice Title
       doc.setFontSize(16);
-      doc.text("FILLING REQUEST INVOICE", pageWidth / 2, 28, { align: "center" });
-      
-      let yPosition = 50;
-      
-      // Activity Logs Section
-      doc.setFillColor(...lightColor);
-      doc.rect(20, yPosition, pageWidth - 40, 35, 'F');
-      
-      doc.setTextColor(...darkColor);
-      doc.setFontSize(12);
       doc.setFont("helvetica", "bold");
-      doc.text("ACTIVITY LOGS", 25, yPosition + 8);
+      doc.text("GYANTI MULTISERVICES PVT. LTD.", pageWidth / 2, 10, { align: "center" });
       
+      // Registered Office
+      doc.setFontSize(8);
       doc.setFont("helvetica", "normal");
+      doc.text("Registered Office: Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007", pageWidth / 2, 15, { align: "center" });
+      
+      // ========== INVOICE TITLE ==========
+      doc.setFontSize(14);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(60, 60, 60);
+      doc.text("FILLING REQUEST INVOICE", pageWidth / 2, 25, { align: "center" });
+      
+      // Horizontal line
+      doc.setDrawColor(200, 200, 200);
+      doc.line(15, 28, pageWidth - 15, 28);
+      
+      let yPos = 35;
+      
+      // ========== REQUEST INFO SECTION ==========
       doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.text("REQUEST INFORMATION", 15, yPos);
+      
+      yPos += 7;
+      
+      // Request ID and Status
+      doc.setFillColor(...lightColor);
+      doc.roundedRect(15, yPos, pageWidth - 30, 15, 2, 2, 'F');
+      
+      doc.setFontSize(11);
+      doc.setTextColor(...primaryColor);
+      doc.text(`REQUEST ID: ${request.rid}`, 20, yPos + 5);
+      
+      doc.setTextColor(0, 150, 0);
+      doc.text(`Status: ${request.status}`, pageWidth - 20, yPos + 5, { align: "right" });
+      
+      yPos += 20;
+      
+      // Dates
+      doc.setFontSize(9);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`Created: ${request.formatted_created}`, 20, yPos);
+      
+      if (request.completed_date && request.completed_date !== "0000-00-00 00:00:00") {
+        doc.text(`Completed: ${request.formatted_completed}`, pageWidth / 2, yPos);
+      }
+      
+      yPos += 10;
+      
+      // ========== ACTIVITY LOGS ==========
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...darkColor);
+      doc.text("ACTIVITY LOGS", 15, yPos);
+      
+      yPos += 7;
+      
+      // Activity logs container
+      doc.setFillColor(...lightColor);
+      doc.roundedRect(15, yPos, pageWidth - 30, 30, 2, 2, 'F');
+      
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "normal");
       
       if (request.created_by_name) {
-        doc.text(`Created By: ${request.created_by_name} (${request.created_by_type || 'unknown'})`, 25, yPosition + 16);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Created By: ${request.created_by_name}`, 20, yPos + 8);
+        doc.setTextColor(100, 100, 100);
+        doc.setFontSize(8);
+        doc.text(`(${request.created_by_type || 'unknown'})`, 20, yPos + 12);
+        doc.setFontSize(9);
         if (request.created_date) {
-          doc.text(`Created Date: ${new Date(request.created_date).toLocaleString('en-IN')}`, 25, yPosition + 22);
+          doc.text(new Date(request.created_date).toLocaleString('en-IN'), 20, yPos + 18);
         }
       }
       
       if (request.processed_by_name) {
-        doc.text(`Processed By: ${request.processed_by_name}`, 110, yPosition + 16);
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Processed By: ${request.processed_by_name}`, pageWidth / 2, yPos + 8);
         if (request.processed_date) {
-          doc.text(`Processed Date: ${new Date(request.processed_date).toLocaleString('en-IN')}`, 110, yPosition + 22);
+          doc.setTextColor(100, 100, 100);
+          doc.text(new Date(request.processed_date).toLocaleString('en-IN'), pageWidth / 2, yPos + 18);
         }
       }
       
       if (request.completed_by_name) {
-        doc.text(`Completed By: ${request.completed_by_name}`, 110, yPosition + 28);
+        doc.setFontSize(9);
+        doc.setTextColor(60, 60, 60);
+        doc.text(`Completed By: ${request.completed_by_name}`, pageWidth - 20, yPos + 8, { align: "right" });
         if (request.completed_date) {
-          doc.text(`Completed Date: ${new Date(request.completed_date).toLocaleString('en-IN')}`, 110, yPosition + 32);
+          doc.setTextColor(100, 100, 100);
+          doc.text(new Date(request.completed_date).toLocaleString('en-IN'), pageWidth - 20, yPos + 18, { align: "right" });
         }
       }
       
-      yPosition += 45;
+      yPos += 35;
       
-      // Request ID and Dates section
-      doc.setFillColor(...lightColor);
-      doc.rect(20, yPosition, pageWidth - 40, 20, 'F');
-      
-      doc.setTextColor(...darkColor);
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "bold");
-      doc.text(`REQUEST ID: ${request.rid}`, 25, yPosition + 8);
-      
-      doc.setFont("helvetica", "normal");
-      doc.text(`Created: ${request.formatted_created}`, 25, yPosition + 15);
-      
-      if (request.completed_date && request.completed_date !== "0000-00-00 00:00:00") {
-        doc.text(`Completed: ${request.formatted_completed}`, 110, yPosition + 15);
-      }
-      
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...successColor);
-      doc.text(`Status: ${request.status}`, pageWidth - 25, yPosition + 8, { align: "right" });
-      
-      yPosition += 30;
-      
-      // Customer Information Section
-      doc.setTextColor(...darkColor);
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("CUSTOMER INFORMATION", 20, yPosition);
-      
-      doc.setDrawColor(...secondaryColor);
-      doc.line(20, yPosition + 2, 85, yPosition + 2);
-      yPosition += 10;
-      
+      // ========== CUSTOMER INFORMATION ==========
       doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...darkColor);
+      doc.text("CUSTOMER INFORMATION", 15, yPos);
+      
+      yPos += 7;
+      
+      // Customer info container
+      doc.setFillColor(...lightColor);
+      doc.roundedRect(15, yPos, pageWidth - 30, 25, 2, 2, 'F');
+      
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text(`Name: ${request.customer_name || 'N/A'}`, 25, yPosition);
-      doc.text(`Phone: ${request.customer_phone || 'N/A'}`, 25, yPosition + 6);
+      doc.setTextColor(60, 60, 60);
+      
+      doc.text(`Name: ${request.customer_name || 'N/A'}`, 20, yPos + 7);
+      doc.text(`Phone: ${request.customer_phone || 'N/A'}`, 20, yPos + 13);
       
       if (request.customer_address) {
-        const addressLines = doc.splitTextToSize(`Address: ${request.customer_address}`, 160);
-        doc.text(addressLines, 25, yPosition + 12);
-        yPosition += (addressLines.length * 4) + 12;
-      } else {
-        yPosition += 18;
+        const addressLines = doc.splitTextToSize(`${request.customer_address}`, 80);
+        doc.text("Address:", 20, yPos + 19);
+        doc.text(addressLines, 45, yPos + 19);
+        yPos += Math.max(addressLines.length * 4, 0);
       }
       
-      // Filling Details Section
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("FILLING DETAILS", 20, yPosition);
-      doc.line(20, yPosition + 2, 60, yPosition + 2);
-      yPosition += 10;
+      yPos += 30;
       
-      // Create a table for filling details
+      // ========== FILLING DETAILS ==========
+      doc.setFontSize(10);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...darkColor);
+      doc.text("FILLING DETAILS", 15, yPos);
+      
+      yPos += 7;
+      
+      // Filling details table
       doc.setFillColor(...lightColor);
-      doc.rect(20, yPosition, pageWidth - 40, 25, 'F');
+      doc.roundedRect(15, yPos, pageWidth - 30, 20, 2, 2, 'F');
       
+      // Table headers
+      doc.setFontSize(9);
+      doc.setFont("helvetica", "bold");
+      doc.text("Product", 20, yPos + 7);
+      doc.text("Quantity", 70, yPos + 7);
+      doc.text("Vehicle No.", 120, yPos + 7);
+      doc.text("Driver Phone", 160, yPos + 7);
+      
+      // Table data
+      doc.setFont("helvetica", "normal");
+      doc.text(request.product_name || 'N/A', 20, yPos + 14);
+      doc.text(`${request.qty} liters`, 70, yPos + 14);
+      doc.text(request.vehicle_number || 'N/A', 120, yPos + 14);
+      doc.text(request.driver_number || 'N/A', 160, yPos + 14);
+      
+      yPos += 25;
+      
+      // ========== STATION INFORMATION ==========
       doc.setFontSize(10);
       doc.setFont("helvetica", "bold");
-      doc.text("Product", 25, yPosition + 8);
-      doc.text("Quantity", 80, yPosition + 8);
-      doc.text("Vehicle Number", 120, yPosition + 8);
-      doc.text("Driver Phone", 170, yPosition + 8);
+      doc.setTextColor(...darkColor);
+      doc.text("STATION INFORMATION", 15, yPos);
       
+      yPos += 7;
+      
+      doc.setFontSize(9);
       doc.setFont("helvetica", "normal");
-      doc.text(request.product_name || 'N/A', 25, yPosition + 16);
-      doc.text(`${request.qty} liters`, 80, yPosition + 16);
-      doc.text(request.vehicle_number || 'N/A', 120, yPosition + 16);
-      doc.text(request.driver_number || 'N/A', 170, yPosition + 16);
+      doc.setTextColor(60, 60, 60);
       
-      yPosition += 35;
-      
-      // Station Information
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("STATION INFORMATION", 20, yPosition);
-      doc.line(20, yPosition + 2, 75, yPosition + 2);
-      yPosition += 10;
-      
-      doc.setFontSize(10);
-      doc.setFont("helvetica", "normal");
-      doc.text(`Station Name: ${request.loading_station || 'N/A'}`, 25, yPosition);
+      doc.text(`Station: ${request.loading_station || 'N/A'}`, 20, yPos);
       
       if (request.station_address) {
-        const stationAddress = doc.splitTextToSize(`Address: ${request.station_address}`, 160);
-        doc.text(stationAddress, 25, yPosition + 6);
-        yPosition += (stationAddress.length * 4) + 10;
-      } else {
-        yPosition += 16;
+        yPos += 6;
+        doc.text(`Address: ${request.station_address}`, 20, yPos);
       }
       
-      // Financial Information
-      doc.setFontSize(14);
-      doc.setFont("helvetica", "bold");
-      doc.text("FINANCIAL INFORMATION", 20, yPosition);
-      doc.line(20, yPosition + 2, 85, yPosition + 2);
-      yPosition += 10;
+      yPos += 15;
       
-      doc.setFontSize(12);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(0, 100, 0);
-      doc.text(`Customer Balance: ₹${request.customer_balance || '0'}`, 25, yPosition);
-      
-      yPosition += 15;
-      
-      // Remarks Section
+      // ========== REMARKS SECTION (if exists) ==========
       if (request.remark) {
-        doc.setFontSize(14);
+        doc.setFontSize(10);
         doc.setFont("helvetica", "bold");
         doc.setTextColor(...darkColor);
-        doc.text("REMARKS", 20, yPosition);
-        doc.line(20, yPosition + 2, 45, yPosition + 2);
+        doc.text("REMARKS", 15, yPos);
         
-        yPosition += 10;
+        yPos += 7;
         
-        doc.setFontSize(10);
+        doc.setFontSize(9);
         doc.setFont("helvetica", "normal");
-        const remarks = doc.splitTextToSize(request.remark, 160);
-        doc.text(remarks, 25, yPosition);
-        yPosition += (remarks.length * 4) + 15;
+        doc.setTextColor(80, 80, 80);
+        const remarks = doc.splitTextToSize(request.remark, pageWidth - 40);
+        doc.text(remarks, 20, yPos);
+        yPos += (remarks.length * 5) + 10;
       }
       
-      // Footer
-      doc.setDrawColor(200, 200, 200);
-      doc.line(20, 270, pageWidth - 20, 270);
+      // ========== FOOTER ==========
+      doc.setDrawColor(220, 220, 220);
+      doc.line(15, 250, pageWidth - 15, 250);
       
-      doc.setTextColor(100, 100, 100);
-      doc.setFontSize(8);
-      doc.text("This is a computer generated invoice. No signature required.", pageWidth / 2, 275, { align: "center" });
-      doc.text(`Generated on: ${request.current_date}`, pageWidth / 2, 280, { align: "center" });
+      // Company details at bottom
+      doc.setFontSize(7);
+      doc.setTextColor(120, 120, 120);
+      doc.text("GSTIN: 09AAGCG6220R1Z3 | CIN No.: U15549UP2016PTC088333 | E-Mail: accounts@gyanti.in", pageWidth / 2, 255, { align: "center" });
       
-      // Save PDF
-      const fileName = `Filling_Request_${request.rid}_${new Date().toISOString().split('T')[0]}.pdf`;
+      // Generated date
+      doc.text(`Generated on: ${request.current_date}`, pageWidth / 2, 260, { align: "center" });
+      
+      // Disclaimer
+      doc.text("This is a computer generated invoice. No signature required.", pageWidth / 2, 265, { align: "center" });
+      
+      // ========== SAVE PDF ==========
+      const fileName = `GYANTI_Filling_Request_${request.rid}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
       
       setPdfGenerated(true);
@@ -397,9 +425,13 @@ function PDFModalContent() {
         <main className="flex-1 p-6 overflow-y-auto">
           <div className="max-w-5xl mx-auto bg-white rounded-lg shadow-lg">
             {/* Company Name Header */}
-            <div className="bg-blue-600 text-white p-6 rounded-t-lg">
-              <h1 className="text-2xl font-bold text-center">PETROLEUM COMPANY LTD</h1>
-              <p className="text-center mt-2 text-blue-100">FILLING REQUEST INVOICE</p>
+            <div className="bg-blue-600 text-white p-4 rounded-t-lg">
+              <h1 className="text-xl font-bold text-center">GYANTI MULTISERVICES PVT. LTD.</h1>
+              <p className="text-center text-sm mt-1 text-blue-100">FILLING REQUEST INVOICE</p>
+              <div className="text-center text-xs mt-2 text-blue-200">
+                <p>Registered Office: Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007</p>
+                <p>GSTIN: 09AAGCG6220R1Z3 | CIN No.: U15549UP2016PTC088333 | E-Mail: accounts@gyanti.in</p>
+              </div>
             </div>
 
             <div className="p-6 space-y-6">
@@ -476,7 +508,6 @@ function PDFModalContent() {
                     {request.customer_address && (
                       <p><span className="font-medium">Address:</span> {request.customer_address}</p>
                     )}
-                    <p><span className="font-medium">Balance:</span> ₹{request.customer_balance || '0'}</p>
                   </div>
                 </div>
               </div>
@@ -592,4 +623,3 @@ export default function PDFModalPage() {
     </Suspense>
   );
 }
-
