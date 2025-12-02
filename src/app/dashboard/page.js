@@ -191,7 +191,7 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error loading chat sessions:', error);
     }
-  }, []);
+  }, [deduplicateChats]);
 
   // Mark messages as read
   const markMessagesAsRead = useCallback(async (customerId) => {
@@ -365,7 +365,7 @@ export default function DashboardPage() {
         setSocketConnected(false);
       }
     };
-  }, [sessionUser, selectedCustomer, loadActiveChatSessions, markMessagesAsRead]);
+  }, [sessionUser, selectedCustomer, loadActiveChatSessions, markMessagesAsRead, deduplicateChats]);
 
   // Load dashboard data
   useEffect(() => {
@@ -718,7 +718,7 @@ const ChatWidget = ({
       };
       loadMessages();
     }
-  }, [selectedCustomer, sessionUser?.id, setEmployeeMessages, setNotifCount, markMessagesAsRead]);
+  }, [selectedCustomer, sessionUser?.id, setEmployeeMessages, setNotifCount, markMessagesAsRead, deduplicateChats, setActiveChats]);
 
   const sendMessage = async () => {
     if (!newMessage.trim() || !selectedCustomer || !socket || !socketConnected) {
