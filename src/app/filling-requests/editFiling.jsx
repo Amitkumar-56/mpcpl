@@ -312,11 +312,19 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         {request.status !== "Pending" && <span className="text-gray-400 text-xs">N/A</span>}
       </td>
       <td className="py-3 px-4 text-sm">
-        {request.status === "Processing" && request.processing_by_name 
-          ? request.processing_by_name
-          : request.status === "Completed" && request.completed_by_name
-          ? request.completed_by_name
-          : request.updated_by_name || "-"}
+        <div className="text-xs">
+          {request.created_by_name || "-"}
+        </div>
+      </td>
+      <td className="py-3 px-4 text-sm">
+        <div className="text-xs">
+          {request.processing_by_name || "-"}
+        </div>
+      </td>
+      <td className="py-3 px-4 text-sm">
+        <div className="text-xs">
+          {request.completed_by_name || "-"}
+        </div>
       </td>
       <td className="py-3 px-4 text-sm">
         <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
@@ -418,15 +426,32 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
           </div>
         )}
 
-        {(request.updated_by_name || request.processing_by_name || request.completed_by_name) && (
-          <div>
-            <div className="font-medium text-gray-600 text-xs">Staff</div>
-            <div>
-              {request.status === "Processing" && request.processing_by_name 
-                ? request.processing_by_name
-                : request.status === "Completed" && request.completed_by_name
-                ? request.completed_by_name
-                : request.updated_by_name || "-"}
+        {/* Activity Logs */}
+        {(request.created_by_name || request.processing_by_name || request.completed_by_name) && (
+          <div className="mt-2 pt-2 border-t border-gray-200">
+            <div className="font-medium text-gray-600 text-xs mb-1">Activity Logs</div>
+            <div className="space-y-1">
+              {request.created_by_name && (
+                <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                  <p className="text-xs text-blue-700">
+                    <span className="font-medium">📝 Created:</span> {request.created_by_name}
+                  </p>
+                </div>
+              )}
+              {request.processing_by_name && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                  <p className="text-xs text-yellow-700">
+                    <span className="font-medium">⚙️ Processed:</span> {request.processing_by_name}
+                  </p>
+                </div>
+              )}
+              {request.completed_by_name && (
+                <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                  <p className="text-xs text-green-700">
+                    <span className="font-medium">✅ Completed:</span> {request.completed_by_name}
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -452,10 +477,10 @@ const StatusFilters = ({ currentStatus, onStatusChange }) => {
   const router = useRouter();
 
   const statusOptions = [
-    { value: "", label: "All" },
-    { value: "Pending", label: "Pending" },
-    { value: "Processing", label: "Processing" },
-    { value: "Completed", label: "Completed" },
+    { value: "", label: "All", color: "gray" },
+    { value: "Pending", label: "Pending", color: "yellow" },
+    { value: "Processing", label: "Processing", color: "blue" },
+    { value: "Completed", label: "Completed", color: "green" },
   ];
 
   const handleReportsClick = () => {
@@ -463,13 +488,22 @@ const StatusFilters = ({ currentStatus, onStatusChange }) => {
   };
 
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className="flex flex-wrap gap-2 items-center">
+      <span className="text-sm font-medium text-gray-700 mr-2">Filter by Status:</span>
       {statusOptions.map((option) => (
         <button
           key={option.value}
           onClick={() => onStatusChange(option.value)}
-          className={`px-4 py-2 rounded-full text-sm font-medium transition-colors ${
-            currentStatus === option.value ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 transform hover:scale-105 ${
+            currentStatus === option.value 
+              ? option.value === "" 
+                ? "bg-gray-700 text-white shadow-lg" 
+                : option.value === "Pending"
+                ? "bg-yellow-500 text-white shadow-lg"
+                : option.value === "Processing"
+                ? "bg-blue-600 text-white shadow-lg"
+                : "bg-green-600 text-white shadow-lg"
+              : "bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-sm"
           }`}
         >
           {option.label}
@@ -477,7 +511,7 @@ const StatusFilters = ({ currentStatus, onStatusChange }) => {
       ))}
       <button
         onClick={handleReportsClick}
-        className="px-4 py-2 rounded-full text-sm font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+        className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 transform hover:scale-105 shadow-md"
       >
         Reports
       </button>
@@ -526,6 +560,36 @@ export default function FillingRequests() {
 
   const statusFilter = searchParams.get("status") || "";
   const search = searchParams.get("search") || "";
+
+  // Export function
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams({
+        ...(statusFilter && { status: statusFilter }),
+        ...(search && { search: search }),
+      });
+      
+      const response = await fetch(`/api/filling-requests/export?${params}`);
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `filling_requests_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } else {
+        alert('Export failed. Please try again.');
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      alert('Export failed. Please try again.');
+    }
+  };
 
   // Redirect if not authenticated (handled by SessionContext, but double-check)
   useEffect(() => {
@@ -811,19 +875,31 @@ export default function FillingRequests() {
               </div>
             </div>
 
-            <div className="flex items-center space-x-2 mb-4 text-sm">
-              <span>Show</span>
-              <select
-                value={pagination.recordsPerPage}
-                onChange={(e) => handleRecordsPerPageChange(e.target.value)}
-                className="border rounded px-2 py-1"
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center space-x-2 text-sm">
+                <span>Show</span>
+                <select
+                  value={pagination.recordsPerPage}
+                  onChange={(e) => handleRecordsPerPageChange(e.target.value)}
+                  className="border rounded px-2 py-1"
+                >
+                  <option value="10">10</option>
+                  <option value="25">25</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+                <span>entries</span>
+              </div>
+              <button
+                onClick={handleExport}
+                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1"
+                title="Export to CSV"
               >
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </select>
-              <span>entries</span>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>Export</span>
+              </button>
             </div>
 
             {loading ? (
@@ -845,14 +921,16 @@ export default function FillingRequests() {
                         <th className="py-3 px-4 border-b">Completed Date</th>
                         <th className="py-3 px-4 border-b">Status</th>
                         <th className="py-3 px-4 border-b">Eligibility Check</th>
-                        <th className="py-3 px-4 border-b">Staff</th>
+                        <th className="py-3 px-4 border-b">Created By</th>
+                        <th className="py-3 px-4 border-b">Processed By</th>
+                        <th className="py-3 px-4 border-b">Completed By</th>
                         <th className="py-3 px-4 border-b">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {requestItems.length > 0 ? requestItems : (
                         <tr>
-                          <td colSpan="13" className="py-8 text-center text-gray-500">
+                          <td colSpan="15" className="py-8 text-center text-gray-500">
                             <div className="flex flex-col items-center">
                               <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

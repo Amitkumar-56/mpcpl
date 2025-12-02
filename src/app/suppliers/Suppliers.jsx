@@ -76,6 +76,33 @@ export default function SuppliersPage() {
   };
 
 
+  // ✅ FIX: Generate purchase history function
+  const generatePurchaseHistory = (supplierId) => {
+    // Mock purchase history data - replace with actual API call if needed
+    return [
+      {
+        id: 1,
+        date: new Date(),
+        invoiceNo: `INV-${supplierId}-001`,
+        description: 'Purchase Order',
+        items: ['Item 1', 'Item 2'],
+        amount: 50000,
+        status: 'completed',
+        paymentDue: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: 2,
+        date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+        invoiceNo: `INV-${supplierId}-002`,
+        description: 'Purchase Order',
+        items: ['Item 3'],
+        amount: 30000,
+        status: 'pending',
+        paymentDue: new Date(Date.now() + 20 * 24 * 60 * 60 * 1000)
+      }
+    ];
+  };
+
   // Load purchase history
   const loadPurchaseHistory = (supplier) => {
     setSelectedSupplier(supplier);

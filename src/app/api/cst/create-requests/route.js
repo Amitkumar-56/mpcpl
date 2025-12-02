@@ -266,19 +266,43 @@ export async function POST(request) {
     console.log('✅ Database insert result:', result);
 
     if (result.affectedRows === 1) {
-      // Create filling_logs entry with customer ID (for CST requests)
+      // ✅ FIX: Create filling_logs entry with customer ID (for CST requests)
+      // Customer creates request, so created_by = customer_id
       try {
-        const logInsertQuery = `
-          INSERT INTO filling_logs (request_id, created_by, created_date) 
-          VALUES (?, ?, ?)
-        `;
-        // For CST requests, created_by should be customer_id (negative or special flag)
-        // We'll use customer_id directly, but need to check if it's customer or employee
-        // Since this is CST route, created_by = customer_id
-        await executeQuery(logInsertQuery, [newRid, parseInt(customer_id), currentDate]);
-        console.log('✅ Filling logs entry created with customer ID:', customer_id);
+        // First check if log already exists
+        const checkLogQuery = `SELECT id FROM filling_logs WHERE request_id = ?`;
+        const existingLog = await executeQuery(checkLogQuery, [newRid]);
+        
+        if (existingLog.length === 0) {
+          // ✅ FIX: Use customer_id directly for CST requests
+          const logInsertQuery = `
+            INSERT INTO filling_logs (request_id, created_by, created_date) 
+            VALUES (?, ?, ?)
+          `;
+          await executeQuery(logInsertQuery, [newRid, parseInt(customer_id), currentDate]);
+          console.log('✅ Filling logs entry created with customer ID:', customer_id, 'for request:', newRid);
+          
+          // Verify the log was created correctly
+          const verifyLogQuery = `
+            SELECT fl.*, c.name as customer_name 
+            FROM filling_logs fl
+            LEFT JOIN customers c ON fl.created_by = c.id
+            WHERE fl.request_id = ?
+          `;
+          const verifyLog = await executeQuery(verifyLogQuery, [newRid]);
+          if (verifyLog.length > 0) {
+            console.log('✅ Verified log created:', {
+              request_id: newRid,
+              created_by: verifyLog[0].created_by,
+              customer_name: verifyLog[0].customer_name
+            });
+          }
+        } else {
+          console.log('⚠️ Log already exists for request:', newRid);
+        }
       } catch (logError) {
-        console.error('⚠️ Error creating filling logs:', logError);
+        console.error('❌ Error creating filling logs:', logError);
+        console.error('Error details:', logError.message);
         // Continue even if log creation fails
       }
 

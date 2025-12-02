@@ -942,40 +942,6 @@ function ReportHistoryContent() {
             </div>
           </div>
 
-          {/* Select All Buttons - New Design */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6">
-            {/* Check All Section */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-3 sm:p-4 border border-blue-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Check Records</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                    {employeeProfile 
-                      ? `Mark records as checked for verification`
-                      : 'Please login to check records'
-                    }
-                  </p>
-                </div>
-                <SelectAllCheckButton />
-              </div>
-            </div>
-
-            {/* Invoice All Section */}
-            <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-lg p-3 sm:p-4 border border-orange-200 shadow-sm">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                <div>
-                  <h3 className="text-base sm:text-lg font-semibold text-gray-800">Invoice Records</h3>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-1">
-                    {employeeProfile 
-                      ? `Mark records as invoiced for billing`
-                      : 'Please login to invoice records'
-                    }
-                  </p>
-                </div>
-                <SelectAllInvoiceButton />
-              </div>
-            </div>
-          </div>
 
           {/* Table */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
@@ -1115,40 +1081,75 @@ function ReportHistoryContent() {
                                 )}
                               </div>
                             ) : null}
-                            {/* Activity Logs */}
+                            {/* Activity Logs - Created, Processed, Completed */}
                             {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
-                              <div className="space-y-1 pt-1 border-t border-gray-200">
-                                {record.created_by_name && (
-                                  <div className="text-xs">
-                                    <span className="font-medium">Created:</span> {record.created_by_name}
-                                    {record.created_date && (
-                                      <span className="text-gray-500 ml-1">
-                                        ({new Date(record.created_date).toLocaleDateString('en-IN')})
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {record.processed_by_name && (
-                                  <div className="text-xs">
-                                    <span className="font-medium">Processed:</span> {record.processed_by_name}
-                                    {record.processed_date && (
-                                      <span className="text-gray-500 ml-1">
-                                        ({new Date(record.processed_date).toLocaleDateString('en-IN')})
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
-                                {record.completed_by_name && (
-                                  <div className="text-xs">
-                                    <span className="font-medium">Completed:</span> {record.completed_by_name}
-                                    {record.completed_date && (
-                                      <span className="text-gray-500 ml-1">
-                                        ({new Date(record.completed_date).toLocaleDateString('en-IN')})
-                                      </span>
-                                    )}
-                                  </div>
-                                )}
+                              <div className="mt-2 pt-2 border-t border-gray-200">
+                                <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
+                                <div className="space-y-1">
+                                  {record.created_by_name && record.created_by_name !== 'System' && (
+                                    <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                                      <p className="text-xs text-blue-700">
+                                        <span className="font-medium">📝 Created by:</span> {record.created_by_name}
+                                        {record.created_date && (
+                                          <span className="text-blue-600 ml-1 text-xs">
+                                            ({new Date(record.created_date).toLocaleString('en-IN', {
+                                              day: '2-digit',
+                                              month: '2-digit',
+                                              year: 'numeric',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              hour12: true
+                                            })})
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {record.processed_by_name && (
+                                    <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                                      <p className="text-xs text-yellow-700">
+                                        <span className="font-medium">⚙️ Processed by:</span> {record.processed_by_name}
+                                        {record.processed_date && (
+                                          <span className="text-yellow-600 ml-1 text-xs">
+                                            ({new Date(record.processed_date).toLocaleString('en-IN', {
+                                              day: '2-digit',
+                                              month: '2-digit',
+                                              year: 'numeric',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              hour12: true
+                                            })})
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  )}
+                                  {record.completed_by_name && (
+                                    <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                      <p className="text-xs text-green-700">
+                                        <span className="font-medium">✅ Completed by:</span> {record.completed_by_name}
+                                        {record.completed_date && (
+                                          <span className="text-green-600 ml-1 text-xs">
+                                            ({new Date(record.completed_date).toLocaleString('en-IN', {
+                                              day: '2-digit',
+                                              month: '2-digit',
+                                              year: 'numeric',
+                                              hour: '2-digit',
+                                              minute: '2-digit',
+                                              hour12: true
+                                            })})
+                                          </span>
+                                        )}
+                                      </p>
+                                    </div>
+                                  )}
+                                </div>
                               </div>
+                            )}
+                            {/* Show message if no logs */}
+                            {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
+                             !record.is_checked && !record.is_invoiced && (
+                              <div className="text-xs text-gray-400 italic">No logs available</div>
                             )}
                             {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
                              !record.is_checked && !record.is_invoiced && (
@@ -1264,35 +1265,62 @@ function ReportHistoryContent() {
                           <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
                             <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
                             <div className="space-y-1">
-                              {record.created_by_name && (
-                                <p className="text-xs text-gray-600">
-                                  <span className="font-medium">Created:</span> {record.created_by_name}
-                                  {record.created_date && (
-                                    <span className="text-gray-500 ml-1">
-                                      ({new Date(record.created_date).toLocaleDateString('en-IN')})
-                                    </span>
-                                  )}
-                                </p>
+                              {record.created_by_name && record.created_by_name !== 'System' && (
+                                <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                                  <p className="text-xs text-blue-700">
+                                    <span className="font-medium">👤 Created:</span> {record.created_by_name}
+                                    {record.created_date && (
+                                      <span className="text-blue-600 ml-1">
+                                        ({new Date(record.created_date).toLocaleString('en-IN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })})
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
                               )}
                               {record.processed_by_name && (
-                                <p className="text-xs text-gray-600">
-                                  <span className="font-medium">Processed:</span> {record.processed_by_name}
-                                  {record.processed_date && (
-                                    <span className="text-gray-500 ml-1">
-                                      ({new Date(record.processed_date).toLocaleDateString('en-IN')})
-                                    </span>
-                                  )}
-                                </p>
+                                <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                                  <p className="text-xs text-yellow-700">
+                                    <span className="font-medium">⚙️ Processed:</span> {record.processed_by_name}
+                                    {record.processed_date && (
+                                      <span className="text-yellow-600 ml-1">
+                                        ({new Date(record.processed_date).toLocaleString('en-IN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })})
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
                               )}
                               {record.completed_by_name && (
-                                <p className="text-xs text-gray-600">
-                                  <span className="font-medium">Completed:</span> {record.completed_by_name}
-                                  {record.completed_date && (
-                                    <span className="text-gray-500 ml-1">
-                                      ({new Date(record.completed_date).toLocaleDateString('en-IN')})
-                                    </span>
-                                  )}
-                                </p>
+                                <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                  <p className="text-xs text-green-700">
+                                    <span className="font-medium">✅ Completed:</span> {record.completed_by_name}
+                                    {record.completed_date && (
+                                      <span className="text-green-600 ml-1">
+                                        ({new Date(record.completed_date).toLocaleString('en-IN', {
+                                          day: '2-digit',
+                                          month: '2-digit',
+                                          year: 'numeric',
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        })})
+                                      </span>
+                                    )}
+                                  </p>
+                                </div>
                               )}
                             </div>
                           </div>

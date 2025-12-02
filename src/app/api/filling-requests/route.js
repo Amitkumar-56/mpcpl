@@ -29,13 +29,14 @@ export async function GET(request) {
           ep_status.name,
           ep_processing.name,
           ep_completed.name,
-          ep_created.name,
+          fl_created.created_by_name,
           NULL
         ) as updated_by_name,
         cb.amtlimit as customer_balance,
         cb.day_limit as customer_day_limit,
         ep_processing.name as processing_by_name,
-        ep_completed.name as completed_by_name
+        ep_completed.name as completed_by_name,
+        fl_created.created_by_name as created_by_name
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
@@ -46,8 +47,20 @@ export async function GET(request) {
       LEFT JOIN employee_profile ep_processing ON fl_processing.processed_by = ep_processing.id
       LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id
       LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
-      LEFT JOIN filling_logs fl_created ON fr.rid = fl_created.request_id
-      LEFT JOIN employee_profile ep_created ON fl_created.created_by = ep_created.id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          COALESCE(
+            MAX(CASE WHEN c.id IS NOT NULL THEN c.name END),
+            MAX(CASE WHEN ep.id IS NOT NULL AND c.id IS NULL THEN ep.name END),
+            NULL
+          ) as created_by_name
+        FROM filling_logs fl
+        LEFT JOIN customers c ON fl.created_by = c.id
+        LEFT JOIN employee_profile ep ON fl.created_by = ep.id AND c.id IS NULL
+        WHERE fl.created_by IS NOT NULL
+        GROUP BY fl.request_id
+      ) fl_created ON fr.rid = fl_created.request_id
       WHERE 1=1
     `;
 

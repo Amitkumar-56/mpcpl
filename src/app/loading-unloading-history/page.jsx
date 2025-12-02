@@ -395,7 +395,7 @@ function LoadingUnloadingContent() {
       {permissions?.can_edit === 1 && (
         <Link
           href="/loading-unloading-history/create-loading-unloading"
-          className="fixed bottom-8 right-8 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1"
+          className="fixed bottom-20 right-6 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 z-40"
         >
           <span className="text-2xl">+</span>
         </Link>

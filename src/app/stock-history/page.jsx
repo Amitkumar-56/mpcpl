@@ -157,6 +157,7 @@ function StockHistoryContent() {
   }
 
   return (
+    <>
     <main className="min-h-screen bg-gray-50">
       {/* Header Section */}
       <div className="bg-white shadow-sm border-b">
@@ -433,6 +434,7 @@ function StockHistoryContent() {
         </div>
       </div>
     </main>
+    </>
   );
 }
 

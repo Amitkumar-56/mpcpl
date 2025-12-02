@@ -60,11 +60,17 @@ export async function POST(request) {
       LEFT JOIN (
         SELECT 
           fl.request_id,
-          COALESCE(ep.name, c.name, 'System') as created_by_name,
-          fl.created_date
+          COALESCE(c.name, ep.name, 'System') as created_by_name,
+          fl.created_date,
+          fl.created_by,
+          CASE 
+            WHEN c.id IS NOT NULL THEN 'customer'
+            WHEN ep.id IS NOT NULL THEN 'employee'
+            ELSE 'system'
+          END as created_by_type
         FROM filling_logs fl
-        LEFT JOIN employee_profile ep ON fl.created_by = ep.id
         LEFT JOIN customers c ON fl.created_by = c.id
+        LEFT JOIN employee_profile ep ON fl.created_by = ep.id
         WHERE fl.created_by IS NOT NULL
       ) fl_created ON fr.rid = fl_created.request_id
       LEFT JOIN (
