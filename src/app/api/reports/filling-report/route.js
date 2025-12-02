@@ -19,7 +19,7 @@ export async function POST(request) {
 
     const offset = (page - 1) * limit;
 
-    // UPDATED QUERY WITH CHECK STATUS AND EMPLOYEE PROFILE
+    // UPDATED QUERY WITH CHECK STATUS, EMPLOYEE PROFILE, AND LOGS
     let queryStr = `
       SELECT 
         fr.id,
@@ -36,7 +36,7 @@ export async function POST(request) {
         fr.is_checked,
         fr.checked_by,
         fr.checked_at,
-         fr.is_invoiced,
+        fr.is_invoiced,
         fr.invoiced_by,
         fr.invoiced_at,
         COALESCE(fr.totalamt, 0) as amount,
@@ -44,13 +44,47 @@ export async function POST(request) {
         fs.station_name, 
         c.name AS client_name,
         ep.name as checked_by_name,
-        ep_invoice.name as invoiced_by_name
+        ep_invoice.name as invoiced_by_name,
+        COALESCE(fl_created.created_by_name, 'System') as created_by_name,
+        fl_created.created_date,
+        fl_processed.processed_by_name,
+        fl_processed.processed_date,
+        fl_completed.completed_by_name,
+        fl_completed.completed_date
       FROM filling_requests fr
       LEFT JOIN products p ON fr.product = p.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
       LEFT JOIN employee_profile ep ON fr.checked_by = ep.id
       LEFT JOIN employee_profile ep_invoice ON fr.invoiced_by = ep_invoice.id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          COALESCE(ep.name, c.name, 'System') as created_by_name,
+          fl.created_date
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.created_by = ep.id
+        LEFT JOIN customers c ON fl.created_by = c.id
+        WHERE fl.created_by IS NOT NULL
+      ) fl_created ON fr.rid = fl_created.request_id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          ep.name as processed_by_name,
+          fl.processed_date
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
+        WHERE fl.processed_by IS NOT NULL
+      ) fl_processed ON fr.rid = fl_processed.request_id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          ep.name as completed_by_name,
+          fl.completed_date
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
+        WHERE fl.completed_by IS NOT NULL
+      ) fl_completed ON fr.rid = fl_completed.request_id
       WHERE fr.status = 'Completed'
     `;
 

@@ -971,12 +971,13 @@ function ReportHistoryContent() {
                     <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
                     <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                     <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {loading ? (
                     <tr>
-                      <td colSpan="15" className="px-3 lg:px-6 py-4 text-center">
+                      <td colSpan="16" className="px-3 lg:px-6 py-4 text-center">
                         <div className="flex justify-center items-center">
                           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                         </div>
@@ -1041,11 +1042,48 @@ function ReportHistoryContent() {
                             {record.status}
                           </span>
                         </td>
+                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                          <div className="flex flex-col space-y-1">
+                            {record.created_by_name && (
+                              <div className="text-xs">
+                                <span className="font-medium">Created:</span> {record.created_by_name}
+                                {record.created_date && (
+                                  <span className="text-gray-500 ml-1">
+                                    ({new Date(record.created_date).toLocaleDateString('en-IN')})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {record.processed_by_name && (
+                              <div className="text-xs">
+                                <span className="font-medium">Processed:</span> {record.processed_by_name}
+                                {record.processed_date && (
+                                  <span className="text-gray-500 ml-1">
+                                    ({new Date(record.processed_date).toLocaleDateString('en-IN')})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {record.completed_by_name && (
+                              <div className="text-xs">
+                                <span className="font-medium">Completed:</span> {record.completed_by_name}
+                                {record.completed_date && (
+                                  <span className="text-gray-500 ml-1">
+                                    ({new Date(record.completed_date).toLocaleDateString('en-IN')})
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && (
+                              <span className="text-xs text-gray-400">No logs</span>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="15" className="px-3 lg:px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan="16" className="px-3 lg:px-6 py-4 text-center text-sm text-gray-500">
                         No filling requests found
                       </td>
                     </tr>
@@ -1098,6 +1136,44 @@ function ReportHistoryContent() {
                           <p className="text-xs font-medium text-gray-500">Vehicle</p>
                           <p className="text-sm text-gray-900">{record.vehicle_number}</p>
                         </div>
+                        {/* Logs Section */}
+                        {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
+                          <div className="col-span-2 mt-2 pt-2 border-t border-gray-200">
+                            <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
+                            <div className="space-y-1">
+                              {record.created_by_name && (
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Created:</span> {record.created_by_name}
+                                  {record.created_date && (
+                                    <span className="text-gray-500 ml-1">
+                                      ({new Date(record.created_date).toLocaleDateString('en-IN')})
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                              {record.processed_by_name && (
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Processed:</span> {record.processed_by_name}
+                                  {record.processed_date && (
+                                    <span className="text-gray-500 ml-1">
+                                      ({new Date(record.processed_date).toLocaleDateString('en-IN')})
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                              {record.completed_by_name && (
+                                <p className="text-xs text-gray-600">
+                                  <span className="font-medium">Completed:</span> {record.completed_by_name}
+                                  {record.completed_date && (
+                                    <span className="text-gray-500 ml-1">
+                                      ({new Date(record.completed_date).toLocaleDateString('en-IN')})
+                                    </span>
+                                  )}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
                         <div>
                           <p className="text-xs font-medium text-gray-500">Client</p>
                           <p className="text-sm text-gray-900">{record.client_name}</p>

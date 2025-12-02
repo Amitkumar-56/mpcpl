@@ -12,7 +12,7 @@ export async function GET(request) {
 
     console.log('API Called with params:', { startDate, endDate, exportData, stationFilter });
     
-    // Build base query with employee name for logs
+    // Build base query with employee name for logs - FIXED to show all stations
     let sql = `
       SELECT fh.rid, 
              f.station_name AS fs_name, 
@@ -23,9 +23,14 @@ export async function GET(request) {
              fh.filling_qty, 
              fh.available_stock, 
              fh.filling_date,
-             ep.name AS created_by_name,
+             COALESCE(ep.name, 'System') AS created_by_name,
              fh.created_by,
-             fh.filling_date AS transaction_date
+             fh.filling_date AS transaction_date,
+             CASE 
+               WHEN fh.trans_type = 'Inward' THEN 'Inward'
+               WHEN fh.trans_type = 'Outward' THEN 'Outward'
+               ELSE fh.trans_type
+             END AS action_type
       FROM filling_history fh
       JOIN filling_stations f ON fh.fs_id = f.id
       JOIN products p ON fh.product_id = p.id

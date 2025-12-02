@@ -164,17 +164,36 @@ export async function POST(request) {
         transferQuantity, status, slip_new_name, product
       ]);
 
-      // Insert into filling_history
+      // Get user ID from request headers or default to 1
+      // In a real app, you'd get this from authentication token
+      const userId = request.headers.get('x-user-id') || 1;
+      
+      // Insert into filling_history with created_by
       const insertHistoryQuery = `
         INSERT INTO filling_history 
-          (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date)
-        VALUES (?, ?, 'Outward', ?, ?, ?, NOW())
+          (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by)
+        VALUES (?, ?, 'Outward', ?, ?, ?, NOW(), ?)
       `;
       
-      console.log("📚 Adding to history...");
+      console.log("📚 Adding to history with user:", userId);
       await connection.execute(insertHistoryQuery, [
-        station_from, product, available_stock_from, transferQuantity, new_stock_from
+        station_from, product, available_stock_from, transferQuantity, new_stock_from, userId
       ]);
+      
+      // Also create a log entry for stock transfer
+      try {
+        const insertTransferLogQuery = `
+          INSERT INTO stock_transfer_logs 
+            (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
+          VALUES (?, 'Created', ?, NOW(), ?, ?, ?, ?)
+        `;
+        await connection.execute(insertTransferLogQuery, [
+          transferResult.insertId, userId, station_from, station_to, transferQuantity, product
+        ]);
+        console.log("✅ Stock transfer log created");
+      } catch (logError) {
+        console.log("⚠️ Stock transfer logs table may not exist, skipping:", logError.message);
+      }
 
       console.log("🎉 Stock transfer created successfully!");
       return transferResult;
