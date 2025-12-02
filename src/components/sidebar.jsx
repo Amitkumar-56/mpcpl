@@ -171,8 +171,13 @@ export default function Sidebar() {
                 {user?.name || 'Loading...'}
               </p>
               <p className="text-xs text-gray-600 truncate">
-                {user?.role === 5 ? 'Admin' : 'User'}
+                {user?.emp_code || (user?.role === 5 ? 'Admin' : 'Employee')}
               </p>
+              {user?.role === 5 && (
+                <p className="text-xs text-blue-600 font-semibold mt-0.5">
+                  Administrator
+                </p>
+              )}
             </div>
           </div>
         </div>

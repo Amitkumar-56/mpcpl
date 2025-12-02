@@ -316,7 +316,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
           ? request.processing_by_name
           : request.status === "Completed" && request.completed_by_name
           ? request.completed_by_name
-          : request.updated_by_name || "System"}
+          : request.updated_by_name || "-"}
       </td>
       <td className="py-3 px-4 text-sm">
         <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
@@ -418,10 +418,16 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
           </div>
         )}
 
-        {request.updated_by_name && (
+        {(request.updated_by_name || request.processing_by_name || request.completed_by_name) && (
           <div>
             <div className="font-medium text-gray-600 text-xs">Staff</div>
-            <div>{request.updated_by_name}</div>
+            <div>
+              {request.status === "Processing" && request.processing_by_name 
+                ? request.processing_by_name
+                : request.status === "Completed" && request.completed_by_name
+                ? request.completed_by_name
+                : request.updated_by_name || "-"}
+            </div>
           </div>
         )}
       </div>

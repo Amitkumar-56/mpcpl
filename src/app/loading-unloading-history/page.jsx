@@ -56,9 +56,86 @@ function LoadingUnloadingContent() {
         router.push('/login');
         return;
       }
-      fetchData();
+      // ✅ FIX: Check permissions first before fetching data
+      checkPermissions();
     }
   }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      router.push('/login');
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (user.role === 5) {
+      fetchData();
+      return;
+    }
+
+    // ✅ FIX: Check user's cached permissions from verify API first
+    if (user.permissions && user.permissions['Loading History']) {
+      const loadingPerms = user.permissions['Loading History'];
+      if (loadingPerms.can_view) {
+        fetchData();
+        return;
+      } else {
+        setError('You are not allowed to access this page.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    // Check cache first
+    const cacheKey = `perms_${user.id}_Loading History`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        fetchData();
+        return;
+      } else {
+        setError('You are not allowed to access this page.');
+        setLoading(false);
+        return;
+      }
+    }
+
+    try {
+      // ✅ FIX: Use exact module name as stored in database: "Loading History"
+      const moduleName = 'Loading History';
+      console.log('🔐 Checking permissions for:', { employee_id: user.id, role: user.role, module: moduleName });
+      
+      const response = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`
+      );
+      const data = await response.json();
+
+      console.log('🔐 Permission check result:', {
+        employee_id: user.id,
+        role: user.role,
+        module: moduleName,
+        allowed: data.allowed,
+        error: data.error
+      });
+
+      // Cache permission
+      sessionStorage.setItem(cacheKey, JSON.stringify({ can_view: data.allowed }));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (data.allowed) {
+        fetchData();
+      } else {
+        setError('You are not allowed to access this page.');
+        setLoading(false);
+        console.log('❌ Access denied - No permission for Loading History module');
+      }
+    } catch (error) {
+      console.error('❌ Permission check error:', error);
+      setError('Failed to check permissions');
+      setLoading(false);
+    }
+  };
 
   const fetchData = async () => {
     try {

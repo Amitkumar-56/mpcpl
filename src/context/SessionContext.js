@@ -104,22 +104,33 @@ export function SessionProvider({ children }) {
       if (res.ok) {
         const data = await res.json();
         if (data.authenticated && data.id) {
-          setUser(data);
-          // ✅ Cache user data to avoid repeated API calls
-          sessionStorage.setItem('user', JSON.stringify({
+          // ✅ FIX: Include all employee_profile fields
+          const userData = {
             id: data.id,
+            emp_code: data.emp_code,
             name: data.name,
             email: data.email,
             role: data.role,
+            fs_id: data.fs_id,
+            fl_id: data.fl_id,
+            station: data.station,
+            client: data.client,
             permissions: data.permissions || {}
-          }));
+          };
+          setUser(userData);
+          // ✅ Cache complete user data
+          const cacheData = JSON.stringify(userData);
+          sessionStorage.setItem('user', cacheData);
+          localStorage.setItem('user', cacheData);
         } else {
           setUser(null);
           sessionStorage.removeItem('user');
+          localStorage.removeItem('user');
         }
       } else {
         setUser(null);
         sessionStorage.removeItem('user');
+        localStorage.removeItem('user');
       }
     } catch (error) {
       console.error('Auth check failed:', error);

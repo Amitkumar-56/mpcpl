@@ -7,15 +7,30 @@ export async function GET(request) {
     const { searchParams } = new URL(request.url);
     const pname = searchParams.get('pname');
     const cl_id = searchParams.get('cl_id');
-    const customerId = cl_id || 1;
+    
+    if (!cl_id) {
+      return NextResponse.json({
+        success: false,
+        message: 'Customer ID (cl_id) is required'
+      }, { status: 400 });
+    }
+    
+    const customerId = parseInt(cl_id);
+    
+    if (isNaN(customerId) || customerId <= 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid customer ID'
+      }, { status: 400 });
+    }
 
     console.log('🔍 API Called - Customer ID:', customerId);
 
-    // 1. Check customer exists
+    // 1. Check customer exists - FIX: Get proper name from customers table
     let customerData;
     try {
       customerData = await executeQuery(
-        'SELECT id, name, balance, client_type FROM customers WHERE id = ?',
+        'SELECT id, name, balance, client_type, email, phone FROM customers WHERE id = ?',
         [customerId]
       );
     } catch (error) {
@@ -34,6 +49,12 @@ export async function GET(request) {
     }
 
     const customer = customerData[0];
+    
+    // FIX: Ensure customer name is not null or empty
+    if (!customer.name || customer.name.trim() === '' || customer.name === 'Unknown') {
+      // Try to get name from email or use ID
+      customer.name = customer.email ? customer.email.split('@')[0] : `Customer #${customer.id}`;
+    }
 
     // 2. Get customer balance from customer_balances table
     let customerBalanceData;
@@ -63,6 +84,7 @@ export async function GET(request) {
     }
 
     // 3. Get filling_history data - FIXED SQL QUERY
+    // Check both fh.cl_id and fr.cid to handle cases where cl_id might be NULL
     let sql = `
       SELECT 
         fh.id,
@@ -82,10 +104,10 @@ export async function GET(request) {
       LEFT JOIN products p ON fh.product_id = p.id
       LEFT JOIN filling_stations fs ON fh.fs_id = fs.id
       LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-      WHERE fh.cl_id = ?
+      WHERE (fh.cl_id = ? OR fr.cid = ?)
     `;
 
-    let params = [customerId];
+    let params = [customerId, customerId];
 
     if (pname && pname !== '') {
       sql += ' AND p.pname = ?';
@@ -96,10 +118,27 @@ export async function GET(request) {
 
     console.log('🔍 Executing SQL:', sql);
     console.log('🔍 With params:', params);
+    console.log('🔍 Customer ID:', customerId);
+    console.log('🔍 Customer Name:', customer.name);
 
     let transactions;
     try {
       transactions = await executeQuery(sql, params);
+      console.log('✅ Transactions found:', transactions.length);
+      
+      // Debug: Check if cl_id is NULL in filling_history
+      if (transactions.length === 0) {
+        const debugQuery = `
+          SELECT COUNT(*) as total, 
+                 COUNT(fh.cl_id) as with_cl_id,
+                 COUNT(fr.cid) as with_cid
+          FROM filling_history fh
+          LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+          WHERE fh.cl_id = ? OR fr.cid = ?
+        `;
+        const debugResult = await executeQuery(debugQuery, [customerId, customerId]);
+        console.log('🔍 Debug query result:', debugResult);
+      }
     } catch (error) {
       console.error('❌ Filling History Query Error:', error);
       return NextResponse.json({
@@ -115,9 +154,10 @@ export async function GET(request) {
         `SELECT DISTINCT p.pname 
          FROM products p
          INNER JOIN filling_history fh ON p.id = fh.product_id
-         WHERE fh.cl_id = ?
+         LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+         WHERE (fh.cl_id = ? OR fr.cid = ?)
          ORDER BY p.pname`,
-        [customerId]
+        [customerId, customerId]
       );
       
       products = productsData.map(p => p.pname);

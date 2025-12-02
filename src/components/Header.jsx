@@ -210,10 +210,13 @@ export default function Header({ onMenuToggle }) {
               className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
             >
               <div className="text-right hidden sm:block">
-                <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
                 <p className="text-xs text-gray-500">
-                  {user.emp_code || user.emp_id || 'Employee'}
+                  {user.emp_code || user.emp_id || (user.role === 5 ? 'Admin' : 'Employee')}
                 </p>
+                {user.role === 5 && (
+                  <p className="text-xs text-blue-600 font-semibold mt-0.5">Administrator</p>
+                )}
               </div>
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
                 {user.name?.charAt(0).toUpperCase() || 'U'}
@@ -225,11 +228,23 @@ export default function Header({ onMenuToggle }) {
               <div className="absolute right-0 mt-2 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2">
                 {/* User Info */}
                 <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="font-semibold text-gray-900">{user.name}</p>
-                  <p className="text-sm text-gray-600 truncate">{user.email}</p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {user.station || 'Main Station'}
-                  </p>
+                  <p className="font-semibold text-gray-900">{user.name || 'User'}</p>
+                  <p className="text-sm text-gray-600 truncate">{user.email || 'No email'}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <p className="text-xs text-gray-500">
+                      {user.station || 'Main Station'}
+                    </p>
+                    {user.role === 5 && (
+                      <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold">
+                        Admin
+                      </span>
+                    )}
+                  </div>
+                  {user.emp_code && (
+                    <p className="text-xs text-gray-400 mt-1">
+                      Code: {user.emp_code}
+                    </p>
+                  )}
                 </div>
 
                 {/* Menu Items */}

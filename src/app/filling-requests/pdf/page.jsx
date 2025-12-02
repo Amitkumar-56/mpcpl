@@ -219,7 +219,7 @@ function PDFGenerationContent() {
       
       doc.setFontSize(10);
       doc.setFont("helvetica", "normal");
-      doc.text(request.staff_name || 'System', 25, yPosition);
+      doc.text(request.staff_name || '-', 25, yPosition);
       
       yPosition += 15;
       

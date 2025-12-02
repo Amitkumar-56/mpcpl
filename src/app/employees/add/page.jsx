@@ -5,12 +5,16 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export default function CreateUserPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [image, setImage] = useState(null);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
   const [formData, setFormData] = useState({
     emp_code: "", // auto-generated from backend, display only
     email: "",
@@ -31,27 +35,114 @@ export default function CreateUserPage() {
 
   const [permissions, setPermissions] = useState({
     Dashboard: { can_view: false, can_edit: false, can_delete: false },
-    "Filling Requests": { can_view: false, can_edit: false, can_delete: false },
-    "Loading Station": { can_view: false, can_edit: false, can_delete: false },
-    Customer: { can_view: false, can_edit: false, can_delete: false },
-    Vehicle: { can_view: false, can_edit: false, can_delete: false },
-    "LR Management": { can_view: false, can_edit: false, can_delete: false },
-    "Loading History": { can_view: false, can_edit: false, can_delete: false },
-    "Tanker History": { can_view: false, can_edit: false, can_delete: false },
-    "Deepo History": { can_view: false, can_edit: false, can_delete: false },
-    "Items & Products": { can_view: false, can_edit: false, can_delete: false },
+    Customers: { can_view: false, can_edit: false, can_delete: false },
+    "Purchese Request": { can_view: false, can_edit: false, can_delete: false }, // Note: Spelling is "Purchese" from menu
+    Stock: { can_view: false, can_edit: false, can_delete: false },
+    "Loading Stations": { can_view: false, can_edit: false, can_delete: false },
+    "Schedule Prices": { can_view: false, can_edit: false, can_delete: false },
+    Products: { can_view: false, can_edit: false, can_delete: false },
     Employees: { can_view: false, can_edit: false, can_delete: false },
     Suppliers: { can_view: false, can_edit: false, can_delete: false },
     Transporters: { can_view: false, can_edit: false, can_delete: false },
     "NB Accounts": { can_view: false, can_edit: false, can_delete: false },
     "NB Expenses": { can_view: false, can_edit: false, can_delete: false },
     "NB Stock": { can_view: false, can_edit: false, can_delete: false },
-    Voucher: { can_view: false, can_edit: false, can_delete: false },
     "Stock Transfer": { can_view: false, can_edit: false, can_delete: false },
+    Reports: { can_view: false, can_edit: false, can_delete: false },
+    Retailers: { can_view: false, can_edit: false, can_delete: false },
+    "Agent Management": { can_view: false, can_edit: false, can_delete: false },
+    Users: { can_view: false, can_edit: false, can_delete: false },
+    Vehicles: { can_view: false, can_edit: false, can_delete: false },
+    "LR Management": { can_view: false, can_edit: false, can_delete: false },
+    "Loading History": { can_view: false, can_edit: false, can_delete: false },
+    "Tanker History": { can_view: false, can_edit: false, can_delete: false },
+    "Deepo History": { can_view: false, can_edit: false, can_delete: false },
+    Vouchers: { can_view: false, can_edit: false, can_delete: false },
     Remarks: { can_view: false, can_edit: false, can_delete: false },
+    Items: { can_view: false, can_edit: false, can_delete: false },
   });
 
   const modules = Object.keys(permissions);
+
+  // Check permissions on mount
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setCheckingPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (user.role === 5) {
+      setHasPermission(true);
+      setCheckingPermission(false);
+      return;
+    }
+
+    // Check cache first
+    const cacheKey = `perms_${user.id}_Employees`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_edit || cachedPerms.can_view) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        return;
+      }
+    }
+
+    try {
+      // ✅ FIX: Check both can_edit and can_view for Employees module
+      // Also check user's cached permissions from verify API
+      if (user.permissions && user.permissions['Employees']) {
+        const empPerms = user.permissions['Employees'];
+        if (empPerms.can_edit || empPerms.can_view) {
+          setHasPermission(true);
+          setCheckingPermission(false);
+          return;
+        }
+      }
+
+      // Check API for Employees module
+      const response = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('Employees')}&action=can_edit`
+      );
+      const data = await response.json();
+
+      console.log('🔐 Permission check result:', {
+        employee_id: user.id,
+        role: user.role,
+        module: 'Employees',
+        allowed: data.allowed,
+        error: data.error
+      });
+
+      // Cache permission
+      sessionStorage.setItem(cacheKey, JSON.stringify({ can_edit: data.allowed, can_view: data.allowed }));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (data.allowed) {
+        setHasPermission(true);
+      } else {
+        setHasPermission(false);
+        console.log('❌ Access denied - No permission for Employees module');
+      }
+    } catch (error) {
+      console.error('❌ Permission check error:', error);
+      setHasPermission(false);
+    } finally {
+      setCheckingPermission(false);
+    }
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -94,6 +185,57 @@ export default function CreateUserPage() {
       alert('Something went wrong while saving the employee.');
     }
   };
+
+  // Show loading state while checking permissions
+  if (checkingPermission || authLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="sticky top-0 h-screen">
+          <Sidebar activePage="Employees" />
+        </div>
+        <div className="flex flex-col flex-1 w-full">
+          <div className="sticky top-0 z-10">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Checking permissions...</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied if no permission
+  if (!hasPermission) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="sticky top-0 h-screen">
+          <Sidebar activePage="Employees" />
+        </div>
+        <div className="flex flex-col flex-1 w-full">
+          <div className="sticky top-0 z-10">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-6">You don't have permission to access this page.</p>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen bg-gray-50">

@@ -781,6 +781,189 @@ export default function FillingDetailsAdmin() {
                 </div>
               </div>
 
+              {/* Activity Logs Section - Always show with button to view logs */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
+                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                    <svg className="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                    </svg>
+                    Activity Logs
+                  </h2>
+                  <button
+                    onClick={() => {
+                      const logsSection = document.getElementById('activity-logs-content');
+                      if (logsSection) {
+                        logsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    View Log History
+                  </button>
+                </div>
+                <div id="activity-logs-content" className="p-6">
+                  {requestData.logs ? (
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                      {requestData.logs.created_by_name && (
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <div className="flex items-center mb-2">
+                            <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm font-semibold text-blue-900">Created By</span>
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.created_by_name}</p>
+                          {requestData.logs.created_date && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(requestData.logs.created_date).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {requestData.logs.processed_by_name && (
+                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                          <div className="flex items-center mb-2">
+                            <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm font-semibold text-yellow-900">Processed By</span>
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.processed_by_name}</p>
+                          {requestData.logs.processed_date && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(requestData.logs.processed_date).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {requestData.logs.completed_by_name && (
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                          <div className="flex items-center mb-2">
+                            <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm font-semibold text-green-900">Completed By</span>
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.completed_by_name}</p>
+                          {requestData.logs.completed_date && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(requestData.logs.completed_date).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                      {requestData.logs.cancelled_by_name && (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <div className="flex items-center mb-2">
+                            <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                            </svg>
+                            <span className="text-sm font-semibold text-red-900">Cancelled By</span>
+                          </div>
+                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.cancelled_by_name}</p>
+                          {requestData.logs.cancelled_date && (
+                            <p className="text-xs text-gray-500 mt-1">
+                              {new Date(requestData.logs.cancelled_date).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })}
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    
+                    {/* Edit History */}
+                    {requestData.edit_logs && requestData.edit_logs.length > 0 && (
+                      <div className="mt-6 pt-6 border-t border-gray-200">
+                        <h3 className="text-md font-semibold text-gray-900 mb-4">Edit History</h3>
+                        <div className="space-y-3">
+                          {requestData.edit_logs.map((editLog, index) => (
+                            <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-sm font-medium text-gray-700">
+                                  Edited by: {editLog.edited_by_name || 'Unknown'}
+                                </span>
+                                <span className="text-xs text-gray-500">
+                                  {editLog.edited_date ? new Date(editLog.edited_date).toLocaleString('en-IN', {
+                                    day: '2-digit',
+                                    month: '2-digit',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  }) : 'N/A'}
+                                </span>
+                              </div>
+                              {editLog.changes && (() => {
+                                try {
+                                  const changes = typeof editLog.changes === 'string' ? JSON.parse(editLog.changes) : editLog.changes;
+                                  return (
+                                    <div className="text-xs text-gray-600 space-y-1">
+                                      {changes.status && (
+                                        <div>Status: <span className="font-medium">{changes.status.from}</span> → <span className="font-medium">{changes.status.to}</span></div>
+                                      )}
+                                      {changes.aqty && (
+                                        <div>Quantity: <span className="font-medium">{changes.aqty.from}</span> → <span className="font-medium">{changes.aqty.to}</span></div>
+                                      )}
+                                      {changes.remarks && (
+                                        <div>Remarks: <span className="font-medium">{changes.remarks.from || 'None'}</span> → <span className="font-medium">{changes.remarks.to || 'None'}</span></div>
+                                      )}
+                                    </div>
+                                  );
+                                } catch {
+                                  return null;
+                                }
+                              })()}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    </>
+                  ) : (
+                    <div className="text-center py-8 text-gray-500">
+                      <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      <p className="text-lg font-medium">No activity logs available</p>
+                      <p className="text-sm mt-2">Logs will appear here when the request is processed or completed</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               {/* ✅✅✅ FIXED: Hide Update Request form for Completed and ALL Cancelled status variations */}
               {!isFinalStatus && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">

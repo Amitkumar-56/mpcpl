@@ -142,8 +142,31 @@ function TankerHistoryContent() {
   const checkPermissions = async () => {
     if (!user || !user.id) return;
     
+    // Admin (role 5) has full access
+    if (user.role === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchTankerHistory();
+      return;
+    }
+
+    // ✅ FIX: Check user's cached permissions from verify API first
+    if (user.permissions && user.permissions['Tanker History']) {
+      const tankerPerms = user.permissions['Tanker History'];
+      if (tankerPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: tankerPerms.can_view,
+          can_edit: tankerPerms.can_edit,
+          can_delete: tankerPerms.can_delete
+        });
+        fetchTankerHistory();
+        return;
+      }
+    }
+    
     // Check cache first
-    const cacheKey = `perms_${user.id}_tanker_history`;
+    const cacheKey = `perms_${user.id}_Tanker History`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const cachedPerms = JSON.parse(cached);
@@ -156,11 +179,15 @@ function TankerHistoryContent() {
     }
     
     try {
+      // ✅ FIX: Use exact module name as stored in database: "Tanker History"
+      const moduleName = 'Tanker History';
+      console.log('🔐 Checking permissions for:', { employee_id: user.id, role: user.role, module: moduleName });
+      
       // Fetch all permissions in parallel
       const [viewRes, editRes, deleteRes] = await Promise.all([
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('tanker_history')}&action=can_view`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('tanker_history')}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('tanker_history')}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
       ]);
       
       const [viewData, editData, deleteData] = await Promise.all([
@@ -168,6 +195,13 @@ function TankerHistoryContent() {
         editRes.json(),
         deleteRes.json()
       ]);
+      
+      console.log('🔐 Permission check results:', {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed,
+        errors: { view: viewData.error, edit: editData.error, delete: deleteData.error }
+      });
       
       const perms = {
         can_view: viewData.allowed,
@@ -186,9 +220,10 @@ function TankerHistoryContent() {
       } else {
         setHasPermission(false);
         setLoading(false);
+        console.log('❌ Access denied - No permission for Tanker History module');
       }
     } catch (error) {
-      console.error('Permission check error:', error);
+      console.error('❌ Permission check error:', error);
       setHasPermission(false);
       setLoading(false);
     }

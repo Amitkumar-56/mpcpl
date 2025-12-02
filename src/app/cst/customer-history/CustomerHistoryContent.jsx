@@ -20,6 +20,26 @@ export default function CustomerHistoryContent() {
   const searchParams = useSearchParams();
   const cl_id = searchParams.get('cl_id');
 
+  // Get logged-in customer ID from localStorage/sessionStorage if cl_id not in URL
+  const getCustomerId = () => {
+    if (cl_id) {
+      return cl_id;
+    }
+    // Try to get from localStorage or sessionStorage
+    try {
+      const savedCustomer = localStorage.getItem("customer") || sessionStorage.getItem("customer");
+      if (savedCustomer) {
+        const customerData = JSON.parse(savedCustomer);
+        if (customerData.id) {
+          return customerData.id.toString();
+        }
+      }
+    } catch (error) {
+      console.error('Error getting customer ID from storage:', error);
+    }
+    return null;
+  };
+
   useEffect(() => {
     fetchData();
   }, [selectedProduct, cl_id]);
@@ -29,10 +49,15 @@ export default function CustomerHistoryContent() {
       setLoading(true);
       setError('');
       
+      const customerId = getCustomerId();
+      
       const params = new URLSearchParams();
       
-      if (cl_id) {
-        params.append('cl_id', cl_id);
+      if (customerId) {
+        params.append('cl_id', customerId);
+        console.log('🔍 Using customer ID:', customerId);
+      } else {
+        console.warn('⚠️ No customer ID found in URL or storage');
       }
       
       if (selectedProduct) {

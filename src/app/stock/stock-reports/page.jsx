@@ -29,11 +29,14 @@ function LoadingFallback() {
 function FillingHistory() {
   const [historyData, setHistoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedStation, setSelectedStation] = useState('');
   const [filters, setFilters] = useState({
     start_date: '',
     end_date: ''
   });
   const router = useRouter();
+
+  const stations = ['Nellore', 'Kushinagar', 'Gurgaon', 'Baharagora', 'Krishnagiri'];
 
   const columns = [
     'fs_name',
@@ -42,13 +45,18 @@ function FillingHistory() {
     'current_stock',
     'filling_qty',
     'available_stock',
-    'filling_date'
+    'filling_date',
+    'created_by_name'
   ];
 
   const fetchHistory = async (filterParams = {}) => {
     try {
       setLoading(true);
-      const queryParams = new URLSearchParams(filterParams).toString();
+      const params = { ...filterParams };
+      if (selectedStation) {
+        params.station = selectedStation;
+      }
+      const queryParams = new URLSearchParams(params).toString();
       const response = await fetch(`/api/stock/stock-reports?${queryParams}`);
       
       if (response.ok) {
@@ -127,6 +135,44 @@ function FillingHistory() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Station Buttons */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Station</h2>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedStation('');
+                fetchHistory(filters);
+              }}
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                selectedStation === ''
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              All Stations
+            </button>
+            {stations.map((station) => (
+              <button
+                key={station}
+                type="button"
+                onClick={() => {
+                  setSelectedStation(station);
+                  fetchHistory(filters);
+                }}
+                className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                  selectedStation === station
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                {station}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Filter Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
@@ -193,9 +239,11 @@ function FillingHistory() {
                       key={column}
                       className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
                     >
-                      {column.split('_').map(word => 
-                        word.charAt(0).toUpperCase() + word.slice(1)
-                      ).join(' ')}
+                      {column === 'created_by_name' 
+                        ? 'Created By' 
+                        : column.split('_').map(word => 
+                            word.charAt(0).toUpperCase() + word.slice(1)
+                          ).join(' ')}
                     </th>
                   ))}
                 </tr>
@@ -220,7 +268,18 @@ function FillingHistory() {
                           key={column}
                           className="px-6 py-4 whitespace-nowrap text-sm text-gray-900"
                         >
-                          {row[column]}
+                          {column === 'filling_date' 
+                            ? new Date(row[column]).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              })
+                            : column === 'created_by_name'
+                            ? row[column] || 'N/A'
+                            : row[column]}
                         </td>
                       ))}
                     </tr>

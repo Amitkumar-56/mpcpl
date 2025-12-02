@@ -72,14 +72,32 @@ export async function POST(request) {
     });
 
     try {
-      // Generate voucher number (you might want to implement your own logic)
+      // Generate voucher code: V01 + last 4 digits of vehicle number
+      let vehicleLast4 = '';
+      if (vehicle_no && vehicle_no.length >= 4) {
+        // Get last 4 characters (digits or alphanumeric)
+        vehicleLast4 = vehicle_no.slice(-4).toUpperCase();
+      } else if (vehicle_no) {
+        // If vehicle number is less than 4 characters, pad with zeros
+        vehicleLast4 = vehicle_no.toUpperCase().padStart(4, '0');
+      } else {
+        // Fallback: use sequential number if no vehicle number
+        const voucherNoResult = await executeQuery(
+          'SELECT COALESCE(MAX(voucher_no), 0) + 1 as next_voucher_no FROM vouchers'
+        );
+        const voucher_no = voucherNoResult[0]?.next_voucher_no || 1;
+        vehicleLast4 = String(voucher_no).padStart(4, '0');
+      }
+      
+      const voucher_code = `V01${vehicleLast4}`;
+      
+      // Get sequential voucher number for database
       const voucherNoResult = await executeQuery(
         'SELECT COALESCE(MAX(voucher_no), 0) + 1 as next_voucher_no FROM vouchers'
       );
       const voucher_no = voucherNoResult[0]?.next_voucher_no || 1;
-      const voucher_code = `V${String(voucher_no).padStart(4, '0')}`;
 
-      console.log('Generated voucher number:', voucher_no);
+      console.log('Generated voucher code:', voucher_code, 'Vehicle:', vehicle_no, 'Last 4:', vehicleLast4);
 
       // Insert voucher with your actual schema
       const voucherQuery = `

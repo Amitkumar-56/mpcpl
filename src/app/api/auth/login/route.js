@@ -11,7 +11,7 @@ export async function POST(request) {
     connection = await db.getConnection();
 
     const [rows] = await connection.execute(
-      `SELECT id, emp_code, name, email, password, role, status
+      `SELECT id, emp_code, name, email, password, role, status, fs_id, fl_id, station, client
        FROM employee_profile
        WHERE email = ?`,
       [email]
@@ -53,6 +53,10 @@ export async function POST(request) {
       name: user.name,
       email: user.email,
       role: user.role,
+      fs_id: user.fs_id,
+      fl_id: user.fl_id,
+      station: user.station,
+      client: user.client,
       permissions: userPermissions,
       token,
     });

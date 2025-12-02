@@ -8,22 +8,28 @@ export async function GET(request) {
     const startDate = searchParams.get('start_date') || '';
     const endDate = searchParams.get('end_date') || '';
     const exportData = searchParams.get('export') || '';
+    const stationFilter = searchParams.get('station') || '';
 
-    console.log('API Called with params:', { startDate, endDate, exportData });
-
-    // Build base query
+    console.log('API Called with params:', { startDate, endDate, exportData, stationFilter });
+    
+    // Build base query with employee name for logs
     let sql = `
       SELECT fh.rid, 
              f.station_name AS fs_name, 
+             f.id AS station_id,
              p.pname AS product_name, 
              fh.trans_type, 
              fh.current_stock, 
              fh.filling_qty, 
              fh.available_stock, 
-             fh.filling_date
+             fh.filling_date,
+             ep.name AS created_by_name,
+             fh.created_by,
+             fh.filling_date AS transaction_date
       FROM filling_history fh
       JOIN filling_stations f ON fh.fs_id = f.id
       JOIN products p ON fh.product_id = p.id
+      LEFT JOIN employee_profile ep ON fh.created_by = ep.id
       WHERE 1=1
     `;
 
@@ -36,6 +42,10 @@ export async function GET(request) {
     if (endDate) {
       sql += " AND DATE(fh.filling_date) <= ?";
       params.push(endDate);
+    }
+    if (stationFilter) {
+      sql += " AND f.station_name LIKE ?";
+      params.push(`%${stationFilter}%`);
     }
 
     sql += " ORDER BY fh.filling_date DESC";

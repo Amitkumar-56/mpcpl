@@ -51,18 +51,32 @@ export async function GET() {
     const user = users[0];
     console.log('✅ User authenticated:', user.name, user.role);
 
-    // Fetch permissions with role-based query
+    // ✅ FIX: Fetch permissions based on employee_id first, then role (fallback)
     const permissions = await executeQuery(
       `SELECT module_name, can_view, can_edit, can_delete
        FROM role_permissions 
-       WHERE employee_id = ? AND role = ?`,
-      [user.id, user.role]
+       WHERE employee_id = ?`,
+      [user.id]
     );
+    
+    // If no permissions found for employee_id, try role-based (fallback)
+    let roleBasedPermissions = [];
+    if (permissions.length === 0) {
+      roleBasedPermissions = await executeQuery(
+        `SELECT module_name, can_view, can_edit, can_delete
+         FROM role_permissions 
+         WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
+        [user.role]
+      );
+    }
+    
+    const finalPermissions = permissions.length > 0 ? permissions : roleBasedPermissions;
 
-    console.log('🔑 Permissions found:', permissions.length);
+    console.log('🔑 Permissions found:', finalPermissions.length);
+    console.log('🔑 Permission source:', permissions.length > 0 ? 'employee_id' : 'role');
 
     const userPermissions = {};
-    permissions.forEach((p) => {
+    finalPermissions.forEach((p) => {
       userPermissions[p.module_name] = {
         can_view: p.can_view === 1,
         can_edit: p.can_edit === 1,
@@ -70,6 +84,7 @@ export async function GET() {
       };
     });
 
+    // ✅ FIX: Return complete employee_profile data
     return NextResponse.json({ 
       authenticated: true,
       id: user.id,
@@ -81,7 +96,13 @@ export async function GET() {
       fl_id: user.fl_id,
       station: user.station,
       client: user.client,
-      permissions: userPermissions
+      permissions: userPermissions,
+      // ✅ Include role name for display
+      role_name: user.role === 5 ? 'Admin' : 
+                  user.role === 4 ? 'Accountant' :
+                  user.role === 3 ? 'Team Leader' :
+                  user.role === 2 ? 'Incharge' :
+                  user.role === 1 ? 'Staff' : 'Employee'
     });
 
   } catch (error) {

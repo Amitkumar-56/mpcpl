@@ -164,6 +164,49 @@ export async function GET(req) {
         credit_limit: data.credit_limit
       });
 
+      // Fetch complete logs from filling_logs table
+      // FIX: Check both employee_profile and customers table for created_by
+      const logsQuery = `
+        SELECT 
+          fl.*,
+          COALESCE(ep_created.name, c_created.name) as created_by_name,
+          ep_processed.name as processed_by_name,
+          ep_completed.name as completed_by_name,
+          ep_cancelled.name as cancelled_by_name,
+          CASE 
+            WHEN c_created.id IS NOT NULL THEN 'customer'
+            WHEN ep_created.id IS NOT NULL THEN 'employee'
+            ELSE 'unknown'
+          END as created_by_type
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep_created ON fl.created_by = ep_created.id
+        LEFT JOIN customers c_created ON fl.created_by = c_created.id
+        LEFT JOIN employee_profile ep_processed ON fl.processed_by = ep_processed.id
+        LEFT JOIN employee_profile ep_completed ON fl.completed_by = ep_completed.id
+        LEFT JOIN employee_profile ep_cancelled ON fl.cancelled_by = ep_cancelled.id
+        WHERE fl.request_id = ?
+      `;
+      const logs = await executeQuery(logsQuery, [data.rid]);
+      data.logs = logs.length > 0 ? logs[0] : null;
+
+      // Fetch edit logs if table exists
+      try {
+        const editLogsQuery = `
+          SELECT 
+            el.*,
+            ep.name as edited_by_name
+          FROM edit_logs el
+          LEFT JOIN employee_profile ep ON el.edited_by = ep.id
+          WHERE el.request_id = ?
+          ORDER BY el.edited_date DESC
+        `;
+        const editLogs = await executeQuery(editLogsQuery, [data.rid]);
+        data.edit_logs = editLogs || [];
+      } catch (editLogError) {
+        console.log('⚠️ Edit logs table may not exist, skipping:', editLogError.message);
+        data.edit_logs = [];
+      }
+
     } catch (dbErr) {
       console.error('❌ DB error:', dbErr);
       return NextResponse.json({ success: false, error: 'Database error: ' + dbErr.message }, { status: 500 });
@@ -260,6 +303,42 @@ export async function POST(request) {
     console.log('🔁 Starting database operations...');
 
     let resultMessage = '';
+
+    // Track edit operation - create edit log entry
+    const now = getIndianTime();
+    try {
+      // Get old data for comparison
+      const oldDataQuery = `SELECT * FROM filling_requests WHERE id = ?`;
+      const oldData = await executeQuery(oldDataQuery, [id]);
+      
+      if (oldData.length > 0) {
+        const oldRecord = oldData[0];
+        // Create edit log entry
+        const editLogQuery = `
+          INSERT INTO edit_logs 
+          (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const changes = JSON.stringify({
+          status: oldRecord.status !== status ? { from: oldRecord.status, to: status } : null,
+          aqty: oldRecord.aqty !== aqty ? { from: oldRecord.aqty, to: aqty } : null,
+          remarks: oldRecord.remark !== remarks ? { from: oldRecord.remark, to: remarks } : null
+        });
+        await executeQuery(editLogQuery, [
+          rid,
+          userId,
+          now,
+          oldRecord.status,
+          status,
+          oldRecord.aqty || 0,
+          aqty || 0,
+          changes
+        ]);
+      }
+    } catch (editLogError) {
+      console.error('⚠️ Error creating edit log (non-critical):', editLogError);
+      // Continue even if edit log fails
+    }
 
     // First, update or create filling_logs entry
     await updateFillingLogs(rid, status, userId);

@@ -20,18 +20,66 @@ export async function GET(request) {
     `;
     const shipmentResult = await executeQuery(shipmentQuery) || [];
 
-    // Get permissions - use employee_id and module_name
-    // Module name is "history" as per sidebar configuration
-    const moduleName = 'history';
-    const permissionQuery = `
+    // ✅ FIX: Get user's role from employee_profile first
+    const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
+    const userResult = await executeQuery(userQuery, [userId]);
+    
+    if (userResult.length === 0) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    
+    const userRole = userResult[0].role;
+
+    // ✅ FIX: Use exact module name as stored in database: "Loading History"
+    const moduleName = 'Loading History';
+    
+    // ✅ FIX: Check permissions with employee_id AND role (as per database structure)
+    // First check for employee-specific permissions
+    let permissionQuery = `
       SELECT module_name, can_view, can_edit, can_delete 
       FROM role_permissions 
       WHERE employee_id = ? AND module_name = ?
     `;
-    const permissionResult = await executeQuery(permissionQuery, [userId, moduleName]);
+    let permissionResult = await executeQuery(permissionQuery, [userId, moduleName]);
+
+    // If no employee-specific permission found, check role-based permissions
+    if (permissionResult.length === 0) {
+      permissionQuery = `
+        SELECT module_name, can_view, can_edit, can_delete 
+        FROM role_permissions 
+        WHERE role = ? AND module_name = ? AND (employee_id IS NULL OR employee_id = 0)
+      `;
+      permissionResult = await executeQuery(permissionQuery, [userRole, moduleName]);
+    }
+
+    // ✅ FIX: Also check if employee_id matches AND role matches
+    if (permissionResult.length === 0) {
+      permissionQuery = `
+        SELECT module_name, can_view, can_edit, can_delete 
+        FROM role_permissions 
+        WHERE employee_id = ? AND role = ? AND module_name = ?
+      `;
+      permissionResult = await executeQuery(permissionQuery, [userId, userRole, moduleName]);
+    }
+
+    // Admin (role 5) has full access
+    if (userRole === 5) {
+      permissionResult = [{
+        module_name: moduleName,
+        can_view: 1,
+        can_edit: 1,
+        can_delete: 1
+      }];
+    }
 
     // Check view permission
     if (permissionResult.length === 0 || permissionResult[0].can_view !== 1) {
+      console.log('❌ Access denied - No permission for Loading History module', {
+        userId,
+        role: userRole,
+        moduleName,
+        permissionFound: permissionResult.length > 0
+      });
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 

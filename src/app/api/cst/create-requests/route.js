@@ -266,6 +266,22 @@ export async function POST(request) {
     console.log('✅ Database insert result:', result);
 
     if (result.affectedRows === 1) {
+      // Create filling_logs entry with customer ID (for CST requests)
+      try {
+        const logInsertQuery = `
+          INSERT INTO filling_logs (request_id, created_by, created_date) 
+          VALUES (?, ?, ?)
+        `;
+        // For CST requests, created_by should be customer_id (negative or special flag)
+        // We'll use customer_id directly, but need to check if it's customer or employee
+        // Since this is CST route, created_by = customer_id
+        await executeQuery(logInsertQuery, [newRid, parseInt(customer_id), currentDate]);
+        console.log('✅ Filling logs entry created with customer ID:', customer_id);
+      } catch (logError) {
+        console.error('⚠️ Error creating filling logs:', logError);
+        // Continue even if log creation fails
+      }
+
       const stationQuery = `SELECT station_name FROM filling_stations WHERE id = ?`;
       const stationResult = await executeQuery(stationQuery, [station_id]);
       const stationName = stationResult.length > 0 ? stationResult[0].station_name : 'Unknown Station';
