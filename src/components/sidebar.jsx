@@ -80,7 +80,7 @@ export default function Sidebar() {
     users: "Users",
     reports: "Reports",
     filling_requests: "Filling Requests",
-    stock: "stock",
+    stock: "Stock", // ✅ FIX: "Stock" module (not "Stock Transfer")
     loading_stations: "Loading Station",
     vehicles: "Vehicle",
     schedule_price: "Schedule Prices",
@@ -90,9 +90,9 @@ export default function Sidebar() {
     employees: "Employees",
     suppliers: "Suppliers",
     transporters: "Transporters",
-    nb_management: "NB Accounts",
+    nb_balance: "NB Accounts", // ✅ FIX: Added missing mapping
     vouchers: "Voucher",
-    stock: "Stock Transfer",
+    stock_transfers: "Stock Transfer", // ✅ FIX: "Stock Transfer" module
     remarks: "Remarks",
     items: "Items",
     customers: "Customer",
@@ -100,6 +100,8 @@ export default function Sidebar() {
     deepo_history: "Deepo History",
     nb_expenses: "NB Expenses",
     nb_stock: "NB Stock",
+    retailers: "Retailers", // ✅ FIX: Added missing mapping
+    agent_management: "Agent Management", // ✅ FIX: Added missing mapping
   }), []);
 
   // Optimized permission filtering
@@ -111,7 +113,22 @@ export default function Sidebar() {
     
     return menuItems.filter((item) => {
       const backendModuleName = moduleMapping[item.module];
-      return user.permissions?.[backendModuleName]?.can_view;
+      
+      // ✅ FIX: Debug logging to see what's happening
+      if (!backendModuleName) {
+        console.warn(`⚠️ No module mapping found for: ${item.module} (${item.name})`);
+        return false;
+      }
+      
+      const hasPermission = user.permissions?.[backendModuleName]?.can_view;
+      
+      // ✅ FIX: Debug logging
+      if (!hasPermission) {
+        console.log(`❌ No permission for: ${item.name} (Module: ${item.module} → ${backendModuleName})`);
+        console.log(`   Available permissions:`, Object.keys(user.permissions || {}));
+      }
+      
+      return hasPermission;
     });
   }, [user, menuItems, moduleMapping]);
 
