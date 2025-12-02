@@ -57,7 +57,17 @@ function PDFModalContent() {
           } catch (e) {
             errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
           }
-          const errorMsg = errorData.error || errorData.details || `HTTP error! status: ${response.status}`;
+          
+          // ✅ Show detailed error in development
+          let errorMsg = errorData.error || `HTTP error! status: ${response.status}`;
+          if (errorData.details) {
+            if (typeof errorData.details === 'object') {
+              errorMsg += `: ${errorData.details.message || errorData.details.sqlMessage || JSON.stringify(errorData.details)}`;
+            } else {
+              errorMsg += `: ${errorData.details}`;
+            }
+          }
+          
           console.error('❌ API Error Response:', errorData);
           throw new Error(errorMsg);
         }

@@ -15,6 +15,7 @@ export async function GET(request) {
     }
 
     // Fetch request data with all necessary details including logs
+    // ✅ Simplified query similar to working queries in other files
     const query = `
       SELECT 
         fr.*,
@@ -29,9 +30,9 @@ export async function GET(request) {
         fl_created.created_by_name,
         fl_created.created_by_type,
         fl_created.created_date,
-        fl_processed.processed_by_name,
+        ep_processed.name as processed_by_name,
         fl_processed.processed_date,
-        fl_completed.completed_by_name,
+        ep_completed.name as completed_by_name,
         fl_completed.completed_date
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
@@ -59,27 +60,12 @@ export async function GET(request) {
         WHERE fl.created_by IS NOT NULL
         GROUP BY fl.request_id
       ) fl_created ON fr.rid = fl_created.request_id
-      LEFT JOIN (
-        SELECT 
-          fl.request_id,
-          MAX(ep.name) as processed_by_name,
-          MAX(fl.processed_date) as processed_date
-        FROM filling_logs fl
-        LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
-        WHERE fl.processed_by IS NOT NULL
-        GROUP BY fl.request_id
-      ) fl_processed ON fr.rid = fl_processed.request_id
-      LEFT JOIN (
-        SELECT 
-          fl.request_id,
-          MAX(ep.name) as completed_by_name,
-          MAX(fl.completed_date) as completed_date
-        FROM filling_logs fl
-        LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
-        WHERE fl.completed_by IS NOT NULL
-        GROUP BY fl.request_id
-      ) fl_completed ON fr.rid = fl_completed.request_id
+      LEFT JOIN filling_logs fl_processed ON fr.rid = fl_processed.request_id AND fl_processed.processed_by IS NOT NULL
+      LEFT JOIN employee_profile ep_processed ON fl_processed.processed_by = ep_processed.id
+      LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id AND fl_completed.completed_by IS NOT NULL
+      LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
       WHERE fr.id = ?
+      LIMIT 1
     `;
 
     console.log('🔍 Fetching request for PDF with ID:', requestId);
@@ -144,11 +130,25 @@ export async function GET(request) {
   } catch (error) {
     console.error("❌ PDF Generation API Error:", error);
     console.error("Error stack:", error.stack);
+    console.error("Error message:", error.message);
+    console.error("Error code:", error.code);
+    console.error("Error sqlMessage:", error.sqlMessage);
+    
+    // Return detailed error in development, generic in production
+    const errorDetails = process.env.NODE_ENV === 'development' 
+      ? {
+          message: error.message,
+          code: error.code,
+          sqlMessage: error.sqlMessage,
+          stack: error.stack
+        }
+      : undefined;
+    
     return NextResponse.json(
       { 
         success: false,
         error: "Server error", 
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined 
+        details: errorDetails
       },
       { status: 500 }
     );
