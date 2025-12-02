@@ -51,13 +51,24 @@ function PDFModalContent() {
             throw new Error(result.error || "Failed to fetch request data");
           }
         } else {
-          const errorData = await response.json();
+          let errorData;
+          try {
+            errorData = await response.json();
+          } catch (e) {
+            errorData = { error: `HTTP ${response.status}: ${response.statusText}` };
+          }
           const errorMsg = errorData.error || errorData.details || `HTTP error! status: ${response.status}`;
+          console.error('❌ API Error Response:', errorData);
           throw new Error(errorMsg);
         }
       } catch (error) {
         console.error("❌ Error fetching request:", error);
-        setError(error.message);
+        console.error("Error details:", {
+          message: error.message,
+          requestId: requestId,
+          user: user?.id
+        });
+        setError(error.message || "Failed to load request data. Please try again.");
       } finally {
         setLoading(false);
       }

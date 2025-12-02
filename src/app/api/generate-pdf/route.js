@@ -29,9 +29,9 @@ export async function GET(request) {
         fl_created.created_by_name,
         fl_created.created_by_type,
         fl_created.created_date,
-        ep_processed.name as processed_by_name,
+        fl_processed.processed_by_name,
         fl_processed.processed_date,
-        ep_completed.name as completed_by_name,
+        fl_completed.completed_by_name,
         fl_completed.completed_date
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
@@ -83,8 +83,28 @@ export async function GET(request) {
     `;
 
     console.log('🔍 Fetching request for PDF with ID:', requestId);
-    const requestData = await executeQuery(query, [requestId]);
-    console.log('📦 Request data found:', requestData.length > 0);
+    
+    let requestData;
+    try {
+      requestData = await executeQuery(query, [requestId]);
+      console.log('📦 Request data found:', requestData.length > 0);
+      
+      if (requestData.length > 0) {
+        console.log('✅ Request data sample:', {
+          rid: requestData[0].rid,
+          customer_name: requestData[0].customer_name,
+          status: requestData[0].status,
+          created_by_name: requestData[0].created_by_name,
+          processed_by_name: requestData[0].processed_by_name,
+          completed_by_name: requestData[0].completed_by_name
+        });
+      }
+    } catch (queryError) {
+      console.error('❌ SQL Query Error:', queryError);
+      console.error('Error message:', queryError.message);
+      console.error('Error code:', queryError.code);
+      throw queryError;
+    }
 
     if (requestData.length === 0) {
       return NextResponse.json({ 
