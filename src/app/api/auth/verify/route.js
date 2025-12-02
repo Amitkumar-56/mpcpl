@@ -74,6 +74,12 @@ export async function GET() {
 
     console.log('🔑 Permissions found:', finalPermissions.length);
     console.log('🔑 Permission source:', permissions.length > 0 ? 'employee_id' : 'role');
+    console.log('🔑 Raw permissions:', finalPermissions.map(p => ({
+      module: p.module_name,
+      can_view: p.can_view,
+      can_edit: p.can_edit,
+      can_delete: p.can_delete
+    })));
 
     const userPermissions = {};
     finalPermissions.forEach((p) => {
@@ -83,6 +89,9 @@ export async function GET() {
         can_delete: p.can_delete === 1,
       };
     });
+    
+    console.log('🔑 Processed permissions object:', Object.keys(userPermissions));
+    console.log('🔑 Full permissions:', userPermissions);
 
     // ✅ FIX: Return complete employee_profile data
     return NextResponse.json({ 

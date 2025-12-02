@@ -109,9 +109,31 @@ export default function Sidebar() {
     if (!user) return [];
     
     // ✅ Admin (role 5) gets full access
-    if (user.role === 5) return menuItems;
+    if (user.role === 5) {
+      console.log('✅ Admin user - Full access granted');
+      return menuItems;
+    }
     
-    return menuItems.filter((item) => {
+    // ✅ FIX: Log user permissions for debugging
+    console.log('🔐 User permissions check:', {
+      userId: user.id,
+      role: user.role,
+      hasPermissionsObject: !!user.permissions,
+      permissionsCount: Object.keys(user.permissions || {}).length,
+      availableModules: Object.keys(user.permissions || {}),
+      permissionsObject: user.permissions
+    });
+    
+    // ✅ FIX: If permissions object is missing, log warning
+    if (!user.permissions || Object.keys(user.permissions).length === 0) {
+      console.warn('⚠️ User has no permissions object or empty permissions!', {
+        userId: user.id,
+        role: user.role,
+        permissions: user.permissions
+      });
+    }
+    
+    const filtered = menuItems.filter((item) => {
       const backendModuleName = moduleMapping[item.module];
       
       // ✅ FIX: Debug logging to see what's happening
@@ -124,12 +146,23 @@ export default function Sidebar() {
       
       // ✅ FIX: Debug logging
       if (!hasPermission) {
-        console.log(`❌ No permission for: ${item.name} (Module: ${item.module} → ${backendModuleName})`);
-        console.log(`   Available permissions:`, Object.keys(user.permissions || {}));
+        console.log(`❌ No permission for: ${item.name}`, {
+          module: item.module,
+          backendModuleName: backendModuleName,
+          path: item.path,
+          permissionExists: !!user.permissions?.[backendModuleName],
+          can_view: user.permissions?.[backendModuleName]?.can_view
+        });
+      } else {
+        console.log(`✅ Permission granted for: ${item.name} (${backendModuleName})`);
       }
       
       return hasPermission;
     });
+    
+    console.log(`📊 Menu filtering result: ${filtered.length}/${menuItems.length} items allowed`);
+    
+    return filtered;
   }, [user, menuItems, moduleMapping]);
 
   // Improved navigation handler
@@ -229,8 +262,19 @@ export default function Sidebar() {
               })}
 
               {allowedMenu.length === 0 && (
-                <div className="p-3 text-center text-gray-600 text-sm">
-                  No modules available for your role
+                <div className="p-3 text-center text-gray-600 text-sm space-y-2">
+                  <p className="font-semibold">No modules available for your role</p>
+                  <p className="text-xs text-gray-500">
+                    {user?.role === 5 
+                      ? 'Admin should have full access. Please check console for errors.'
+                      : `Role: ${user?.role || 'Unknown'}. Please contact admin to assign permissions.`
+                    }
+                  </p>
+                  {user?.permissions && Object.keys(user.permissions).length === 0 && (
+                    <p className="text-xs text-red-500 mt-2">
+                      ⚠️ No permissions found in database. Check role_permissions table.
+                    </p>
+                  )}
                 </div>
               )}
             </>

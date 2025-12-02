@@ -33,8 +33,34 @@ function DeepoHistoryContent() {
   const checkPermissions = async () => {
     if (!user || !user.id) return;
     
+    // Admin (role 5) has full access
+    if (user.role === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchDeepoHistory();
+      return;
+    }
+
+    // ✅ FIX: Check user's cached permissions from verify API first
+    if (user.permissions && user.permissions['Deepo History']) {
+      const deepoPerms = user.permissions['Deepo History'];
+      if (deepoPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: deepoPerms.can_view,
+          can_edit: deepoPerms.can_edit,
+          can_delete: deepoPerms.can_delete
+        });
+        fetchDeepoHistory();
+        return;
+      }
+    }
+    
+    // ✅ FIX: Use exact module name as stored in database: "Deepo History"
+    const moduleName = 'Deepo History';
+    
     // Check cache first
-    const cacheKey = `perms_${user.id}_deepo_history`;
+    const cacheKey = `perms_${user.id}_Deepo History`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const cachedPerms = JSON.parse(cached);
@@ -47,11 +73,13 @@ function DeepoHistoryContent() {
     }
     
     try {
+      console.log('🔐 Checking permissions for:', { employee_id: user.id, role: user.role, module: moduleName });
+      
       // Fetch all permissions in parallel (optimized - no redundant calls)
       const [viewRes, editRes, deleteRes] = await Promise.all([
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('deepo_history')}&action=can_view`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('deepo_history')}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('deepo_history')}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
       ]);
       
       const [viewData, editData, deleteData] = await Promise.all([
@@ -59,6 +87,13 @@ function DeepoHistoryContent() {
         editRes.json(),
         deleteRes.json()
       ]);
+      
+      console.log('🔐 Permission check results:', {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed,
+        errors: { view: viewData.error, edit: editData.error, delete: deleteData.error }
+      });
       
       const perms = {
         can_view: viewData.allowed,
@@ -77,6 +112,7 @@ function DeepoHistoryContent() {
       } else {
         setHasPermission(false);
         setLoading(false);
+        console.log('❌ Access denied - No permission for Deepo History module');
       }
     } catch (error) {
       console.error('Permission check error:', error);
