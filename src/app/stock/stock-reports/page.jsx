@@ -29,14 +29,14 @@ function LoadingFallback() {
 function FillingHistory() {
   const [historyData, setHistoryData] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [stations, setStations] = useState([]);
+  const [loadingStations, setLoadingStations] = useState(true);
   const [selectedStation, setSelectedStation] = useState('');
   const [filters, setFilters] = useState({
     start_date: '',
     end_date: ''
   });
   const router = useRouter();
-
-  const stations = ['Agra', 'Nellore', 'Kushinagar', 'Gurgaon', 'Baharagora', 'Krishnagiri'];
 
   const columns = [
     'fs_name',
@@ -102,7 +102,34 @@ function FillingHistory() {
     }
   };
 
+  // Fetch stations from database
+  const fetchStations = async () => {
+    try {
+      setLoadingStations(true);
+      const response = await fetch('/api/stock/stock-reports?fetch_stations=true');
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success && result.stations) {
+          setStations(result.stations.map(station => station.station_name));
+          console.log('✅ Stations loaded:', result.stations.length);
+        }
+      } else {
+        console.error('Failed to fetch stations');
+        // Fallback to hardcoded stations if API fails
+        setStations(['Agra', 'Nellore', 'Kushinagar', 'Gurgaon', 'Baharagora', 'Krishnagiri']);
+      }
+    } catch (error) {
+      console.error('Error fetching stations:', error);
+      // Fallback to hardcoded stations if API fails
+      setStations(['Agra', 'Nellore', 'Kushinagar', 'Gurgaon', 'Baharagora', 'Krishnagiri']);
+    } finally {
+      setLoadingStations(false);
+    }
+  };
+
   useEffect(() => {
+    fetchStations();
     fetchHistory();
   }, []);
 
@@ -138,39 +165,50 @@ function FillingHistory() {
         {/* Station Buttons */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Select Station</h2>
-          <div className="flex flex-wrap gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                setSelectedStation('');
-                fetchHistory(filters);
-              }}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                selectedStation === ''
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              }`}
-            >
-              All Stations
-            </button>
-            {stations.map((station) => (
+          {loadingStations ? (
+            <div className="flex items-center justify-center py-4">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <span className="ml-2 text-gray-600">Loading stations...</span>
+            </div>
+          ) : (
+            <div className="flex flex-wrap gap-3">
               <button
-                key={station}
                 type="button"
                 onClick={() => {
-                  setSelectedStation(station);
+                  setSelectedStation('');
                   fetchHistory(filters);
                 }}
                 className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-                  selectedStation === station
+                  selectedStation === ''
                     ? 'bg-blue-600 text-white'
                     : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                 }`}
               >
-                {station}
+                All Stations
               </button>
-            ))}
-          </div>
+              {stations.length > 0 ? (
+                stations.map((station) => (
+                  <button
+                    key={station}
+                    type="button"
+                    onClick={() => {
+                      setSelectedStation(station);
+                      fetchHistory(filters);
+                    }}
+                    className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                      selectedStation === station
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                  >
+                    {station}
+                  </button>
+                ))
+              ) : (
+                <p className="text-gray-500 text-sm">No stations available</p>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Filter Section */}

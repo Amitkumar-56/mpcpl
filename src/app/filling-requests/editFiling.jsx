@@ -811,7 +811,7 @@ export default function FillingRequests() {
       return;
     }
     
-    router.push(`/filling-requests/pdf?id=${requestId}`);
+    router.push(`/filling-requests/pdf-modal?id=${requestId}`);
   }, [requests, router]);
 
   const closeExpanded = useCallback(() => {

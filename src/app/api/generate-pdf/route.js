@@ -10,7 +10,7 @@ export async function GET(request) {
       return NextResponse.json({ error: "Request ID is required" }, { status: 400 });
     }
 
-    // Fetch request data with all necessary details
+    // Fetch request data with all necessary details including logs
     const query = `
       SELECT 
         fr.*,
@@ -21,13 +21,44 @@ export async function GET(request) {
         fs.address as station_address,
         pc.pcode as product_name,
         ep.name as staff_name,
-        cb.amtlimit as customer_balance
+        cb.amtlimit as customer_balance,
+        fl_created.created_by_name,
+        fl_created.created_by_type,
+        fl_created.created_date,
+        ep_processed.name as processed_by_name,
+        fl_processed.processed_date,
+        ep_completed.name as completed_by_name,
+        fl_completed.completed_date
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
-      LEFT JOIN product_codes pc ON pc.id = fr.fl_id
+      LEFT JOIN product_codes pc ON pc.id = fr.sub_product_id
       LEFT JOIN employee_profile ep ON ep.id = fr.status_updated_by
       LEFT JOIN customer_balances cb ON cb.com_id = fr.cid
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          COALESCE(
+            MAX(CASE WHEN c_sub.id IS NOT NULL THEN c_sub.name END),
+            MAX(CASE WHEN ep_sub.id IS NOT NULL THEN ep_sub.name END),
+            NULL
+          ) as created_by_name,
+          CASE 
+            WHEN MAX(c_sub.id) IS NOT NULL THEN 'customer'
+            WHEN MAX(ep_sub.id) IS NOT NULL THEN 'employee'
+            ELSE 'unknown'
+          END as created_by_type,
+          MAX(fl.created_date) as created_date
+        FROM filling_logs fl
+        LEFT JOIN customers c_sub ON fl.created_by = c_sub.id
+        LEFT JOIN employee_profile ep_sub ON fl.created_by = ep_sub.id AND c_sub.id IS NULL
+        WHERE fl.created_by IS NOT NULL
+        GROUP BY fl.request_id
+      ) fl_created ON fr.rid = fl_created.request_id
+      LEFT JOIN filling_logs fl_processed ON fr.rid = fl_processed.request_id AND fl_processed.processed_by IS NOT NULL
+      LEFT JOIN employee_profile ep_processed ON fl_processed.processed_by = ep_processed.id
+      LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id AND fl_completed.completed_by IS NOT NULL
+      LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
       WHERE fr.id = ?
     `;
 

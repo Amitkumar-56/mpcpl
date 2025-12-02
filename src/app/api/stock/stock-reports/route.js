@@ -9,8 +9,25 @@ export async function GET(request) {
     const endDate = searchParams.get('end_date') || '';
     const exportData = searchParams.get('export') || '';
     const stationFilter = searchParams.get('station') || '';
+    const fetchStations = searchParams.get('fetch_stations') || '';
 
-    console.log('API Called with params:', { startDate, endDate, exportData, stationFilter });
+    console.log('API Called with params:', { startDate, endDate, exportData, stationFilter, fetchStations });
+
+    // If only stations are requested, return station list
+    if (fetchStations === 'true') {
+      const stationsQuery = `
+        SELECT id, station_name, status 
+        FROM filling_stations 
+        WHERE status = 1 
+        ORDER BY station_name ASC
+      `;
+      const stations = await executeQuery(stationsQuery);
+      
+      return NextResponse.json({
+        success: true,
+        stations: stations || []
+      });
+    }
     
     // Build base query with employee name for logs - FIXED to show all stations
     let sql = `

@@ -9,6 +9,8 @@ export default function AddStationPage() {
   const router = useRouter(); // ✅ Initialize router
 
   const [formData, setFormData] = useState({
+    station_name: "",
+    address: "",
     manager: "",
     phone: "",
     email: "",
@@ -22,6 +24,14 @@ export default function AddStationPage() {
 
   const validateField = (name, value) => {
     switch (name) {
+      case "station_name":
+        if (!value.trim()) return "Station name is required";
+        if (value.trim().length < 2) return "Station name must be at least 2 characters";
+        return "";
+      case "address":
+        if (!value.trim()) return "Address is required";
+        if (value.trim().length < 5) return "Address must be at least 5 characters";
+        return "";
       case "manager":
         if (!value.trim()) return "Manager name is required";
         if (value.trim().length < 2) return "Name must be at least 2 characters";
@@ -78,13 +88,42 @@ export default function AddStationPage() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()) return alert("Please fix errors before submitting.");
+    if (!validateForm()) {
+      alert("Please fix errors before submitting.");
+      return;
+    }
+    
     setIsSubmitting(true);
     try {
-      await new Promise((r) => setTimeout(r, 1000)); // mock API
-      alert("Form submitted successfully!");
-    } catch {
-      alert("Submission failed.");
+      const response = await fetch('/api/stations/add', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          station_name: formData.station_name,
+          address: formData.address,
+          manager: formData.manager,
+          phone: formData.phone,
+          email: formData.email,
+          gst_name: formData.gstName,
+          gst_number: formData.gstNumber,
+          map_link: formData.mapsLink || null,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert("Station added successfully!");
+        handleReset();
+        router.push('/loading-stations');
+      } else {
+        alert(result.error || "Failed to add station. Please try again.");
+      }
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      alert("Submission failed. Please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -92,6 +131,8 @@ export default function AddStationPage() {
 
   const handleReset = () => {
     setFormData({
+      station_name: "",
+      address: "",
       manager: "",
       phone: "",
       email: "",
@@ -125,11 +166,39 @@ export default function AddStationPage() {
 
           <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-2xl p-6 md:p-10 mt-12">
             <h2 className="text-2xl font-semibold text-gray-800 mb-6 text-center">
-              Supplier Information
+              Add New Station
             </h2>
 
             {/* ✅ Form */}
             <form onSubmit={handleSubmit} className="space-y-5" noValidate>
+              {/* Station Name + Address */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                {[
+                  { label: "Station Name *", name: "station_name", type: "text" },
+                  { label: "Address *", name: "address", type: "text" },
+                ].map(({ label, name, type }) => (
+                  <div key={name}>
+                    <label className="block text-sm font-medium text-gray-600 mb-1">
+                      {label}
+                    </label>
+                    <input
+                      type={type}
+                      name={name}
+                      value={formData[name]}
+                      onChange={handleChange}
+                      onBlur={handleBlur}
+                      className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-400 outline-none ${
+                        errors[name] ? "border-red-500" : "border-gray-300"
+                      }`}
+                      placeholder={`Enter ${label.toLowerCase()}`}
+                    />
+                    {errors[name] && (
+                      <p className="text-red-500 text-sm mt-1">{errors[name]}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+
               {/* Manager + Phone */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {[
