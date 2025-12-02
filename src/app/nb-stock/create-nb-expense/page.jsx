@@ -79,7 +79,13 @@ function CreateExpenseForm() {
     setSubmitting(true);
 
     try {
+      // ✅ FIX: Get user ID from session
+      const userData = JSON.parse(localStorage.getItem('user') || sessionStorage.getItem('user') || '{}');
+      const userId = userData.id || 1;
+      
       const formDataToSend = new FormData(e.target);
+      formDataToSend.append('user_id', userId);
+      
       const res = await fetch('/api/nb-stock/create-nb-expense', {
         method: 'POST',
         body: formDataToSend,

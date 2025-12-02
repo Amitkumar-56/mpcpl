@@ -37,6 +37,9 @@ export async function POST(req) {
     const amount = parseFloat(formData.get('amount'));
     const station_product = formData.get('station_product');
     
+    // ✅ FIX: Get user ID from headers or form data
+    const user_id = formData.get('user_id') || req.headers.get('x-user-id') || 1;
+    
     const [station_id, product_id] = station_product.split('-').map(Number);
 
     // Validation
@@ -69,6 +72,9 @@ export async function POST(req) {
     }
 
     const currentStock = parseFloat(stockCheck[0].stock);
+    const oldStock = currentStock;
+    const newStock = currentStock - amount;
+    
     if (currentStock < amount) {
       return NextResponse.json(
         { 
@@ -87,13 +93,27 @@ export async function POST(req) {
       [payment_date, title, reason, paid_to, amount, station_id, product_id]
     );
 
-    // Update stock
+    // ✅ FIX: Update stock with created_by/updated_by for logging
     await executeQuery(
       `UPDATE non_billing_stocks 
-       SET stock = stock - ?, updated_at = NOW()
+       SET stock = stock - ?, updated_at = NOW(), updated_by = ?
        WHERE station_id = ? AND product_id = ?`,
-      [amount, station_id, product_id]
+      [amount, user_id, station_id, product_id]
     );
+
+    // ✅ FIX: Create log entry for stock update
+    try {
+      await executeQuery(
+        `INSERT INTO nb_stock_logs 
+         (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
+         VALUES (?, ?, 'Expense Deduction', ?, ?, ?, ?, NOW(), ?)`,
+        [station_id, product_id, oldStock, newStock, amount, user_id, `Expense: ${title} - ${reason || 'N/A'}`]
+      );
+      console.log('✅ NB Stock log created for expense deduction');
+    } catch (logError) {
+      console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
+      // Continue even if log creation fails
+    }
 
     return NextResponse.json({
       success: true,

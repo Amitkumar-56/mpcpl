@@ -17,27 +17,36 @@ function StockTable({ stockRequests }) {
   const [itemsPerPage] = useState(10);
 
   const getStatusBadge = (status) => {
-    const colorMap = {
-      1: "bg-blue-100 text-blue-800 border border-blue-200",
-      2: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-      3: "bg-green-100 text-green-800 border border-green-200",
-      4: "bg-red-100 text-red-800 border border-red-200",
+    // ✅ FIX: Handle both numeric and string status values
+    const statusValue = status?.toString().toLowerCase();
+    
+    // Map numeric values
+    const numericMap = {
+      '1': { text: "Dispatched", color: "bg-blue-100 text-blue-800 border border-blue-200" },
+      '2': { text: "Processing", color: "bg-yellow-100 text-yellow-800 border border-yellow-200" },
+      '3': { text: "Completed", color: "bg-green-100 text-green-800 border border-green-200" },
+      '4': { text: "Cancelled", color: "bg-red-100 text-red-800 border border-red-200" }
     };
     
-    const statusText = {
-      1: "Dispatched",
-      2: "Processing", 
-      3: "Completed",
-      4: "Cancelled"
+    // Map string values
+    const stringMap = {
+      'on_the_way': { text: "On The Way", color: "bg-blue-100 text-blue-800 border border-blue-200" },
+      'dispatched': { text: "Dispatched", color: "bg-blue-100 text-blue-800 border border-blue-200" },
+      'processing': { text: "Processing", color: "bg-yellow-100 text-yellow-800 border border-yellow-200" },
+      'completed': { text: "Completed", color: "bg-green-100 text-green-800 border border-green-200" },
+      'cancelled': { text: "Cancelled", color: "bg-red-100 text-red-800 border border-red-200" },
+      'pending': { text: "Pending", color: "bg-gray-100 text-gray-800 border border-gray-200" }
+    };
+    
+    // Check numeric first, then string, then default
+    const statusInfo = numericMap[statusValue] || stringMap[statusValue] || {
+      text: statusValue || "Pending",
+      color: "bg-gray-100 text-gray-800 border border-gray-200"
     };
     
     return (
-      <span
-        className={`px-3 py-1 rounded-full text-xs font-medium ${
-          colorMap[status] || "bg-gray-100 text-gray-800 border border-gray-200"
-        }`}
-      >
-        {statusText[status] || "Unknown"}
+      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+        {statusInfo.text}
       </span>
     );
   };

@@ -63,6 +63,9 @@ function StocksTable() {
                   <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
                     Stock
                   </th>
+                  <th className="p-4 text-left text-sm font-semibold text-gray-900 whitespace-nowrap">
+                    Logs
+                  </th>
                   <th className="p-4 text-center text-sm font-semibold text-gray-900 whitespace-nowrap">
                     Action
                   </th>
@@ -84,6 +87,33 @@ function StocksTable() {
                       <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                         {row.stock} units
                       </span>
+                    </td>
+                    <td className="p-4 text-sm text-gray-600">
+                      <div className="flex flex-col space-y-1">
+                        {row.created_by_name && (
+                          <div className="text-xs">
+                            <span className="font-medium text-gray-700">Created:</span> {row.created_by_name}
+                            {row.created_at && (
+                              <span className="text-gray-500 ml-1">
+                                ({new Date(row.created_at).toLocaleDateString('en-IN')})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {row.updated_by_name && (
+                          <div className="text-xs">
+                            <span className="font-medium text-gray-700">Updated:</span> {row.updated_by_name}
+                            {row.updated_at && (
+                              <span className="text-gray-500 ml-1">
+                                ({new Date(row.updated_at).toLocaleDateString('en-IN')})
+                              </span>
+                            )}
+                          </div>
+                        )}
+                        {!row.created_by_name && !row.updated_by_name && (
+                          <span className="text-xs text-gray-400">No logs</span>
+                        )}
+                      </div>
                     </td>
                     <td className="p-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
@@ -160,6 +190,53 @@ function StocksTable() {
                   <p className="text-xs font-medium text-gray-500">Product</p>
                   <p className="text-sm text-gray-900 mt-1">{row.pname}</p>
                 </div>
+
+                {/* Logs Section */}
+                {(row.created_by_name || row.updated_by_name) && (
+                  <div className="col-span-2 pt-2 border-t">
+                    <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
+                    <div className="space-y-1">
+                      {row.created_by_name && (
+                        <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                          <p className="text-xs text-blue-700">
+                            <span className="font-medium">Created:</span> {row.created_by_name}
+                            {row.created_at && (
+                              <span className="text-blue-600 ml-1">
+                                ({new Date(row.created_at).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {row.updated_by_name && (
+                        <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                          <p className="text-xs text-green-700">
+                            <span className="font-medium">Updated:</span> {row.updated_by_name}
+                            {row.updated_at && (
+                              <span className="text-green-600 ml-1">
+                                ({new Date(row.updated_at).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })})
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex gap-2 pt-2 border-t">
                   <Link

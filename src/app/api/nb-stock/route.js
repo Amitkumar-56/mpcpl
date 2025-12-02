@@ -23,35 +23,43 @@ export async function GET() {
       });
     }
 
-    // Step 2: Fetch data with simple query first
-    console.log('🔄 Fetching stock data...');
-    const simpleQuery = `
+    // Step 2: Fetch data with logs - GROUP BY to get aggregated stock
+    console.log('🔄 Fetching stock data with logs...');
+    const query = `
       SELECT 
-        id,
-        station_id,
-        product_id,
-        stock,
-        created_at
-      FROM non_billing_stocks 
-      ORDER BY created_at DESC
-      LIMIT 10
+        n.station_id,
+        n.product_id,
+        SUM(n.stock) as stock,
+        MAX(n.created_at) as created_at,
+        MAX(n.updated_at) as updated_at,
+        MAX(n.created_by) as created_by,
+        MAX(n.updated_by) as updated_by,
+        ep_created.name as created_by_name,
+        ep_updated.name as updated_by_name
+      FROM non_billing_stocks n
+      LEFT JOIN employee_profile ep_created ON n.created_by = ep_created.id
+      LEFT JOIN employee_profile ep_updated ON n.updated_by = ep_updated.id
+      GROUP BY n.station_id, n.product_id, ep_created.name, ep_updated.name
+      ORDER BY MAX(n.updated_at) DESC, MAX(n.created_at) DESC
     `;
     
-    let results = await executeQuery(simpleQuery);
-    console.log(`✅ Found ${results.length} raw records`);
+    let results = await executeQuery(query);
+    console.log(`✅ Found ${results.length} aggregated records`);
 
     // Step 3: If we have data, enhance with station and product names
     if (results.length > 0) {
       // Get station names
       const stationIds = [...new Set(results.map(row => row.station_id))];
-      const stationQuery = `SELECT id, station_name FROM filling_stations WHERE id IN (${stationIds.join(',')})`;
-      const stations = await executeQuery(stationQuery);
+      const stationPlaceholders = stationIds.map(() => '?').join(',');
+      const stationQuery = `SELECT id, station_name FROM filling_stations WHERE id IN (${stationPlaceholders})`;
+      const stations = await executeQuery(stationQuery, stationIds);
       console.log(`🏪 Found ${stations.length} stations`);
 
       // Get product names  
       const productIds = [...new Set(results.map(row => row.product_id))];
-      const productQuery = `SELECT id, pname FROM products WHERE id IN (${productIds.join(',')})`;
-      const products = await executeQuery(productQuery);
+      const productPlaceholders = productIds.map(() => '?').join(',');
+      const productQuery = `SELECT id, pname FROM products WHERE id IN (${productPlaceholders})`;
+      const products = await executeQuery(productQuery, productIds);
       console.log(`🛢️ Found ${products.length} products`);
 
       // Combine data
@@ -62,7 +70,8 @@ export async function GET() {
         return {
           ...row,
           station_name: station ? station.station_name : `Station ${row.station_id}`,
-          pname: product ? product.pname : `Product ${row.product_id}`
+          pname: product ? product.pname : `Product ${row.product_id}`,
+          stock: parseFloat(row.stock) || 0
         };
       });
     }

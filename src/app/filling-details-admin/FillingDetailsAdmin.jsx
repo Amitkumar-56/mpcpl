@@ -809,19 +809,25 @@ export default function FillingDetailsAdmin() {
                   {requestData.logs && (requestData.logs.created_by_name || requestData.logs.processed_by_name || requestData.logs.completed_by_name || requestData.logs.cancelled_by_name) ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      {requestData.logs.created_by_name && requestData.logs.created_by_name !== 'System' && (
+                      {/* Created By - Show for customer or employee */}
+                      {requestData.logs && requestData.logs.created_by_name && requestData.logs.created_by_name !== 'System' && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                           <div className="flex items-center mb-2">
                             <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
                               <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-sm font-semibold text-blue-900">Created By</span>
+                            <span className="text-sm font-semibold text-blue-900">
+                              {requestData.logs.created_by_type === 'customer' ? 'Created By (Customer)' : 'Created By'}
+                            </span>
+                            {requestData.logs.created_by_code && (
+                              <span className="text-xs text-blue-600 ml-2">({requestData.logs.created_by_code})</span>
+                            )}
                           </div>
                           <p className="text-sm text-gray-700 font-medium">{requestData.logs.created_by_name}</p>
-                          {requestData.logs.created_date && (
+                          {(requestData.logs.created_date || requestData.logs.created_date_formatted) && (
                             <p className="text-xs text-gray-500 mt-1">
-                              {new Date(requestData.logs.created_date).toLocaleString('en-IN', {
+                              {requestData.logs.created_date_formatted || new Date(requestData.logs.created_date).toLocaleString('en-IN', {
                                 day: '2-digit',
                                 month: '2-digit',
                                 year: 'numeric',
@@ -833,18 +839,22 @@ export default function FillingDetailsAdmin() {
                           )}
                         </div>
                       )}
-                      {requestData.logs.processed_by_name && (
+                      {/* Processed By - Only employee/admin */}
+                      {requestData.logs && requestData.logs.processed_by_name && (
                         <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                           <div className="flex items-center mb-2">
                             <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-sm font-semibold text-yellow-900">Processed By</span>
+                            <span className="text-sm font-semibold text-yellow-900">Processed By (Employee)</span>
+                            {requestData.logs.processed_by_code && (
+                              <span className="text-xs text-yellow-600 ml-2">({requestData.logs.processed_by_code})</span>
+                            )}
                           </div>
                           <p className="text-sm text-gray-700 font-medium">{requestData.logs.processed_by_name}</p>
-                          {requestData.logs.processed_date && (
+                          {(requestData.logs.processed_date || requestData.logs.processed_date_formatted) && (
                             <p className="text-xs text-gray-500 mt-1">
-                              {new Date(requestData.logs.processed_date).toLocaleString('en-IN', {
+                              {requestData.logs.processed_date_formatted || new Date(requestData.logs.processed_date).toLocaleString('en-IN', {
                                 day: '2-digit',
                                 month: '2-digit',
                                 year: 'numeric',
@@ -856,18 +866,22 @@ export default function FillingDetailsAdmin() {
                           )}
                         </div>
                       )}
-                      {requestData.logs.completed_by_name && (
+                      {/* Completed By - Only employee/admin */}
+                      {requestData.logs && requestData.logs.completed_by_name && (
                         <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                           <div className="flex items-center mb-2">
                             <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
                               <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                             </svg>
-                            <span className="text-sm font-semibold text-green-900">Completed By</span>
+                            <span className="text-sm font-semibold text-green-900">Completed By (Employee)</span>
+                            {requestData.logs.completed_by_code && (
+                              <span className="text-xs text-green-600 ml-2">({requestData.logs.completed_by_code})</span>
+                            )}
                           </div>
                           <p className="text-sm text-gray-700 font-medium">{requestData.logs.completed_by_name}</p>
-                          {requestData.logs.completed_date && (
+                          {(requestData.logs.completed_date || requestData.logs.completed_date_formatted) && (
                             <p className="text-xs text-gray-500 mt-1">
-                              {new Date(requestData.logs.completed_date).toLocaleString('en-IN', {
+                              {requestData.logs.completed_date_formatted || new Date(requestData.logs.completed_date).toLocaleString('en-IN', {
                                 day: '2-digit',
                                 month: '2-digit',
                                 year: 'numeric',

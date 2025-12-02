@@ -164,20 +164,33 @@ export async function GET(req) {
         credit_limit: data.credit_limit
       });
 
-      // Fetch complete logs from filling_logs table
-      // FIX: Check both employee_profile and customers table for created_by
+      // ✅ FIX: Fetch complete logs from filling_logs table with proper customer/employee name resolution
+      // Check both employee_profile and customers table for all log fields
       const logsQuery = `
         SELECT 
           fl.*,
-          COALESCE(ep_created.name, c_created.name) as created_by_name,
-          ep_processed.name as processed_by_name,
-          ep_completed.name as completed_by_name,
-          ep_cancelled.name as cancelled_by_name,
+          -- Created by: Check both customer and employee tables
+          COALESCE(ep_created.name, c_created.name, 'System') as created_by_name,
+          COALESCE(ep_created.emp_code, c_created.email, '') as created_by_code,
           CASE 
             WHEN c_created.id IS NOT NULL THEN 'customer'
             WHEN ep_created.id IS NOT NULL THEN 'employee'
-            ELSE 'unknown'
-          END as created_by_type
+            ELSE 'system'
+          END as created_by_type,
+          -- Processed by: Only employee (admin/team leader)
+          COALESCE(ep_processed.name, '') as processed_by_name,
+          COALESCE(ep_processed.emp_code, '') as processed_by_code,
+          -- Completed by: Only employee (admin/team leader)
+          COALESCE(ep_completed.name, '') as completed_by_name,
+          COALESCE(ep_completed.emp_code, '') as completed_by_code,
+          -- Cancelled by: Only employee
+          COALESCE(ep_cancelled.name, '') as cancelled_by_name,
+          COALESCE(ep_cancelled.emp_code, '') as cancelled_by_code,
+          -- Format dates properly
+          DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') as created_date_formatted,
+          DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') as processed_date_formatted,
+          DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') as completed_date_formatted,
+          DATE_FORMAT(fl.cancelled_date, '%d/%m/%Y %h:%i %p') as cancelled_date_formatted
         FROM filling_logs fl
         LEFT JOIN employee_profile ep_created ON fl.created_by = ep_created.id
         LEFT JOIN customers c_created ON fl.created_by = c_created.id
@@ -185,9 +198,39 @@ export async function GET(req) {
         LEFT JOIN employee_profile ep_completed ON fl.completed_by = ep_completed.id
         LEFT JOIN employee_profile ep_cancelled ON fl.cancelled_by = ep_cancelled.id
         WHERE fl.request_id = ?
+        ORDER BY fl.id DESC
+        LIMIT 1
       `;
       const logs = await executeQuery(logsQuery, [data.rid]);
       data.logs = logs.length > 0 ? logs[0] : null;
+      
+      // ✅ FIX: If no logs found, try to get created_by from filling_requests
+      if (!data.logs || !data.logs.created_by_name || data.logs.created_by_name === 'System') {
+        const fallbackQuery = `
+          SELECT 
+            fr.cid,
+            COALESCE(c.name, ep.name, 'System') as created_by_name,
+            CASE 
+              WHEN c.id IS NOT NULL THEN 'customer'
+              WHEN ep.id IS NOT NULL THEN 'employee'
+              ELSE 'system'
+            END as created_by_type
+          FROM filling_requests fr
+          LEFT JOIN customers c ON fr.cid = c.id
+          LEFT JOIN filling_logs fl ON fr.rid = fl.request_id
+          LEFT JOIN employee_profile ep ON fl.created_by = ep.id
+          WHERE fr.rid = ?
+          LIMIT 1
+        `;
+        const fallbackResult = await executeQuery(fallbackQuery, [data.rid]);
+        if (fallbackResult.length > 0 && fallbackResult[0].created_by_name !== 'System') {
+          if (!data.logs) {
+            data.logs = {};
+          }
+          data.logs.created_by_name = fallbackResult[0].created_by_name;
+          data.logs.created_by_type = fallbackResult[0].created_by_type;
+        }
+      }
 
       // Fetch edit logs if table exists
       try {
@@ -577,14 +620,18 @@ function getIndianTime() {
   return istTime.toISOString().slice(0, 19).replace('T', ' ');
 }
 
+// ✅ FIX: Comprehensive logging function that handles customer and employee IDs properly
 async function updateFillingLogs(request_id, status, userId) {
   try {
-    const checkQuery = `SELECT id FROM filling_logs WHERE request_id = ?`;
+    console.log('📝 Updating filling logs:', { request_id, status, userId });
+    
+    const checkQuery = `SELECT id, created_by FROM filling_logs WHERE request_id = ?`;
     const existingLogs = await executeQuery(checkQuery, [request_id]);
     
     const now = getIndianTime();
     
     if (existingLogs.length > 0) {
+      // Log already exists, update the appropriate field
       let updateQuery = '';
       let queryParams = [];
       
@@ -592,28 +639,98 @@ async function updateFillingLogs(request_id, status, userId) {
         case 'Processing':
           updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
           queryParams = [userId, now, request_id];
+          console.log('✅ Updating processed_by log:', { userId, now });
           break;
         case 'Completed':
           updateQuery = `UPDATE filling_logs SET completed_by = ?, completed_date = ? WHERE request_id = ?`;
           queryParams = [userId, now, request_id];
+          console.log('✅ Updating completed_by log:', { userId, now });
           break;
         case 'Cancel':
           updateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
           queryParams = [userId, now, request_id];
+          console.log('✅ Updating cancelled_by log:', { userId, now });
           break;
         default:
+          console.log('⚠️ No log update needed for status:', status);
           return;
       }
       
       if (updateQuery) {
         await executeQuery(updateQuery, queryParams);
+        console.log('✅ Filling log updated successfully');
       }
     } else {
+      // No log exists, create one
+      // ✅ FIX: Check if created_by should be customer or employee
+      // First, get the request to find customer ID
+      const requestQuery = `SELECT cid FROM filling_requests WHERE rid = ?`;
+      const requestResult = await executeQuery(requestQuery, [request_id]);
+      
+      let createdById = userId; // Default to userId (employee)
+      
+      if (requestResult.length > 0 && requestResult[0].cid) {
+        // Check if userId matches customer ID (customer created it)
+        const customerId = requestResult[0].cid;
+        const customerCheck = await executeQuery(
+          `SELECT id FROM customers WHERE id = ?`,
+          [customerId]
+        );
+        
+        // If userId is customer ID, use customer ID; otherwise use employee ID
+        if (customerCheck.length > 0 && parseInt(userId) === parseInt(customerId)) {
+          createdById = customerId;
+          console.log('✅ Request created by customer:', customerId);
+        } else {
+          // Check if there's a filling_logs entry from customer creation
+          const customerLogCheck = await executeQuery(
+            `SELECT created_by FROM filling_logs WHERE request_id = ? AND created_by IN (SELECT id FROM customers WHERE id = ?)`,
+            [request_id, customerId]
+          );
+          if (customerLogCheck.length > 0) {
+            createdById = customerLogCheck[0].created_by;
+            console.log('✅ Found existing customer log, using customer ID:', createdById);
+          } else {
+            // Use employee ID
+            createdById = userId;
+            console.log('✅ Using employee ID for created_by:', userId);
+          }
+        }
+      }
+      
       const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
-      await executeQuery(insertQuery, [request_id, userId, now]);
+      await executeQuery(insertQuery, [request_id, createdById, now]);
+      console.log('✅ New filling log created:', { request_id, created_by: createdById, created_date: now });
+      
+      // If status is Processing/Completed/Cancel, also update that field (but avoid recursion)
+      if (status === 'Processing' || status === 'Completed' || status === 'Cancel') {
+        let updateQuery = '';
+        let queryParams = [];
+        
+        switch (status) {
+          case 'Processing':
+            updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
+            queryParams = [userId, now, request_id];
+            break;
+          case 'Completed':
+            updateQuery = `UPDATE filling_logs SET completed_by = ?, completed_date = ? WHERE request_id = ?`;
+            queryParams = [userId, now, request_id];
+            break;
+          case 'Cancel':
+            updateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
+            queryParams = [userId, now, request_id];
+            break;
+        }
+        
+        if (updateQuery) {
+          await executeQuery(updateQuery, queryParams);
+          console.log('✅ Status field updated in new log');
+        }
+      }
     }
   } catch (error) {
     console.error('❌ Error updating filling_logs:', error);
+    console.error('Error stack:', error.stack);
   }
 }
 
@@ -853,10 +970,10 @@ async function handleCompletedStatus(data) {
   const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
   await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
 
-  // Handle non-billing stocks if needed
-  if (billing_type == 2) {
-    await handleNonBillingStocks(fs_id, product_id, aqty);
-  }
+    // Handle non-billing stocks if needed
+    if (billing_type == 2) {
+      await handleNonBillingStocks(fs_id, product_id, aqty, userId);
+    }
 
   // Update wallet history - using same logic as filling_history
   await updateWalletHistory(cl_id, rid, calculatedAmount, 
@@ -1014,8 +1131,10 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
   }
 }
 
-async function handleNonBillingStocks(station_id, product_id, aqty) {
+async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
   try {
+    // ✅ FIX: Use userId passed as parameter
+    
     // For outward transactions, ADD stock to non_billing_stocks
     // When non-billing customer completes request, stock is added (outward)
     const checkQuery = `SELECT stock FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
@@ -1025,16 +1144,44 @@ async function handleNonBillingStocks(station_id, product_id, aqty) {
       const existingStock = parseFloat(result[0].stock) || 0;
       const updatedStock = existingStock + aqty; // ADD stock (outward transaction)
       await executeQuery(
-        `UPDATE non_billing_stocks SET stock = ? WHERE station_id = ? AND product_id = ?`,
-        [updatedStock, station_id, product_id]
+        `UPDATE non_billing_stocks SET stock = ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`,
+        [updatedStock, userId, station_id, product_id]
       );
+      
+      // ✅ FIX: Create log entry
+      try {
+        await executeQuery(
+          `INSERT INTO nb_stock_logs 
+           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
+           VALUES (?, ?, 'Stock Added (Outward)', ?, ?, ?, ?, NOW(), ?)`,
+          [station_id, product_id, existingStock, updatedStock, aqty, userId, 'Filling request completed - Non-billing customer']
+        );
+        console.log('✅ NB Stock log created for outward transaction');
+      } catch (logError) {
+        console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
+      }
+      
       console.log(`✅ Added non-billing stock (outward): ${existingStock} + ${aqty} = ${updatedStock}`);
     } else {
       // If no stock record exists, create one with the quantity (outward adds stock)
       await executeQuery(
-        `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at) VALUES (?, ?, ?, NOW())`,
-        [station_id, product_id, aqty]
+        `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)`,
+        [station_id, product_id, aqty, userId]
       );
+      
+      // ✅ FIX: Create log entry for new stock
+      try {
+        await executeQuery(
+          `INSERT INTO nb_stock_logs 
+           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
+           VALUES (?, ?, 'Stock Created', 0, ?, ?, ?, NOW(), ?)`,
+          [station_id, product_id, aqty, aqty, userId, 'New stock record - Filling request completed']
+        );
+        console.log('✅ NB Stock log created for new stock');
+      } catch (logError) {
+        console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
+      }
+      
       console.log(`✅ Created new non-billing stock record with ${aqty} (outward)`);
     }
   } catch (error) {
