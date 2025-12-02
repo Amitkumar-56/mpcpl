@@ -204,11 +204,11 @@ export async function POST(request) {
 
 export async function GET(request) {
   try {
-    console.log('Fetching form data...');
+    console.log('📡 Fetching form data for create-voucher...');
     
     // Fetch stations and employees for the form
-    // ✅ FIX: Include status check and ensure proper field selection
-    const [stations, employees] = await Promise.all([
+    // ✅ FIX: Handle role as both string and number, and ensure proper field selection
+    const [stationsResult, employeesResult, allEmployeesCheck] = await Promise.all([
       executeQuery('SELECT id, station_name FROM filling_stations WHERE status = 1 ORDER BY station_name'),
       executeQuery(`
         SELECT 
@@ -219,37 +219,75 @@ export async function GET(request) {
           role,
           status
         FROM employee_profile 
-        WHERE role <> 5 AND status = 1
+        WHERE CAST(role AS CHAR) <> '5' AND status = 1
         ORDER BY name ASC
+      `),
+      // Debug query to check total employees in database
+      executeQuery(`
+        SELECT COUNT(*) as total_count, 
+               SUM(CASE WHEN status = 1 THEN 1 ELSE 0 END) as active_count,
+               SUM(CASE WHEN CAST(role AS CHAR) = '5' THEN 1 ELSE 0 END) as admin_count
+        FROM employee_profile
       `)
     ]);
 
-    console.log('Form data fetched successfully:', {
-      stations: stations?.length,
-      employees: employees?.length,
-      employeeIds: employees?.map(emp => ({ id: emp.id, name: emp.name }))
+    // ✅ FIX: Handle both array and object results from executeQuery
+    const stations = Array.isArray(stationsResult) ? stationsResult : (stationsResult?.rows || stationsResult || []);
+    const employees = Array.isArray(employeesResult) ? employeesResult : (employeesResult?.rows || employeesResult || []);
+    
+    // Debug info
+    const debugInfo = Array.isArray(allEmployeesCheck) ? allEmployeesCheck[0] : (allEmployeesCheck?.rows?.[0] || allEmployeesCheck || {});
+
+    console.log('📊 Form data fetched:', {
+      stationsCount: stations?.length || 0,
+      employeesCount: employees?.length || 0,
+      employeesRaw: employees?.slice(0, 3), // First 3 for debugging
+      allEmployeeIds: employees?.map(emp => ({ id: emp.id, name: emp.name, role: emp.role, status: emp.status })),
+      debugInfo: {
+        totalEmployees: debugInfo.total_count,
+        activeEmployees: debugInfo.active_count,
+        adminEmployees: debugInfo.admin_count
+      }
     });
 
-    // ✅ FIX: Ensure employees have proper structure
-    const formattedEmployees = (employees || []).map(emp => ({
-      id: emp.id,
-      name: emp.name || emp.emp_code || `Employee ${emp.id}`,
-      emp_code: emp.emp_code,
-      phone: emp.phone
-    }));
+    // ✅ FIX: Ensure employees have proper structure and filter out any invalid entries
+    const formattedEmployees = (employees || [])
+      .filter(emp => emp && emp.id) // Filter out null/undefined entries
+      .map(emp => ({
+        id: parseInt(emp.id) || emp.id, // Ensure ID is numeric
+        name: emp.name || emp.emp_code || `Employee ${emp.id}`,
+        emp_code: emp.emp_code || '',
+        phone: emp.phone || ''
+      }));
 
+    console.log('✅ Formatted employees:', {
+      count: formattedEmployees.length,
+      sample: formattedEmployees.slice(0, 3)
+    });
+
+    // ✅ FIX: Return proper structure even if empty
     return NextResponse.json({
+      success: true,
       stations: stations || [],
-      employees: formattedEmployees
+      employees: formattedEmployees || []
     });
 
   } catch (error) {
-    console.error('Error fetching form data:', error);
+    console.error('❌ Error fetching form data:', error);
     console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      sqlMessage: error.sqlMessage
+    });
+    
     return NextResponse.json(
       { 
+        success: false,
         error: 'Failed to fetch form data',
-        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined,
+        stations: [],
+        employees: []
       },
       { status: 500 }
     );

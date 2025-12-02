@@ -43,30 +43,45 @@ function CreateVoucherContent() {
   const fetchFormData = async () => {
     try {
       setLoading(true);
+      setError(''); // Clear previous errors
+      
       const response = await fetch('/api/create-voucher');
       const data = await response.json();
       
-      console.log('📡 Fetched form data:', {
-        stationsCount: data.stations?.length,
-        employeesCount: data.employees?.length,
-        employees: data.employees
+      console.log('📡 Fetched form data response:', {
+        success: data.success,
+        stationsCount: data.stations?.length || 0,
+        employeesCount: data.employees?.length || 0,
+        employees: data.employees,
+        error: data.error
       });
       
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to fetch form data');
+      if (!response.ok || !data.success) {
+        const errorMsg = data.error || 'Failed to fetch form data';
+        console.error('❌ API Error:', errorMsg, data.details);
+        setError(errorMsg + (data.details ? `: ${data.details}` : ''));
+        setStations([]);
+        setEmployees([]);
+        return;
       }
       
+      // ✅ Set stations and employees
       setStations(data.stations || []);
       setEmployees(data.employees || []);
       
       // ✅ Debug: Log if employees are empty
       if (!data.employees || data.employees.length === 0) {
-        console.warn('⚠️ No employees found in response');
-        setError('No employees available. Please check database.');
+        console.warn('⚠️ No employees found in response. Checking database...');
+        setError('No employees available. Please check database or contact administrator.');
+      } else {
+        console.log('✅ Employees loaded successfully:', data.employees.length);
+        setError(''); // Clear error if employees are found
       }
     } catch (error) {
       console.error('❌ Error fetching form data:', error);
       setError('Failed to load form data: ' + error.message);
+      setStations([]);
+      setEmployees([]);
     } finally {
       setLoading(false);
     }
