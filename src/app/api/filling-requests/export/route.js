@@ -32,11 +32,21 @@ export async function GET(request) {
       LEFT JOIN (
         SELECT 
           fl.request_id,
-          COALESCE(c.name, ep.name, 'System') as created_by_name
+          COALESCE(
+            (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
+            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+            'System'
+          ) as created_by_name
         FROM filling_logs fl
-        LEFT JOIN customers c ON fl.created_by = c.id
-        LEFT JOIN employee_profile ep ON fl.created_by = ep.id
         WHERE fl.created_by IS NOT NULL
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.created_by IS NOT NULL
+          ORDER BY fl2.created_date DESC, fl2.id DESC
+          LIMIT 1
+        )
       ) fl_created ON fr.rid = fl_created.request_id
       LEFT JOIN filling_logs fl_processing ON fr.rid = fl_processing.request_id
       LEFT JOIN employee_profile ep_processing ON fl_processing.processed_by = ep_processing.id

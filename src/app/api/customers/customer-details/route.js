@@ -502,12 +502,26 @@ export async function GET(request) {
         if (logs) {
           for (const log of logs) {
             if (log.created_by) {
-              const creator = await executeQuery(
+              // Check customers table first, then employee_profile
+              const creatorCustomer = await executeQuery(
                 "SELECT name FROM customers WHERE id = ?",
                 [log.created_by]
               );
+              let creatorName = null;
+              if (creatorCustomer && creatorCustomer[0]?.name) {
+                creatorName = creatorCustomer[0].name;
+              } else {
+                // If not found in customers, check employee_profile
+                const creatorEmployee = await executeQuery(
+                  "SELECT name FROM employee_profile WHERE id = ?",
+                  [log.created_by]
+                );
+                if (creatorEmployee && creatorEmployee[0]?.name) {
+                  creatorName = creatorEmployee[0].name;
+                }
+              }
               logData.Created = {
-                name: (creator && creator[0]?.name) ? creator[0].name : "Unknown",
+                name: creatorName || "Unknown",
                 date: log.created_date
                   ? new Date(log.created_date).toLocaleString("en-IN")
                   : "",

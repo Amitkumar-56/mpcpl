@@ -385,6 +385,19 @@ export default function CreateRequestForm() {
       return
     }
     
+    // STRICT Validation: Station and Product must be selected before submission
+    if (!formData.station_id || formData.station_id === '') {
+      setErrors(prev => ({ ...prev, station_id: 'Please select a filling station' }));
+      alert('❌ Please select a Filling Station before submitting the request.');
+      return;
+    }
+
+    if (!formData.product_id || formData.product_id === '') {
+      setErrors(prev => ({ ...prev, product_id: 'Please select a product' }));
+      alert('❌ Please select a Product before submitting the request.');
+      return;
+    }
+    
     // Validate form
     if (!validateForm()) {
       return;
@@ -787,6 +800,7 @@ export default function CreateRequestForm() {
                           name="product_id"
                           value={formData.product_id}
                           onChange={handleChange}
+                          required
                           className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
                             errors.product_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
                           }`}
@@ -825,6 +839,7 @@ export default function CreateRequestForm() {
                           name="station_id"
                           value={formData.station_id}
                           onChange={handleChange}
+                          required
                           className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
                             errors.station_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
                           }`}

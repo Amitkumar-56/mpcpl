@@ -169,12 +169,20 @@ export async function GET(req) {
       const logsQuery = `
         SELECT 
           fl.*,
-          -- Created by: Check both customer and employee tables
-          COALESCE(ep_created.name, c_created.name, 'System') as created_by_name,
-          COALESCE(ep_created.emp_code, c_created.email, '') as created_by_code,
+          -- Created by: Check customers FIRST, then employee_profile
+          COALESCE(
+            (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
+            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+            'System'
+          ) as created_by_name,
+          COALESCE(
+            (SELECT c.email FROM customers c WHERE c.id = fl.created_by LIMIT 1),
+            (SELECT ep.emp_code FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+            ''
+          ) as created_by_code,
           CASE 
-            WHEN c_created.id IS NOT NULL THEN 'customer'
-            WHEN ep_created.id IS NOT NULL THEN 'employee'
+            WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
+            WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
             ELSE 'system'
           END as created_by_type,
           -- Processed by: Only employee (admin/team leader)
@@ -192,8 +200,6 @@ export async function GET(req) {
           DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') as completed_date_formatted,
           DATE_FORMAT(fl.cancelled_date, '%d/%m/%Y %h:%i %p') as cancelled_date_formatted
         FROM filling_logs fl
-        LEFT JOIN employee_profile ep_created ON fl.created_by = ep_created.id
-        LEFT JOIN customers c_created ON fl.created_by = c_created.id
         LEFT JOIN employee_profile ep_processed ON fl.processed_by = ep_processed.id
         LEFT JOIN employee_profile ep_completed ON fl.completed_by = ep_completed.id
         LEFT JOIN employee_profile ep_cancelled ON fl.cancelled_by = ep_cancelled.id
@@ -209,14 +215,17 @@ export async function GET(req) {
         const fallbackQuery = `
           SELECT 
             fr.cid,
-            COALESCE(c.name, ep.name, 'System') as created_by_name,
+            COALESCE(
+              (SELECT c.name FROM customers c WHERE c.id = fr.cid LIMIT 1),
+              (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.cid LIMIT 1),
+              'System'
+            ) as created_by_name,
             CASE 
-              WHEN c.id IS NOT NULL THEN 'customer'
-              WHEN ep.id IS NOT NULL THEN 'employee'
+              WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fr.cid) THEN 'customer'
+              WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fr.cid) THEN 'employee'
               ELSE 'system'
             END as created_by_type
           FROM filling_requests fr
-          LEFT JOIN customers c ON fr.cid = c.id
           LEFT JOIN filling_logs fl ON fr.rid = fl.request_id
           LEFT JOIN employee_profile ep ON fl.created_by = ep.id
           WHERE fr.rid = ?

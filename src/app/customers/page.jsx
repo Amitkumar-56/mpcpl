@@ -1,11 +1,11 @@
 // src/app/customers/page.jsx
 "use client";
 
+import { useSession } from '@/context/SessionContext';
+import DayLimitManager from "components/DayLimitManager";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import DayLimitManager from "components/DayLimitManager";
-import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -18,7 +18,7 @@ import {
   BiShow,
   BiTrash
 } from "react-icons/bi";
-import { FaToggleOn, FaToggleOff } from "react-icons/fa";
+import { FaToggleOff, FaToggleOn } from "react-icons/fa";
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -308,7 +308,7 @@ export default function CustomersPage() {
       key: 'edit',
       icon: BiEdit,
       label: 'Edit',
-      href: (id) => `/customers/edit/${id}`,
+      href: (id) => `/customers/edit?id=${id}`,
       color: 'bg-yellow-500 hover:bg-yellow-600',
       show: permissions.can_edit
     },

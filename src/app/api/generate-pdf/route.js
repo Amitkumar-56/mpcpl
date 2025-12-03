@@ -40,22 +40,28 @@ export async function GET(req) {
       LEFT JOIN (
         SELECT 
           fl.request_id,
+          fl.created_by,
+          fl.created_date,
           COALESCE(
-            MAX(CASE WHEN c_sub.id IS NOT NULL THEN c_sub.name END),
-            MAX(CASE WHEN ep_sub.id IS NOT NULL THEN ep_sub.name END),
-            NULL
+            (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
+            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+            'System'
           ) as created_by_name,
           CASE 
-            WHEN MAX(c_sub.id) IS NOT NULL THEN 'customer'
-            WHEN MAX(ep_sub.id) IS NOT NULL THEN 'employee'
-            ELSE 'unknown'
-          END as created_by_type,
-          MAX(fl.created_date) as created_date
+            WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
+            WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
+            ELSE 'system'
+          END as created_by_type
         FROM filling_logs fl
-        LEFT JOIN customers c_sub ON fl.created_by = c_sub.id
-        LEFT JOIN employee_profile ep_sub ON fl.created_by = ep_sub.id AND c_sub.id IS NULL
         WHERE fl.created_by IS NOT NULL
-        GROUP BY fl.request_id
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.created_by IS NOT NULL
+          ORDER BY fl2.created_date DESC, fl2.id DESC
+          LIMIT 1
+        )
       ) fl_created ON fr.rid = fl_created.request_id
       LEFT JOIN filling_logs fl_processed ON fr.rid = fl_processed.request_id AND fl_processed.processed_by IS NOT NULL
       LEFT JOIN employee_profile ep_processed ON fl_processed.processed_by = ep_processed.id

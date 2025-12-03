@@ -4,6 +4,7 @@
 import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
+import ChatBox from "@/components/ChatBox";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -873,6 +874,15 @@ export default function CustomerDashboardPage() {
             </span>
           )}
         </button>
+      )}
+
+      {/* ChatBox Component */}
+      {user && (
+        <ChatBox 
+          customerId={user.id} 
+          customerName={user.name} 
+          userRole="customer"
+        />
       )}
     </div>
   );
