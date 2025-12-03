@@ -7,7 +7,7 @@ import Sidebar from "components/sidebar";
 import DayLimitManager from "components/DayLimitManager";
 import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BiCoin,
   BiEdit,
@@ -287,6 +287,7 @@ export default function CustomersPage() {
   const closeDayLimitManager = useCallback(() => {
     setDayLimitCustomer(null);
   }, []);
+  const [expandedRows, setExpandedRows] = useState(new Set());
 
   // Calculate remaining limit
   const calculateRemainingLimit = useCallback((balance, limit) => {
@@ -570,8 +571,8 @@ export default function CustomersPage() {
                   </div>
 
                   {/* Desktop Table */}
-                  <div className="hidden lg:block overflow-x-auto rounded-lg border border-gray-200">
-                    <table className="w-full min-w-[1400px]">
+                  <div className="hidden lg:block rounded-lg border border-gray-200">
+                    <table className="w-full">
                       <thead>
                         <tr className="bg-gradient-to-r from-purple-50 to-pink-50">
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">ID</th>
@@ -579,18 +580,12 @@ export default function CustomersPage() {
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Email</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Phone</th>
                           <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Client Type</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Billing Type</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Credit Limit</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Outstanding</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Remaining Limit</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Day Limit Status</th>
-                          <th className="text-left p-4 font-bold text-purple-700 border-b border-purple-200">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
                         {currentCustomers.length === 0 ? (
                           <tr>
-                            <td colSpan="12" className="p-8 text-center text-gray-700 font-semibold">
+                            <td colSpan="5" className="p-8 text-center text-gray-700 font-semibold">
                               {search ? 'No customers found matching your search' : `No ${activeFilter !== 'all' ? activeFilter : ''} customers found`}
                             </td>
                           </tr>
@@ -603,7 +598,8 @@ export default function CustomersPage() {
                             const statusInfo = getStatusColor(c.balance, c.cst_limit);
                             
                             return (
-                              <tr key={c.id} className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200">
+                              <React.Fragment key={c.id}>
+                                <tr className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200">
                                 <td className="p-4 font-mono text-purple-600 font-bold">#{c.id}</td>
                                 <td className="p-4">
                                   <div className="flex items-center space-x-3">
@@ -628,135 +624,188 @@ export default function CustomersPage() {
                                   <div className="text-gray-900 font-medium">{c.phone || 'No phone'}</div>
                                 </td>
                                 <td className="p-4">
-                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${clientTypeInfo.color}`}>
-                                    {clientTypeInfo.text}
-                                    {c.client_type === "3" && c.day_limit && (
-                                      <span className="ml-1 text-xs">({c.day_limit}d)</span>
-                                    )}
-                                  </span>
-                                </td>
-                                <td className="p-4">
-                                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${billingInfo.color}`}>
-                                    {billingInfo.text}
-                                  </span>
-                                </td>
-                                <td className="p-4">
-                                  {c.client_type === "3" ? (
-                                    <span className="font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-lg border border-gray-200 cursor-not-allowed text-sm" title="Day Limit customer - credit limit disabled">
-                                      Disabled
+                                  <div className="flex items-center gap-2">
+                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${clientTypeInfo.color}`}>
+                                      {clientTypeInfo.text}
+                                      {c.client_type === "3" && c.day_limit && (
+                                        <span className="ml-1 text-xs">({c.day_limit}d)</span>
+                                      )}
                                     </span>
-                                  ) : (
                                     <button
-                                      onClick={() => handleLimitClick(c.id, c.name)}
-                                      className="font-bold text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer bg-purple-50 hover:bg-purple-100 px-3 py-1 rounded-lg border border-purple-200 text-sm"
-                                      title="Click to manage credit limit"
-                                    >
-                                      ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
-                                    </button>
-                                  )}
-                                </td>
-                                <td className="p-4">
-                                  <span className="font-bold text-red-600">₹{(c.balance || 0).toLocaleString('en-IN')}</span>
-                                </td>
-                                <td className="p-4">
-                                  {c.client_type === "3" ? (
-                                    <span className="font-bold text-gray-400 text-sm">N/A</span>
-                                  ) : (
-                                    <span className={`font-bold text-sm ${
-                                      calculateRemainingLimit(c.balance, c.cst_limit) <= 0 
-                                        ? "text-red-600" 
-                                        : calculateRemainingLimit(c.balance, c.cst_limit) < (c.cst_limit * 0.3) 
-                                          ? "text-yellow-600" 
-                                          : "text-green-600"
-                                    }`}>
-                                      ₹{calculateRemainingLimit(c.balance, c.cst_limit).toLocaleString('en-IN')}
-                                    </span>
-                                  )}
-                                </td>
-                                <td className="p-4">
-                                  {dayLimitStatus ? (
-                                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${dayLimitStatus.color}`}>
-                                      {dayLimitStatus.text}
-                                    </span>
-                                  ) : (
-                                    <span className="text-gray-400 text-sm">N/A</span>
-                                  )}
-                                </td>
-                                
-                                <td className="p-4">
-                                  <div className="flex flex-wrap gap-1 w-40">
-                                    {actionButtons
-                                      .filter(action => action.show)
-                                      .map((action) => {
-                                        const commonClasses = `p-2 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
-                                        
-                                        if (action.key === 'delete') {
-                                          return (
-                                            <button
-                                              key={action.key}
-                                              onClick={() => action.onClick(c.id)}
-                                              className={commonClasses}
-                                              title={action.label}
-                                            >
-                                              <action.icon className="w-3 h-3" />
-                                            </button>
-                                          );
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedRows);
+                                        if (newExpanded.has(c.id)) {
+                                          newExpanded.delete(c.id);
+                                        } else {
+                                          newExpanded.add(c.id);
                                         }
-                                        
-                                        return (
-                                          <Link
-                                            key={action.key}
-                                            href={action.href(c.id)}
-                                            className={commonClasses}
-                                            title={action.label}
-                                          >
-                                            <action.icon className="w-3 h-3" />
-                                          </Link>
-                                        );
-                                      })}
-                                    {isAdmin && (
-                                      <button
-                                        onClick={() => handleStatusToggle(c.id, c.status)}
-                                        disabled={updatingStatus[c.id]}
-                                        className={`p-2 rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200 ${
-                                          c.status === 1
-                                            ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                            : 'bg-gray-500 text-white hover:bg-gray-600'
-                                        }`}
-                                        title={c.status === 1 ? 'Deactivate' : 'Activate'}
-                                      >
-                                        {updatingStatus[c.id] ? (
-                                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                        ) : c.status === 1 ? (
-                                          <FaToggleOn className="text-sm" />
-                                        ) : (
-                                          <FaToggleOff className="text-sm" />
-                                        )}
-                                      </button>
-                                    )}
-                                    {c.client_type === "3" && (
-                                      <button
-                                        onClick={() => openDayLimitManager(c)}
-                                        className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
-                                        title="Manage Day Limit"
-                                      >
-                                        DL
-                                      </button>
-                                    )}
-                                    <button
-                                      onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
-                                      className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
-                                      title={
-                                        c.client_type === '3' 
-                                          ? 'Switch to Postpaid' 
-                                          : `Switch to Day Limit`
-                                      }
+                                        setExpandedRows(newExpanded);
+                                      }}
+                                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
+                                      title={expandedRows.has(c.id) ? "Hide Details" : "Show Details"}
                                     >
-                                      SW
+                                      {expandedRows.has(c.id) ? (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                        </svg>
+                                      ) : (
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                        </svg>
+                                      )}
                                     </button>
                                   </div>
                                 </td>
                               </tr>
+                              {expandedRows.has(c.id) && (
+                                <tr className="bg-green-50 border-b">
+                                  <td colSpan="5" className="p-4">
+                                    <div className="space-y-4 animate-fade-in">
+                                      <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
+                                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                        {/* Billing Type */}
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <div className="text-xs font-medium text-gray-500 mb-1">Billing Type</div>
+                                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}>
+                                            {billingInfo.text}
+                                          </span>
+                                        </div>
+
+                                        {/* Credit Limit */}
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <div className="text-xs font-medium text-gray-500 mb-1">Credit Limit</div>
+                                          {c.client_type === "3" ? (
+                                            <span className="text-sm font-bold text-gray-400">Disabled</span>
+                                          ) : (
+                                            <button
+                                              onClick={() => handleLimitClick(c.id, c.name)}
+                                              className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline transition-all duration-200 cursor-pointer"
+                                              title="Click to manage credit limit"
+                                            >
+                                              ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Outstanding */}
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <div className="text-xs font-medium text-gray-500 mb-1">Outstanding</div>
+                                          <div className="text-sm font-bold text-red-600">
+                                            ₹{(c.balance || 0).toLocaleString('en-IN')}
+                                          </div>
+                                        </div>
+
+                                        {/* Remaining Limit */}
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <div className="text-xs font-medium text-gray-500 mb-1">Remaining Limit</div>
+                                          {c.client_type === "3" ? (
+                                            <span className="text-sm font-bold text-gray-400">N/A</span>
+                                          ) : (
+                                            <span className={`text-sm font-bold ${
+                                              calculateRemainingLimit(c.balance, c.cst_limit) <= 0 
+                                                ? "text-red-600" 
+                                                : calculateRemainingLimit(c.balance, c.cst_limit) < (c.cst_limit * 0.3) 
+                                                  ? "text-yellow-600" 
+                                                  : "text-green-600"
+                                            }`}>
+                                              ₹{calculateRemainingLimit(c.balance, c.cst_limit).toLocaleString('en-IN')}
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* Day Limit Status */}
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <div className="text-xs font-medium text-gray-500 mb-1">Day Limit Status</div>
+                                          {dayLimitStatus ? (
+                                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${dayLimitStatus.color}`}>
+                                              {dayLimitStatus.text}
+                                            </span>
+                                          ) : (
+                                            <span className="text-xs text-gray-400">N/A</span>
+                                          )}
+                                        </div>
+
+                                        {/* Actions */}
+                                        <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                          <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
+                                          <div className="flex flex-wrap gap-1">
+                                            {actionButtons
+                                              .filter(action => action.show)
+                                              .map((action) => {
+                                                const commonClasses = `p-2 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
+                                                
+                                                if (action.key === 'delete') {
+                                                  return (
+                                                    <button
+                                                      key={action.key}
+                                                      onClick={() => action.onClick(c.id)}
+                                                      className={commonClasses}
+                                                      title={action.label}
+                                                    >
+                                                      <action.icon className="w-3 h-3" />
+                                                    </button>
+                                                  );
+                                                }
+                                                
+                                                return (
+                                                  <Link
+                                                    key={action.key}
+                                                    href={action.href(c.id)}
+                                                    className={commonClasses}
+                                                    title={action.label}
+                                                  >
+                                                    <action.icon className="w-3 h-3" />
+                                                  </Link>
+                                                );
+                                              })}
+                                            {isAdmin && (
+                                              <button
+                                                onClick={() => handleStatusToggle(c.id, c.status)}
+                                                disabled={updatingStatus[c.id]}
+                                                className={`p-2 rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200 ${
+                                                  c.status === 1
+                                                    ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                                    : 'bg-gray-500 text-white hover:bg-gray-600'
+                                                }`}
+                                                title={c.status === 1 ? 'Deactivate' : 'Activate'}
+                                              >
+                                                {updatingStatus[c.id] ? (
+                                                  <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                                ) : c.status === 1 ? (
+                                                  <FaToggleOn className="text-sm" />
+                                                ) : (
+                                                  <FaToggleOff className="text-sm" />
+                                                )}
+                                              </button>
+                                            )}
+                                            {c.client_type === "3" && (
+                                              <button
+                                                onClick={() => openDayLimitManager(c)}
+                                                className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                                                title="Manage Day Limit"
+                                              >
+                                                DL
+                                              </button>
+                                            )}
+                                            <button
+                                              onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
+                                              className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
+                                              title={
+                                                c.client_type === '3' 
+                                                  ? 'Switch to Postpaid' 
+                                                  : `Switch to Day Limit`
+                                              }
+                                            >
+                                              SW
+                                            </button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                              </React.Fragment>
                             );
                           })
                         )}
@@ -830,7 +879,7 @@ export default function CustomersPage() {
                             </div>
 
                             <div className="bg-gradient-to-r from-gray-50 to-purple-50 rounded-lg p-3 mb-3 border border-gray-200">
-                              <div className="grid grid-cols-3 gap-2 text-center">
+                              <div className="flex items-center justify-between">
                                 <div>
                                   <div className="text-xs text-gray-600">Credit Limit</div>
                                   {c.client_type === "3" ? (
@@ -845,124 +894,198 @@ export default function CustomersPage() {
                                     </button>
                                   )}
                                 </div>
-                                <div>
-                                  <div className="text-xs text-gray-600">Outstanding</div>
-                                  <div className="font-bold text-sm text-red-600">₹{(c.balance || 0).toLocaleString('en-IN')}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-gray-600">Remaining</div>
-                                  {c.client_type === "3" ? (
-                                    <div className="font-bold text-sm text-gray-400">N/A</div>
+                                <button
+                                  onClick={() => {
+                                    const newExpanded = new Set(expandedRows);
+                                    if (newExpanded.has(c.id)) {
+                                      newExpanded.delete(c.id);
+                                    } else {
+                                      newExpanded.add(c.id);
+                                    }
+                                    setExpandedRows(newExpanded);
+                                  }}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
+                                  title={expandedRows.has(c.id) ? "Hide Details" : "Show Details"}
+                                >
+                                  {expandedRows.has(c.id) ? (
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                    </svg>
                                   ) : (
-                                    <div className={`font-bold text-sm ${
-                                      calculateRemainingLimit(c.balance, c.cst_limit) <= 0 
-                                        ? "text-red-600" 
-                                        : calculateRemainingLimit(c.balance, c.cst_limit) < (c.cst_limit * 0.3) 
-                                          ? "text-yellow-600" 
-                                          : "text-green-600"
-                                    }`}>
-                                      ₹{calculateRemainingLimit(c.balance, c.cst_limit).toLocaleString('en-IN')}
-                                    </div>
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
                                   )}
-                                </div>
+                                </button>
                               </div>
                             </div>
 
-                            {/* Day Limit Info for Mobile */}
-                            {c.client_type === "3" && (
-                              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg p-3 mb-3 border border-indigo-200">
-                                <div className="flex justify-between items-center">
-                                  <div className="text-xs text-indigo-600">Day Limit</div>
-                                  <div className="font-bold text-sm text-indigo-700">{c.day_limit || 0} days</div>
+                            {/* Expanded Details for Mobile */}
+                            {expandedRows.has(c.id) && (
+                              <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-lg p-4">
+                                <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
+                                <div className="space-y-3">
+                                  {/* Billing Type */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-1">Billing Type</div>
+                                    <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${billingInfo.color}`}>
+                                      {billingInfo.text}
+                                    </span>
+                                  </div>
+
+                                  {/* Credit Limit */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-1">Credit Limit</div>
+                                    {c.client_type === "3" ? (
+                                      <span className="text-sm font-bold text-gray-400">Disabled</span>
+                                    ) : (
+                                      <button
+                                        onClick={() => handleLimitClick(c.id, c.name)}
+                                        className="font-bold text-sm text-purple-700 hover:text-purple-900 hover:underline cursor-pointer"
+                                        title="Click to view limit details"
+                                      >
+                                        ₹{(c.cst_limit || 0).toLocaleString('en-IN')}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Outstanding */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-1">Outstanding</div>
+                                    <div className="text-sm font-bold text-red-600">
+                                      ₹{(c.balance || 0).toLocaleString('en-IN')}
+                                    </div>
+                                  </div>
+
+                                  {/* Remaining Limit */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-1">Remaining Limit</div>
+                                    {c.client_type === "3" ? (
+                                      <span className="text-sm font-bold text-gray-400">N/A</span>
+                                    ) : (
+                                      <div className={`text-sm font-bold ${
+                                        calculateRemainingLimit(c.balance, c.cst_limit) <= 0 
+                                          ? "text-red-600" 
+                                          : calculateRemainingLimit(c.balance, c.cst_limit) < (c.cst_limit * 0.3) 
+                                            ? "text-yellow-600" 
+                                            : "text-green-600"
+                                      }`}>
+                                        ₹{calculateRemainingLimit(c.balance, c.cst_limit).toLocaleString('en-IN')}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Day Limit Status */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-1">Day Limit Status</div>
+                                    {dayLimitStatus ? (
+                                      <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-bold ${dayLimitStatus.color}`}>
+                                        {dayLimitStatus.text}
+                                      </span>
+                                    ) : (
+                                      <span className="text-xs text-gray-400">N/A</span>
+                                    )}
+                                  </div>
+
+                                  {/* Day Limit Info */}
+                                  {c.client_type === "3" && (
+                                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                      <div className="text-xs font-medium text-gray-500 mb-1">Day Limit</div>
+                                      <div className="text-sm font-bold text-indigo-700">{c.day_limit || 0} days</div>
+                                    </div>
+                                  )}
+
+                                  {/* Status */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-2">Status</div>
+                                    <div className="flex items-center justify-between">
+                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                        c.status === 1 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : 'bg-red-100 text-red-800'
+                                      }`}>
+                                        {c.status === 1 ? 'Active' : 'Inactive'}
+                                      </span>
+                                      {isAdmin && (
+                                        <button
+                                          onClick={() => handleStatusToggle(c.id, c.status)}
+                                          disabled={updatingStatus[c.id]}
+                                          className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1 ${
+                                            c.status === 1
+                                              ? 'bg-yellow-500 text-white hover:bg-yellow-600'
+                                              : 'bg-gray-500 text-white hover:bg-gray-600'
+                                          }`}
+                                        >
+                                          {updatingStatus[c.id] ? (
+                                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                                          ) : c.status === 1 ? (
+                                            <>
+                                              <FaToggleOn className="text-sm" />
+                                              <span>Deactivate</span>
+                                            </>
+                                          ) : (
+                                            <>
+                                              <FaToggleOff className="text-sm" />
+                                              <span>Activate</span>
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                    <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      {actionButtons
+                                        .filter(action => action.show)
+                                        .map((action) => {
+                                          const commonClasses = `p-2 ${action.color} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all`;
+                                          
+                                          if (action.key === 'delete') {
+                                            return (
+                                              <button
+                                                key={action.key}
+                                                onClick={() => action.onClick(c.id)}
+                                                className={commonClasses}
+                                              >
+                                                <action.icon className="w-3 h-3" />
+                                                <span className="text-xs">{action.label}</span>
+                                              </button>
+                                            );
+                                          }
+                                          
+                                          return (
+                                            <Link
+                                              key={action.key}
+                                              href={action.href(c.id)}
+                                              className={commonClasses}
+                                            >
+                                              <action.icon className="w-3 h-3" />
+                                              <span className="text-xs">{action.label}</span>
+                                            </Link>
+                                          );
+                                        })}
+                                      {c.client_type === "3" && (
+                                        <button
+                                          onClick={() => openDayLimitManager(c)}
+                                          className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all"
+                                        >
+                                          <span>Day Limit</span>
+                                        </button>
+                                      )}
+                                      <button
+                                        onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
+                                        className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all"
+                                      >
+                                        <span>Switch</span>
+                                      </button>
+                                    </div>
+                                  </div>
                                 </div>
                               </div>
                             )}
-
-                            {/* Status for Mobile */}
-                            <div className="mb-3 flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm text-gray-600">Status:</span>
-                                <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                  c.status === 1 
-                                    ? 'bg-green-100 text-green-800' 
-                                    : 'bg-red-100 text-red-800'
-                                }`}>
-                                  {c.status === 1 ? 'Active' : 'Inactive'}
-                                </span>
-                              </div>
-                              {isAdmin && (
-                                <button
-                                  onClick={() => handleStatusToggle(c.id, c.status)}
-                                  disabled={updatingStatus[c.id]}
-                                  className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1 ${
-                                    c.status === 1
-                                      ? 'bg-yellow-500 text-white hover:bg-yellow-600'
-                                      : 'bg-gray-500 text-white hover:bg-gray-600'
-                                  }`}
-                                >
-                                  {updatingStatus[c.id] ? (
-                                    <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                                  ) : c.status === 1 ? (
-                                    <>
-                                      <FaToggleOn className="text-sm" />
-                                      <span>Deactivate</span>
-                                    </>
-                                  ) : (
-                                    <>
-                                      <FaToggleOff className="text-sm" />
-                                      <span>Activate</span>
-                                    </>
-                                  )}
-                                </button>
-                              )}
-                            </div>
-                            
-                            {/* Mobile Action Buttons */}
-                            <div className="grid grid-cols-3 gap-2 mt-4 pt-4 border-t border-gray-200">
-                              {actionButtons
-                                .filter(action => action.show)
-                                .map((action) => {
-                                  const commonClasses = `p-2 ${action.color} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all`;
-                                  
-                                  if (action.key === 'delete') {
-                                    return (
-                                      <button
-                                        key={action.key}
-                                        onClick={() => action.onClick(c.id)}
-                                        className={commonClasses}
-                                      >
-                                        <action.icon className="w-3 h-3" />
-                                        <span className="text-xs">{action.label}</span>
-                                      </button>
-                                    );
-                                  }
-                                  
-                                  return (
-                                    <Link
-                                      key={action.key}
-                                      href={action.href(c.id)}
-                                      className={commonClasses}
-                                    >
-                                      <action.icon className="w-3 h-3" />
-                                      <span className="text-xs">{action.label}</span>
-                                    </Link>
-                                  );
-                                })}
-                              {c.client_type === "3" && (
-                                <button
-                                  onClick={() => openDayLimitManager(c)}
-                                  className="p-2 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all"
-                                >
-                                  <span>Day Limit</span>
-                                </button>
-                              )}
-                              <button
-                                onClick={() => openSwitchModal(c, c.client_type === '3' ? 'post' : 'day')}
-                                className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all"
-                              >
-                                <span>Switch</span>
-                              </button>
-                            </div>
                           </div>
                         );
                       })
