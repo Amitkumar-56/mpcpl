@@ -194,25 +194,54 @@ function ReportsContent() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        // Simulate API call delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        setLoading(true);
         
-        // Mock data - replace with actual API calls
-        setStats({
-          filling: { total: 1247, completed: 890, pending: 257, approved: 100 },
-          stock: { total: 543 },
-          invoice: { total: 892 },
-          recharge: { total: 321 }
-        });
+        // Fetch stats from API
+        const response = await fetch('/api/reports/filling-report');
+        const result = await response.json();
+        
+        if (result.success && result.data.stats) {
+          setStats({
+            filling: { 
+              total: result.data.stats.totalFilling || 0, 
+              completed: result.data.stats.totalFilling || 0, 
+              pending: 0, 
+              approved: 0 
+            },
+            stock: { total: result.data.stats.totalStock || 0 },
+            invoice: { total: result.data.stats.totalInvoice || 0 },
+            recharge: { total: result.data.stats.totalRecharge || 0 }
+          });
+        } else {
+          // Fallback to zero if API fails
+          setStats({
+            filling: { total: 0, completed: 0, pending: 0, approved: 0 },
+            stock: { total: 0 },
+            invoice: { total: 0 },
+            recharge: { total: 0 }
+          });
+        }
         
         setLoading(false);
       } catch (error) {
         console.error('Error fetching stats:', error);
+        // Set default values on error
+        setStats({
+          filling: { total: 0, completed: 0, pending: 0, approved: 0 },
+          stock: { total: 0 },
+          invoice: { total: 0 },
+          recharge: { total: 0 }
+        });
         setLoading(false);
       }
     };
 
     fetchStats();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(fetchStats, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   const reports = [

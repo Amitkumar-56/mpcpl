@@ -36,7 +36,8 @@ export async function GET(request) {
         cb.day_limit as customer_day_limit,
         ep_processing.name as processing_by_name,
         ep_completed.name as completed_by_name,
-        fl_created.created_by_name as created_by_name
+        fl_created.created_by_name as created_by_name,
+        fl_created.created_date as created_date
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
@@ -50,16 +51,21 @@ export async function GET(request) {
       LEFT JOIN (
         SELECT 
           fl.request_id,
-          COALESCE(
-            MAX(CASE WHEN c.id IS NOT NULL THEN c.name END),
-            MAX(CASE WHEN ep.id IS NOT NULL AND c.id IS NULL THEN ep.name END),
-            NULL
-          ) as created_by_name
+          fl.created_by,
+          fl.created_date,
+          COALESCE(c.name, ep.name, 'System') as created_by_name
         FROM filling_logs fl
         LEFT JOIN customers c ON fl.created_by = c.id
         LEFT JOIN employee_profile ep ON fl.created_by = ep.id AND c.id IS NULL
         WHERE fl.created_by IS NOT NULL
-        GROUP BY fl.request_id
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.created_by IS NOT NULL
+          ORDER BY fl2.created_date DESC, fl2.id DESC
+          LIMIT 1
+        )
       ) fl_created ON fr.rid = fl_created.request_id
       WHERE 1=1
     `;

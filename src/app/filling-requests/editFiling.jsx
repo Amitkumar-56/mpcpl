@@ -258,6 +258,7 @@ const ExpandedDetails = ({ request, onClose }) => {
 
 // Request Row Component
 const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
     Processing: "bg-blue-100 text-blue-800",
@@ -266,75 +267,149 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
   }[request.status] || "bg-gray-100 text-gray-800";
 
   return (
-    <tr className="hover:bg-gray-50 transition-colors border-b">
-      <td className="py-3 px-4 text-center text-sm">{index + 1}</td>
-      <td className="py-3 px-4 font-mono text-sm font-semibold text-blue-600">{request.rid}</td>
-      <td className="py-3 px-4 text-sm">{request.product_name || "N/A"}</td>
-      <td className="py-3 px-4 text-sm">{request.loading_station || "N/A"}</td>
-      <td className="py-3 px-4 text-sm font-medium">{request.vehicle_number}</td>
-      <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
-      <td className="py-3 px-4 text-sm">{request.driver_number}</td>
-      <td className="py-3 px-4 text-sm">
-        <div>{request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"}</div>
-        <div className="text-xs text-gray-500">
-          {request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}
-        </div>
-      </td>
-      <td className="py-3 px-4 text-sm">
-        {request.completed_date && request.completed_date !== "0000-00-00 00:00:00"
-          ? new Date(request.completed_date).toLocaleDateString("en-IN")
-          : "-"}
-      </td>
-      <td className="py-3 px-4 text-sm">
-        <div className="flex flex-col">
-          <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
-          {request.status === "Processing" && request.processing_by_name && (
-            <span className="text-xs text-gray-600 mt-1">By: {request.processing_by_name}</span>
-          )}
-          {request.status === "Completed" && request.completed_by_name && (
-            <span className="text-xs text-gray-600 mt-1">By: {request.completed_by_name}</span>
-          )}
-        </div>
-      </td>
-      <td className="py-3 px-4 text-sm">
-        {request.status === "Pending" && request.eligibility && (
-          <div className="flex flex-col items-start">
-            <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-              request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-            }`}>
-              {request.eligibility}
-            </span>
-            {request.eligibility_reason && (
-              <div className="text-xs text-gray-500 mt-1 max-w-xs">{request.eligibility_reason}</div>
-            )}
+    <>
+      <tr className="hover:bg-gray-50 transition-colors border-b">
+        <td className="py-3 px-4 text-center text-sm">{index + 1}</td>
+        <td className="py-3 px-4 font-mono text-sm font-semibold text-blue-600">{request.rid}</td>
+        <td className="py-3 px-4 text-sm">{request.product_name || "N/A"}</td>
+        <td className="py-3 px-4 text-sm">{request.loading_station || "N/A"}</td>
+        <td className="py-3 px-4 text-sm font-medium">{request.vehicle_number}</td>
+        <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
+        <td className="py-3 px-4 text-sm">{request.driver_number}</td>
+        <td className="py-3 px-4 text-sm">
+          <div>{request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"}</div>
+          <div className="text-xs text-gray-500">
+            {request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}
           </div>
-        )}
-        {request.status !== "Pending" && <span className="text-gray-400 text-xs">N/A</span>}
-      </td>
-      <td className="py-3 px-4 text-sm">
-        <div className="text-xs">
-          {request.created_by_name || "-"}
-        </div>
-      </td>
-      <td className="py-3 px-4 text-sm">
-        <div className="text-xs">
-          {request.processing_by_name || "-"}
-        </div>
-      </td>
-      <td className="py-3 px-4 text-sm">
-        <div className="text-xs">
-          {request.completed_by_name || "-"}
-        </div>
-      </td>
-      <td className="py-3 px-4 text-sm">
-        <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
-      </td>
-    </tr>
+        </td>
+        <td className="py-3 px-4 text-sm">
+          <div className="flex flex-col items-start gap-1">
+            <span>
+              {request.completed_date && request.completed_date !== "0000-00-00 00:00:00"
+                ? new Date(request.completed_date).toLocaleDateString("en-IN")
+                : "-"}
+            </span>
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center mt-1"
+              title={isExpanded ? "Hide Details" : "Show Details"}
+            >
+              {isExpanded ? (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              )}
+            </button>
+          </div>
+        </td>
+      </tr>
+      {isExpanded && (
+        <tr className="bg-green-50 border-b">
+          <td colSpan="9" className="py-3 px-4">
+            <div className="space-y-4 animate-fade-in">
+              <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* Status */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+                    {request.status === "Processing" && request.processing_by_name && (
+                      <span className="text-xs text-gray-600">By: {request.processing_by_name}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Eligibility Check */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
+                  {request.status === "Pending" && request.eligibility ? (
+                    <div className="flex flex-col items-start">
+                      <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
+                        request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                      }`}>
+                        {request.eligibility}
+                      </span>
+                      {request.eligibility_reason && (
+                        <div className="text-xs text-gray-500 mt-1 max-w-xs">{request.eligibility_reason}</div>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-gray-400 text-xs">N/A</span>
+                  )}
+                </div>
+
+                {/* Created By */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
+                  <div className="text-sm text-gray-900">
+                    {request.created_by_name || "-"}
+                  </div>
+                  {(request.created_date || request.created) && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      {new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: true
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Processed By */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
+                  <div className="text-sm text-gray-900">
+                    {request.processing_by_name || "-"}
+                  </div>
+                </div>
+
+                {/* Completed By - Only show if status is Completed */}
+                {request.status === "Completed" && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
+                    <div className="text-sm text-gray-900">
+                      {request.completed_by_name || "-"}
+                    </div>
+                    {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(request.completed_date).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Actions */}
+                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                  <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
+                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+                </div>
+              </div>
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 };
 
 // Mobile Request Card Component
 const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
     Processing: "bg-blue-100 text-blue-800",
@@ -391,8 +466,27 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
           </div>
           {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
             <div>
-              <div className="font-medium text-gray-600 text-xs">Completed</div>
-              <div>{new Date(request.completed_date).toLocaleDateString("en-IN")}</div>
+              <div className="font-medium text-gray-600 text-xs mb-1">Completed</div>
+              <div className="flex flex-col items-start gap-1">
+                <span>{new Date(request.completed_date).toLocaleDateString("en-IN")}</span>
+                {request.status === "Completed" && (
+                  <button
+                    onClick={() => setIsExpanded(!isExpanded)}
+                    className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                    title={isExpanded ? "Hide Creator Info" : "Show Creator Info"}
+                  >
+                    {isExpanded ? (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    )}
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
@@ -458,8 +552,114 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
       </div>
       <div className="flex justify-between items-center mt-4 pt-3 border-t">
         <div className="text-xs text-gray-500">Request ID: {request.rid}</div>
-        <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
+            title={isExpanded ? "Hide Details" : "Show Details"}
+          >
+            {isExpanded ? (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            )}
+          </button>
+          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+        </div>
       </div>
+      
+      {/* Expanded Details */}
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-lg p-4">
+          <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
+          <div className="space-y-3">
+            {/* Status */}
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
+              <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+              {request.status === "Processing" && request.processing_by_name && (
+                <div className="text-xs text-gray-600 mt-1">By: {request.processing_by_name}</div>
+              )}
+              {request.status === "Completed" && request.completed_by_name && (
+                <div className="text-xs text-gray-600 mt-1">By: {request.completed_by_name}</div>
+              )}
+            </div>
+
+            {/* Eligibility Check */}
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
+              {request.status === "Pending" && request.eligibility ? (
+                <>
+                  <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
+                    request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                  }`}>
+                    {request.eligibility}
+                  </span>
+                  {request.eligibility_reason && (
+                    <div className="text-xs text-gray-500 mt-1">{request.eligibility_reason}</div>
+                  )}
+                </>
+              ) : (
+                <span className="text-gray-400 text-xs">N/A</span>
+              )}
+            </div>
+
+            {/* Created By */}
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
+              <div className="text-sm text-gray-900">{request.created_by_name || "-"}</div>
+              {(request.created_date || request.created) && (
+                <div className="text-xs text-gray-500 mt-1">
+                  {new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: true
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Processed By */}
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
+              <div className="text-sm text-gray-900">{request.processing_by_name || "-"}</div>
+            </div>
+
+            {/* Completed By - Only show if status is Completed */}
+            {request.status === "Completed" && (
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
+                <div className="text-sm text-gray-900">{request.completed_by_name || "-"}</div>
+                {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {new Date(request.completed_date).toLocaleString("en-IN", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                      hour12: true
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div className="bg-white rounded-lg p-3 border border-gray-200">
+              <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
+              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -919,18 +1119,12 @@ export default function FillingRequests() {
                         <th className="py-3 px-4 border-b">Driver Phone</th>
                         <th className="py-3 px-4 border-b">Date & Time</th>
                         <th className="py-3 px-4 border-b">Completed Date</th>
-                        <th className="py-3 px-4 border-b">Status</th>
-                        <th className="py-3 px-4 border-b">Eligibility Check</th>
-                        <th className="py-3 px-4 border-b">Created By</th>
-                        <th className="py-3 px-4 border-b">Processed By</th>
-                        <th className="py-3 px-4 border-b">Completed By</th>
-                        <th className="py-3 px-4 border-b">Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {requestItems.length > 0 ? requestItems : (
                         <tr>
-                          <td colSpan="15" className="py-8 text-center text-gray-500">
+                          <td colSpan="9" className="py-8 text-center text-gray-500">
                             <div className="flex flex-col items-center">
                               <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />

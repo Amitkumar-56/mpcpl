@@ -1,7 +1,7 @@
 // src/app/reports/filling-report/page.jsx
 'use client';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Footer from '../../../components/Footer';
 import Header from '../../../components/Header';
 import Sidebar from '../../../components/sidebar';
@@ -46,6 +46,7 @@ function ReportHistoryContent() {
   const [employeeProfile, setEmployeeProfile] = useState(null);
   const [checkingRecords, setCheckingRecords] = useState(new Set());
   const [invoicingRecords, setInvoicingRecords] = useState(new Set());
+  const [expandedRows, setExpandedRows] = useState(new Set());
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [stats, setStats] = useState({
     totalFilling: 0,
@@ -97,6 +98,13 @@ function ReportHistoryContent() {
   // Fetch initial dropdown data
   useEffect(() => {
     fetchDropdownData();
+    
+    // Refresh stats every 30 seconds
+    const interval = setInterval(() => {
+      fetchDropdownData();
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, []);
 
   // Fetch data when filters or page changes
@@ -957,15 +965,6 @@ function ReportHistoryContent() {
                     <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                     <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Station</th>
                     <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Number</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver Phone</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actual Qty</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created at</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-3 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -979,189 +978,261 @@ function ReportHistoryContent() {
                     </tr>
                   ) : data.records.length > 0 ? (
                     data.records.map((record, index) => (
-                      <tr 
-                        key={record.id} 
-                        className={`
-                          hover:bg-gray-50 transition-colors
-                          ${selectedRecords.has(record.id) ? 'bg-green-50 border-l-4 border-l-green-500' : ''}
-                          ${invoicedRecords.has(record.id) ? 'bg-purple-50 border-r-4 border-r-purple-500' : ''}
-                          ${checkingRecords.has(record.id) ? 'bg-blue-50' : ''}
-                          ${invoicingRecords.has(record.id) ? 'bg-orange-50' : ''}
-                        `}
-                      >
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                          <CheckButton record={record} />
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                          <InvoiceButton record={record} />
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {(pagination.currentPage - 1) * 100 + index + 1}
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.rid}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.product_name}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.station_name}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.vehicle_number}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.client_name}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.driver_number}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.aqty}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">₹{record.amount || '0.00'}</td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {formatDateTime(record.created)}
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {record.completed_date ? formatDateTime(record.completed_date) : '-'}
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <div className="flex space-x-1">
-                            {['doc1', 'doc2', 'doc3'].map((doc) => (
-                              <a
-                                key={doc}
-                                href={record[doc] || '/assets/4595376-200.png'}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="block transition-transform hover:scale-110"
+                      <React.Fragment key={record.id}>
+                        <tr 
+                          className={`
+                            hover:bg-gray-50 transition-colors
+                            ${selectedRecords.has(record.id) ? 'bg-green-50 border-l-4 border-l-green-500' : ''}
+                            ${invoicedRecords.has(record.id) ? 'bg-purple-50 border-r-4 border-r-purple-500' : ''}
+                            ${checkingRecords.has(record.id) ? 'bg-blue-50' : ''}
+                            ${invoicingRecords.has(record.id) ? 'bg-orange-50' : ''}
+                          `}
+                        >
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
+                            <CheckButton record={record} />
+                          </td>
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
+                            <InvoiceButton record={record} />
+                          </td>
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {(pagination.currentPage - 1) * 100 + index + 1}
+                          </td>
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.rid}</td>
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.product_name}</td>
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">{record.station_name}</td>
+                          <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <div className="flex items-center gap-2">
+                              <span>{record.vehicle_number}</span>
+                              <button
+                                onClick={() => {
+                                  const newExpanded = new Set(expandedRows);
+                                  if (newExpanded.has(record.id)) {
+                                    newExpanded.delete(record.id);
+                                  } else {
+                                    newExpanded.add(record.id);
+                                  }
+                                  setExpandedRows(newExpanded);
+                                }}
+                                className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
+                                title={expandedRows.has(record.id) ? "Hide Details" : "Show Details"}
                               >
-                                <img
-                                  src={record[doc] || '/assets/4595376-200.png'}
-                                  alt="Document"
-                                  className="w-8 h-8 lg:w-10 lg:h-10 object-cover rounded border shadow-sm"
-                                />
-                              </a>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap">
-                          <span className={`text-xs lg:text-sm font-medium ${getStatusClass(record.status)}`}>
-                            {record.status}
-                          </span>
-                        </td>
-                        <td className="px-3 lg:px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                          <div className="flex flex-col space-y-2">
-                            {/* Verification Logs */}
-                            {(record.is_checked && record.checked_by_name) || (record.is_invoiced && record.invoiced_by_name) ? (
-                              <div className="space-y-1">
-                                {record.is_checked && record.checked_by_name && (
-                                  <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
-                                    <div className="text-xs text-green-700">
-                                      <span className="font-medium">✓ Checked:</span> {record.checked_by_name}
-                                      {record.checked_at && (
-                                        <span className="text-green-600 ml-1 text-xs">
-                                          ({new Date(record.checked_at).toLocaleString('en-IN', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            hour12: true
-                                          })})
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
+                                {expandedRows.has(record.id) ? (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  </svg>
+                                ) : (
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
                                 )}
-                                {record.is_invoiced && record.invoiced_by_name && (
-                                  <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
-                                    <div className="text-xs text-purple-700">
-                                      <span className="font-medium">📄 Invoiced:</span> {record.invoiced_by_name}
-                                      {record.invoiced_at && (
-                                        <span className="text-purple-600 ml-1 text-xs">
-                                          ({new Date(record.invoiced_at).toLocaleString('en-IN', {
-                                            day: '2-digit',
-                                            month: '2-digit',
-                                            year: 'numeric',
-                                            hour: '2-digit',
-                                            minute: '2-digit',
-                                            hour12: true
-                                          })})
-                                        </span>
-                                      )}
-                                    </div>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                        {expandedRows.has(record.id) && (
+                        <tr className="bg-green-50 border-b">
+                          <td colSpan="7" className="px-3 lg:px-6 py-4">
+                            <div className="space-y-4 animate-fade-in">
+                              <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                                {/* Client Name */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Client Name</div>
+                                  <div className="text-sm text-gray-900">{record.client_name || "-"}</div>
+                                </div>
+
+                                {/* Driver Phone */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Driver Phone</div>
+                                  <div className="text-sm text-gray-900">{record.driver_number || "-"}</div>
+                                </div>
+
+                                {/* Actual Qty */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Actual Qty</div>
+                                  <div className="text-sm text-gray-900">{record.aqty || "-"}</div>
+                                </div>
+
+                                {/* Amount */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Amount</div>
+                                  <div className="text-sm text-gray-900 font-semibold">₹{record.amount || '0.00'}</div>
+                                </div>
+
+                                {/* Created at */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Created at</div>
+                                  <div className="text-sm text-gray-900">
+                                    {formatDateTime(record.created)}
                                   </div>
-                                )}
-                              </div>
-                            ) : null}
-                            {/* Activity Logs - Created, Processed, Completed */}
-                            {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
-                              <div className="mt-2 pt-2 border-t border-gray-200">
-                                <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
-                                <div className="space-y-1">
-                                  {record.created_by_name && record.created_by_name !== 'System' && (
-                                    <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
-                                      <p className="text-xs text-blue-700">
-                                        <span className="font-medium">📝 Created by:</span> {record.created_by_name}
-                                        {record.created_date && (
-                                          <span className="text-blue-600 ml-1 text-xs">
-                                            ({new Date(record.created_date).toLocaleString('en-IN', {
-                                              day: '2-digit',
-                                              month: '2-digit',
-                                              year: 'numeric',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                              hour12: true
-                                            })})
-                                          </span>
+                                </div>
+
+                                {/* Completed */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Completed</div>
+                                  <div className="text-sm text-gray-900">
+                                    {record.completed_date ? formatDateTime(record.completed_date) : '-'}
+                                  </div>
+                                </div>
+
+                                {/* Images */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-2">Images</div>
+                                  <div className="flex space-x-1">
+                                    {['doc1', 'doc2', 'doc3'].map((doc) => (
+                                      <a
+                                        key={doc}
+                                        href={record[doc] || '/assets/4595376-200.png'}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="block transition-transform hover:scale-110"
+                                      >
+                                        <img
+                                          src={record[doc] || '/assets/4595376-200.png'}
+                                          alt="Document"
+                                          className="w-8 h-8 lg:w-10 lg:h-10 object-cover rounded border shadow-sm"
+                                        />
+                                      </a>
+                                    ))}
+                                  </div>
+                                </div>
+
+                                {/* Status */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
+                                  <span className={`text-xs lg:text-sm font-medium ${getStatusClass(record.status)}`}>
+                                    {record.status}
+                                  </span>
+                                </div>
+
+                                {/* Logs */}
+                                <div className="bg-white rounded-lg p-3 border border-gray-200 md:col-span-2 lg:col-span-3">
+                                  <div className="text-xs font-medium text-gray-500 mb-2">Logs</div>
+                                  <div className="space-y-2">
+                                    {/* Verification Logs */}
+                                    {(record.is_checked && record.checked_by_name) || (record.is_invoiced && record.invoiced_by_name) ? (
+                                      <div className="space-y-1">
+                                        {record.is_checked && record.checked_by_name && (
+                                          <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                            <div className="text-xs text-green-700">
+                                              <span className="font-medium">✓ Checked:</span> {record.checked_by_name}
+                                              {record.checked_at && (
+                                                <span className="text-green-600 ml-1 text-xs">
+                                                  ({new Date(record.checked_at).toLocaleString('en-IN', {
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    hour12: true
+                                                  })})
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
                                         )}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {record.processed_by_name && (
-                                    <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                                      <p className="text-xs text-yellow-700">
-                                        <span className="font-medium">⚙️ Processed by:</span> {record.processed_by_name}
-                                        {record.processed_date && (
-                                          <span className="text-yellow-600 ml-1 text-xs">
-                                            ({new Date(record.processed_date).toLocaleString('en-IN', {
-                                              day: '2-digit',
-                                              month: '2-digit',
-                                              year: 'numeric',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                              hour12: true
-                                            })})
-                                          </span>
+                                        {record.is_invoiced && record.invoiced_by_name && (
+                                          <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                                            <div className="text-xs text-purple-700">
+                                              <span className="font-medium">📄 Invoiced:</span> {record.invoiced_by_name}
+                                              {record.invoiced_at && (
+                                                <span className="text-purple-600 ml-1 text-xs">
+                                                  ({new Date(record.invoiced_at).toLocaleString('en-IN', {
+                                                    day: '2-digit',
+                                                    month: '2-digit',
+                                                    year: 'numeric',
+                                                    hour: '2-digit',
+                                                    minute: '2-digit',
+                                                    hour12: true
+                                                  })})
+                                                </span>
+                                              )}
+                                            </div>
+                                          </div>
                                         )}
-                                      </p>
-                                    </div>
-                                  )}
-                                  {record.completed_by_name && (
-                                    <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
-                                      <p className="text-xs text-green-700">
-                                        <span className="font-medium">✅ Completed by:</span> {record.completed_by_name}
-                                        {record.completed_date && (
-                                          <span className="text-green-600 ml-1 text-xs">
-                                            ({new Date(record.completed_date).toLocaleString('en-IN', {
-                                              day: '2-digit',
-                                              month: '2-digit',
-                                              year: 'numeric',
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                              hour12: true
-                                            })})
-                                          </span>
-                                        )}
-                                      </p>
-                                    </div>
-                                  )}
+                                      </div>
+                                    ) : null}
+                                    {/* Activity Logs - Created, Processed, Completed */}
+                                    {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
+                                      <div className="mt-2 pt-2 border-t border-gray-200">
+                                        <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
+                                        <div className="space-y-1">
+                                          {record.created_by_name && record.created_by_name !== 'System' && (
+                                            <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                                              <p className="text-xs text-blue-700">
+                                                <span className="font-medium">📝 Created by:</span> {record.created_by_name}
+                                                {record.created_date && (
+                                                  <span className="text-blue-600 ml-1 text-xs">
+                                                    ({new Date(record.created_date).toLocaleString('en-IN', {
+                                                      day: '2-digit',
+                                                      month: '2-digit',
+                                                      year: 'numeric',
+                                                      hour: '2-digit',
+                                                      minute: '2-digit',
+                                                      hour12: true
+                                                    })})
+                                                  </span>
+                                                )}
+                                              </p>
+                                            </div>
+                                          )}
+                                          {record.processed_by_name && (
+                                            <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                                              <p className="text-xs text-yellow-700">
+                                                <span className="font-medium">⚙️ Processed by:</span> {record.processed_by_name}
+                                                {record.processed_date && (
+                                                  <span className="text-yellow-600 ml-1 text-xs">
+                                                    ({new Date(record.processed_date).toLocaleString('en-IN', {
+                                                      day: '2-digit',
+                                                      month: '2-digit',
+                                                      year: 'numeric',
+                                                      hour: '2-digit',
+                                                      minute: '2-digit',
+                                                      hour12: true
+                                                    })})
+                                                  </span>
+                                                )}
+                                              </p>
+                                            </div>
+                                          )}
+                                          {record.completed_by_name && (
+                                            <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                              <p className="text-xs text-green-700">
+                                                <span className="font-medium">✅ Completed by:</span> {record.completed_by_name}
+                                                {record.completed_date && (
+                                                  <span className="text-green-600 ml-1 text-xs">
+                                                    ({new Date(record.completed_date).toLocaleString('en-IN', {
+                                                      day: '2-digit',
+                                                      month: '2-digit',
+                                                      year: 'numeric',
+                                                      hour: '2-digit',
+                                                      minute: '2-digit',
+                                                      hour12: true
+                                                    })})
+                                                  </span>
+                                                )}
+                                              </p>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
+                                     !record.is_checked && !record.is_invoiced && (
+                                      <div className="text-xs text-gray-400 italic">No logs available</div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            )}
-                            {/* Show message if no logs */}
-                            {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
-                             !record.is_checked && !record.is_invoiced && (
-                              <div className="text-xs text-gray-400 italic">No logs available</div>
-                            )}
-                            {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
-                             !record.is_checked && !record.is_invoiced && (
-                              <span className="text-xs text-gray-400">No logs</span>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                            </div>
+                          </td>
+                        </tr>
+                        )}
+                      </React.Fragment>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="16" className="px-3 lg:px-6 py-4 text-center text-sm text-gray-500">
+                      <td colSpan="7" className="px-3 lg:px-6 py-4 text-center text-sm text-gray-500">
                         No filling requests found
                       </td>
                     </tr>
@@ -1212,7 +1283,32 @@ function ReportHistoryContent() {
                         </div>
                         <div>
                           <p className="text-xs font-medium text-gray-500">Vehicle</p>
-                          <p className="text-sm text-gray-900">{record.vehicle_number}</p>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-gray-900">{record.vehicle_number}</span>
+                            <button
+                              onClick={() => {
+                                const newExpanded = new Set(expandedRows);
+                                if (newExpanded.has(record.id)) {
+                                  newExpanded.delete(record.id);
+                                } else {
+                                  newExpanded.add(record.id);
+                                }
+                                setExpandedRows(newExpanded);
+                              }}
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                              title={expandedRows.has(record.id) ? "Hide Details" : "Show Details"}
+                            >
+                              {expandedRows.has(record.id) ? (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                </svg>
+                              ) : (
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
                         </div>
                         {/* Check/Invoice Logs Section */}
                         {(record.is_checked && record.checked_by_name) || (record.is_invoiced && record.invoiced_by_name) ? (
@@ -1325,65 +1421,202 @@ function ReportHistoryContent() {
                             </div>
                           </div>
                         )}
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Client</p>
-                          <p className="text-sm text-gray-900">{record.client_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Driver Phone</p>
-                          <p className="text-sm text-gray-900">{record.driver_number}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Qty</p>
-                          <p className="text-sm text-gray-900">{record.aqty}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Amount</p>
-                          <p className="text-sm font-semibold text-gray-900">₹{record.amount || '0.00'}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Status</p>
-                          <span className={`text-xs font-medium ${getStatusClass(record.status)}`}>
-                            {record.status}
-                          </span>
-                        </div>
                       </div>
 
-                      {/* Dates */}
-                      <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Created</p>
-                          <p className="text-xs text-gray-900">{formatDateTime(record.created)}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-medium text-gray-500">Completed</p>
-                          <p className="text-xs text-gray-900">
-                            {record.completed_date ? formatDateTime(record.completed_date) : '-'}
-                          </p>
-                        </div>
-                      </div>
+                      {/* Expanded Details */}
+                      {expandedRows.has(record.id) && (
+                        <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-lg p-4">
+                          <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
+                          <div className="space-y-3">
+                            {/* Client Name */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Client Name</div>
+                              <div className="text-sm text-gray-900">{record.client_name || "-"}</div>
+                            </div>
 
-                      {/* Images */}
-                      <div>
-                        <p className="text-xs font-medium text-gray-500 mb-2">Images</p>
-                        <div className="flex space-x-2">
-                          {['doc1', 'doc2', 'doc3'].map((doc) => (
-                            <a
-                              key={doc}
-                              href={record[doc] || '/assets/4595376-200.png'}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="block"
-                            >
-                              <img
-                                src={record[doc] || '/assets/4595376-200.png'}
-                                alt="Document"
-                                className="w-12 h-12 object-cover rounded border shadow-sm"
-                              />
-                            </a>
-                          ))}
+                            {/* Driver Phone */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Driver Phone</div>
+                              <div className="text-sm text-gray-900">{record.driver_number || "-"}</div>
+                            </div>
+
+                            {/* Actual Qty */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Actual Qty</div>
+                              <div className="text-sm text-gray-900">{record.aqty || "-"}</div>
+                            </div>
+
+                            {/* Amount */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Amount</div>
+                              <div className="text-sm text-gray-900 font-semibold">₹{record.amount || '0.00'}</div>
+                            </div>
+
+                            {/* Created at */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Created at</div>
+                              <div className="text-sm text-gray-900">{formatDateTime(record.created)}</div>
+                            </div>
+
+                            {/* Completed */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Completed</div>
+                              <div className="text-sm text-gray-900">
+                                {record.completed_date ? formatDateTime(record.completed_date) : '-'}
+                              </div>
+                            </div>
+
+                            {/* Images */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-2">Images</div>
+                              <div className="flex space-x-2">
+                                {['doc1', 'doc2', 'doc3'].map((doc) => (
+                                  <a
+                                    key={doc}
+                                    href={record[doc] || '/assets/4595376-200.png'}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="block"
+                                  >
+                                    <img
+                                      src={record[doc] || '/assets/4595376-200.png'}
+                                      alt="Document"
+                                      className="w-12 h-12 object-cover rounded border shadow-sm"
+                                    />
+                                  </a>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Status */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
+                              <span className={`text-xs font-medium ${getStatusClass(record.status)}`}>
+                                {record.status}
+                              </span>
+                            </div>
+
+                            {/* Logs */}
+                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                              <div className="text-xs font-medium text-gray-500 mb-2">Logs</div>
+                              <div className="space-y-2">
+                                {/* Verification Logs */}
+                                {(record.is_checked && record.checked_by_name) || (record.is_invoiced && record.invoiced_by_name) ? (
+                                  <div className="space-y-1">
+                                    {record.is_checked && record.checked_by_name && (
+                                      <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                        <p className="text-xs text-green-700">
+                                          <span className="font-medium">✓ Checked by:</span> {record.checked_by_name}
+                                          {record.checked_at && (
+                                            <span className="text-green-600 ml-1">
+                                              ({new Date(record.checked_at).toLocaleString('en-IN', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: true
+                                              })})
+                                            </span>
+                                          )}
+                                        </p>
+                                      </div>
+                                    )}
+                                    {record.is_invoiced && record.invoiced_by_name && (
+                                      <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                                        <p className="text-xs text-purple-700">
+                                          <span className="font-medium">📄 Invoiced by:</span> {record.invoiced_by_name}
+                                          {record.invoiced_at && (
+                                            <span className="text-purple-600 ml-1">
+                                              ({new Date(record.invoiced_at).toLocaleString('en-IN', {
+                                                day: '2-digit',
+                                                month: '2-digit',
+                                                year: 'numeric',
+                                                hour: '2-digit',
+                                                minute: '2-digit',
+                                                hour12: true
+                                              })})
+                                            </span>
+                                          )}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                ) : null}
+                                {/* Activity Logs */}
+                                {(record.created_by_name || record.processed_by_name || record.completed_by_name) && (
+                                  <div className="mt-2 pt-2 border-t border-gray-200">
+                                    <p className="text-xs font-medium text-gray-500 mb-1">Activity Logs</p>
+                                    <div className="space-y-1">
+                                      {record.created_by_name && record.created_by_name !== 'System' && (
+                                        <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
+                                          <p className="text-xs text-blue-700">
+                                            <span className="font-medium">👤 Created:</span> {record.created_by_name}
+                                            {record.created_date && (
+                                              <span className="text-blue-600 ml-1">
+                                                ({new Date(record.created_date).toLocaleString('en-IN', {
+                                                  day: '2-digit',
+                                                  month: '2-digit',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  hour12: true
+                                                })})
+                                              </span>
+                                            )}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {record.processed_by_name && (
+                                        <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
+                                          <p className="text-xs text-yellow-700">
+                                            <span className="font-medium">⚙️ Processed:</span> {record.processed_by_name}
+                                            {record.processed_date && (
+                                              <span className="text-yellow-600 ml-1">
+                                                ({new Date(record.processed_date).toLocaleString('en-IN', {
+                                                  day: '2-digit',
+                                                  month: '2-digit',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  hour12: true
+                                                })})
+                                              </span>
+                                            )}
+                                          </p>
+                                        </div>
+                                      )}
+                                      {record.completed_by_name && (
+                                        <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
+                                          <p className="text-xs text-green-700">
+                                            <span className="font-medium">✅ Completed:</span> {record.completed_by_name}
+                                            {record.completed_date && (
+                                              <span className="text-green-600 ml-1">
+                                                ({new Date(record.completed_date).toLocaleString('en-IN', {
+                                                  day: '2-digit',
+                                                  month: '2-digit',
+                                                  year: 'numeric',
+                                                  hour: '2-digit',
+                                                  minute: '2-digit',
+                                                  hour12: true
+                                                })})
+                                              </span>
+                                            )}
+                                          </p>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
+                                {!record.created_by_name && !record.processed_by_name && !record.completed_by_name && 
+                                 !record.is_checked && !record.is_invoiced && (
+                                  <div className="text-xs text-gray-400 italic">No logs available</div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   </div>
                 ))
