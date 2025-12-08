@@ -191,6 +191,14 @@ function DeepoHistoryContent() {
     return new Date(dateTimeString).toLocaleString();
   };
 
+  const handleDownloadPDF = async (deepoId) => {
+    try {
+      window.open(`/approve-deepo?id=${deepoId}`, '_blank');
+    } catch (error) {
+      showMessage('Error opening PDF', 'error');
+    }
+  };
+
   if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -387,46 +395,55 @@ function DeepoHistoryContent() {
                       </span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <Link
-                        href={`/edit-deepo-list?id=${deepo.id}`}
-                        className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                      >
-                        Edit
-                      </Link>
-                      <Link
-                        href={`/deepo-view?id=${deepo.id}`}
-                        className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                      >
-                        View
-                      </Link>
-
-                      {deepo.status !== 'approved' ? (
-                        <button
-                          onClick={() => handleApprove(deepo.id)}
-                          className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
+                      <div className="flex flex-wrap gap-1">
+                        <Link
+                          href={`/edit-deepo-list?id=${deepo.id}`}
+                          className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
                         >
-                          Approve
-                        </button>
-                      ) : (
-                        <>
-                          <Link
-                            href={`/approve-deepo?id=${deepo.id}`}
-                            className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                            title="View PDF"
+                          Edit
+                        </Link>
+                        <Link
+                          href={`/deepo-view?id=${deepo.id}`}
+                          className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                        >
+                          View
+                        </Link>
+                        <Link
+                          href={`/deepo-logs?deepo_id=${deepo.id}`}
+                          className="inline-block text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer"
+                          title="View Activity Logs"
+                        >
+                          📋 Logs
+                        </Link>
+
+                        {deepo.status !== 'approved' ? (
+                          <button
+                            onClick={() => handleApprove(deepo.id)}
+                            className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
                           >
-                            <svg className="w-4 h-4 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                            PDF
-                          </Link>
-                          <Link
-                            href={`/deepo-new-list?id=${deepo.id}`}
-                            className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-3 py-1 rounded-md text-xs font-medium transition-colors"
-                          >
-                            New Record
-                          </Link>
-                        </>
-                      )}
+                            Approve
+                          </button>
+                        ) : (
+                          <>
+                            <button
+                              onClick={() => handleDownloadPDF(deepo.id)}
+                              className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                              title="Download PDF"
+                            >
+                              <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                              </svg>
+                              PDF
+                            </button>
+                            <Link
+                              href={`/deepo-new-list?id=${deepo.id}`}
+                              className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                            >
+                              New
+                            </Link>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))}

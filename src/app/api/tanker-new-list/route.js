@@ -1,4 +1,4 @@
-import { executeQuery } from '@/lib/db';
+import { executeQuery, executeTransaction } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 // GET - Fetch data for the form including previous tanker data
@@ -92,82 +92,127 @@ export async function POST(request) {
       items_data
     } = formData;
 
-    // Start transaction
-    await executeQuery('START TRANSACTION');
-
-    // Insert into tanker_history table
-    const insertTankerQuery = `
-      INSERT INTO tanker_history (
-        licence_plate, first_driver, first_mobile, first_start_date, 
-        opening_meter, closing_meter, diesel_ltr, remarks, 
-        opening_station, closing_station, closing_date, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `;
-    
-    const tankerResult = await executeQuery(insertTankerQuery, [
-      licence_plate,
-      first_driver,
-      first_mobile,
-      first_start_date,
-      parseInt(opening_meter) || 0,
-      parseInt(closing_meter) || 0,
-      parseFloat(diesel_ltr) || 0,
-      remarks,
-      opening_station,
-      closing_station,
-      closing_date
-    ]);
-
-    const tanker_history_id = tankerResult.insertId;
-
-    // Insert tanker_items only if not exists
-    for (const itemData of items_data) {
-      // Check if item already exists for this vehicle
-      const checkQuery = "SELECT id FROM tanker_items WHERE vehicle_no = ? AND item_id = ?";
-      const existingItems = await executeQuery(checkQuery, [
+    // Use executeTransaction helper to properly handle transactions
+    const result = await executeTransaction(async (connection) => {
+      // Insert into tanker_history table
+      const insertTankerQuery = `
+        INSERT INTO tanker_history (
+          licence_plate, first_driver, first_mobile, first_start_date, 
+          opening_meter, closing_meter, diesel_ltr, remarks, 
+          opening_station, closing_station, closing_date, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      `;
+      
+      const [tankerResult] = await connection.execute(insertTankerQuery, [
         licence_plate,
-        itemData.item_id
+        first_driver,
+        first_mobile,
+        first_start_date,
+        parseInt(opening_meter) || 0,
+        parseInt(closing_meter) || 0,
+        parseFloat(diesel_ltr) || 0,
+        remarks,
+        opening_station,
+        closing_station,
+        closing_date
       ]);
 
-      if (existingItems.length === 0) {
-        // Insert new item
-        const insertItemQuery = `
-          INSERT INTO tanker_items 
-          (vehicle_no, item_id, item_name, pcs, description,
-           opening_status, closing_status, opening_driver_sign,
-           opening_checker_sign, closing_driver_sign, closing_checker_sign)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
+      const tanker_history_id = tankerResult.insertId;
 
-        await executeQuery(insertItemQuery, [
-          licence_plate,
-          itemData.item_id,
-          itemData.item_name,
-          parseInt(itemData.pcs) || 0,
-          itemData.description || '',
-          itemData.opening_status || '',
-          itemData.closing_status || '',
-          itemData.opening_driver_sign || '',
-          itemData.opening_checker_sign || '',
-          itemData.closing_driver_sign || '',
-          itemData.closing_checker_sign || ''
-        ]);
+      // Create audit log entry for creation
+      try {
+        await connection.execute(`
+          CREATE TABLE IF NOT EXISTS tanker_audit_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            tanker_id INT NOT NULL,
+            action_type VARCHAR(50) NOT NULL,
+            user_id INT,
+            user_name VARCHAR(255),
+            remarks TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_tanker_id (tanker_id),
+            INDEX idx_created_at (created_at)
+          )
+        `);
+        
+        // Fetch employee name from employee_profile
+        let employeeName = 'System';
+        try {
+          const [employeeResult] = await connection.execute(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [1]
+          );
+          if (employeeResult.length > 0) {
+            employeeName = employeeResult[0].name;
+          }
+        } catch (empError) {
+          console.error('Error fetching employee name:', empError);
+        }
+        
+        await connection.execute(
+          `INSERT INTO tanker_audit_log (tanker_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
+          [tanker_history_id, 'created', 1, employeeName, 'Tanker record created']
+        );
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+        // Don't fail the main operation
       }
-    }
 
-    // Commit transaction
-    await executeQuery('COMMIT');
+      // Insert tanker_items only if not exists
+      if (items_data && Array.isArray(items_data)) {
+        for (const itemData of items_data) {
+          // Support both 'id' and 'item_id' fields
+          const itemId = itemData.item_id || itemData.id;
+          
+          if (!itemId) {
+            console.warn('Skipping item without item_id or id:', itemData);
+            continue;
+          }
+
+          // Check if item already exists for this vehicle
+          const checkQuery = "SELECT id FROM tanker_items WHERE vehicle_no = ? AND item_id = ?";
+          const [existingItems] = await connection.execute(checkQuery, [
+            licence_plate,
+            itemId
+          ]);
+
+          if (existingItems.length === 0) {
+            // Insert new item
+            const insertItemQuery = `
+              INSERT INTO tanker_items 
+              (vehicle_no, item_id, item_name, pcs, description,
+               opening_status, closing_status, opening_driver_sign,
+               opening_checker_sign, closing_driver_sign, closing_checker_sign)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+
+            await connection.execute(insertItemQuery, [
+              licence_plate,
+              itemId,
+              itemData.item_name || '',
+              parseInt(itemData.pcs) || 0,
+              itemData.description || '',
+              itemData.opening_status || '',
+              itemData.closing_status || '',
+              itemData.opening_driver_sign || '',
+              itemData.opening_checker_sign || '',
+              itemData.closing_driver_sign || '',
+              itemData.closing_checker_sign || ''
+            ]);
+          }
+        }
+      }
+
+      return { tanker_history_id };
+    });
 
     return NextResponse.json({
       success: true,
       message: 'Tanker created successfully!',
-      data: { tanker_history_id }
+      data: result
     });
 
   } catch (error) {
-    // Rollback transaction on error
-    await executeQuery('ROLLBACK');
-    
     console.error('Create tanker error:', error);
     return NextResponse.json(
       { 

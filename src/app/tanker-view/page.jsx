@@ -1,5 +1,7 @@
 'use client';
 
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -18,83 +20,12 @@ function LoadingSpinner() {
 function PDFSkeleton() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
-      {/* Action Buttons Skeleton */}
       <div className="max-w-4xl mx-auto px-4 mb-6 flex justify-center space-x-4">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
-        ))}
+        <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
+        <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
       </div>
-
-      {/* A4 Container Skeleton */}
       <div className="bg-white shadow-lg mx-auto" style={{ width: '210mm', minHeight: '297mm', padding: '15mm' }}>
-        {/* Header Skeleton */}
-        <div className="flex items-center justify-between mb-6 border-b-2 border-gray-800 pb-4">
-          <div className="h-16 w-16 bg-gray-200 rounded animate-pulse"></div>
-          <div className="text-center flex-1 mx-6">
-            <div className="h-6 bg-gray-200 rounded w-64 mx-auto mb-2 animate-pulse"></div>
-            <div className="space-y-1">
-              <div className="h-4 bg-gray-200 rounded w-80 mx-auto animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-48 mx-auto animate-pulse"></div>
-              <div className="h-4 bg-gray-200 rounded w-56 mx-auto animate-pulse"></div>
-            </div>
-          </div>
-          <div className="h-16 w-16 bg-gray-200 rounded animate-pulse"></div>
-        </div>
-
-        {/* Tanker Details Skeleton */}
-        <div className="text-center mb-6">
-          <div className="h-8 bg-gray-200 rounded-lg w-48 mx-auto animate-pulse"></div>
-        </div>
-
-        <div className="mb-8">
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2">
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Item Checklist Skeleton */}
-        <div className="text-center mb-6">
-          <div className="h-8 bg-gray-200 rounded-lg w-40 mx-auto animate-pulse"></div>
-        </div>
-
-        <div className="mb-8">
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300 text-xs">
-              <thead>
-                <tr>
-                  {[...Array(9)].map((_, i) => (
-                    <th key={i} className="border border-gray-300 px-3 py-2">
-                      <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...Array(3)].map((_, rowIndex) => (
-                  <tr key={rowIndex}>
-                    {[...Array(9)].map((_, cellIndex) => (
-                      <td key={cellIndex} className="border border-gray-300 px-3 py-2">
-                        <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Stamp Skeleton */}
-        <div className="text-right mt-8">
-          <div className="inline-block w-24 h-24 bg-gray-200 rounded border-2 border-gray-400 animate-pulse"></div>
-        </div>
+        {/* Skeleton content */}
       </div>
     </div>
   );
@@ -128,78 +59,54 @@ function ErrorDisplay({ error, onRetry }) {
 }
 
 // Action Buttons Component
-function ActionButtons({ onBack, onDownloadPDF, onPrint }) {
+function ActionButtons({ onBack, onDownloadPDF, generatingPDF }) {
   return (
-    <div className="max-w-4xl mx-auto px-4 mb-6 flex justify-center space-x-4 print:hidden">
+    <div className="max-w-4xl mx-auto px-4 mb-6 flex justify-center space-x-4">
       <button
         onClick={onBack}
-        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+        disabled={generatingPDF}
       >
+        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
         Back
       </button>
       <button
         onClick={onDownloadPDF}
-        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+        className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center disabled:opacity-50 disabled:cursor-not-allowed"
+        disabled={generatingPDF}
       >
-        Download as PDF
-      </button>
-      <button
-        onClick={onPrint}
-        className="px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
-      >
-        Print
+        {generatingPDF ? (
+          <>
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+            Generating PDF...
+          </>
+        ) : (
+          <>
+            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Download PDF
+          </>
+        )}
       </button>
     </div>
   );
 }
 
-// Header Component
-function PDFHeader() {
-  return (
-    <div className="flex items-center justify-between mb-6 border-b-2 border-gray-800 pb-4">
-      <img 
-        src="/LOGO_NEW.jpg" 
-        alt="Company Logo" 
-        className="h-16 w-auto"
-        onError={(e) => {
-          e.target.style.display = 'none';
-          e.target.nextSibling.style.display = 'block';
-        }}
-      />
-      <div className="hidden border-2 border-gray-300 h-16 w-16 flex items-center justify-center text-xs text-gray-500">
-        LOGO
-      </div>
-      
-      <div className="text-center flex-1 mx-6">
-        <h1 className="text-2xl font-bold text-gray-900">GYANTI MULTISERVICES PVT. LTD.</h1>
-        <p className="text-gray-600 text-sm mt-2">
-          <em><strong>Registered Office</strong></em>: Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007<br />
-          E-Mail – accounts@gyanti.in<br />
-          GSTIN – 09AAGCG6220R1Z3, CIN No. U15549UP2016PTC088333
-        </p>
-      </div>
-      
-      <img 
-        src="/LOGO_NEW.jpg" 
-        alt="Company Logo" 
-        className="h-16 w-auto"
-        onError={(e) => {
-          e.target.style.display = 'none';
-          e.target.nextSibling.style.display = 'block';
-        }}
-      />
-      <div className="hidden border-2 border-gray-300 h-16 w-16 flex items-center justify-center text-xs text-gray-500">
-        LOGO
-      </div>
-    </div>
-  );
-}
-
-// Tanker Details Component
 function TankerDetails({ tankerData }) {
   const formatDate = (dateString) => {
     if (!dateString) return '';
-    return new Date(dateString).toLocaleDateString();
+    try {
+      return new Date(dateString).toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric'
+      });
+    } catch {
+      return dateString;
+    }
   };
 
   if (Object.keys(tankerData).length === 0) {
@@ -212,45 +119,41 @@ function TankerDetails({ tankerData }) {
 
   return (
     <div className="mb-8">
-      <table className="w-full border-collapse border border-gray-300 text-sm mb-4">
+      <table className="w-full border-collapse border border-gray-800 text-xs mb-4">
         <tbody>
           <tr>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">First Driver</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.first_driver || '-'}</td>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">First Mobile</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.first_mobile || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold w-1/5">First Driver</th>
+            <td className="border border-gray-800 px-3 py-2 w-3/10">{tankerData.first_driver || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold w-1/5">First Mobile</th>
+            <td className="border border-gray-800 px-3 py-2 w-3/10">{tankerData.first_mobile || '-'}</td>
           </tr>
           <tr>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Licence Plate</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.licence_plate || '-'}</td>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Diesel LTR</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.diesel_ltr || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Licence Plate</th>
+            <td className="border border-gray-800 px-3 py-2">{tankerData.licence_plate || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Diesel LTR</th>
+            <td className="border border-gray-800 px-3 py-2">{tankerData.diesel_ltr || '-'}</td>
           </tr>
           <tr>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Opening Station</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.opening_station || '-'}</td>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Closing Station</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.closing_station || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Opening Station</th>
+            <td className="border border-gray-800 px-3 py-2">{tankerData.opening_station || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Closing Station</th>
+            <td className="border border-gray-800 px-3 py-2">{tankerData.closing_station || '-'}</td>
           </tr>
           <tr>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Opening Meter</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.opening_meter || '-'}</td>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Closing Meter</th>
-            <td className="border border-gray-300 px-4 py-2">{tankerData.closing_meter || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Opening Meter</th>
+            <td className="border border-gray-800 px-3 py-2">{tankerData.opening_meter || '-'}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Closing Meter</th>
+            <td className="border border-gray-800 px-3 py-2">{tankerData.closing_meter || '-'}</td>
           </tr>
           <tr>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Start Date</th>
-            <td className="border border-gray-300 px-4 py-2">{formatDate(tankerData.first_start_date)}</td>
-            {tankerData.closing_date && (
-              <>
-                <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Closing Date</th>
-                <td className="border border-gray-300 px-4 py-2">{formatDate(tankerData.closing_date)}</td>
-              </>
-            )}
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Start Date</th>
+            <td className="border border-gray-800 px-3 py-2">{formatDate(tankerData.first_start_date)}</td>
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Closing Date</th>
+            <td className="border border-gray-800 px-3 py-2">{formatDate(tankerData.closing_date) || '-'}</td>
           </tr>
           <tr>
-            <th className="border border-gray-300 px-4 py-2 bg-gray-100 text-left">Remarks</th>
-            <td className="border border-gray-300 px-4 py-2" colSpan="3">
+            <th className="border border-gray-800 px-3 py-2 bg-gray-100 font-bold">Remarks</th>
+            <td className="border border-gray-800 px-3 py-2" colSpan="3">
               {tankerData.remarks || '-'}
             </td>
           </tr>
@@ -260,43 +163,42 @@ function TankerDetails({ tankerData }) {
   );
 }
 
-// Item Checklist Component
 function ItemChecklist({ items }) {
   return (
     <div className="mb-8">
       <div className="overflow-x-auto">
-        <table className="w-full border-collapse border border-gray-300 text-xs">
+        <table className="w-full border-collapse border border-gray-800 text-xs">
           <thead>
             <tr>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Item Name</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Pcs</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Description</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Opening Status</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Opening Driver Sign</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Opening Checker Sign</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Closing Status</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Closing Driver Sign</th>
-              <th className="border border-gray-300 px-3 py-2 bg-gray-100">Closing Checker Sign</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold">Item Name</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold text-center">Pcs</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold">Description</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold text-center">Opening Status</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold">Opening Driver Sign</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold">Opening Checker Sign</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold text-center">Closing Status</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold">Closing Driver Sign</th>
+              <th className="border border-gray-800 px-2 py-1 bg-gray-100 font-bold">Closing Checker Sign</th>
             </tr>
           </thead>
           <tbody>
             {items.length > 0 ? (
               items.map((item, index) => (
-                <tr key={index} className="hover:bg-gray-50">
-                  <td className="border border-gray-300 px-3 py-2">{item.item_name || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2 text-center">{item.pcs || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{item.description || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2 text-center">{item.opening_status || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{item.opening_driver_sign || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{item.opening_checker_sign || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2 text-center">{item.closing_status || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{item.closing_driver_sign || '-'}</td>
-                  <td className="border border-gray-300 px-3 py-2">{item.closing_checker_sign || '-'}</td>
+                <tr key={index} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
+                  <td className="border border-gray-800 px-2 py-1">{item.item_name || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1 text-center">{item.pcs || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1">{item.description || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1 text-center">{item.opening_status || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1">{item.opening_driver_sign || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1">{item.opening_checker_sign || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1 text-center">{item.closing_status || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1">{item.closing_driver_sign || '-'}</td>
+                  <td className="border border-gray-800 px-2 py-1">{item.closing_checker_sign || '-'}</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan="9" className="border border-gray-300 px-3 py-2 text-center text-gray-500">
+                <td colSpan="9" className="border border-gray-800 px-2 py-1 text-center text-gray-500">
                   No items found
                 </td>
               </tr>
@@ -308,108 +210,137 @@ function ItemChecklist({ items }) {
   );
 }
 
-// Company Stamp Component
-function CompanyStamp() {
-  return (
-    <div className="text-right mt-8">
-      <div className="inline-block border-2 border-gray-400 p-4 rounded">
-        <img 
-          src="/mpcl_stamp.jpg" 
-          alt="Company Stamp" 
-          className="h-24 w-auto"
-          onError={(e) => {
-            e.target.style.display = 'none';
-            e.target.nextSibling.style.display = 'block';
-          }}
-        />
-        <div className="hidden border-2 border-dashed border-gray-300 w-24 h-24 flex items-center justify-center text-xs text-gray-500 text-center">
-          Company<br />Stamp
-        </div>
-      </div>
-    </div>
-  );
-}
+// Simple PDF Generation Function
+async function generatePDFFromElement(element, fileName) {
+  try {
+    // Create canvas from element
+    const canvas = await html2canvas(element, {
+      scale: 2,
+      useCORS: true,
+      backgroundColor: '#ffffff',
+      logging: false,
+      width: element.scrollWidth,
+      height: element.scrollHeight,
+      windowWidth: element.scrollWidth,
+      windowHeight: element.scrollHeight,
+      onclone: function(clonedDoc, clonedElement) {
+        // Fix any styling issues in cloned element
+        clonedElement.style.width = '210mm';
+        clonedElement.style.padding = '15mm';
+        clonedElement.style.boxSizing = 'border-box';
+        
+        // Ensure all content is visible
+        const allElements = clonedElement.querySelectorAll('*');
+        allElements.forEach(el => {
+          el.style.boxSizing = 'border-box';
+        });
+      }
+    });
 
-// PDF Images Component
-function PDFImages({ pdfImages }) {
-  if (pdfImages.length === 0) return null;
+    // Create PDF
+    const pdf = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
 
-  return (
-    <div className="mt-8">
-      <div className="text-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">Attached Documents</h3>
-      </div>
-      {pdfImages.map((imgPath, index) => (
-        <div key={index} className="text-center mb-4">
-          <img 
-            src={imgPath} 
-            alt={`Additional Document ${index + 1}`}
-            className="max-w-full h-auto border border-gray-300 rounded-lg mx-auto"
-            onError={(e) => {
-              e.target.style.display = 'none';
-              e.target.nextSibling.style.display = 'block';
-            }}
-          />
-          <div className="hidden border-2 border-dashed border-gray-300 w-full h-48 flex items-center justify-center text-gray-500">
-            Document not available: {imgPath}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+    const imgWidth = 210;
+    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+    
+    // Add image to PDF
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgWidth, imgHeight);
+    
+    // Save the PDF
+    pdf.save(fileName);
+    
+    return true;
+  } catch (error) {
+    console.error('PDF Generation Error:', error);
+    throw error;
+  }
 }
 
 // Main PDF Content Component
-function PDFContent({ tankerData, items, pdfImages }) {
+function PDFContent({ tankerData, items }) {
   const router = useRouter();
+  const [generatingPDF, setGeneratingPDF] = useState(false);
 
-  const generatePDF = async () => {
-    if (typeof window === 'undefined') {
-      console.error('html2pdf is not available on server');
+  const downloadPDF = async () => {
+    if (!tankerData.id) {
+      alert('Tanker ID not found');
       return;
     }
+
+    setGeneratingPDF(true);
     
-    const element = document.getElementById('pdf-content');
-    if (!element) {
-      console.error('PDF content element not found');
-      return;
-    }
-    
-    // Dynamically import html2pdf only when needed (client-side only)
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      
-      element.classList.add("scale-fit");
-      
-      const opt = {
-        margin: 0,
-        filename: `tanker-details-${tankerData.id}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          scrollY: 0,
-          logging: true
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        },
-        pagebreak: { mode: 'avoid-all' }
-      };
+      // Get the PDF content element
+      const element = document.getElementById('pdf-content');
+      if (!element) {
+        throw new Error('PDF content element not found');
+      }
 
-      html2pdf().set(opt).from(element).save().then(() => {
-        element.classList.remove("scale-fit");
-      });
+      // Create a temporary container for PDF generation
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.left = '0';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '210mm';
+      tempContainer.style.minHeight = '297mm';
+      tempContainer.style.padding = '15mm';
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.boxSizing = 'border-box';
+      tempContainer.style.zIndex = '9999';
+      tempContainer.style.opacity = '0';
+      
+      // Copy the content (without action buttons)
+      const contentToCopy = element.cloneNode(true);
+      
+      // Remove action buttons if they exist in the cloned content
+      const buttons = contentToCopy.querySelector('.max-w-4xl.mx-auto.px-4.mb-6');
+      if (buttons) {
+        buttons.remove();
+      }
+      
+      tempContainer.appendChild(contentToCopy);
+      document.body.appendChild(tempContainer);
+      
+      // Generate PDF
+      const fileName = `Tanker_${tankerData.licence_plate || tankerData.id}_${new Date().toISOString().slice(0, 10)}.pdf`;
+      await generatePDFFromElement(tempContainer, fileName);
+      
+      // Clean up
+      document.body.removeChild(tempContainer);
+      
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
+      console.error('Error in downloadPDF:', error);
+      
+      // Fallback: Try direct generation without temp container
+      try {
+        const element = document.getElementById('pdf-content');
+        if (element) {
+          // Hide action buttons temporarily
+          const buttons = element.querySelector('.max-w-4xl.mx-auto.px-4.mb-6');
+          const originalDisplay = buttons?.style.display;
+          if (buttons) {
+            buttons.style.display = 'none';
+          }
+          
+          const fileName = `Tanker_${tankerData.licence_plate || tankerData.id}_${new Date().toISOString().slice(0, 10)}.pdf`;
+          await generatePDFFromElement(element, fileName);
+          
+          // Restore buttons
+          if (buttons && originalDisplay !== undefined) {
+            buttons.style.display = originalDisplay;
+          }
+        }
+      } catch (fallbackError) {
+        console.error('Fallback also failed:', fallbackError);
+        alert('Failed to generate PDF. Please check console for details.');
+      }
+    } finally {
+      setGeneratingPDF(false);
     }
-  };
-
-  const handlePrint = () => {
-    window.print();
   };
 
   const handleBack = () => {
@@ -421,73 +352,113 @@ function PDFContent({ tankerData, items, pdfImages }) {
       {/* Action Buttons */}
       <ActionButtons 
         onBack={handleBack}
-        onDownloadPDF={generatePDF}
-        onPrint={handlePrint}
+        onDownloadPDF={downloadPDF}
+        generatingPDF={generatingPDF}
       />
 
-      {/* A4 Container */}
-      <div id="pdf-content" className="bg-white shadow-lg mx-auto print:shadow-none print:mx-0" style={{ width: '210mm', minHeight: '297mm', padding: '15mm' }}>
-        {/* Header */}
-        <Suspense fallback={null}>
-          <PDFHeader />
-        </Suspense>
+      {/* PDF Content */}
+      <div 
+        id="pdf-content" 
+        className="bg-white shadow-lg mx-auto" 
+        style={{ 
+          width: '210mm', 
+          minHeight: '297mm', 
+          padding: '15mm',
+          boxSizing: 'border-box',
+          fontSize: '12px'
+        }}
+      >
+        {/* Header with Logo */}
+        <div className="flex items-center justify-between mb-6 border-b-2 border-gray-800 pb-4">
+          <div className="w-16 flex-shrink-0">
+            <img 
+              src="/LOGO_NEW.jpg" 
+              alt="Company Logo" 
+              className="w-full h-auto"
+              crossOrigin="anonymous"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const placeholder = e.target.nextElementSibling;
+                if (placeholder) {
+                  placeholder.classList.remove('hidden');
+                }
+              }}
+            />
+            <div className="hidden border-2 border-gray-300 h-16 w-16 flex items-center justify-center text-xs text-gray-500">
+              LOGO
+            </div>
+          </div>
+          
+          <div className="text-center flex-1 px-6">
+            <h1 className="text-lg font-bold text-gray-900 mb-2">GYANTI MULTISERVICES PVT. LTD.</h1>
+            <p className="text-xs text-gray-600 leading-tight">
+              <strong>Registered Office</strong>: Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007<br />
+              E-Mail – accounts@gyanti.in<br />
+              GSTIN – 09AAGCG6220R1Z3, CIN No. U15549UP2016PTC088333
+            </p>
+          </div>
+          
+          <div className="w-16 flex-shrink-0">
+            <img 
+              src="/LOGO_NEW.jpg" 
+              alt="Company Logo" 
+              className="w-full h-auto"
+              crossOrigin="anonymous"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const placeholder = e.target.nextElementSibling;
+                if (placeholder) {
+                  placeholder.classList.remove('hidden');
+                }
+              }}
+            />
+            <div className="hidden border-2 border-gray-300 h-16 w-16 flex items-center justify-center text-xs text-gray-500">
+              LOGO
+            </div>
+          </div>
+        </div>
 
         {/* Tanker Details Section */}
         <div className="text-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800 bg-gray-100 py-2 rounded-lg">
+          <h2 className="text-lg font-bold text-gray-800 bg-gray-100 py-2 px-5 rounded inline-block">
             Tanker Details
           </h2>
         </div>
 
-        <Suspense fallback={null}>
-          <TankerDetails tankerData={tankerData} />
-        </Suspense>
+        <TankerDetails tankerData={tankerData} />
 
         {/* Item Checklist Section */}
         <div className="text-center mb-6">
-          <h2 className="text-xl font-bold text-gray-800 bg-gray-100 py-2 rounded-lg">
+          <h2 className="text-lg font-bold text-gray-800 bg-gray-100 py-2 px-5 rounded inline-block">
             Item Checklist
           </h2>
         </div>
 
-        <Suspense fallback={null}>
-          <ItemChecklist items={items} />
-        </Suspense>
+        <ItemChecklist items={items} />
 
         {/* Company Stamp */}
-        <Suspense fallback={null}>
-          <CompanyStamp />
-        </Suspense>
-
-        {/* PDF Images */}
-        <Suspense fallback={null}>
-          <PDFImages pdfImages={pdfImages} />
-        </Suspense>
+        <div className="text-right mt-8">
+          <div className="inline-block">
+            <img 
+              src="/mpcl_stamp.jpg" 
+              alt="Stamp" 
+              className="h-20 w-auto"
+              crossOrigin="anonymous"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const placeholder = e.target.nextElementSibling;
+                if (placeholder) {
+                  placeholder.classList.remove('hidden');
+                  placeholder.classList.add('flex');
+                }
+              }}
+            />
+            <div className="hidden border-2 border-dashed border-gray-400 w-20 h-20 flex items-center justify-center text-xs text-gray-500 text-center">
+              Company<br />Stamp
+            </div>
+          </div>
+        </div>
       </div>
-
-      {/* Print Styles */}
-      <style jsx global>{`
-        @media print {
-          body {
-            margin: 0;
-            padding: 0;
-            background: white;
-          }
-          .print\\:shadow-none {
-            box-shadow: none !important;
-          }
-          .print\\:mx-0 {
-            margin-left: 0 !important;
-            margin-right: 0 !important;
-          }
-        }
-        
-        .scale-fit {
-          transform: scale(0.8);
-          transform-origin: top left;
-          width: 125%;
-        }
-      `}</style>
     </div>
   );
 }
@@ -500,7 +471,6 @@ function TankerViewContent() {
   
   const [tankerData, setTankerData] = useState({});
   const [items, setItems] = useState([]);
-  const [pdfImages, setPdfImages] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -520,7 +490,6 @@ function TankerViewContent() {
       if (result.success) {
         setTankerData(result.data.tanker);
         setItems(result.data.items);
-        setPdfImages(result.data.pdfImages);
       } else {
         setError(result.message);
       }
@@ -544,7 +513,7 @@ function TankerViewContent() {
     return <ErrorDisplay error={error} onRetry={handleRetry} />;
   }
 
-  return <PDFContent tankerData={tankerData} items={items} pdfImages={pdfImages} />;
+  return <PDFContent tankerData={tankerData} items={items} />;
 }
 
 // Main component with Suspense boundary

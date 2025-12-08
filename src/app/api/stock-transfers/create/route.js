@@ -195,6 +195,49 @@ export async function POST(request) {
         console.log("⚠️ Stock transfer logs table may not exist, skipping:", logError.message);
       }
 
+      // Create audit log entry for stock transfer
+      try {
+        await connection.execute(`
+          CREATE TABLE IF NOT EXISTS stock_audit_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            stock_id INT,
+            station_id INT,
+            product_id INT,
+            action_type VARCHAR(50) NOT NULL,
+            user_id INT,
+            user_name VARCHAR(255),
+            remarks TEXT,
+            quantity DECIMAL(10,2),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_stock_id (stock_id),
+            INDEX idx_station_id (station_id),
+            INDEX idx_created_at (created_at)
+          )
+        `);
+        
+        // Fetch employee name from employee_profile
+        let employeeName = 'System';
+        try {
+          const [employeeResult] = await connection.execute(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (employeeResult.length > 0) {
+            employeeName = employeeResult[0].name;
+          }
+        } catch (empError) {
+          console.error('Error fetching employee name:', empError);
+        }
+        
+        await connection.execute(
+          `INSERT INTO stock_audit_log (station_id, product_id, action_type, user_id, user_name, remarks, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [station_from, product, 'transferred', userId, employeeName, `Stock transferred to station ${station_to}`, transferQuantity]
+        );
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+        // Don't fail the main operation
+      }
+
       console.log("🎉 Stock transfer created successfully!");
       return transferResult;
     });

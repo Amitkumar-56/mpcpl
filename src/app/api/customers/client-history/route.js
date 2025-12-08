@@ -458,6 +458,46 @@ export async function PATCH(request) {
       message += result.isOverdue ? ' ⚠️ Status: Overdue' : ' ✅ Status: Active';
     }
 
+    // Create audit log entry for payment
+    try {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS customer_audit_log (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          customer_id INT NOT NULL,
+          action_type VARCHAR(50) NOT NULL,
+          user_id INT,
+          user_name VARCHAR(255),
+          remarks TEXT,
+          amount DECIMAL(10,2),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_customer_id (customer_id),
+          INDEX idx_created_at (created_at)
+        )
+      `);
+      
+      // Fetch employee name from employee_profile
+      let employeeName = 'System';
+      try {
+        const employeeResult = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [1]
+        );
+        if (employeeResult.length > 0) {
+          employeeName = employeeResult[0].name;
+        }
+      } catch (empError) {
+        console.error('Error fetching employee name:', empError);
+      }
+      
+      await executeQuery(
+        `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+        [customerId, 'payment', 1, employeeName, `Payment processed - ${result.invoicesPaid} invoice(s) paid, ${result.daysCleared} day(s) cleared`, result.totalPaidAmount]
+      );
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+      // Don't fail the main operation
+    }
+
     return NextResponse.json({
       success: true,
       message,

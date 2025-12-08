@@ -18,6 +18,7 @@ function ApproveDeepoContent() {
   const [remarks, setRemarks] = useState('');
   const [showActionModal, setShowActionModal] = useState(false);
   const [selectedAction, setSelectedAction] = useState('');
+  const [pdfGenerating, setPdfGenerating] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -86,52 +87,119 @@ function ApproveDeepoContent() {
 
   const generatePDF = async () => {
     if (typeof window === 'undefined') {
-      console.error('html2pdf is not available on server');
+      console.error('PDF generation is not available on server');
+      alert('PDF generation is only available in the browser');
       return;
     }
     
     const element = document.getElementById('pdf-content');
     if (!element) {
       console.error('PDF content element not found');
+      alert('PDF content not found. Please refresh the page and try again.');
       return;
     }
     
-    // Dynamically import html2pdf only when needed (client-side only)
+    setPdfGenerating(true);
+    
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
+      // Use html2canvas and jsPDF directly for better reliability
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
       
-      // Add scaling class
-      element.classList.add("scale-80", "origin-top-left", "w-[125%]");
+      if (!html2canvas || !jsPDF) {
+        throw new Error('Failed to load PDF libraries');
+      }
       
-      const opt = {
-        margin: 0,
-        filename: `deepo-details-${id}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          scrollY: 0,
-          logging: false
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        },
-        pagebreak: { mode: 'avoid-all' }
-      };
+      // Wait a bit to ensure DOM is ready
+      await new Promise(resolve => setTimeout(resolve, 200));
+      
+      // Create canvas from element
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        scrollX: 0,
+        scrollY: 0,
+        windowWidth: element.scrollWidth,
+        windowHeight: element.scrollHeight,
+        allowTaint: true
+      });
 
-      html2pdf()
-        .set(opt)
-        .from(element)
-        .save()
-        .then(() => {
-          // Remove scaling class after PDF generation
-          element.classList.remove("scale-80", "origin-top-left", "w-[125%]");
-        });
+      // Create PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+
+      // Add first page
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+
+      // Add more pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+
+      // Save PDF
+      pdf.save(`deepo-details-${id || 'unknown'}.pdf`);
+      
+      alert('PDF downloaded successfully!');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
+      
+      // Fallback to html2pdf.js if html2canvas method fails
+      try {
+        const html2pdf = (await import('html2pdf.js')).default;
+        
+        if (html2pdf) {
+          const opt = {
+            margin: 0,
+            filename: `deepo-details-${id || 'unknown'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { 
+              scale: 2, 
+              useCORS: true, 
+              scrollY: 0,
+              logging: false,
+              allowTaint: true,
+              backgroundColor: '#ffffff'
+            },
+            jsPDF: { 
+              unit: 'mm', 
+              format: 'a4', 
+              orientation: 'portrait' 
+            },
+            pagebreak: { mode: 'avoid-all' }
+          };
+
+          await html2pdf()
+            .set(opt)
+            .from(element)
+            .save();
+          
+          alert('PDF downloaded successfully!');
+          return;
+        }
+      } catch (fallbackError) {
+        console.error('Fallback PDF generation also failed:', fallbackError);
+      }
+      
+      const errorMessage = error.message || 'Unknown error occurred';
+      alert(`Failed to generate PDF: ${errorMessage}. Please check the console for details.`);
+    } finally {
+      setPdfGenerating(false);
     }
   };
 
@@ -210,9 +278,12 @@ function ApproveDeepoContent() {
             </button>
             <button
               onClick={generatePDF}
-              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
+              disabled={pdfGenerating}
+              className={`bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-md font-medium transition-colors ${
+                pdfGenerating ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
-              Download PDF
+              {pdfGenerating ? 'Generating PDF...' : 'Download PDF'}
             </button>
           </div>
         </div>

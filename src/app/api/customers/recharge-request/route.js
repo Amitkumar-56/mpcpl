@@ -498,6 +498,46 @@ ${isOverdue ? '⚠️ Status: Overdue - Please clear remaining payments' : '✅ 
 💎 Remaining Credit: ₹${remainingAmount}`
   };
 
+  // Create audit log entry for recharge
+  try {
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS customer_audit_log (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NOT NULL,
+        action_type VARCHAR(50) NOT NULL,
+        user_id INT,
+        user_name VARCHAR(255),
+        remarks TEXT,
+        amount DECIMAL(10,2),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_customer_id (customer_id),
+        INDEX idx_created_at (created_at)
+      )
+    `);
+    
+    // Fetch employee name from employee_profile
+    let employeeName = 'System';
+    try {
+      const employeeResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [1]
+      );
+      if (employeeResult.length > 0) {
+        employeeName = employeeResult[0].name;
+      }
+    } catch (empError) {
+      console.error('Error fetching employee name:', empError);
+    }
+    
+    await executeQuery(
+      `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+      [customerId, 'recharge', 1, employeeName, `Day limit recharge: ₹${amount}${comments ? ' - ' + comments : ''}`, amount]
+    );
+  } catch (auditError) {
+    console.error('Error creating audit log:', auditError);
+    // Don't fail the main operation
+  }
+
   console.log('🎉 FINAL RESULT:', result);
   return result;
 }
@@ -568,6 +608,46 @@ async function handleRegularRecharge(customerId, amount, paymentDate, paymentTyp
      VALUES (?, ?, ?, ?, 1, NOW())`,
     [customerId, oldLimit, amount, new_limit]
   );
+
+  // Create audit log entry for recharge
+  try {
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS customer_audit_log (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NOT NULL,
+        action_type VARCHAR(50) NOT NULL,
+        user_id INT,
+        user_name VARCHAR(255),
+        remarks TEXT,
+        amount DECIMAL(10,2),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_customer_id (customer_id),
+        INDEX idx_created_at (created_at)
+      )
+    `);
+    
+    // Fetch employee name from employee_profile
+    let employeeName = 'System';
+    try {
+      const employeeResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [1]
+      );
+      if (employeeResult.length > 0) {
+        employeeName = employeeResult[0].name;
+      }
+    } catch (empError) {
+      console.error('Error fetching employee name:', empError);
+    }
+    
+    await executeQuery(
+      `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+      [customerId, 'recharge', 1, employeeName, `Regular recharge: ₹${amount}${comments ? ' - ' + comments : ''}`, amount]
+    );
+  } catch (auditError) {
+    console.error('Error creating audit log:', auditError);
+    // Don't fail the main operation
+  }
 
   return {
     old_balance: oldBalance,

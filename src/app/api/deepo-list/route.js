@@ -73,6 +73,45 @@ export async function POST(request) {
 
       const deepo_history_id = historyResult.insertId;
 
+      // Create audit log entry for creation
+      try {
+        await connection.execute(`
+          CREATE TABLE IF NOT EXISTS deepo_audit_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            deepo_id INT NOT NULL,
+            action_type VARCHAR(50) NOT NULL,
+            user_id INT,
+            user_name VARCHAR(255),
+            remarks TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_deepo_id (deepo_id),
+            INDEX idx_created_at (created_at)
+          )
+        `);
+        
+        // Fetch employee name from employee_profile
+        let employeeName = 'System';
+        try {
+          const [employeeResult] = await connection.execute(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [1]
+          );
+          if (employeeResult.length > 0) {
+            employeeName = employeeResult[0].name;
+          }
+        } catch (empError) {
+          console.error('Error fetching employee name:', empError);
+        }
+        
+        await connection.execute(
+          `INSERT INTO deepo_audit_log (deepo_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
+          [deepo_history_id, 'created', 1, employeeName, 'Deepo record created']
+        );
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+        // Don't fail the main operation
+      }
+
       // Check if deepo_items table has deepo_history_id column (do this once outside loop)
       const [tableColumns] = await connection.execute(`DESCRIBE deepo_items`);
       const columnNames = tableColumns.map(col => col.Field);

@@ -73,6 +73,45 @@ export async function POST(request) {
 
         await executeQuery('COMMIT');
 
+        // Create audit log entry
+        try {
+          await executeQuery(`
+            CREATE TABLE IF NOT EXISTS customer_audit_log (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              customer_id INT NOT NULL,
+              action_type VARCHAR(50) NOT NULL,
+              user_id INT,
+              user_name VARCHAR(255),
+              remarks TEXT,
+              amount DECIMAL(10,2),
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_customer_id (customer_id),
+              INDEX idx_created_at (created_at)
+            )
+          `);
+          
+          // Fetch employee name from employee_profile
+          let employeeName = 'System';
+          try {
+            const employeeResult = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [1]
+            );
+            if (employeeResult.length > 0) {
+              employeeName = employeeResult[0].name;
+            }
+          } catch (empError) {
+            console.error('Error fetching employee name:', empError);
+          }
+          
+          await executeQuery(
+            `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+            [customerId, 'payment', 1, employeeName, `One day payment - Service extended`, amount]
+          );
+        } catch (auditError) {
+          console.error('Error creating audit log:', auditError);
+        }
+
         return NextResponse.json({
           success: true,
           message: `One day payment of ₹${amount} processed successfully. Service extended.`,
@@ -147,6 +186,45 @@ export async function POST(request) {
         }
 
         await executeQuery('COMMIT');
+
+        // Create audit log entry
+        try {
+          await executeQuery(`
+            CREATE TABLE IF NOT EXISTS customer_audit_log (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              customer_id INT NOT NULL,
+              action_type VARCHAR(50) NOT NULL,
+              user_id INT,
+              user_name VARCHAR(255),
+              remarks TEXT,
+              amount DECIMAL(10,2),
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_customer_id (customer_id),
+              INDEX idx_created_at (created_at)
+            )
+          `);
+          
+          // Fetch employee name from employee_profile
+          let employeeName = 'System';
+          try {
+            const employeeResult = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [1]
+            );
+            if (employeeResult.length > 0) {
+              employeeName = employeeResult[0].name;
+            }
+          } catch (empError) {
+            console.error('Error fetching employee name:', empError);
+          }
+          
+          await executeQuery(
+            `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+            [customerId, 'payment', 1, employeeName, `Payment processed - ${invoicesPaid} invoice(s) paid`, totalPaidAmount]
+          );
+        } catch (auditError) {
+          console.error('Error creating audit log:', auditError);
+        }
 
         return NextResponse.json({
           success: true,

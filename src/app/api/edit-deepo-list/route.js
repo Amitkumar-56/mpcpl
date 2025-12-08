@@ -124,6 +124,45 @@ export async function POST(request) {
       deepoId
     ]);
 
+    // Create audit log entry for edit
+    try {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS deepo_audit_log (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          deepo_id INT NOT NULL,
+          action_type VARCHAR(50) NOT NULL,
+          user_id INT,
+          user_name VARCHAR(255),
+          remarks TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_deepo_id (deepo_id),
+          INDEX idx_created_at (created_at)
+        )
+      `);
+      
+      // Fetch employee name from employee_profile
+      let employeeName = 'System';
+      try {
+        const employeeResult = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [1]
+        );
+        if (employeeResult.length > 0) {
+          employeeName = employeeResult[0].name;
+        }
+      } catch (empError) {
+        console.error('Error fetching employee name:', empError);
+      }
+      
+      await executeQuery(
+        `INSERT INTO deepo_audit_log (deepo_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
+        [deepoId, 'edited', 1, employeeName, 'Deepo record updated']
+      );
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+      // Don't fail the main operation
+    }
+
     // Process items
     const licencePlate = formData.get('licence_plate');
     const itemIds = formData.getAll('item_id[]');

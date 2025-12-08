@@ -238,7 +238,7 @@ function ItemChecklist({ items, onItemChange }) {
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
             {items.map((item, index) => (
-              <tr key={item.id} className="hover:bg-gray-50">
+              <tr key={`item-${item.id ?? index}-${index}`} className="hover:bg-gray-50">
                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
                   {item.item_name}
                 </td>
@@ -454,8 +454,8 @@ function TankerNewFormContent() {
       const response = await fetch('/api/items');
       const result = await response.json();
       
-      if (result.success) {
-        return result.data.map(item => ({
+      if (result.success && result.data && result.data.items) {
+        return result.data.items.map(item => ({
           ...item,
           pcs: 0,
           description: '',
@@ -497,9 +497,16 @@ function TankerNewFormContent() {
     setMessage('');
 
     try {
+      // Map items to include item_id from id field
+      const mappedItems = items.map(item => ({
+        ...item,
+        item_id: item.id || item.item_id,
+        item_name: item.item_name
+      }));
+
       const submitData = {
         ...formData,
-        items_data: items
+        items_data: mappedItems
       };
 
       const response = await fetch('/api/tanker-new-list', {
@@ -518,10 +525,12 @@ function TankerNewFormContent() {
           router.push(`/tanker-history?success=1&id=${result.data.tanker_history_id}`);
         }, 2000);
       } else {
-        showMessage(result.message, 'error');
+        const errorMsg = result.error || result.message || 'Error creating tanker';
+        showMessage(errorMsg, 'error');
+        console.error('API Error:', result);
       }
     } catch (error) {
-      showMessage('Error creating tanker', 'error');
+      showMessage(`Error creating tanker: ${error.message}`, 'error');
       console.error('Error:', error);
     } finally {
       setSubmitting(false);

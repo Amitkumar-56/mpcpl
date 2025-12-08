@@ -71,7 +71,7 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { id, action, remarks } = await request.json();
+    const { id, action, remarks, userId = 1, userName = 'System' } = await request.json();
 
     if (!id || !action) {
       return NextResponse.json(
@@ -81,15 +81,12 @@ export async function POST(request) {
     }
 
     let status;
-    let approvedAt = null;
-    let rejectedAt = null;
+    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     if (action === 'approve') {
       status = 'approved';
-      approvedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
     } else if (action === 'reject') {
       status = 'rejected';
-      rejectedAt = new Date().toISOString().slice(0, 19).replace('T', ' ');
     } else {
       return NextResponse.json(
         { success: false, error: 'Invalid action' },
@@ -97,16 +94,84 @@ export async function POST(request) {
       );
     }
 
-    // Update deepo status
-    const result = await executeQuery(
-      `UPDATE deepo_history SET 
-        status = ?,
-        approved_at = ?,
-        rejected_at = ?,
-        approval_remarks = ?
-      WHERE id = ?`,
-      [status, approvedAt, rejectedAt, remarks, id]
-    );
+    // Check which columns exist in the table
+    const columnsResult = await executeQuery('DESCRIBE deepo_history');
+    const columnNames = columnsResult.map(col => col.Field);
+    const hasApprovedAt = columnNames.includes('approved_at');
+    const hasRejectedAt = columnNames.includes('rejected_at');
+    const hasApprovalRemarks = columnNames.includes('approval_remarks');
+    const hasApprovedBy = columnNames.includes('approved_by');
+
+    // Build dynamic UPDATE query based on available columns
+    let updateFields = ['status = ?'];
+    let updateValues = [status];
+
+    if (hasApprovedAt && action === 'approve') {
+      updateFields.push('approved_at = ?');
+      updateValues.push(timestamp);
+    }
+    if (hasRejectedAt && action === 'reject') {
+      updateFields.push('rejected_at = ?');
+      updateValues.push(timestamp);
+    }
+    if (hasApprovalRemarks) {
+      updateFields.push('approval_remarks = ?');
+      updateValues.push(remarks || '');
+    }
+    if (hasApprovedBy) {
+      updateFields.push('approved_by = ?');
+      updateValues.push(userId);
+    }
+
+    updateValues.push(id);
+
+    const updateQuery = `UPDATE deepo_history SET ${updateFields.join(', ')} WHERE id = ?`;
+    const result = await executeQuery(updateQuery, updateValues);
+
+    // Create audit log entry
+    try {
+      // Check if audit log table exists, if not create it
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS deepo_audit_log (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          deepo_id INT NOT NULL,
+          action_type VARCHAR(50) NOT NULL,
+          user_id INT,
+          user_name VARCHAR(255),
+          remarks TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_deepo_id (deepo_id),
+          INDEX idx_created_at (created_at)
+        )
+      `);
+
+      // Fetch employee name from employee_profile if user_id is provided
+      let employeeName = userName || 'System';
+      if (userId) {
+        try {
+          const employeeResult = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (employeeResult.length > 0) {
+            employeeName = employeeResult[0].name;
+          }
+        } catch (empError) {
+          console.error('Error fetching employee name:', empError);
+        }
+      }
+      
+      // Use consistent action type (approve/rejected)
+      const logActionType = action === 'approve' ? 'approve' : 'rejected';
+      
+      await executeQuery(
+        `INSERT INTO deepo_audit_log (deepo_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
+        [id, logActionType, userId, employeeName, remarks || `Deepo ${action}d`]
+      );
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+      // Don't fail the main operation if audit log fails
+    }
 
     if (result.affectedRows === 0) {
       return NextResponse.json(

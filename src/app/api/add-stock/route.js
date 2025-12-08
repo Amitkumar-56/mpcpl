@@ -67,6 +67,50 @@ export async function POST(request) {
       console.log('stock_history table might not exist, skipping...');
     }
 
+    // Create audit log entry
+    try {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS stock_audit_log (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          stock_id INT,
+          station_id INT,
+          product_id INT,
+          action_type VARCHAR(50) NOT NULL,
+          user_id INT,
+          user_name VARCHAR(255),
+          remarks TEXT,
+          quantity DECIMAL(10,2),
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_stock_id (stock_id),
+          INDEX idx_station_id (station_id),
+          INDEX idx_created_at (created_at)
+        )
+      `);
+      
+      // Fetch employee name from employee_profile
+      let employeeName = 'System';
+      const stockId = existingRecord.length > 0 ? existingRecord[0].id : null;
+      try {
+        const employeeResult = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [1]
+        );
+        if (employeeResult.length > 0) {
+          employeeName = employeeResult[0].name;
+        }
+      } catch (empError) {
+        console.error('Error fetching employee name:', empError);
+      }
+      
+      await executeQuery(
+        `INSERT INTO stock_audit_log (stock_id, station_id, product_id, action_type, user_id, user_name, remarks, quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [stockId, station_id, product_id, 'added', 1, employeeName, remarks || 'Stock added', parseInt(quantity)]
+      );
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+      // Don't fail the main operation
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Stock added successfully'
