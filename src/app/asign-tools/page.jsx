@@ -330,7 +330,6 @@ function AssignToolsContent() {
     </div>
   );
 }
-
 // Main component with Suspense wrapper
 export default function AssignTools() {
   return (
