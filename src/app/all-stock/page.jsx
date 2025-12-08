@@ -760,7 +760,7 @@ function AllStockContent() {
 // Main Page Component with Suspense
 export default function AllStock() {
   return (
-    <Suspense fallback={<AllStockLoading />}>
+    <Suspense fallback={null}>
       <AllStockContent />
     </Suspense>
   );

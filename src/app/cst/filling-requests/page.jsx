@@ -5,9 +5,9 @@ import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
-export default function FillingRequestsPage() {
+function FillingRequestsPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -372,5 +372,13 @@ export default function FillingRequestsPage() {
         <Footer />
       </div>
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <FillingRequestsPage />
+    </Suspense>
   );
 }

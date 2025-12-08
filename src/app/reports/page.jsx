@@ -335,18 +335,12 @@ function ReportsContent() {
           </nav>
 
           {/* Quick Stats with Suspense */}
-          <Suspense fallback={<StatsLoading />}>
+          <Suspense fallback={null}>
             <QuickStats stats={stats} loading={loading} />
           </Suspense>
 
           {/* Reports Grid with Suspense */}
-          <Suspense fallback={
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="bg-gray-200 rounded-2xl h-48 animate-pulse"></div>
-              ))}
-            </div>
-          }>
+          <Suspense fallback={null}>
             <ReportsGrid 
               reports={reports} 
               loading={loading} 
@@ -365,7 +359,7 @@ function ReportsContent() {
 // Main page component with Suspense boundary
 export default function ReportsPage() {
   return (
-    <Suspense fallback={<ReportsLoading />}>
+    <Suspense fallback={null}>
       <ReportsContent />
     </Suspense>
   );

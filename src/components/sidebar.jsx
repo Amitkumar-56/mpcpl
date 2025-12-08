@@ -234,50 +234,41 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 scrollbar-hide">
-          {authLoading ? (
-            <div className="flex flex-col items-center justify-center p-4">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mb-2"></div>
-              <p className="text-gray-600 text-sm">Loading menu...</p>
-            </div>
-          ) : (
-            <>
-              {allowedMenu.map((item) => {
-                const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
-                return (
-                  <Link
-                    key={item.name}
-                    href={item.path}
-                    prefetch={false}
-                    onClick={() => setIsOpen(false)}
-                    className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
-                      isActive
-                        ? "bg-blue-500 text-white shadow-md"
-                        : "text-black hover:bg-blue-300 hover:text-gray-900"
-                    }`}
-                  >
-                    <span className="mr-3 text-lg">{item.icon}</span>
-                    <span className="text-sm font-medium">{item.name}</span>
-                  </Link>
-                );
-              })}
+          {allowedMenu.map((item) => {
+            const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
+            return (
+              <Link
+                key={item.name}
+                href={item.path}
+                prefetch={false}
+                onClick={() => setIsOpen(false)}
+                className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
+                  isActive
+                    ? "bg-blue-500 text-white shadow-md"
+                    : "text-black hover:bg-blue-300 hover:text-gray-900"
+                }`}
+              >
+                <span className="mr-3 text-lg">{item.icon}</span>
+                <span className="text-sm font-medium">{item.name}</span>
+              </Link>
+            );
+          })}
 
-              {allowedMenu.length === 0 && (
-                <div className="p-3 text-center text-gray-600 text-sm space-y-2">
-                  <p className="font-semibold">No modules available for your role</p>
-                  <p className="text-xs text-gray-500">
-                    {user?.role === 5 
-                      ? 'Admin should have full access. Please check console for errors.'
-                      : `Role: ${user?.role || 'Unknown'}. Please contact admin to assign permissions.`
-                    }
-                  </p>
-                  {user?.permissions && Object.keys(user.permissions).length === 0 && (
-                    <p className="text-xs text-red-500 mt-2">
-                      ⚠️ No permissions found in database. Check role_permissions table.
-                    </p>
-                  )}
-                </div>
+          {allowedMenu.length === 0 && (
+            <div className="p-3 text-center text-gray-600 text-sm space-y-2">
+              <p className="font-semibold">No modules available for your role</p>
+              <p className="text-xs text-gray-500">
+                {user?.role === 5 
+                  ? 'Admin should have full access. Please check console for errors.'
+                  : `Role: ${user?.role || 'Unknown'}. Please contact admin to assign permissions.`
+                }
+              </p>
+              {user?.permissions && Object.keys(user.permissions).length === 0 && (
+                <p className="text-xs text-red-500 mt-2">
+                  ⚠️ No permissions found in database. Check role_permissions table.
+                </p>
               )}
-            </>
+            </div>
           )}
         </nav>
 

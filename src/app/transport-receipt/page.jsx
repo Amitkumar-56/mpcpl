@@ -612,7 +612,7 @@ function TransportReceiptContent() {
 // Main component with Suspense
 export default function TransportReceipt() {
   return (
-    <Suspense fallback={<LoadingFallback />}>
+    <Suspense fallback={null}>
       <TransportReceiptContent />
     </Suspense>
   );

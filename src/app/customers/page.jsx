@@ -7,7 +7,7 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import Link from "next/link";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import {
   BiCoin,
   BiEdit,
@@ -20,7 +20,7 @@ import {
 } from "react-icons/bi";
 import { FaToggleOff, FaToggleOn } from "react-icons/fa";
 
-export default function CustomersPage() {
+function CustomersPage() {
   const [customers, setCustomers] = useState([]);
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
@@ -599,7 +599,9 @@ export default function CustomersPage() {
                             
                             return (
                               <React.Fragment key={c.id}>
-                                <tr className="border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200">
+                                <tr className={`border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200 ${
+                                c.status === 0 ? 'bg-red-50/30 opacity-90' : ''
+                              }`}>
                                 <td className="p-4 font-mono text-purple-600 font-bold">#{c.id}</td>
                                 <td className="p-4">
                                   <div className="flex items-center space-x-3">
@@ -624,13 +626,24 @@ export default function CustomersPage() {
                                   <div className="text-gray-900 font-medium">{c.phone || 'No phone'}</div>
                                 </td>
                                 <td className="p-4">
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
                                     <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-bold ${clientTypeInfo.color}`}>
                                       {clientTypeInfo.text}
                                       {c.client_type === "3" && c.day_limit && (
                                         <span className="ml-1 text-xs">({c.day_limit}d)</span>
                                       )}
                                     </span>
+                                    {/* Status Badge */}
+                                    {c.status === 0 && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-300">
+                                        ⚠️ Disabled
+                                      </span>
+                                    )}
+                                    {c.status === 1 && (
+                                      <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800 border border-green-300">
+                                        ✓ Active
+                                      </span>
+                                    )}
                                     <button
                                       onClick={() => {
                                         const newExpanded = new Set(expandedRows);
@@ -1238,5 +1251,13 @@ export default function CustomersPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={null}>
+      <CustomersPage />
+    </Suspense>
   );
 }

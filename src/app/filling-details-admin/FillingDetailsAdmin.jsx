@@ -401,21 +401,7 @@ export default function FillingDetailsAdmin() {
 
   // Loading component
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <Header />
-        <div className="flex flex-1">
-          <Sidebar />
-          <div className="flex-1 flex items-center justify-center ml-64">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading request details...</p>
-            </div>
-          </div>
-        </div>
-        <Footer />
-      </div>
-    );
+    return null;
   }
 
   // Error component
@@ -423,22 +409,22 @@ export default function FillingDetailsAdmin() {
     return (
       <div className="min-h-screen bg-gray-50 flex flex-col">
         <Header />
-        <div className="flex flex-1">
+        <div className="flex flex-col md:flex-row flex-1">
           <Sidebar />
-          <div className="flex-1 flex items-center justify-center ml-64">
-            <div className="text-center max-w-md">
-              <div className="text-red-500 text-xl mb-4">❌ Error</div>
-              <p className="text-gray-600 mb-4">{error}</p>
-              <div className="flex space-x-4 justify-center">
+          <div className="flex-1 flex items-center justify-center md:ml-64 p-4">
+            <div className="text-center max-w-md w-full">
+              <div className="text-red-500 text-lg md:text-xl mb-4">❌ Error</div>
+              <p className="text-gray-600 mb-4 text-sm md:text-base">{error}</p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button 
                   onClick={() => router.back()} 
-                  className="bg-gray-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-gray-600 transition-colors"
+                  className="bg-gray-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-gray-600 transition-colors text-sm md:text-base"
                 >
                   Go Back
                 </button>
                 <button 
                   onClick={fetchRequestDetails} 
-                  className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-600 transition-colors"
+                  className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-600 transition-colors text-sm md:text-base"
                 >
                   Try Again
                 </button>
@@ -501,32 +487,32 @@ export default function FillingDetailsAdmin() {
                        requestData.status === 'Completed';
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="flex flex-col md:flex-row h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <Sidebar />
- 
+
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header/>
- 
+
         <main className="flex-1 overflow-auto">
-          <div className="py-8">
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-4 md:py-8">
+            <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
               
-              <div className="mb-6">
+              <div className="mb-4 md:mb-6">
                 <button 
                   onClick={() => router.back()} 
-                  className="flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-4"
+                  className="flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-3 md:mb-4"
                 >
-                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <svg className="w-4 h-4 md:w-5 md:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
                   </svg>
-                  Back to Requests
+                  <span className="text-sm md:text-base">Back to Requests</span>
                 </button>
                 
-                <div className="flex items-center justify-between">
-                  <h1 className="text-2xl font-bold text-gray-900">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                  <h1 className="text-xl md:text-2xl font-bold text-gray-900">
                     Filling Request: <span className="text-blue-600">{requestData.rid}</span>
                   </h1>
-                  <div className="flex flex-col items-end space-y-1">
+                  <div className="flex flex-col md:items-end space-y-1">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
                       {requestData.status} 
                       {requestData.status === 'Processing' && ' 🔄'}
@@ -583,60 +569,60 @@ export default function FillingDetailsAdmin() {
               )}
 
               {/* Request Information Section */}
-              <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
-                <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-4 md:mb-6 overflow-hidden">
+                <div className="px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-b border-gray-200">
+                  <h2 className="text-base md:text-lg font-semibold text-gray-900 flex items-center">
+                    <svg className="w-4 h-4 md:w-5 md:h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
                       <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
                     </svg>
                     Request Information
                   </h2>
                 </div>
-                <div className="p-6">
+                <div className="p-3 md:p-6">
                   <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                       <tbody className="divide-y divide-gray-200">
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide w-1/4">Request ID</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-mono w-3/4">{requestData.rid}</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide md:w-1/4">Request ID</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 font-mono md:w-3/4 break-words">{requestData.rid}</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Product</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{requestData.product_name}</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Product</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.product_name}</td>
                         </tr>
                         {requestData.sub_product_code && (
-                          <tr>
-                            <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Sub-Product</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{requestData.sub_product_code}</td>
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Sub-Product</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.sub_product_code}</td>
                           </tr>
                         )}
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Station</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{requestData.station_name}</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Station</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.station_name}</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Name</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{requestData.client_name}</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Name</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.client_name}</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Phone</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{requestData.client_phone}</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Phone</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.client_phone}</td>
                         </tr>
                         
                         {/* Limit Information - CORRECTED with Day Limit Details */}
                         {availableBalance.limitType === 'daily' && (
                           <>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Limit</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(dailyLimitTotal)}</td>
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Limit</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">₹{formatAmount(dailyLimitTotal)}</td>
                             </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Used</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">₹{formatAmount(dailyUsedAmount)}</td>
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Used</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">₹{formatAmount(dailyUsedAmount)}</td>
                             </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Available</td>
-                              <td className="px-4 py-3 text-sm font-medium">
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Available</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm font-medium break-words">
                                 <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
                                   ₹{formatAmount(dailyAvailableAmount)}
                                 </span>
@@ -668,49 +654,49 @@ export default function FillingDetailsAdmin() {
                         
                         {availableBalance.limitType === 'day' && (
                           <>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Day Limit (Credit Days)</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{requestData.day_limit || 0} days</td>
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Day Limit (Credit Days)</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.day_limit || 0} days</td>
                             </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Days Elapsed</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">{availableBalance.daysElapsed} days</td>
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Days Elapsed</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{availableBalance.daysElapsed} days</td>
                             </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Remaining Days</td>
-                              <td className="px-4 py-3 text-sm font-medium">
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Remaining Days</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm font-medium break-words">
                                 <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
                                   {availableBalance.remainingDays} days
                                 </span>
                               </td>
                             </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">First Transaction Date</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">First Transaction Date</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
                                 {requestData.first_completed_date ? 
                                   new Date(requestData.first_completed_date).toLocaleDateString('en-IN') : 
                                   'No completed transactions'
                                 }
                               </td>
                             </tr>
-                            <tr>
-                              <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Mode</td>
-                              <td className="px-4 py-3 text-sm text-gray-900">Unlimited requests within credit days window</td>
+                            <tr className="flex flex-col md:table-row">
+                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Mode</td>
+                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">Unlimited requests within credit days window</td>
                             </tr>
                           </>
                         )}
 
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Requested Quantity</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.qty} Ltr</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Requested Quantity</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 font-medium break-words">{requestData.qty} Ltr</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Actual Quantity</td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">{requestData.aqty || 'Not set'} Ltr</td>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Actual Quantity</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 font-medium break-words">{requestData.aqty || 'Not set'} Ltr</td>
                         </tr>
-                        <tr>
-                          <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Request Date & Time</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Request Date & Time</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
                             {new Date(requestData.created).toLocaleString('en-IN', {
                               day: '2-digit',
                               month: '2-digit',
@@ -722,23 +708,23 @@ export default function FillingDetailsAdmin() {
                           </td>
                         </tr>
                         {requestData.vehicle_number && (
-                          <tr>
-                            <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Vehicle Number</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{requestData.vehicle_number}</td>
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Vehicle Number</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.vehicle_number}</td>
                           </tr>
                         )}
                         {requestData.remark && (
-                          <tr>
-                            <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Remarks</td>
-                            <td className="px-4 py-3 text-sm text-gray-900">{requestData.remark}</td>
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Remarks</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.remark}</td>
                           </tr>
                         )}
-                        <tr>
-                          <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900 align-middle w-1/4">
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50 text-xs md:text-sm font-medium text-gray-900 align-top md:align-middle md:w-1/4">
                             Documents
                           </td>
-                          <td className="px-4 py-4 text-sm text-gray-900 w-3/4">
-                            <div className="flex flex-wrap gap-6">
+                          <td className="px-3 md:px-4 py-3 md:py-4 text-sm text-gray-900 md:w-3/4">
+                            <div className="flex flex-col sm:flex-row flex-wrap gap-4 md:gap-6">
                               {[1, 2, 3].map((docNum) => (
                                 <div key={docNum} className="text-center">
                                   <label className="block text-sm font-medium text-gray-500 mb-2">
@@ -981,25 +967,25 @@ export default function FillingDetailsAdmin() {
               {/* ✅✅✅ FIXED: Hide Update Request form for Completed and ALL Cancelled status variations */}
               {!isFinalStatus && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                  <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                    <h2 className="text-lg font-semibold text-gray-900 flex items-center space-x-2">
+                  <div className="px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-b border-gray-200">
+                    <h2 className="text-base md:text-lg font-semibold text-gray-900 flex flex-col md:flex-row md:items-center gap-2 md:space-x-2">
                       <span>Update Request</span>
-                      <span className='bg-yellow-400 text-black rounded px-2 py-1 text-sm font-medium'>Available Stock: {requestData.station_stock || 0} Ltr</span>
-                      <span className={`px-2 py-1 text-sm font-medium rounded ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                      <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>Available Stock: {requestData.station_stock || 0} Ltr</span>
+                      <span className={`px-2 py-1 text-xs md:text-sm font-medium rounded w-fit ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
                         {limitBadgeLabel}: {limitBadgeValue}
                       </span>
                     </h2>
                   </div>
-                  <div className="p-6">
+                  <div className="p-3 md:p-6">
                     <form onSubmit={handleSubmit}>
                       <table className="min-w-full divide-y divide-gray-200">
                         <tbody className="divide-y divide-gray-200">
-                          <tr>
-                            <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900 align-top w-1/4">
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50 text-xs md:text-sm font-medium text-gray-900 align-top md:w-1/4">
                               Upload Documents
                             </td>
-                            <td className="px-4 py-4 text-sm text-gray-900 w-3/4">
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <td className="px-3 md:px-4 py-3 md:py-4 text-sm text-gray-900 md:w-3/4">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                                 {[1, 2, 3].map((docNum) => (
                                   <div key={docNum} className="space-y-2">
                                     <label className="block text-sm font-medium text-gray-700">
@@ -1069,12 +1055,12 @@ export default function FillingDetailsAdmin() {
                             </tr>
                           )}
 
-                          <tr>
-                            <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900">
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50 text-xs md:text-sm font-medium text-gray-900">
                               <label className="block">Actual Quantity (Ltr) *</label>
                             </td>
-                            <td className="px-4 py-4">
-                              <div className="max-w-xs">
+                            <td className="px-3 md:px-4 py-3 md:py-4">
+                              <div className="max-w-xs w-full">
                                 <div className="relative">
                                   <input 
                                     type="number" 
@@ -1103,12 +1089,12 @@ export default function FillingDetailsAdmin() {
                             </td>
                           </tr>
 
-                          <tr>
-                            <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900">
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50 text-xs md:text-sm font-medium text-gray-900">
                               <label className="block">Status *</label>
                             </td>
-                            <td className="px-4 py-4">
-                              <div className="max-w-xs">
+                            <td className="px-3 md:px-4 py-3 md:py-4">
+                              <div className="max-w-xs w-full">
                                 <select 
                                   name="status"
                                   value={formData.status}
@@ -1124,11 +1110,11 @@ export default function FillingDetailsAdmin() {
                             </td>
                           </tr>
 
-                          <tr>
-                            <td className="px-4 py-4 bg-gray-50 text-sm font-medium text-gray-900 align-top">
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50 text-xs md:text-sm font-medium text-gray-900 align-top">
                               <label className="block">Remarks</label>
                             </td>
-                            <td className="px-4 py-4">
+                            <td className="px-3 md:px-4 py-3 md:py-4">
                               <textarea 
                                 name="remarks"
                                 value={formData.remarks}
@@ -1140,10 +1126,10 @@ export default function FillingDetailsAdmin() {
                             </td>
                           </tr>
 
-                          <tr>
-                            <td className="px-4 py-4 bg-gray-50"></td>
-                            <td className="px-4 py-4">
-                              <div className="flex justify-end space-x-4">
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50"></td>
+                            <td className="px-3 md:px-4 py-3 md:py-4">
+                              <div className="flex flex-col sm:flex-row justify-end gap-3 md:space-x-4">
                                 <button 
                                   type="button"
                                   onClick={() => setShowCancelModal(true)}

@@ -765,7 +765,7 @@ function TankerFormContent() {
 // Main component with Suspense boundary
 export default function TankerList() {
   return (
-    <Suspense fallback={<FormSkeleton />}>
+    <Suspense fallback={null}>
       <TankerFormContent />
     </Suspense>
   );

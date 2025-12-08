@@ -4,13 +4,13 @@ import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 import Link from 'next/link';
-import { useRouter, useParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
 function DNCNPageContent() {
   const router = useRouter();
-  const params = useParams();
-  const id = params.id;
+  const searchParams = useSearchParams();
+  const id = searchParams.get('id');
   const [stockData, setStockData] = useState(null);
   const [dncnEntries, setDncnEntries] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +19,9 @@ function DNCNPageContent() {
   useEffect(() => {
     if (id) {
       fetchDNCNData();
+    } else {
+      setError('Stock ID is required');
+      setLoading(false);
     }
   }, [id]);
 
@@ -70,13 +73,10 @@ function DNCNPageContent() {
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
-      return new Date(dateString).toLocaleString('en-IN', {
+      return new Date(dateString).toLocaleDateString('en-IN', {
         day: '2-digit',
         month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: true
+        year: 'numeric'
       });
     } catch {
       return dateString;
@@ -86,33 +86,6 @@ function DNCNPageContent() {
   const formatCurrency = (amount) => {
     return amount ? `₹${parseFloat(amount).toLocaleString('en-IN')}` : '₹0';
   };
-
-  if (loading) {
-    return null;
-  }
-
-  if (error) {
-    return (
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-auto flex items-center justify-center">
-            <div className="text-center">
-              <p className="text-red-600">{error}</p>
-              <button
-                onClick={() => router.back()}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                Go Back
-              </button>
-            </div>
-          </main>
-          <Footer />
-        </div>
-      </div>
-    );
-  }
 
   const getStatusBadge = (status) => {
     const statusValue = status?.toString().toLowerCase();
@@ -146,6 +119,33 @@ function DNCNPageContent() {
     }
     return <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">N/A</span>;
   };
+
+  if (loading) {
+    return null;
+  }
+
+  if (error && !id) {
+    return (
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-auto flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-red-600">{error}</p>
+              <button
+                onClick={() => router.back()}
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Go Back
+              </button>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -228,15 +228,17 @@ function DNCNPageContent() {
             </div>
 
             {/* Floating Action Button */}
-            <Link
-              href={`/stock/dncn/${id}/add`}
-              className="fixed bottom-8 right-8 bg-purple-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors z-50 flex items-center space-x-2"
-            >
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
-              </svg>
-              <span>Add Debit/Credit</span>
-            </Link>
+            {id && (
+              <Link
+                href={`/stock/dncn/add?id=${id}`}
+                className="fixed bottom-8 right-8 bg-purple-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors z-50 flex items-center space-x-2"
+              >
+                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
+                </svg>
+                <span>Add Debit/Credit</span>
+              </Link>
+            )}
           </div>
         </main>
         <Footer />

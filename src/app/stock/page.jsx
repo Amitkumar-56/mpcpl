@@ -258,7 +258,7 @@ function StockTable({ stockRequests }) {
                           <BsEyeFill size={16} />
                         </Link>
                         <Link
-                          href={`/stock/dncn/${request.id}`}
+                          href={`/stock/dncn?id=${request.id}`}
                           className="text-orange-600 hover:text-orange-800 transition-colors"
                           title="DN/CN History"
                         >

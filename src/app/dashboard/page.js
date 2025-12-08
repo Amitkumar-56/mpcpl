@@ -15,6 +15,7 @@ import {
   BiGroup,
   BiHide,
   BiMessageRounded,
+  BiPackage,
   BiRefresh,
   BiSend,
   BiShoppingBag,
@@ -174,6 +175,10 @@ export default function DashboardPage() {
 
   const handleViewAllStocks = () => {
     router.push('/all-stock');
+  };
+
+  const handleViewStockRequest = () => {
+    router.push('/stock-requests');
   };
 
   // Load active chat sessions
@@ -487,7 +492,7 @@ export default function DashboardPage() {
           </div>
 
           {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <button
               onClick={handleViewStockHistory}
               className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
@@ -502,6 +507,14 @@ export default function DashboardPage() {
             >
               <BiShoppingBag />
               <span>All Stocks</span>
+            </button>
+
+            <button
+              onClick={handleViewStockRequest}
+              className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
+            >
+              <BiPackage />
+              <span>Stock Request</span>
             </button>
           </div>
 

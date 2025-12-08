@@ -24,8 +24,7 @@ export async function GET() {
         COALESCE(cb.is_active, 1) AS is_active
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
-      WHERE c.roleid IN (1, 3) 
-        AND c.status = 1
+      WHERE c.roleid IN (1, 3)
       ORDER BY c.id DESC
     `);
 

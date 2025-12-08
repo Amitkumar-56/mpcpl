@@ -134,7 +134,19 @@ export async function PUT(request) {
 
     if (status !== undefined) {
       // Convert Enable/Disable to 1/0
-      const statusValue = status === 'Enable' || status === 1 ? 1 : 0;
+      // Handle both string and number values
+      let statusValue;
+      if (typeof status === 'string') {
+        statusValue = (status === 'Enable' || status.toLowerCase() === 'enable') ? 1 : 0;
+      } else if (typeof status === 'number') {
+        statusValue = status === 1 ? 1 : 0;
+      } else if (status === true) {
+        statusValue = 1;
+      } else {
+        statusValue = 0;
+      }
+      
+      console.log('Status conversion:', { original: status, converted: statusValue });
       updateFields.push('status = ?');
       updateValues.push(statusValue);
     }

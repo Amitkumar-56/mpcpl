@@ -810,35 +810,7 @@ function TankerNewFormContent() {
             </Suspense>
 
             {/* Item Checklist */}
-            <Suspense fallback={
-              <div className="mt-8">
-                <div className="h-8 bg-gray-200 rounded-lg w-48 mx-auto mb-6 animate-pulse"></div>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        {[...Array(11)].map((_, i) => (
-                          <th key={i} className="px-4 py-3 border">
-                            <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {[...Array(5)].map((_, rowIndex) => (
-                        <tr key={rowIndex}>
-                          {[...Array(11)].map((_, cellIndex) => (
-                            <td key={cellIndex} className="px-4 py-3 border">
-                              <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            }>
+            <Suspense fallback={null}>
               <ItemChecklist items={items} onItemChange={handleItemChange} />
             </Suspense>
 
@@ -874,7 +846,7 @@ function TankerNewFormContent() {
 // Main component with Suspense boundary
 export default function TankerNewList() {
   return (
-    <Suspense fallback={<FormSkeleton />}>
+    <Suspense fallback={null}>
       <TankerNewFormContent />
     </Suspense>
   );

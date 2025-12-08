@@ -428,19 +428,7 @@ function PDFContent({ tankerData, items, pdfImages }) {
       {/* A4 Container */}
       <div id="pdf-content" className="bg-white shadow-lg mx-auto print:shadow-none print:mx-0" style={{ width: '210mm', minHeight: '297mm', padding: '15mm' }}>
         {/* Header */}
-        <Suspense fallback={
-          <div className="flex items-center justify-between mb-6 border-b-2 border-gray-800 pb-4">
-            <div className="h-16 w-16 bg-gray-200 rounded animate-pulse"></div>
-            <div className="text-center flex-1 mx-6">
-              <div className="h-6 bg-gray-200 rounded w-64 mx-auto mb-2 animate-pulse"></div>
-              <div className="space-y-1">
-                <div className="h-4 bg-gray-200 rounded w-80 mx-auto animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-48 mx-auto animate-pulse"></div>
-              </div>
-            </div>
-            <div className="h-16 w-16 bg-gray-200 rounded animate-pulse"></div>
-          </div>
-        }>
+        <Suspense fallback={null}>
           <PDFHeader />
         </Suspense>
 
@@ -451,18 +439,7 @@ function PDFContent({ tankerData, items, pdfImages }) {
           </h2>
         </div>
 
-        <Suspense fallback={
-          <div className="space-y-2">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="grid grid-cols-4 gap-2">
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
-              </div>
-            ))}
-          </div>
-        }>
+        <Suspense fallback={null}>
           <TankerDetails tankerData={tankerData} />
         </Suspense>
 
@@ -473,57 +450,17 @@ function PDFContent({ tankerData, items, pdfImages }) {
           </h2>
         </div>
 
-        <Suspense fallback={
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse border border-gray-300 text-xs">
-              <thead>
-                <tr>
-                  {[...Array(9)].map((_, i) => (
-                    <th key={i} className="border border-gray-300 px-3 py-2">
-                      <div className="h-4 bg-gray-200 rounded w-16 animate-pulse"></div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {[...Array(3)].map((_, rowIndex) => (
-                  <tr key={rowIndex}>
-                    {[...Array(9)].map((_, cellIndex) => (
-                      <td key={cellIndex} className="border border-gray-300 px-3 py-2">
-                        <div className="h-4 bg-gray-200 rounded w-12 animate-pulse"></div>
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        }>
+        <Suspense fallback={null}>
           <ItemChecklist items={items} />
         </Suspense>
 
         {/* Company Stamp */}
-        <Suspense fallback={
-          <div className="text-right mt-8">
-            <div className="inline-block w-24 h-24 bg-gray-200 rounded border-2 border-gray-400 animate-pulse"></div>
-          </div>
-        }>
+        <Suspense fallback={null}>
           <CompanyStamp />
         </Suspense>
 
         {/* PDF Images */}
-        <Suspense fallback={
-          <div className="mt-8">
-            <div className="text-center mb-4">
-              <div className="h-6 bg-gray-200 rounded w-48 mx-auto animate-pulse"></div>
-            </div>
-            {[...Array(2)].map((_, i) => (
-              <div key={i} className="text-center mb-4">
-                <div className="w-full h-48 bg-gray-200 rounded-lg animate-pulse mx-auto"></div>
-              </div>
-            ))}
-          </div>
-        }>
+        <Suspense fallback={null}>
           <PDFImages pdfImages={pdfImages} />
         </Suspense>
       </div>

@@ -29,6 +29,30 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Check if customer exists and is active (status = 1)
+    const customerCheck = await executeQuery(
+      'SELECT id, name, status FROM customers WHERE id = ?',
+      [parseInt(customer_id)]
+    );
+
+    if (customerCheck.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Customer not found'
+      }, { status: 404 });
+    }
+
+    const customer = customerCheck[0];
+    
+    // Block request if customer is disabled (status = 0)
+    if (customer.status === 0 || customer.status === '0' || customer.status === 'Disable') {
+      console.log('❌ Customer is disabled:', customer.name, 'Status:', customer.status);
+      return NextResponse.json({
+        success: false,
+        message: `Customer "${customer.name}" is disabled. Please enable the customer first to create filling requests.`
+      }, { status: 403 });
+    }
+
     // Generate RID
     const lastRequestQuery = `SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1`;
     const lastRequest = await executeQuery(lastRequestQuery);
