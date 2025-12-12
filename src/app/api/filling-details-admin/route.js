@@ -1,6 +1,9 @@
 // app/api/filling-details-admin/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET(req) {
   try {
@@ -278,6 +281,20 @@ export async function POST(request) {
   
   try {
     console.log('🚀 /filling-details-admin POST called');
+
+    // Get user info from cookies/token
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id || 1;
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
 
     const formData = await request.formData();
     console.log('✅ Form data parsed successfully');
@@ -975,9 +992,83 @@ async function handleCompletedStatus(data) {
     ]);
   }
 
+  // Get user info for audit log
+  let userName = 'System';
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value;
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded) {
+        const userResult = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (userResult.length > 0) {
+          userName = userResult[0].name;
+        }
+      }
+    }
+  } catch (userError) {
+    console.error('Error getting user info:', userError);
+  }
+
+  // Get station and product names for audit log
+  let stationName = 'N/A';
+  let productName = 'N/A';
+  try {
+    const stationResult = await executeQuery(
+      `SELECT station_name FROM filling_stations WHERE id = ?`,
+      [fs_id]
+    );
+    if (stationResult.length > 0) {
+      stationName = stationResult[0].station_name;
+    }
+    
+    const productResult = await executeQuery(
+      `SELECT pname FROM products WHERE id = ?`,
+      [product_id]
+    );
+    if (productResult.length > 0) {
+      productName = productResult[0].pname;
+    }
+  } catch (nameError) {
+    console.error('Error fetching names:', nameError);
+  }
+
+  // Get stock record ID for audit log
+  let stockRecordId = null;
+  try {
+    const stockRecord = await executeQuery(
+      `SELECT id FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+      [fs_id, product_id]
+    );
+    if (stockRecord.length > 0) {
+      stockRecordId = stockRecord[0].id;
+    }
+  } catch (stockError) {
+    console.error('Error fetching stock record:', stockError);
+  }
+
   // Update station stock
   const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
   await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
+
+  // Create comprehensive audit log for stock deduction
+  await createAuditLog({
+    page: 'Filling Details Admin',
+    uniqueCode: stockRecordId ? `STOCK-${stockRecordId}` : `STOCK-${fs_id}-${product_id}`,
+    section: 'Complete Filling Request',
+    userId: userId,
+    userName: userName,
+    action: 'edit',
+    remarks: `Stock deducted for filling request completion - ${stationName} - ${productName}. Quantity: ${aqty} Ltr`,
+    oldValue: { stock: oldstock, station_id: fs_id, product_id: product_id },
+    newValue: { stock: newStock, station_id: fs_id, product_id: product_id, quantity_deducted: aqty },
+    fieldName: 'stock',
+    recordType: 'stock',
+    recordId: stockRecordId
+  });
 
     // Handle non-billing stocks if needed
     if (billing_type == 2) {

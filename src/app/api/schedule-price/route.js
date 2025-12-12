@@ -203,6 +203,47 @@ export async function POST(req) {
       }
     }
 
+    // Get user info for audit log
+    let userId = null;
+    let userName = 'System';
+    try {
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const { createAuditLog } = await import('@/lib/auditLog');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+
+      // Create audit log for schedule price
+      await createAuditLog({
+        page: 'Schedule Price',
+        uniqueCode: `SCHEDULE-${customerIds.join('-')}-${Date.now()}`,
+        section: 'Schedule Price',
+        userId: userId,
+        userName: userName,
+        action: 'add',
+        remarks: `Price scheduled for ${customerIds.length} customers: ${totalInserted} inserted, ${totalUpdated} updated${bulkUpdated > 0 ? `, ${bulkUpdated} bulk updated` : ''}`,
+        oldValue: null,
+        newValue: { customerIds, updates, totalInserted, totalUpdated, bulkUpdated, requireApproval },
+        recordType: 'schedule_price',
+        recordId: null
+      });
+    } catch (userError) {
+      console.error('Error getting user info or creating audit log:', userError);
+    }
+
     const approvalStatus = requireApproval ? " (Pending Approval)" : " (Auto-Applied)";
     const bulkStatus = bulkUpdated > 0 ? `, ${bulkUpdated} bulk updated within selected customers` : "";
     

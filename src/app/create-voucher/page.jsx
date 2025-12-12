@@ -30,6 +30,7 @@ function CreateVoucherContent() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -43,45 +44,26 @@ function CreateVoucherContent() {
   const fetchFormData = async () => {
     try {
       setLoading(true);
-      setError(''); // Clear previous errors
+      setError('');
+      setDataLoaded(false);
       
       const response = await fetch('/api/create-voucher');
       const data = await response.json();
       
-      console.log('📡 Fetched form data response:', {
-        success: data.success,
-        stationsCount: data.stations?.length || 0,
-        employeesCount: data.employees?.length || 0,
-        employees: data.employees,
-        error: data.error
-      });
-      
       if (!response.ok || !data.success) {
-        const errorMsg = data.error || 'Failed to fetch form data';
-        console.error('❌ API Error:', errorMsg, data.details);
-        setError(errorMsg + (data.details ? `: ${data.details}` : ''));
-        setStations([]);
-        setEmployees([]);
-        return;
+        throw new Error(data.error || 'Failed to fetch form data');
       }
       
-      // ✅ Set stations and employees
       setStations(data.stations || []);
       setEmployees(data.employees || []);
+      setDataLoaded(true);
       
-      // ✅ Debug: Log if employees are empty
-      if (!data.employees || data.employees.length === 0) {
-        console.warn('⚠️ No employees found in response. Checking database...');
-        setError('No employees available. Please check database or contact administrator.');
-      } else {
-        console.log('✅ Employees loaded successfully:', data.employees.length);
-        setError(''); // Clear error if employees are found
-      }
     } catch (error) {
-      console.error('❌ Error fetching form data:', error);
+      console.error('Error fetching form data:', error);
       setError('Failed to load form data: ' + error.message);
       setStations([]);
       setEmployees([]);
+      setDataLoaded(false);
     } finally {
       setLoading(false);
     }
@@ -165,14 +147,32 @@ function CreateVoucherContent() {
       const result = await response.json();
 
       if (response.ok) {
-        alert('Voucher created successfully!');
-        router.push('/cash-management');
+        alert(`✅ Voucher created successfully!\n\nVoucher No: ${result.voucher_no}`);
+        
+        // Reset form
+        setFormData({
+          exp_date: new Date().toISOString().split('T')[0],
+          employee_id: '',
+          driver_phone: '',
+          vehicle_no: '',
+          station_id: '',
+          advance: '0',
+          total_expense: '0'
+        });
+        
+        setVoucherItems([
+          { item_details: '', amount: '0', image: null }
+        ]);
+        
+        // Redirect
+        setTimeout(() => {
+          router.push('/cash-management');
+        }, 1500);
+        
       } else {
         const errorMsg = result.error || 'Failed to create voucher';
-        const details = result.details ? ` Details: ${result.details}` : '';
-        const missingFields = result.missingFields ? ` Missing: ${result.missingFields.join(', ')}` : '';
-        
-        setError(errorMsg + details + missingFields);
+        const missingFields = result.missingFields ? ` Missing fields: ${result.missingFields.join(', ')}` : '';
+        setError(errorMsg + missingFields);
       }
     } catch (error) {
       console.error('Error creating voucher:', error);
@@ -182,21 +182,21 @@ function CreateVoucherContent() {
     }
   };
 
-  // Don't render if not authenticated (will redirect)
+  // Don't render if not authenticated
   if (!isAuthenticated) {
     return null;
   }
 
   return (
     <div className="min-h-screen flex bg-gray-50">
-      {/* Sidebar - Mobile responsive */}
+      {/* Sidebar */}
       <div className="hidden lg:block fixed left-0 top-0 h-screen w-64 z-30">
         <Sidebar activePage="CreateVoucher" />
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col lg:ml-64">
-        {/* Header - Mobile responsive */}
+        {/* Header */}
         <div className="sticky top-0 z-20 bg-white shadow-sm">
           <Header />
         </div>
@@ -217,6 +217,13 @@ function CreateVoucherContent() {
                       </svg>
                     </button>
                     <h1 className="text-2xl font-bold text-gray-900">Create New Voucher</h1>
+                    <button 
+                      onClick={fetchFormData}
+                      className="ml-auto text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-md"
+                      disabled={loading}
+                    >
+                      {loading ? 'Refreshing...' : 'Refresh Data'}
+                    </button>
                   </div>
                 </div>
 
@@ -224,14 +231,21 @@ function CreateVoucherContent() {
                   {error && (
                     <div className="mb-4 p-4 bg-red-100 border border-red-400 text-red-700 rounded">
                       <strong>Error:</strong> {error}
+                      <button 
+                        onClick={fetchFormData}
+                        className="ml-2 text-sm underline"
+                      >
+                        Try Again
+                      </button>
                     </div>
                   )}
 
                   <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                      {/* Voucher Date */}
                       <div>
                         <label htmlFor="exp_date" className="block text-sm font-medium text-gray-700">
-                          Voucher Date
+                          Voucher Date *
                         </label>
                         <input
                           type="date"
@@ -244,9 +258,10 @@ function CreateVoucherContent() {
                         />
                       </div>
 
+                      {/* Employee Dropdown */}
                       <div>
                         <label htmlFor="employee_id" className="block text-sm font-medium text-gray-700">
-                          Employee
+                          Employee *
                         </label>
                         <select
                           id="employee_id"
@@ -257,28 +272,31 @@ function CreateVoucherContent() {
                           required
                           disabled={loading}
                         >
-                          <option value="">{loading ? 'Loading employees...' : 'Select Employee'}</option>
-                          {employees.length > 0 ? (
-                            employees.map(employee => (
-                              <option key={employee.id} value={employee.id}>
-                                {employee.name || employee.emp_code || `Employee ${employee.id}`}
-                                {employee.emp_code && employee.name !== employee.emp_code ? ` (${employee.emp_code})` : ''}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="" disabled>No employees available</option>
+                          <option value="">
+                            {loading ? 'Loading employees...' : 'Select an employee'}
+                          </option>
+                          {employees.map((employee) => (
+                            <option key={employee.id} value={employee.id}>
+                              {employee.name} {employee.emp_code ? `(${employee.emp_code})` : ''}
+                            </option>
+                          ))}
+                          {!loading && employees.length === 0 && (
+                            <option value="" disabled>
+                              No employees available
+                            </option>
                           )}
                         </select>
-                        {employees.length === 0 && !loading && (
-                          <p className="mt-1 text-sm text-red-600">
-                            No employees found. Please check database or contact administrator.
+                        {employees.length > 0 && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            {employees.length} employees available
                           </p>
                         )}
                       </div>
 
+                      {/* Driver Phone */}
                       <div>
                         <label htmlFor="driver_phone" className="block text-sm font-medium text-gray-700">
-                          Driver Phone No.
+                          Driver Phone No. *
                         </label>
                         <input
                           type="text"
@@ -288,12 +306,14 @@ function CreateVoucherContent() {
                           onChange={handleInputChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           required
+                          placeholder="Enter driver phone number"
                         />
                       </div>
 
+                      {/* Vehicle Number */}
                       <div>
                         <label htmlFor="vehicle_no" className="block text-sm font-medium text-gray-700">
-                          Vehicle No.
+                          Vehicle No. *
                         </label>
                         <input
                           type="text"
@@ -303,12 +323,14 @@ function CreateVoucherContent() {
                           onChange={handleInputChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           required
+                          placeholder="Enter vehicle number"
                         />
                       </div>
 
+                      {/* Station Dropdown */}
                       <div>
                         <label htmlFor="station_id" className="block text-sm font-medium text-gray-700">
-                          Station
+                          Station *
                         </label>
                         <select
                           id="station_id"
@@ -327,6 +349,7 @@ function CreateVoucherContent() {
                         </select>
                       </div>
 
+                      {/* Advance */}
                       <div>
                         <label htmlFor="advance" className="block text-sm font-medium text-gray-700">
                           Advance
@@ -343,6 +366,7 @@ function CreateVoucherContent() {
                         />
                       </div>
 
+                      {/* Total Expense */}
                       <div>
                         <label htmlFor="total_expense" className="block text-sm font-medium text-gray-700">
                           Total Expense
@@ -364,14 +388,14 @@ function CreateVoucherContent() {
 
                     {/* Voucher Items */}
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Voucher Items</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Voucher Items *</h3>
                       
                       {voucherItems.map((item, index) => (
                         <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 items-end">
                             <div className="sm:col-span-5">
                               <label className="block text-sm font-medium text-gray-700">
-                                Item Details
+                                Item Details *
                               </label>
                               <input
                                 type="text"
@@ -385,7 +409,7 @@ function CreateVoucherContent() {
 
                             <div className="sm:col-span-3">
                               <label className="block text-sm font-medium text-gray-700">
-                                Amount
+                                Amount *
                               </label>
                               <input
                                 type="number"
@@ -468,7 +492,11 @@ function CreateVoucherContent() {
 // Main Page Component with Suspense
 export default function CreateVoucher() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-lg">Loading...</div>
+      </div>
+    }>
       <CreateVoucherContent />
     </Suspense>
   );

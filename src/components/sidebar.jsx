@@ -24,8 +24,8 @@ import {
   FaUserTie,
 } from "react-icons/fa";
 
-export default function Sidebar() {
-  const { user, logout, loading: authLoading } = useSession();
+export default function Sidebar({ onClose }) {
+  const { user, logout } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
@@ -104,63 +104,22 @@ export default function Sidebar() {
     agent_management: "Agent Management", // ✅ FIX: Added missing mapping
   }), []);
 
-  // Optimized permission filtering
+  // Optimized permission filtering - no logging for performance
   const allowedMenu = useMemo(() => {
     if (!user) return [];
     
-    // ✅ Admin (role 5) gets full access
-    if (user.role === 5) {
-      console.log('✅ Admin user - Full access granted');
+    // ✅ Admin (role 5) gets full access - instant return
+    if (Number(user.role) === 5) {
       return menuItems;
     }
     
-    // ✅ FIX: Log user permissions for debugging
-    console.log('🔐 User permissions check:', {
-      userId: user.id,
-      role: user.role,
-      hasPermissionsObject: !!user.permissions,
-      permissionsCount: Object.keys(user.permissions || {}).length,
-      availableModules: Object.keys(user.permissions || {}),
-      permissionsObject: user.permissions
-    });
-    
-    // ✅ FIX: If permissions object is missing, log warning
-    if (!user.permissions || Object.keys(user.permissions).length === 0) {
-      console.warn('⚠️ User has no permissions object or empty permissions!', {
-        userId: user.id,
-        role: user.role,
-        permissions: user.permissions
-      });
-    }
-    
+    // Fast filtering without logging
     const filtered = menuItems.filter((item) => {
       const backendModuleName = moduleMapping[item.module];
+      if (!backendModuleName) return false;
       
-      // ✅ FIX: Debug logging to see what's happening
-      if (!backendModuleName) {
-        console.warn(`⚠️ No module mapping found for: ${item.module} (${item.name})`);
-        return false;
-      }
-      
-      const hasPermission = user.permissions?.[backendModuleName]?.can_view;
-      
-      // ✅ FIX: Debug logging
-      if (!hasPermission) {
-        console.log(`❌ No permission for: ${item.name}`, {
-          module: item.module,
-          backendModuleName: backendModuleName,
-          path: item.path,
-          permissionExists: !!user.permissions?.[backendModuleName],
-          can_view: user.permissions?.[backendModuleName]?.can_view
-        });
-      } else {
-        console.log(`✅ Permission granted for: ${item.name} (${backendModuleName})`);
-      }
-      
-      return hasPermission;
+      return user.permissions?.[backendModuleName]?.can_view === true;
     });
-    
-    console.log(`📊 Menu filtering result: ${filtered.length}/${menuItems.length} items allowed`);
     
     return filtered;
   }, [user, menuItems, moduleMapping]);
@@ -171,10 +130,8 @@ export default function Sidebar() {
     setIsOpen(false);
   };
 
-  // Don't render sidebar if no user and not loading
-  if (!user && !authLoading) {
-    return null;
-  }
+  // Always render sidebar - don't wait for loading
+  // Show empty state if no user yet
 
   return (
     <>
@@ -218,12 +175,12 @@ export default function Sidebar() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name || 'Loading...'}
+                {user?.name || 'User'}
               </p>
               <p className="text-xs text-gray-600 truncate">
-                {user?.emp_code || (user?.role === 5 ? 'Admin' : 'Employee')}
+                {user?.emp_code || (Number(user?.role) === 5 ? 'Admin' : 'Employee')}
               </p>
-              {user?.role === 5 && (
+              {Number(user?.role) === 5 && (
                 <p className="text-xs text-blue-600 font-semibold mt-0.5">
                   Administrator
                 </p>
@@ -234,51 +191,43 @@ export default function Sidebar() {
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto py-2 px-2 scrollbar-hide">
-          {allowedMenu.map((item) => {
-            const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
-            return (
-              <Link
-                key={item.name}
-                href={item.path}
-                prefetch={false}
-                onClick={() => setIsOpen(false)}
-                className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
-                  isActive
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "text-black hover:bg-blue-300 hover:text-gray-900"
-                }`}
-              >
-                <span className="mr-3 text-lg">{item.icon}</span>
-                <span className="text-sm font-medium">{item.name}</span>
-              </Link>
-            );
-          })}
-
-          {allowedMenu.length === 0 && (
-            <div className="p-3 text-center text-gray-600 text-sm space-y-2">
-              <p className="font-semibold">No modules available for your role</p>
-              <p className="text-xs text-gray-500">
-                {user?.role === 5 
-                  ? 'Admin should have full access. Please check console for errors.'
-                  : `Role: ${user?.role || 'Unknown'}. Please contact admin to assign permissions.`
-                }
+          {allowedMenu.length > 0 ? (
+            allowedMenu.map((item) => {
+              const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
+              return (
+                <Link
+                  key={item.name}
+                  href={item.path}
+                  prefetch={false}
+                  onClick={() => setIsOpen(false)}
+                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
+                    isActive
+                      ? "bg-blue-500 text-white shadow-md"
+                      : "text-black hover:bg-blue-300 hover:text-gray-900"
+                  }`}
+                >
+                  <span className="mr-3 text-lg">{item.icon}</span>
+                  <span className="text-sm font-medium">{item.name}</span>
+                </Link>
+              );
+            })
+          ) : user ? (
+            <div className="p-3 text-center text-gray-600 text-sm">
+              <p className="font-semibold">No modules available</p>
+              <p className="text-xs text-gray-500 mt-1">
+                Contact admin for permissions
               </p>
-              {user?.permissions && Object.keys(user.permissions).length === 0 && (
-                <p className="text-xs text-red-500 mt-2">
-                  ⚠️ No permissions found in database. Check role_permissions table.
-                </p>
-              )}
             </div>
-          )}
+          ) : null}
         </nav>
 
         {/* Logout Button */}
         <div className="p-3 border-t border-gray-300 bg-blue-300">
           <button
             onClick={handleLogout}
-            disabled={isLoggingOut || authLoading}
+            disabled={isLoggingOut}
             className={`flex items-center justify-center w-full p-3 text-black rounded transition-colors ${
-              isLoggingOut || authLoading
+              isLoggingOut
                 ? "bg-gray-400 cursor-not-allowed" 
                 : "hover:bg-red-500 hover:text-white"
             }`}

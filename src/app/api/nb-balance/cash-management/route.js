@@ -1,5 +1,8 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 // GET - All expenses with dynamic filtering and pagination
 export async function GET(request) {
@@ -177,6 +180,11 @@ export async function POST(request) {
       parseFloat(amount)
     ]);
 
+    // Get old balance before update
+    const oldBalanceQuery = `SELECT balance FROM cash_balance LIMIT 1`;
+    const oldBalanceResult = await executeQuery(oldBalanceQuery);
+    const oldBalance = oldBalanceResult[0]?.balance || 0;
+
     // Update cash balance (deduct expense)
     const updateBalanceQuery = `
       UPDATE cash_balance 
@@ -188,6 +196,45 @@ export async function POST(request) {
     const balanceQuery = `SELECT balance FROM cash_balance LIMIT 1`;
     const balanceResult = await executeQuery(balanceQuery);
     const newBalance = balanceResult[0]?.balance || 0;
+
+    // Get user info for audit log
+    let userId = null;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
+    // Create audit log
+    await createAuditLog({
+      page: 'Cash Management',
+      uniqueCode: `EXPENSE-${result.insertId}`,
+      section: 'Add Expense',
+      userId: userId,
+      userName: userName,
+      action: 'add',
+      remarks: `Expense added: ${title} - ₹${amount} to ${paid_to || 'N/A'}. Cash balance: ₹${oldBalance} → ₹${newBalance}`,
+      oldValue: { balance: oldBalance },
+      newValue: { balance: newBalance, expense: { title, amount, paid_to, reason, payment_date } },
+      fieldName: 'cash_balance',
+      recordType: 'cash_expense',
+      recordId: result.insertId
+    });
 
     return NextResponse.json({
       success: true,

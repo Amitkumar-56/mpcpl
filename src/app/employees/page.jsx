@@ -1,12 +1,12 @@
 'use client';
 
+import { useSession } from '@/context/SessionContext';
 import Footer from 'components/Footer';
 import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
-import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaEdit, FaEye, FaTrash, FaToggleOn, FaToggleOff } from 'react-icons/fa';
+import { FaEdit, FaEye, FaToggleOff, FaToggleOn, FaTrash } from 'react-icons/fa';
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
@@ -62,6 +62,7 @@ export default function EmployeeHistory() {
       const res = await fetch('/api/employee/update-status', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include', // Include cookies for authentication
         body: JSON.stringify({ employeeId, status: newStatus })
       });
 
@@ -108,12 +109,20 @@ export default function EmployeeHistory() {
                 Inactive: <span className="font-bold text-red-600">{employees.filter(e => e.status === 0).length}</span>
               </p>
             </div>
-            <button
-              onClick={() => router.push('/employees/add')}
-              className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-1"
-            >
-              + Add Employee
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={() => router.push('/employees/activity-logs')}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
+              >
+                📋 Activity Logs
+              </button>
+              <button
+                onClick={() => router.push('/employees/add')}
+                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-1"
+              >
+                + Add Employee
+              </button>
+            </div>
           </div>
 
           {/* Scrollable employee list */}
@@ -156,14 +165,14 @@ export default function EmployeeHistory() {
                           </td>
                           <td className="border px-4 py-2 flex flex-wrap gap-2">
                             <button
-                              onClick={() => router.push(`/employees/view/${emp.id}`)}
+                              onClick={() => router.push(`/employees/view?id=${emp.id}`)}
                               className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
                               title="View"
                             >
                               <FaEye />
                             </button>
                             <button
-                              onClick={() => router.push(`/employees/edit/${emp.id}`)}
+                              onClick={() => router.push(`/employees/edit?id=${emp.id}`)}
                               className="p-2 bg-green-500 text-white rounded hover:bg-green-600"
                               title="Edit"
                             >

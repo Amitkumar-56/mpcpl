@@ -3,12 +3,14 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 export default function SuppliersPage() {
   const router = useRouter();
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
@@ -55,7 +57,6 @@ export default function SuppliersPage() {
       setStats(calculateStats(data));
       setLoading(false);
     } catch (error) {
-      console.error('Error fetching suppliers:', error);
       setLoading(false);
     }
   };
@@ -115,29 +116,59 @@ export default function SuppliersPage() {
     fetchSuppliers();
   }, []);
 
-  // Add new supplier via API
-  const handleAddSupplier = async (e) => {
+  // Handle edit supplier
+  const handleEditSupplier = (supplier) => {
+    setSelectedSupplier(supplier);
+    setIsEditMode(true);
+    setFormData({
+      name: supplier.name || '',
+      phone: supplier.phone || '',
+      address: supplier.address || '',
+      postbox: supplier.postbox || '',
+      email: supplier.email || '',
+      picture: supplier.picture || '',
+      gstin: supplier.gstin || '',
+      pan: supplier.pan || '',
+      supplier_type: supplier.supplier_type || '',
+      status: supplier.status || 'active',
+      password: '' // Don't show password
+    });
+    setShowForm(true);
+  };
+
+  // Add or Update supplier via API
+  const handleSubmitSupplier = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch('/api/suppliers', {
-        method: 'POST',
+      const url = isEditMode 
+        ? `/api/suppliers?id=${selectedSupplier.id}`
+        : '/api/suppliers';
+      
+      const method = isEditMode ? 'PUT' : 'POST';
+      
+      // For edit, don't send password if empty
+      const submitData = { ...formData };
+      if (isEditMode && !submitData.password) {
+        delete submitData.password;
+      }
+
+      const response = await fetch(url, {
+        method: method,
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(submitData)
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create supplier');
+        throw new Error(errorData.error || `Failed to ${isEditMode ? 'update' : 'create'} supplier`);
       }
 
-      const newSupplier = await response.json();
+      const result = await response.json();
       
-      // Update local state
-      const updatedSuppliers = [...suppliers, newSupplier];
-      setSuppliers(updatedSuppliers);
-      setStats(calculateStats(updatedSuppliers));
+      // Refresh suppliers list
+      await fetchSuppliers();
       
       // Reset form
       setFormData({
@@ -154,10 +185,11 @@ export default function SuppliersPage() {
         password: ''
       });
       setShowForm(false);
+      setIsEditMode(false);
+      setSelectedSupplier(null);
       
-      alert('Supplier created successfully!');
+      alert(`Supplier ${isEditMode ? 'updated' : 'created'} successfully!`);
     } catch (error) {
-      console.error('Error adding supplier:', error);
       alert(`Error: ${error.message}`);
     }
   };
@@ -261,20 +293,31 @@ export default function SuppliersPage() {
                 <option value="inactive">Inactive</option>
               </select>
             </div>
-            <button
-              onClick={() => setShowForm(!showForm)}
-              className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
-            >
-              <span className="text-lg">+</span>
-              <span>{showForm ? 'Cancel' : 'Add New Supplier'}</span>
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3 w-full lg:w-auto">
+              <Link
+                href="/suppliers/activity-logs"
+                className="bg-gradient-to-r from-cyan-600 to-blue-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-cyan-700 hover:to-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
+              >
+                <span>📋</span>
+                <span>Activity Logs</span>
+              </Link>
+              <button
+                onClick={() => setShowForm(!showForm)}
+                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
+              >
+                <span className="text-lg">+</span>
+                <span>{showForm ? 'Cancel' : 'Add New Supplier'}</span>
+              </button>
+            </div>
           </div>
 
-          {/* Add Supplier Form */}
+          {/* Add/Edit Supplier Form */}
           {showForm && (
             <div className="bg-white p-4 sm:p-6 rounded-xl shadow-lg mb-4 sm:mb-6 border border-gray-200 animate-fade-in">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Add New Supplier</h2>
-              <form onSubmit={handleAddSupplier} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">
+                {isEditMode ? 'Edit Supplier' : 'Add New Supplier'}
+              </h2>
+              <form onSubmit={handleSubmitSupplier} className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 {[
                   { label: 'Supplier Name *', name: 'name', type: 'text', required: true },
                   { label: 'Phone', name: 'phone', type: 'tel', required: false },
@@ -282,7 +325,7 @@ export default function SuppliersPage() {
                   { label: 'GSTIN *', name: 'gstin', type: 'text', required: true },
                   { label: 'PAN Number *', name: 'pan', type: 'text', required: true },
                   { label: 'Supplier Type *', name: 'supplier_type', type: 'text', required: true },
-                  { label: 'Password *', name: 'password', type: 'password', required: true },
+                  { label: isEditMode ? 'Password (leave blank to keep current)' : 'Password *', name: 'password', type: 'password', required: !isEditMode },
                   { label: 'Postbox', name: 'postbox', type: 'text', required: false },
                   { label: 'Picture URL', name: 'picture', type: 'text', required: false },
                 ].map((field) => (
@@ -326,7 +369,24 @@ export default function SuppliersPage() {
                 <div className="md:col-span-2 lg:col-span-3 flex flex-col sm:flex-row justify-end gap-2 sm:gap-3 sm:space-x-0">
                   <button
                     type="button"
-                    onClick={() => setShowForm(false)}
+                    onClick={() => {
+                      setShowForm(false);
+                      setIsEditMode(false);
+                      setSelectedSupplier(null);
+                      setFormData({
+                        name: '',
+                        phone: '',
+                        address: '',
+                        postbox: '',
+                        email: '',
+                        picture: '',
+                        gstin: '',
+                        pan: '',
+                        supplier_type: '',
+                        status: 'active',
+                        password: ''
+                      });
+                    }}
                     className="w-full sm:w-auto px-4 sm:px-6 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm sm:text-base"
                   >
                     Cancel
@@ -335,7 +395,7 @@ export default function SuppliersPage() {
                     type="submit"
                     className="w-full sm:w-auto bg-green-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
                   >
-                    Add Supplier
+                    {isEditMode ? 'Update Supplier' : 'Add Supplier'}
                   </button>
                 </div>
               </form>
@@ -421,6 +481,12 @@ export default function SuppliersPage() {
                           </td>
                           <td className="px-4 lg:px-6 py-3 lg:py-4">
                             <div className="flex flex-wrap gap-2">
+                              <button 
+                                onClick={() => handleEditSupplier(supplier)}
+                                className="text-indigo-600 hover:text-indigo-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-indigo-50 rounded-lg transition-colors"
+                              >
+                                Edit
+                              </button>
                               <button 
                                 onClick={() => loadPurchaseHistory(supplier)}
                                 className="text-blue-600 hover:text-blue-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-blue-50 rounded-lg transition-colors"
@@ -509,6 +575,12 @@ export default function SuppliersPage() {
 
                         {/* Actions */}
                         <div className="flex flex-wrap gap-2 pt-2 border-t">
+                          <button 
+                            onClick={() => handleEditSupplier(supplier)}
+                            className="flex-1 text-indigo-600 hover:text-indigo-900 text-sm font-medium px-3 py-2 bg-indigo-50 rounded-lg transition-colors"
+                          >
+                            Edit
+                          </button>
                           <button 
                             onClick={() => loadPurchaseHistory(supplier)}
                             className="flex-1 text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-2 bg-blue-50 rounded-lg transition-colors"

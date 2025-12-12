@@ -4,9 +4,8 @@ import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 import Head from 'next/head';
 import Link from 'next/link';
-import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 
 function StockRequestsContent() {
   const [stockRequests, setStockRequests] = useState([]);

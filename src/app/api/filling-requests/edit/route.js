@@ -1,5 +1,8 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET(request) {
   try {
@@ -125,6 +128,47 @@ export async function PUT(request) {
     console.log('✅ Update result:', result);
 
     if (result.affectedRows > 0) {
+      // Get user info for audit log
+      let userId = null;
+      let userName = 'System';
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const users = await executeQuery(
+              `SELECT id, name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name;
+            }
+          }
+        }
+      } catch (userError) {
+        console.error('Error getting user info:', userError);
+      }
+
+      // Create audit log
+      const oldRequest = existingRequest[0];
+      const newRequest = { ...oldRequest, ...body };
+      
+      await createAuditLog({
+        page: 'Filling Requests',
+        uniqueCode: `REQUEST-${id}`,
+        section: 'Edit Request',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Filling request updated: ${oldRequest.rid || id}`,
+        oldValue: oldRequest,
+        newValue: newRequest,
+        recordType: 'filling_request',
+        recordId: parseInt(id)
+      });
+
       return NextResponse.json({ 
         success: true, 
         message: "Request updated successfully" 

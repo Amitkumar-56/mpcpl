@@ -265,7 +265,7 @@ function StockTable({ stockRequests }) {
                           <BsClockHistory size={16} />
                         </Link>
                         <Link
-                          href={`/stock/edit/${request.id}`}
+                          href={`/stock/edit?id=${request.id}`}
                           className="text-green-600 hover:text-green-800 transition-colors"
                           title="Edit"
                         >
@@ -436,6 +436,13 @@ export default function StockRequest() {
                   </p>
                 </div>
                 <div className="flex flex-col sm:flex-row gap-3">
+                  <Link
+                    href="/stock/activity-logs"
+                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors shadow-sm"
+                  >
+                    <BsClockHistory size={16} />
+                    Activity Logs
+                  </Link>
                   <Link
                     href="/stock/purchase-for-use-history"
                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"

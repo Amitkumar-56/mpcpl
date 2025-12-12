@@ -1,9 +1,35 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function POST(request) {
   try {
     const { station_id, product_id, quantity, remarks } = await request.json();
+    
+    // Get user info for audit log
+    let userId = null;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
 
     // Validate required fields
     if (!station_id || !product_id || !quantity) {
@@ -67,49 +93,49 @@ export async function POST(request) {
       console.log('stock_history table might not exist, skipping...');
     }
 
-    // Create audit log entry
+    // Get stock ID and old value for audit log
+    const stockId = existingRecord.length > 0 ? existingRecord[0].id : null;
+    const oldStock = existingRecord.length > 0 ? existingRecord[0].stock : 0;
+    const newStock = oldStock + parseInt(quantity);
+    
+    // Get station and product names for better logging
+    let stationName = 'N/A';
+    let productName = 'N/A';
     try {
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS stock_audit_log (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          stock_id INT,
-          station_id INT,
-          product_id INT,
-          action_type VARCHAR(50) NOT NULL,
-          user_id INT,
-          user_name VARCHAR(255),
-          remarks TEXT,
-          quantity DECIMAL(10,2),
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_stock_id (stock_id),
-          INDEX idx_station_id (station_id),
-          INDEX idx_created_at (created_at)
-        )
-      `);
-      
-      // Fetch employee name from employee_profile
-      let employeeName = 'System';
-      const stockId = existingRecord.length > 0 ? existingRecord[0].id : null;
-      try {
-        const employeeResult = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
-          [1]
-        );
-        if (employeeResult.length > 0) {
-          employeeName = employeeResult[0].name;
-        }
-      } catch (empError) {
-        console.error('Error fetching employee name:', empError);
+      const stationResult = await executeQuery(
+        `SELECT station_name FROM filling_stations WHERE id = ?`,
+        [station_id]
+      );
+      if (stationResult.length > 0) {
+        stationName = stationResult[0].station_name;
       }
       
-      await executeQuery(
-        `INSERT INTO stock_audit_log (stock_id, station_id, product_id, action_type, user_id, user_name, remarks, quantity) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-        [stockId, station_id, product_id, 'added', 1, employeeName, remarks || 'Stock added', parseInt(quantity)]
+      const productResult = await executeQuery(
+        `SELECT pname FROM products WHERE id = ?`,
+        [product_id]
       );
-    } catch (auditError) {
-      console.error('Error creating audit log:', auditError);
-      // Don't fail the main operation
+      if (productResult.length > 0) {
+        productName = productResult[0].pname;
+      }
+    } catch (nameError) {
+      console.error('Error fetching names:', nameError);
     }
+
+    // Create comprehensive audit log entry
+    await createAuditLog({
+      page: 'Stock Management',
+      uniqueCode: stockId ? `STOCK-${stockId}` : `NEW-STOCK-${station_id}-${product_id}`,
+      section: 'Add Stock',
+      userId: userId,
+      userName: userName,
+      action: existingRecord.length > 0 ? 'update' : 'add',
+      remarks: remarks || `Stock ${existingRecord.length > 0 ? 'updated' : 'added'} for ${stationName} - ${productName}`,
+      oldValue: { stock: oldStock, station_id, product_id },
+      newValue: { stock: newStock, station_id, product_id, quantity_added: parseInt(quantity) },
+      fieldName: 'stock',
+      recordType: 'stock',
+      recordId: stockId
+    });
 
     return NextResponse.json({
       success: true,

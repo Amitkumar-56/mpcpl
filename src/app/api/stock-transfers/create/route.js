@@ -2,6 +2,9 @@ import { executeQuery, executeTransaction } from "@/lib/db";
 import { mkdir, writeFile } from "fs/promises";
 import { NextResponse } from "next/server";
 import path from "path";
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET() {
   try {
@@ -164,9 +167,28 @@ export async function POST(request) {
         transferQuantity, status, slip_new_name, product
       ]);
 
-      // Get user ID from request headers or default to 1
-      // In a real app, you'd get this from authentication token
-      const userId = request.headers.get('x-user-id') || 1;
+      // Get user ID from cookies/token
+      let userId = 1;
+      let userName = 'System';
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id || 1;
+            const [users] = await connection.execute(
+              `SELECT id, name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name;
+            }
+          }
+        }
+      } catch (userError) {
+        console.error('Error getting user info:', userError);
+      }
       
       // Insert into filling_history with created_by
       const insertHistoryQuery = `
@@ -195,56 +217,54 @@ export async function POST(request) {
         console.log("⚠️ Stock transfer logs table may not exist, skipping:", logError.message);
       }
 
-      // Create audit log entry for stock transfer
+      // Get station names for audit log
+      let stationFromName = `Station ${station_from}`;
+      let stationToName = `Station ${station_to}`;
+      let productName = `Product ${product}`;
       try {
-        await connection.execute(`
-          CREATE TABLE IF NOT EXISTS stock_audit_log (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            stock_id INT,
-            station_id INT,
-            product_id INT,
-            action_type VARCHAR(50) NOT NULL,
-            user_id INT,
-            user_name VARCHAR(255),
-            remarks TEXT,
-            quantity DECIMAL(10,2),
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_stock_id (stock_id),
-            INDEX idx_station_id (station_id),
-            INDEX idx_created_at (created_at)
-          )
-        `);
-        
-        // Fetch employee name from employee_profile
-        let employeeName = 'System';
-        try {
-          const [employeeResult] = await connection.execute(
-            `SELECT name FROM employee_profile WHERE id = ?`,
-            [userId]
-          );
-          if (employeeResult.length > 0) {
-            employeeName = employeeResult[0].name;
-          }
-        } catch (empError) {
-          console.error('Error fetching employee name:', empError);
-        }
-        
-        await connection.execute(
-          `INSERT INTO stock_audit_log (station_id, product_id, action_type, user_id, user_name, remarks, quantity) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-          [station_from, product, 'transferred', userId, employeeName, `Stock transferred to station ${station_to}`, transferQuantity]
+        const [stations] = await connection.execute(
+          `SELECT id, station_name FROM filling_stations WHERE id IN (?, ?)`,
+          [station_from, station_to]
         );
-      } catch (auditError) {
-        console.error('Error creating audit log:', auditError);
-        // Don't fail the main operation
+        const fromStation = stations.find(s => s.id == station_from);
+        const toStation = stations.find(s => s.id == station_to);
+        if (fromStation) stationFromName = fromStation.station_name;
+        if (toStation) stationToName = toStation.station_name;
+        
+        const [products] = await connection.execute(
+          `SELECT id, pname FROM products WHERE id = ?`,
+          [product]
+        );
+        if (products.length > 0) {
+          productName = products[0].pname;
+        }
+      } catch (nameError) {
+        console.error('Error fetching names:', nameError);
       }
 
       console.log("🎉 Stock transfer created successfully!");
-      return transferResult;
+      return { transferResult, stationFromName, stationToName, productName, userId, userName, available_stock_from, new_stock_from, transferQuantity };
+    });
+
+    // Create audit log after transaction
+    await createAuditLog({
+      page: 'Stock Transfers',
+      uniqueCode: `TRANSFER-${result.transferResult.insertId}`,
+      section: 'Create Transfer',
+      userId: result.userId,
+      userName: result.userName,
+      action: 'add',
+      remarks: `Stock transferred: ${result.transferQuantity} Ltr of ${result.productName} from ${result.stationFromName} to ${result.stationToName}`,
+      oldValue: { stock: result.available_stock_from, station_id: station_from, product_id: product },
+      newValue: { stock: result.new_stock_from, station_id: station_from, product_id: product, transferred_to: station_to, quantity: result.transferQuantity },
+      fieldName: 'stock',
+      recordType: 'stock_transfer',
+      recordId: result.transferResult.insertId
     });
 
     return NextResponse.json({
       message: "Stock transfer created successfully",
-      transferId: result.insertId
+      transferId: result.transferResult.insertId
     });
 
   } catch (error) {

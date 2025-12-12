@@ -1,6 +1,9 @@
 // src/app/api/nb-stock/create-nb-expense/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET() {
   try {
@@ -37,8 +40,30 @@ export async function POST(req) {
     const amount = parseFloat(formData.get('amount'));
     const station_product = formData.get('station_product');
     
-    // ✅ FIX: Get user ID from headers or form data
-    const user_id = formData.get('user_id') || req.headers.get('x-user-id') || 1;
+    // Get user ID from cookies/token
+    let user_id = 1;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          user_id = decoded.userId || decoded.id || 1;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [user_id]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+    } catch (userError) {
+      // Fallback to form data
+      user_id = formData.get('user_id') || req.headers.get('x-user-id') || 1;
+      console.error('Error getting user info:', userError);
+    }
     
     const [station_id, product_id] = station_product.split('-').map(Number);
 
@@ -93,15 +118,76 @@ export async function POST(req) {
       [payment_date, title, reason, paid_to, amount, station_id, product_id]
     );
 
-    // ✅ FIX: Update stock with created_by/updated_by for logging
-    await executeQuery(
-      `UPDATE non_billing_stocks 
-       SET stock = stock - ?, updated_at = NOW(), updated_by = ?
-       WHERE station_id = ? AND product_id = ?`,
-      [amount, user_id, station_id, product_id]
-    );
+    // ✅ FIX: Update stock - check if updated_at column exists
+    try {
+      // Try with updated_at first
+      await executeQuery(
+        `UPDATE non_billing_stocks 
+         SET stock = stock - ?, updated_at = NOW(), updated_by = ?
+         WHERE station_id = ? AND product_id = ?`,
+        [amount, user_id, station_id, product_id]
+      );
+    } catch (updateError) {
+      // If updated_at doesn't exist, try without it
+      if (updateError.message && updateError.message.includes('updated_at')) {
+        await executeQuery(
+          `UPDATE non_billing_stocks 
+           SET stock = stock - ?, updated_by = ?
+           WHERE station_id = ? AND product_id = ?`,
+          [amount, user_id, station_id, product_id]
+        );
+      } else {
+        throw updateError;
+      }
+    }
 
-    // ✅ FIX: Create log entry for stock update
+    // Get station and product names for audit log
+    let stationName = `Station ${station_id}`;
+    let productName = `Product ${product_id}`;
+    try {
+      const stationResult = await executeQuery(
+        `SELECT station_name FROM filling_stations WHERE id = ?`,
+        [station_id]
+      );
+      if (stationResult.length > 0) {
+        stationName = stationResult[0].station_name;
+      }
+      
+      const productResult = await executeQuery(
+        `SELECT pname FROM products WHERE id = ?`,
+        [product_id]
+      );
+      if (productResult.length > 0) {
+        productName = productResult[0].pname;
+      }
+    } catch (nameError) {
+      console.error('Error fetching names:', nameError);
+    }
+
+    // Get expense ID
+    const expenseResult = await executeQuery(
+      `SELECT id FROM nb_expense WHERE station_id = ? AND product_id = ? AND payment_date = ? AND title = ? ORDER BY id DESC LIMIT 1`,
+      [station_id, product_id, payment_date, title]
+    );
+    const expenseId = expenseResult.length > 0 ? expenseResult[0].id : null;
+
+    // Create audit log
+    await createAuditLog({
+      page: 'NB Stock',
+      uniqueCode: expenseId ? `NB-EXPENSE-${expenseId}` : `NB-EXPENSE-${station_id}-${product_id}`,
+      section: 'Create NB Expense',
+      userId: user_id,
+      userName: userName,
+      action: 'add',
+      remarks: `NB Expense created: ${title} - ₹${amount} to ${paid_to || 'N/A'}. Stock deducted from ${stationName} - ${productName}`,
+      oldValue: { stock: oldStock, station_id, product_id },
+      newValue: { stock: newStock, station_id, product_id, expense_amount: amount },
+      fieldName: 'stock',
+      recordType: 'nb_stock',
+      recordId: expenseId
+    });
+
+    // ✅ FIX: Create log entry for stock update (legacy table)
     try {
       await executeQuery(
         `INSERT INTO nb_stock_logs 

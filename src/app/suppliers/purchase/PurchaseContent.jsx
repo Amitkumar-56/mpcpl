@@ -59,10 +59,8 @@ export default function PurchaseContent() {
             stations: data.stations || []
           });
         } else {
-          console.error('Failed to fetch dropdown data');
         }
       } catch (error) {
-        console.error('Error fetching dropdown data:', error);
       }
     };
 
@@ -108,7 +106,6 @@ export default function PurchaseContent() {
       quantityInKg: activeTab === 'use' ? purchaseData.quantity : purchaseData.quantityInKg
     };
 
-    console.log('Submitting data:', submitData);
 
     try {
       const response = await fetch('/api/purchases', {
@@ -126,10 +123,8 @@ export default function PurchaseContent() {
         resetForm();
       } else {
         alert(`Error: ${result.message || 'Failed to submit purchase data'}`);
-        console.error('Backend error:', result);
       }
     } catch (error) {
-      console.error('Error submitting purchase:', error);
       alert('Network error: Could not connect to server');
     } finally {
       setLoading(false);

@@ -1,5 +1,8 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET(request) {
   try {
@@ -74,9 +77,47 @@ export async function POST(request) {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     
+    // Get user info for audit log
+    let userId = null;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
     const result = await executeQuery(query, [
       payment_date, title, details, paid_to, reason, amount, employee_id
     ]);
+    
+    // Create audit log
+    await createAuditLog({
+      page: 'NB Expenses',
+      uniqueCode: `EXPENSE-${result.insertId}`,
+      section: 'Add Expense',
+      userId: userId,
+      userName: userName,
+      action: 'add',
+      remarks: `Expense added: ${title} - ₹${amount} to ${paid_to}`,
+      oldValue: null,
+      newValue: { title, amount, paid_to, reason, payment_date },
+      recordType: 'nb_expense',
+      recordId: result.insertId
+    });
     
     return NextResponse.json({
       message: "Expense created",
@@ -117,7 +158,51 @@ export async function DELETE(request) {
       }
     }
     
+    // Get expense data before deletion for audit log
+    const expenseData = await executeQuery("SELECT * FROM expenses WHERE id = ?", [id]);
+    
+    // Get user info for audit log
+    let userId = null;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
     await executeQuery("DELETE FROM expenses WHERE id = ?", [id]);
+    
+    // Create audit log
+    if (expenseData.length > 0) {
+      const expense = expenseData[0];
+      await createAuditLog({
+        page: 'NB Expenses',
+        uniqueCode: `EXPENSE-${id}`,
+        section: 'Delete Expense',
+        userId: userId,
+        userName: userName,
+        action: 'delete',
+        remarks: `Expense deleted: ${expense.title} - ₹${expense.amount}`,
+        oldValue: expense,
+        newValue: null,
+        recordType: 'nb_expense',
+        recordId: parseInt(id)
+      });
+    }
     
     return NextResponse.json({ message: "Deleted successfully" });
     
