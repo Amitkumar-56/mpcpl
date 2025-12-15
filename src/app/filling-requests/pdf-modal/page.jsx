@@ -439,7 +439,7 @@ function PDFModalContent() {
               <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
                 <h2 className="text-lg font-bold text-gray-800 mb-4">Activity Logs</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {request.created_by_name && (
+                  {request.created_by_name && request.created_by_name.toUpperCase() !== 'SWIFT' && (
                     <div className="bg-blue-50 p-3 rounded border border-blue-200">
                       <p className="text-sm font-medium text-blue-700">Created By</p>
                       <p className="text-sm text-gray-800">{request.created_by_name}</p>

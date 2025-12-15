@@ -147,7 +147,9 @@ function CreateVoucherContent() {
       const result = await response.json();
 
       if (response.ok) {
-        alert(`✅ Voucher created successfully!\n\nVoucher No: ${result.voucher_no}`);
+        // Prefer the formatted voucher_code if provided by the API
+        const displayCode = result.voucher_code || result.voucher_no;
+        alert(`✅ Voucher created successfully!\n\nVoucher No: ${displayCode}`);
         
         // Reset form
         setFormData({
@@ -164,9 +166,9 @@ function CreateVoucherContent() {
           { item_details: '', amount: '0', image: null }
         ]);
         
-        // Redirect
+        // Redirect to driver voucher wallet page after success
         setTimeout(() => {
-          router.push('/cash-management');
+          router.push('/voucher-wallet-driver');
         }, 1500);
         
       } else {

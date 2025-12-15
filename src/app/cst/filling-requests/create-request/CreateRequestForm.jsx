@@ -252,10 +252,14 @@ export default function CreateRequestForm() {
     if (selectedProduct) {
       const quantity = parseInt(formData.qty) || 0;
       if (quantity < selectedProduct.min) {
-        newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} liters`;
+        const minUnit = selectedProduct.min === 1 ? 'liter' : 'liters';
+        newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${minUnit}`;
       }
-      if (selectedProduct.maxQuantity && quantity > selectedProduct.maxQuantity) {
-        newErrors.qty = `Maximum quantity for this product is ${selectedProduct.maxQuantity} liters`;
+      // Only validate maxQuantity for non-bucket products
+      // For bucket products, allow any number of buckets
+      if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantity > selectedProduct.maxQuantity) {
+        const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
+        newErrors.qty = `Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}`;
       }
     }
 
@@ -971,7 +975,6 @@ export default function CreateRequestForm() {
                             : "Enter liters"
                           : "Enter quantity"}
                         min={selectedProduct?.min || 1}
-                        max={selectedProduct?.maxQuantity || undefined}
                         required
                       />
                       {errors.qty && (

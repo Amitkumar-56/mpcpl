@@ -795,8 +795,10 @@ export default function FillingDetailsAdmin() {
                   {requestData.logs && (requestData.logs.created_by_name || requestData.logs.processed_by_name || requestData.logs.completed_by_name || requestData.logs.cancelled_by_name) ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      {/* Created By - Show for customer or employee */}
-                      {requestData.logs && requestData.logs.created_by_name && requestData.logs.created_by_name !== 'System' && (
+                      {/* Created By - Show for customer or employee, but hide if SWIFT (default/system name) */}
+                      {requestData.logs && requestData.logs.created_by_name && 
+                       requestData.logs.created_by_name !== 'System' && 
+                       requestData.logs.created_by_name.toUpperCase() !== 'SWIFT' && (
                         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
                           <div className="flex items-center mb-2">
                             <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">

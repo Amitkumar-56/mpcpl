@@ -5,7 +5,7 @@ import { NextResponse } from "next/server";
 export async function GET() {
   try {
     const employees = await executeQuery(
-      "SELECT id, name, mobile FROM employee_profile WHERE status = 'active' ORDER BY name",
+      "SELECT id, emp_code, name, phone FROM employee_profile WHERE status = 1 ORDER BY name",
       []
     );
     return NextResponse.json({ employees });

@@ -101,16 +101,21 @@ export async function POST(request) {
       );
     }
 
-    // Calculate remaining amount
-    const remaining_amount = advance - total_expense;
+    // Calculate remaining amount (pending) = total_expense - advance
+    const remaining_amount = total_expense - advance;
     const paid_amount = 0;
     const status = 'pending';
 
-    // Generate voucher number (sequential)
-    const voucherNoResult = await executeQuery(
-      'SELECT COALESCE(MAX(voucher_no), 0) + 1 as next_voucher_no FROM vouchers'
+    // Determine next sequence by extracting the numeric sequence part from existing
+    // `voucher_no` values of the form 'V{seq}{last4}'. We assume seq is stored
+    // immediately after 'V' and is numeric (pad to 2 digits).
+    const seqResult = await executeQuery(
+      `SELECT COALESCE(MAX(CAST(SUBSTRING(voucher_no, 2, 2) AS UNSIGNED)), 0) + 1 as next_seq
+       FROM vouchers
+       WHERE voucher_no LIKE 'V%'
+      `
     );
-    const voucher_no = voucherNoResult[0]?.next_voucher_no || 1;
+    const nextSeq = seqResult[0]?.next_seq || 1;
 
     // Insert voucher (voucher_no ही voucher_code है)
     const voucherQuery = `
@@ -120,10 +125,20 @@ export async function POST(request) {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
     
+    // Build display voucher code using the computed sequence and vehicle last-4
+    const seqStrForInsert = String(nextSeq).padStart(2, '0');
+    const digitsOnlyForInsert = (vehicle_no || '').toString().replace(/\D/g, '');
+    let last4ForInsert = digitsOnlyForInsert.slice(-4);
+    if (last4ForInsert.length < 4) {
+      const raw = (vehicle_no || '').toString();
+      last4ForInsert = raw.slice(-4).padStart(4, '0');
+    }
+    const voucherCodeToStore = `V${seqStrForInsert}${last4ForInsert}`;
+
     const voucherResult = await executeQuery(voucherQuery, [
       parseInt(station_id), 
       parseInt(employee_id),
-      voucher_no,
+      voucherCodeToStore,
       vehicle_no,
       driver_phone,
       advance,
@@ -166,12 +181,22 @@ export async function POST(request) {
     
     await executeQuery(historyQuery, [voucherId, parseInt(user_id), total_expense]);
 
-    console.log('✅ Voucher created successfully:', { voucherId, voucher_no });
+    // Build display voucher code: V{sequence 2-digit}{last-4-digits-of-vehicle}
+    // Extract digits from vehicle_no (e.g., MH12AB1234 -> 1234)
+    const digitsOnly = (vehicle_no || '').toString().replace(/\D/g, '');
+    let last4 = digitsOnly.slice(-4);
+    if (last4.length < 4) {
+      // fallback to last 4 chars of vehicle_no if not enough digits
+      const raw = (vehicle_no || '').toString();
+      last4 = raw.slice(-4).padStart(4, '0');
+    }
+    // Return the stored voucher_no (formatted code) in response for UI
+    console.log('✅ Voucher created successfully:', { voucherId, voucher_no: voucherCodeToStore });
     return NextResponse.json({
       success: true,
       message: 'Voucher created successfully',
       voucherId: voucherId,
-      voucher_no: voucher_no
+      voucher_no: voucherCodeToStore
     });
 
   } catch (error) {

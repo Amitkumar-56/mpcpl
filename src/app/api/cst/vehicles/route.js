@@ -16,27 +16,28 @@ export async function GET(request) {
 
     console.log('🚗 Searching vehicles for:', query, 'customer:', customerId);
 
-    // Search in customer_vehicles table
+    // Search in vehicles table using com_id (customer_id)
+    // Map customer_id to com_id in vehicles table
     const vehiclesQuery = `
       SELECT 
-        id,
-        licence_plate,
-        vehicle_number,
-        driver_name,
-        phone,
-        driver_number,
-        status
-      FROM customer_vehicles 
-      WHERE customer_id = ? 
-        AND (licence_plate LIKE ? OR vehicle_number LIKE ? OR phone LIKE ?)
-        AND status = 'active'
+        v.id,
+        v.licence_plate as licence_plate,
+        v.licence_plate as vehicle_number,
+        e.name as driver_name,
+        v.phone,
+        v.phone as driver_number,
+        v.status
+      FROM vehicles v
+      LEFT JOIN employee_profile e ON v.driver_id = e.id
+      WHERE v.com_id = ? 
+        AND (v.licence_plate LIKE ? OR v.phone LIKE ?)
+        AND v.status = 'active'
       LIMIT 10
     `;
 
     const searchPattern = `%${query}%`;
     const vehicles = await executeQuery(vehiclesQuery, [
       customerId, 
-      searchPattern, 
       searchPattern, 
       searchPattern
     ]);

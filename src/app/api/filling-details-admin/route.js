@@ -213,6 +213,12 @@ export async function GET(req) {
       const logs = await executeQuery(logsQuery, [data.rid]);
       data.logs = logs.length > 0 ? logs[0] : null;
       
+      // ✅ FIX: Hide "SWIFT" as default name - set to null if name is SWIFT
+      if (data.logs && data.logs.created_by_name && data.logs.created_by_name.toUpperCase() === 'SWIFT') {
+        data.logs.created_by_name = null;
+        data.logs.created_by_code = null;
+      }
+      
       // ✅ FIX: If no logs found, try to get created_by from filling_requests
       if (!data.logs || !data.logs.created_by_name || data.logs.created_by_name === 'System') {
         const fallbackQuery = `
@@ -235,7 +241,9 @@ export async function GET(req) {
           LIMIT 1
         `;
         const fallbackResult = await executeQuery(fallbackQuery, [data.rid]);
-        if (fallbackResult.length > 0 && fallbackResult[0].created_by_name !== 'System') {
+        if (fallbackResult.length > 0 && 
+            fallbackResult[0].created_by_name !== 'System' && 
+            fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
           if (!data.logs) {
             data.logs = {};
           }
@@ -688,45 +696,62 @@ async function updateFillingLogs(request_id, status, userId) {
       }
     } else {
       // No log exists, create one
-      // ✅ FIX: Check if created_by should be customer or employee
-      // First, get the request to find customer ID
+      // ✅ FIX: Always use the original customer ID as created_by, not the admin completing it
+      // First, get the request to find customer ID (original creator)
       const requestQuery = `SELECT cid FROM filling_requests WHERE rid = ?`;
       const requestResult = await executeQuery(requestQuery, [request_id]);
       
-      let createdById = userId; // Default to userId (employee)
+      let createdById = null;
       
       if (requestResult.length > 0 && requestResult[0].cid) {
-        // Check if userId matches customer ID (customer created it)
+        // Use customer ID as created_by (original creator of the request)
         const customerId = requestResult[0].cid;
         const customerCheck = await executeQuery(
           `SELECT id FROM customers WHERE id = ?`,
           [customerId]
         );
         
-        // If userId is customer ID, use customer ID; otherwise use employee ID
-        if (customerCheck.length > 0 && parseInt(userId) === parseInt(customerId)) {
+        if (customerCheck.length > 0) {
           createdById = customerId;
-          console.log('✅ Request created by customer:', customerId);
+          console.log('✅ Request created by customer (original creator):', customerId);
         } else {
-          // Check if there's a filling_logs entry from customer creation
-          const customerLogCheck = await executeQuery(
-            `SELECT created_by FROM filling_logs WHERE request_id = ? AND created_by IN (SELECT id FROM customers WHERE id = ?)`,
-            [request_id, customerId]
+          // If customer doesn't exist, check if there's an existing log with original creator
+          const existingLogCheck = await executeQuery(
+            `SELECT created_by FROM filling_logs WHERE request_id = ? ORDER BY created_date ASC, id ASC LIMIT 1`,
+            [request_id]
           );
-          if (customerLogCheck.length > 0) {
-            createdById = customerLogCheck[0].created_by;
-            console.log('✅ Found existing customer log, using customer ID:', createdById);
+          if (existingLogCheck.length > 0 && existingLogCheck[0].created_by) {
+            createdById = existingLogCheck[0].created_by;
+            console.log('✅ Found existing log with original creator:', createdById);
           } else {
-            // Use employee ID
-            createdById = userId;
-            console.log('✅ Using employee ID for created_by:', userId);
+            // Last resort: use customer ID even if not found in customers table
+            createdById = customerId;
+            console.log('⚠️ Using customer ID from request (customer may not exist):', customerId);
           }
+        }
+      } else {
+        // If no customer ID found, check for any existing logs
+        const existingLogCheck = await executeQuery(
+          `SELECT created_by FROM filling_logs WHERE request_id = ? ORDER BY created_date ASC, id ASC LIMIT 1`,
+          [request_id]
+        );
+        if (existingLogCheck.length > 0 && existingLogCheck[0].created_by) {
+          createdById = existingLogCheck[0].created_by;
+          console.log('✅ Using existing log creator:', createdById);
+        } else {
+          // Only use userId as last resort if absolutely no other option
+          createdById = userId;
+          console.log('⚠️ No customer found, using current user as created_by (last resort):', userId);
         }
       }
       
-      const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
-      await executeQuery(insertQuery, [request_id, createdById, now]);
-      console.log('✅ New filling log created:', { request_id, created_by: createdById, created_date: now });
+      if (createdById) {
+        const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
+        await executeQuery(insertQuery, [request_id, createdById, now]);
+        console.log('✅ New filling log created with original creator:', { request_id, created_by: createdById, created_date: now });
+      } else {
+        console.error('❌ Could not determine created_by for request:', request_id);
+      }
       
       // If status is Processing/Completed/Cancel, also update that field (but avoid recursion)
       if (status === 'Processing' || status === 'Completed' || status === 'Cancel') {

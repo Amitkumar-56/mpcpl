@@ -3,43 +3,56 @@ import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request) {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
+    let token = cookieStore.get('token')?.value;
     
-    console.log('🔍 Profile API called, token exists:', !!token);
+    console.log('🔍 Profile API called');
+    console.log('Token from cookies:', token ? 'exists' : 'missing');
+    
+    // If no token in cookies, check Authorization header
+    if (!token) {
+      const authHeader = request.headers.get('authorization');
+      console.log('Auth header:', authHeader ? 'exists' : 'missing');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        token = authHeader.substring(7);
+        console.log('Token from auth header: exists');
+      }
+    }
     
     if (!token) {
-      console.log('❌ No token found in cookies');
+      console.log('❌ No token found in request');
       return NextResponse.json({ 
         success: false,
         error: 'Not authenticated' 
       }, { status: 401 });
     }
 
+    // Verify the token
     const decoded = verifyToken(token);
     if (!decoded) {
-      console.log('❌ Token verification failed');
+      console.log('❌ Token verification failed - token might be expired or invalid');
       return NextResponse.json({ 
         success: false,
-        error: 'Invalid token' 
+        error: 'Invalid or expired token' 
       }, { status: 401 });
     }
 
-    // Get user ID from token (try userId first, then id)
-    const userId = decoded.userId || decoded.id;
+    // Get user ID from token
+    const userId = decoded.userId || decoded.id || decoded.emp_id;
+    console.log('✅ Token decoded successfully, user ID:', userId, 'decoded:', decoded);
+
     if (!userId) {
-      console.log('❌ No userId found in token');
+      console.log('❌ No user ID found in token');
       return NextResponse.json({ 
         success: false,
         error: 'User ID not found in token' 
       }, { status: 401 });
     }
 
-    console.log('✅ Token verified, user ID:', userId);
-
-    // Fetch user profile from employee_profile
+    // Fetch user profile
+    console.log('📋 Fetching profile from database for user ID:', userId);
     const users = await executeQuery(
       `SELECT id, emp_code, name, email, role, status, fs_id, fl_id, station, client,
               address, city, region, country, postbox, phone, phonealt, 
@@ -48,6 +61,8 @@ export async function GET() {
        WHERE id = ?`,
       [userId]
     );
+
+    console.log('📊 Database query result count:', users.length);
 
     if (users.length === 0) {
       console.log('❌ User not found in database for ID:', userId);
@@ -59,15 +74,17 @@ export async function GET() {
 
     const user = users[0];
     
-    // Ensure role is a number (handle both string and number from DB)
+    // Ensure role is a number
     if (user.role !== undefined && user.role !== null) {
       user.role = Number(user.role);
     }
-    
-    // Don't send password
-    delete user.password;
 
-    console.log('✅ Profile fetched successfully for user:', user.name, 'Role:', user.role);
+    console.log('✅ Profile fetched successfully:', {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role
+    });
 
     return NextResponse.json({ 
       success: true,
@@ -75,10 +92,10 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('Profile API error:', error);
+    console.error('🔥 Profile API error:', error);
     return NextResponse.json({ 
       success: false,
-      error: 'Internal server error: ' + error.message 
+      error: 'Internal server error: ' + (error.message || 'Unknown error')
     }, { status: 500 });
   }
 }

@@ -110,6 +110,7 @@ export async function GET(request) {
       vouchers: result,
       driver_name: driver_name,
       permissions: permissionsResult[0],
+      current_user: { id: userId },
       query_info: {
         role: role,
         emp_id: emp_id,

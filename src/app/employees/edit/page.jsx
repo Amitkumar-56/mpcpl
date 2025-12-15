@@ -1,11 +1,11 @@
 'use client';
 
+import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import { useSession } from "@/context/SessionContext";
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useState, useEffect, Suspense } from "react";
+import { Suspense, useEffect, useState } from "react";
 
 function EditEmployeeContent() {
   const router = useRouter();
@@ -14,6 +14,8 @@ function EditEmployeeContent() {
   const { user, loading: authLoading } = useSession();
   const [image, setImage] = useState(null);
   const [existingImage, setExistingImage] = useState(null);
+  const [qrCode, setQrCode] = useState(null);
+  const [existingQrCode, setExistingQrCode] = useState(null);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({
     emp_code: "",
@@ -108,6 +110,10 @@ function EditEmployeeContent() {
           setExistingImage(`/uploads/${emp.picture}`);
         }
 
+        if (emp.qr_code) {
+          setExistingQrCode(`/uploads/${emp.qr_code}`);
+        }
+
         // Load permissions
         if (result.data.permissions && Array.isArray(result.data.permissions)) {
           const perms = {};
@@ -143,6 +149,11 @@ function EditEmployeeContent() {
     if (file) setImage(file);
   };
 
+  const handleQrCodeChange = (e) => {
+    const file = e.target.files[0];
+    if (file) setQrCode(file);
+  };
+
   const handlePermissionChange = (module, perm) => {
     setPermissions(prev => ({
       ...prev,
@@ -159,6 +170,7 @@ function EditEmployeeContent() {
         }
       });
       if (image) form.append('picture', image);
+      if (qrCode) form.append('qr_code', qrCode);
       form.append('permissions', JSON.stringify(permissions));
 
       const res = await fetch(`/api/employee/edit?id=${id}`, {
@@ -226,18 +238,41 @@ function EditEmployeeContent() {
           </div>
 
           <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-1/3 w-full flex flex-col items-center border p-4 rounded-lg bg-white">
-              <label className="block text-sm font-medium mb-2">Profile Image</label>
-              <input type="file" accept="image/*" onChange={handleImageChange} className="mb-3" />
-              {image ? (
-                <img src={URL.createObjectURL(image)} alt="Preview" className="mt-3 h-32 w-32 object-cover rounded-full border" />
-              ) : existingImage ? (
-                <img src={existingImage} alt="Current" className="mt-3 h-32 w-32 object-cover rounded-full border" />
-              ) : (
-                <div className="mt-3 h-32 w-32 bg-gray-200 rounded-full flex items-center justify-center">
-                  <span className="text-gray-400">No Image</span>
-                </div>
-              )}
+            <div className="md:w-1/3 w-full">
+              <div className="flex flex-col items-center border p-4 rounded-lg bg-white mb-4">
+                <label className="block text-sm font-medium mb-2">Profile Image</label>
+                <input type="file" accept="image/*" onChange={handleImageChange} className="mb-3 text-sm" />
+                {image ? (
+                  <img src={URL.createObjectURL(image)} alt="Preview" className="mt-3 h-32 w-32 object-cover rounded-full border" />
+                ) : existingImage ? (
+                  <img src={existingImage} alt="Current" className="mt-3 h-32 w-32 object-cover rounded-full border" />
+                ) : (
+                  <div className="mt-3 h-32 w-32 bg-gray-200 rounded-full flex items-center justify-center">
+                    <span className="text-gray-400">No Image</span>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col items-center border p-4 rounded-lg bg-white">
+                <label className="block text-sm font-medium mb-2">QR Code Upload (Image or PDF)</label>
+                <input type="file" accept="image/*,.pdf" onChange={handleQrCodeChange} className="mb-3 text-sm" />
+                {qrCode ? (
+                  <div className="mt-3 h-32 w-32 border-2 border-blue-500 rounded flex items-center justify-center bg-blue-50">
+                    <span className="text-blue-700 text-sm font-semibold">✓ File Selected</span>
+                  </div>
+                ) : existingQrCode ? (
+                  existingQrCode.endsWith('.pdf') ? (
+                    <div className="mt-3 h-32 w-32 border-2 border-green-500 rounded flex items-center justify-center bg-green-50">
+                      <span className="text-green-700 text-xs text-center font-semibold">PDF Uploaded</span>
+                    </div>
+                  ) : (
+                    <img src={existingQrCode} alt="QR Code" className="mt-3 h-32 w-32 object-cover border-2 border-green-500 rounded" />
+                  )
+                ) : (
+                  <div className="mt-3 h-32 w-32 bg-gray-200 rounded flex items-center justify-center">
+                    <span className="text-gray-400 text-xs text-center">No QR Code</span>
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="md:w-2/3 w-full">
@@ -273,7 +308,16 @@ function EditEmployeeContent() {
                 <input type="text" name="region" placeholder="Region" value={formData.region} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="country" placeholder="Country" value={formData.country} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="postbox" placeholder="Postbox" value={formData.postbox} onChange={handleChange} className="border rounded p-2" />
-                <input type="text" name="account_details" placeholder="Account Details" value={formData.account_details} onChange={handleChange} className="border rounded p-2 md:col-span-2" />
+              </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Account Details</label>
+                <textarea 
+                  name="account_details" 
+                  placeholder="Bank Account Number / IFSC / Account Holder Name" 
+                  value={formData.account_details} 
+                  onChange={handleChange} 
+                  className="w-full border rounded p-2 min-h-20 resize-vertical font-mono"
+                />
               </div>
             </div>
           </div>

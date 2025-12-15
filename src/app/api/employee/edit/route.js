@@ -1,11 +1,11 @@
 // src/app/api/employee/edit/route.js
-import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
+import { verifyToken } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
 import crypto from 'crypto';
 import fs from 'fs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 import path from 'path';
 
 function hashPassword(password) {
@@ -145,17 +145,68 @@ export async function PUT(request) {
 
     // Handle picture upload
     if (updateData.picture && updateData.picture instanceof File) {
-      const pictureFile = updateData.picture;
-      const pictureName = `${Date.now()}_${pictureFile.name}`;
-      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
-      fs.mkdirSync(uploadDir, { recursive: true });
-      const buffer = Buffer.from(await pictureFile.arrayBuffer());
-      fs.writeFileSync(path.join(uploadDir, pictureName), buffer);
-      
-      updateFields.push('picture = ?');
-      updateValues.push(pictureName);
-      changes.picture = { old: oldEmployee.picture, new: pictureName };
-      delete updateData.picture;
+      try {
+        const pictureFile = updateData.picture;
+        const pictureName = `${Date.now()}_${pictureFile.name}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        
+        // Ensure upload directory exists
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        
+        // Convert File to buffer using arrayBuffer()
+        const arrayBuffer = await pictureFile.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        // Write file to disk
+        const filePath = path.join(uploadDir, pictureName);
+        fs.writeFileSync(filePath, buffer);
+        
+        updateFields.push('picture = ?');
+        updateValues.push(pictureName);
+        changes.picture = { old: oldEmployee.picture, new: pictureName };
+        delete updateData.picture;
+      } catch (fileError) {
+        console.error('Error processing picture file:', fileError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to upload picture: ' + fileError.message },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Handle QR code upload
+    if (updateData.qr_code && updateData.qr_code instanceof File) {
+      try {
+        const qrFile = updateData.qr_code;
+        const qrName = `${Date.now()}_${qrFile.name}`;
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+        
+        // Ensure upload directory exists
+        if (!fs.existsSync(uploadDir)) {
+          fs.mkdirSync(uploadDir, { recursive: true });
+        }
+        
+        // Convert File to buffer using arrayBuffer()
+        const arrayBuffer = await qrFile.arrayBuffer();
+        const buffer = Buffer.from(arrayBuffer);
+        
+        // Write file to disk
+        const filePath = path.join(uploadDir, qrName);
+        fs.writeFileSync(filePath, buffer);
+        
+        updateFields.push('qr_code = ?');
+        updateValues.push(qrName);
+        changes.qr_code = { old: oldEmployee.qr_code, new: qrName };
+        delete updateData.qr_code;
+      } catch (fileError) {
+        console.error('Error processing QR code file:', fileError);
+        return NextResponse.json(
+          { success: false, error: 'Failed to upload QR code: ' + fileError.message },
+          { status: 400 }
+        );
+      }
     }
 
     // Store permissions separately (not a column in employee_profile table)

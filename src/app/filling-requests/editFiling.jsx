@@ -344,10 +344,11 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                 </div>
 
                 {/* Created By */}
+                {request.created_by_name && request.created_by_name.toUpperCase() !== 'SWIFT' && (
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
                   <div className="text-sm text-gray-900">
-                    {request.created_by_name || "-"}
+                    {request.created_by_name}
                   </div>
                   {(request.created_date || request.created) && (
                     <div className="text-xs text-gray-500 mt-1">
@@ -362,6 +363,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Processed By */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -609,9 +611,10 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             </div>
 
             {/* Created By */}
+            {request.created_by_name && request.created_by_name.toUpperCase() !== 'SWIFT' && (
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
-              <div className="text-sm text-gray-900">{request.created_by_name || "-"}</div>
+              <div className="text-sm text-gray-900">{request.created_by_name}</div>
               {(request.created_date || request.created) && (
                 <div className="text-xs text-gray-500 mt-1">
                   {new Date(request.created_date || request.created).toLocaleString("en-IN", {
@@ -625,6 +628,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                 </div>
               )}
             </div>
+            )}
 
             {/* Processed By */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">

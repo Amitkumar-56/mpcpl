@@ -1,5 +1,5 @@
 // src/app/api/customers/add/route.js
-import { executeQuery } from "@/lib/db";
+import { executeTransaction } from "@/lib/db";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
 
@@ -36,54 +36,143 @@ export async function POST(req) {
     
     const auth_token = crypto.randomBytes(32).toString("hex");
 
-    // Insert into customers table
-    const insertCustomerQuery = `
-      INSERT INTO customers
-        (name, phone, email, password, roleid, billing_type,
-         address, city, region, country, postbox,
-         gst_name, gst_number, product, blocklocation,
-         day_limit, auth_token, status, amtlimit, client_type)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?)
-    `;
+    // Use a single DB transaction so customer + balances + permissions are atomic
+    let newCustomerId;
+    const permInsertErrors = [];
+    let parsedPermissionsForResponse = null;
 
-    const result = await executeQuery(insertCustomerQuery, [
-      client_name, phone, email, password, role, billing_type,
-      address, city, region, country, postbox, 
-      gst_name, gst_number, product, blocklocation,
-      day_limit, auth_token, amtlimit, client_type
-    ]);
+    try {
+      const txResult = await executeTransaction(async (conn) => {
+        // Insert customer using transaction connection
+        const insertCustomerQuery = `
+          INSERT INTO customers
+            (name, phone, email, password, roleid, billing_type,
+             address, city, region, country, postbox,
+             gst_name, gst_number, product, blocklocation,
+             day_limit, auth_token, amtlimit, client_type)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
 
-    const newCustomerId = result.insertId;
+        const custParams = [
+          client_name, phone, email, password, role || null, billing_type || null,
+          address, city, region, country, postbox,
+          gst_name, gst_number, product, blocklocation,
+          day_limit || 0, auth_token, amtlimit, client_type
+        ];
+        console.log('Inserting customer with params:', custParams.map(p => (typeof p === 'string' && p.length>100 ? p.slice(0,100)+'...' : p)));
+        let custRes;
+        try {
+          [custRes] = await conn.execute(insertCustomerQuery, custParams);
+        } catch (custErr) {
+          console.error('Customer INSERT failed:', custErr.code, custErr.errno, custErr.sqlMessage || custErr.message);
+          throw custErr;
+        }
 
-    // For day limit clients: no expiry is set; days are counted from completed_date
-    const day_limit_expiry = null;
+        const createdId = custRes.insertId;
 
-    // Insert into customer_balances
-    const insertBalanceQuery = `
-      INSERT INTO customer_balances
-        (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, day_amount, day_limit_expiry, is_active) 
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    
-    const balance_amtlimit = client_type === "2" ? amtlimit : 0.00;
-    const balance_day_limit = client_type === "3" ? day_limit : 0;
-    const initial_day_amount = 0.00;
-    const is_active = 1;
+        // Insert customer balance
+        const insertBalanceQuery = `
+          INSERT INTO customer_balances
+            (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
 
-    await executeQuery(insertBalanceQuery, [
-      0.00, 0.00, balance_amtlimit, balance_amtlimit,
-      newCustomerId, balance_day_limit, initial_day_amount, 
-      day_limit_expiry, is_active
-    ]);
+        const balance_amtlimit = client_type === "2" ? amtlimit : 0.00;
+        const balance_day_limit = client_type === "3" ? day_limit : 0;
+        const initial_day_amount = 0.00;
+        const is_active = 1;
 
-    return NextResponse.json({ 
+        await conn.execute(insertBalanceQuery, [
+          0.00, 0.00, balance_amtlimit, balance_amtlimit,
+          createdId, balance_day_limit, initial_day_amount, 
+          is_active
+        ]);
+
+        // Ensure customer_permissions table exists (within tx)
+        try {
+          await conn.execute(`
+            CREATE TABLE IF NOT EXISTS customer_permissions (
+              id INT AUTO_INCREMENT PRIMARY KEY,
+              customer_id INT NOT NULL,
+              module_name VARCHAR(255) NOT NULL,
+              can_view TINYINT(1) DEFAULT 0,
+              can_edit TINYINT(1) DEFAULT 0,
+              can_delete TINYINT(1) DEFAULT 0,
+              created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+              INDEX idx_customer (customer_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+          `);
+        } catch (createErr) {
+          // If create fails, still continue; table may already exist or permissions may not be needed
+          console.error('Error ensuring customer_permissions table exists (tx):', createErr);
+        }
+
+        // Insert permissions if provided
+        const permissionsDataInner = formData.get("permissions");
+        if (permissionsDataInner) {
+          let permissionsInner = {};
+          if (typeof permissionsDataInner === 'string') {
+            permissionsInner = JSON.parse(permissionsDataInner);
+          } else if (permissionsDataInner instanceof Object) {
+            permissionsInner = permissionsDataInner;
+          } else {
+            try { permissionsInner = JSON.parse(String(permissionsDataInner)); } catch (e) { permissionsInner = {}; }
+          }
+
+          parsedPermissionsForResponse = permissionsInner;
+
+          for (const moduleName in permissionsInner) {
+            const perm = permissionsInner[moduleName] || {};
+            const can_view = perm.can_view === true || perm.can_view === 1 || perm.can_view === '1' ? 1 : 0;
+            const can_edit = perm.can_edit === true || perm.can_edit === 1 || perm.can_edit === '1' ? 1 : 0;
+
+            try {
+              await conn.execute(
+                `INSERT INTO customer_permissions 
+                 (customer_id, module_name, can_view, can_edit, created_at)
+                 VALUES (?, ?, ?, ?, NOW())`,
+                [createdId, moduleName, can_view, can_edit]
+              );
+            } catch (permInsertErr) {
+              console.error('Error inserting permission (tx) for module', moduleName, permInsertErr.sqlMessage || permInsertErr.message || permInsertErr);
+              // collect but throw to rollback entire tx
+              throw permInsertErr;
+            }
+          }
+        }
+
+        return createdId;
+      });
+
+      newCustomerId = txResult;
+    } catch (txErr) {
+      console.error('Transaction failed, rolled back:', txErr.code || txErr.sqlMessage || txErr.message || txErr);
+      const errDetail = {
+        code: txErr.code || null,
+        errno: txErr.errno || null,
+        sqlMessage: txErr.sqlMessage || null,
+        message: txErr.message || String(txErr),
+        stack: txErr.stack ? txErr.stack.split('\n').slice(0,5).join('\n') : null
+      };
+      return NextResponse.json({ success: false, message: 'Database transaction failed', error: errDetail }, { status: 500 });
+    }
+
+
+    const responsePayload = { 
       success: true, 
       message: "Customer added successfully",
       customer_id: newCustomerId,
       client_type: client_type
-    });
+    };
+    if (typeof permInsertErrors !== 'undefined' && permInsertErrors.length > 0) {
+      responsePayload.permission_errors = permInsertErrors;
+    }
+    if (typeof parsedPermissionsForResponse !== 'undefined' && parsedPermissionsForResponse) {
+      responsePayload.permissions = parsedPermissionsForResponse;
+    }
+
+    return NextResponse.json(responsePayload);
   } catch (error) {
-    console.error("❌ Error inserting customer:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

@@ -238,11 +238,17 @@ export default function CreateRequestPage() {
     }
 
     const quantity = parseInt(formData.qty) || 0;
-    if (quantity < selectedProduct.min)
-      return alert(`Minimum quantity for this product is ${selectedProduct.min} liters.`);
+    if (quantity < selectedProduct.min) {
+      const minUnit = selectedProduct.min === 1 ? 'liter' : 'liters';
+      return alert(`Minimum quantity for this product is ${selectedProduct.min} ${minUnit}.`);
+    }
 
-    if (selectedProduct.maxQuantity && quantity > selectedProduct.maxQuantity)
-      return alert(`Maximum quantity for this product is ${selectedProduct.maxQuantity} liters.`);
+    // Only validate maxQuantity for non-bucket products
+    // For bucket products, allow any number of buckets
+    if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantity > selectedProduct.maxQuantity) {
+      const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
+      return alert(`Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}.`);
+    }
 
     setShowConfirmation(true);
   };
@@ -438,7 +444,6 @@ export default function CreateRequestPage() {
                       : "Enter quantity"}
                     className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
                     min={selectedProduct?.min || 1}
-                    max={selectedProduct?.maxQuantity || undefined}
                     required
                   />
                 </div>

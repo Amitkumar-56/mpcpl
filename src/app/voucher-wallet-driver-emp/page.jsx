@@ -567,6 +567,7 @@ function VoucherWalletDriverEmpContent() {
                     <form onSubmit={handleAddCash}>
                       <input type="hidden" name="voucher_id" value={modalData.selectedVoucher.voucher_id} />
                       <input type="hidden" name="voucher_no" value={modalData.selectedVoucher.voucher_no} />
+                      <input type="hidden" name="user_id" value={currentUser?.id || ''} />
                       
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Item Details</label>
@@ -617,6 +618,7 @@ function VoucherWalletDriverEmpContent() {
                     <h3 className="text-lg font-semibold mb-4">Add Advance to Voucher #{modalData.selectedVoucher.voucher_no}</h3>
                     <form onSubmit={handleAddAdvance}>
                       <input type="hidden" name="voucher_id" value={modalData.selectedVoucher.voucher_id} />
+                      <input type="hidden" name="user_id" value={currentUser?.id || ''} />
                       
                       <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Advance Amount</label>

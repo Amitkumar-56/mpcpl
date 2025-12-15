@@ -116,10 +116,13 @@ function VoucherContent() {
 
   // Render voucher content
   const { voucher, items = [], advance_history = [], total_amount = 0 } = voucherData;
-  const remaining_amount = total_amount - parseFloat(voucher?.advance || 0);
+  // Remaining amount = Advance - Total Expense (decreases when expenses increase)
+  const remaining_amount = parseFloat(voucher?.advance || 0) - parseFloat(voucher?.total_expense || 0);
 
   console.log('🎫 Rendering voucher:', voucher);
   console.log('📦 Rendering items:', items);
+  console.log('💵 Rendering advance_history:', advance_history);
+  console.log('📊 Advance history length:', advance_history?.length);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 print:bg-white print:p-0">
@@ -182,6 +185,14 @@ function VoucherContent() {
               <span className="font-semibold w-32">Vehicle No:</span>
               <span>{voucher?.vehicle_no || "Not specified"}</span>
             </div>
+            {voucher?.approved_by_name && (
+              <div className="flex items-center gap-2">
+                <span className="font-semibold w-32">Approved By:</span>
+                <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-semibold">
+                  ✓ {voucher.approved_by_name}
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Voucher Items Table */}
@@ -240,29 +251,46 @@ function VoucherContent() {
           </div>
 
           {/* Advance History */}
-          {advance_history && advance_history.length > 0 && (
+          {advance_history && advance_history.length > 0 ? (
             <div className="mb-6">
-              <h2 className="text-lg font-bold text-center mb-3 border-b pb-2">Advance History</h2>
+              <h2 className="text-lg font-bold text-center mb-3 border-b pb-2 text-green-700">💵 Advance History</h2>
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-300 text-sm">
+                <table className="w-full border-collapse border border-green-300 text-sm">
                   <thead>
-                    <tr className="bg-gray-50">
-                      <th className="p-2 border border-gray-300 text-left">Amount</th>
-                      <th className="p-2 border border-gray-300 text-left">Given Date</th>
-                      <th className="p-2 border border-gray-300 text-left">Given By</th>
+                    <tr className="bg-green-100 border-green-300">
+                      <th className="p-2 border border-green-300 text-left font-semibold text-green-800">Amount</th>
+                      <th className="p-2 border border-green-300 text-left font-semibold text-green-800">Given Date</th>
+                      <th className="p-2 border border-green-300 text-left font-semibold text-green-800">Time</th>
+                      <th className="p-2 border border-green-300 text-left font-semibold text-green-800">Given By</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {advance_history.map((adv) => (
-                      <tr key={adv.id} className="text-green-700">
-                        <td className="p-2 border border-gray-300">₹{parseFloat(adv.amount).toFixed(2)}</td>
-                        <td className="p-2 border border-gray-300">{adv.given_date}</td>
-                        <td className="p-2 border border-gray-300">{adv.given_by_name || 'N/A'}</td>
+                    {advance_history.map((adv, idx) => (
+                      <tr key={adv.id || idx} className={idx % 2 === 0 ? 'bg-green-50' : 'bg-white text-green-700'}>
+                        <td className="p-2 border border-green-300 font-bold text-green-800">₹{parseFloat(adv.amount).toFixed(2)}</td>
+                        <td className="p-2 border border-green-300 text-green-700">
+                          {adv.given_date ? new Date(adv.given_date).toLocaleDateString('en-IN') : 'N/A'}
+                        </td>
+                        <td className="p-2 border border-green-300 text-green-700 text-xs">
+                          {adv.given_date ? new Date(adv.given_date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '-'}
+                        </td>
+                        <td className="p-2 border border-green-300 font-semibold text-green-800">{adv.given_by_name || 'N/A'}</td>
                       </tr>
                     ))}
+                    {/* Total Advance Row */}
+                    <tr className="font-bold bg-green-200 border-green-300 text-green-900">
+                      <td colSpan="3" className="p-2 border border-green-300 text-right">Total Advance</td>
+                      <td className="p-2 border border-green-300">
+                        ₹{advance_history.reduce((sum, adv) => sum + parseFloat(adv.amount || 0), 0).toFixed(2)}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
+            </div>
+          ) : (
+            <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded p-3">
+              <p className="text-yellow-800 text-sm text-center">📋 No advance history found for this voucher</p>
             </div>
           )}
 

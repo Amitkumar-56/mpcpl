@@ -275,6 +275,7 @@ function VoucherWalletDriverContent() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Advance</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Amount</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pending Amount</th>
+                      <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -317,11 +318,31 @@ function VoucherWalletDriverContent() {
                           <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${getAmountColor(voucher.remaining_amount)}`}>
                             {formatCurrency(voucher.remaining_amount)}
                           </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2 flex justify-center">
+                            <Link
+                              href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                            >
+                              Edit
+                            </Link>
+                            <Link
+                              href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                            >
+                              Items
+                            </Link>
+                            <Link
+                              href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                            >
+                              Print
+                            </Link>
+                          </td>
                         </tr>
                       ))
                     ) : (
                       <tr>
-                        <td colSpan="9" className="px-6 py-12 text-center">
+                        <td colSpan="10" className="px-6 py-12 text-center">
                           <div className="text-gray-500 text-lg mb-2">
                             {error ? 'Error loading vouchers' : 'No vouchers found'}
                           </div>
