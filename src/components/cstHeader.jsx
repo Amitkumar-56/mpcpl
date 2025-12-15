@@ -19,9 +19,22 @@ export default function CstHeader() {
   }, []);
 
   const handleLogout = () => {
+    // Clear all storage items
     localStorage.removeItem('customer');
+    localStorage.removeItem('cst_token');
     localStorage.removeItem('token');
-    router.push('/cst/login');
+    localStorage.removeItem('user');
+    sessionStorage.removeItem('customer');
+    sessionStorage.removeItem('user');
+    sessionStorage.removeItem('isLoggingOut');
+    
+    // Use window.location.replace for hard redirect (clears history and disconnects socket)
+    if (typeof window !== 'undefined') {
+      window.location.replace('/cst/login');
+    } else {
+      router.push('/cst/login');
+    }
+    
     setShowProfileMenu(false);
     setShowSidebar(false);
   };

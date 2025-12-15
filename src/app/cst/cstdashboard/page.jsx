@@ -484,36 +484,25 @@ export default function CustomerDashboardPage() {
                 </div>
               )}
 
-              {/* Connection Status Banner */}
-              {connectionStatus !== 'connected' && (
-                <div className={`border rounded-lg p-4 ${
-                  connectionStatus === 'error' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'
-                }`}>
+              {/* Connection Status Banner - Only show error, not connecting/reconnecting */}
+              {connectionStatus === 'error' && (
+                <div className="border rounded-lg p-4 bg-red-50 border-red-200">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center">
                       <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
                       <div>
-                        <p className={`font-medium ${
-                          connectionStatus === 'error' ? 'text-red-800' : 'text-yellow-800'
-                        }`}>
+                        <p className="font-medium text-red-800">
                           Chat Connection Issue
                         </p>
-                        <p className={`text-sm ${
-                          connectionStatus === 'error' ? 'text-red-600' : 'text-yellow-600'
-                        }`}>
-                          Status: {connectionStatus}
-                          {connectionStatus === 'error' && ' - Please check your internet connection'}
+                        <p className="text-sm text-red-600">
+                          Status: {connectionStatus} - Please check your internet connection
                         </p>
                       </div>
                     </div>
                     <div className="flex space-x-2">
                       <button 
                         onClick={reconnectSocket}
-                        className={`px-3 py-1 rounded-lg text-sm transition-colors flex items-center ${
-                          connectionStatus === 'error' 
-                            ? 'bg-red-100 hover:bg-red-200 text-red-800' 
-                            : 'bg-yellow-100 hover:bg-yellow-200 text-yellow-800'
-                        }`}
+                        className="px-3 py-1 rounded-lg text-sm transition-colors flex items-center bg-red-100 hover:bg-red-200 text-red-800"
                       >
                         <BiRefresh className="mr-1" /> 
                         Retry
