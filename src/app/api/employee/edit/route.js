@@ -4,7 +4,6 @@ import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import crypto from 'crypto';
 import fs from 'fs';
-import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import path from 'path';
 
@@ -95,6 +94,7 @@ export async function PUT(request) {
     }
 
     // Get user info for audit log
+    const currentUser = await getCurrentUser();
     let userId = null;
     let userName = 'System';
     try {
@@ -116,7 +116,6 @@ export async function PUT(request) {
     } catch (userError) {
       console.error('Error getting user info:', userError);
     }
-
     // Get old employee data
     const oldEmployeeQuery = `SELECT * FROM employee_profile WHERE id = ?`;
     const oldEmployeeResult = await executeQuery(oldEmployeeQuery, [id]);

@@ -447,6 +447,26 @@ export async function POST(request) {
       resultMessage = await handleCancelStatus({
         id, rid, remarks, doc1Path, doc2Path, doc3Path, userId
       });
+      try {
+        const userRows = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
+          [userId]
+        );
+        const userNameForLog = userRows.length > 0 ? userRows[0].name : 'System';
+        await createAuditLog({
+          page: 'Filling Details Admin',
+          uniqueCode: `REQ-${rid}`,
+          section: 'Cancel Filling Request',
+          userId: userId,
+          userName: userNameForLog,
+          action: 'cancel',
+          remarks: `Request cancelled. Remarks: ${remarks || ''}`,
+          oldValue: { id, rid },
+          newValue: { status: 'Cancel' },
+          recordType: 'filling_request',
+          recordId: parseInt(id)
+        });
+      } catch (auditErr) {}
     } else {
       console.log('🔄 Handling generic status update...');
       resultMessage = await updateFillingRequest({

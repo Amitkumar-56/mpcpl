@@ -16,6 +16,7 @@ const Icons = ({
   onCall,
   onShare,
   onPdf,
+  permissions = { can_view: true, can_edit: true, can_delete: true }
 }) => {
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
@@ -23,27 +24,31 @@ const Icons = ({
   return (
     <div className="flex items-center space-x-1">
       {/* View Icon */}
-      <button
-        onClick={() => onView(request.id)}
-        className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-        title="View Details"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-        </svg>
-      </button>
+      {permissions.can_view && (
+        <button
+          onClick={() => onView(request.id)}
+          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+          title="View Details"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+        </button>
+      )}
 
       {/* Edit Icon */}
-      <button
-        onClick={() => onEdit(request.id)}
-        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-        title="Edit Request"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-        </svg>
-      </button>
+      {permissions.can_edit && (
+        <button
+          onClick={() => onEdit(request.id)}
+          className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+          title="Edit Request"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </button>
+      )}
 
       {/* Expand Icon */}
       <button
@@ -257,7 +262,7 @@ const ExpandedDetails = ({ request, onClose }) => {
 };
 
 // Request Row Component
-const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf }) => {
+const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, permissions = { can_view: true, can_edit: true, can_delete: true } }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -398,7 +403,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} permissions={permissions} />
                 </div>
               </div>
             </div>
@@ -410,7 +415,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
 };
 
 // Mobile Request Card Component
-const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf }) => {
+const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, permissions = { can_view: true, can_edit: true, can_delete: true } }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -570,7 +575,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </svg>
             )}
           </button>
-          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} permissions={permissions} />
         </div>
       </div>
       
@@ -659,7 +664,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Actions */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} />
+              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} permissions={permissions} />
             </div>
           </div>
         </div>
@@ -755,6 +760,12 @@ export default function FillingRequests() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [expandedRequest, setExpandedRequest] = useState(null);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
   const [pagination, setPagination] = useState({
     page: 1,
     recordsPerPage: 10,
@@ -764,6 +775,92 @@ export default function FillingRequests() {
 
   const statusFilter = searchParams.get("status") || "";
   const search = searchParams.get("search") || "";
+
+  // Check permissions
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Filling Requests']) {
+      const fillingPerms = user.permissions['Filling Requests'];
+      if (fillingPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: fillingPerms.can_view,
+          can_edit: fillingPerms.can_edit,
+          can_delete: fillingPerms.can_delete
+        });
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Filling Requests`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Filling Requests';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+      } else {
+        setHasPermission(false);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setLoading(false);
+    }
+  };
 
   // Export function
   const handleExport = async () => {
@@ -878,10 +975,10 @@ export default function FillingRequests() {
       }
     };
 
-    if (user) {
+    if (user && hasPermission) {
       fetchRequests();
     }
-  }, [searchParams, statusFilter, search, user]);
+  }, [searchParams, statusFilter, search, user, hasPermission]);
 
   // Handlers
   const handleStatusChange = useCallback((newStatus) => {
@@ -1035,8 +1132,9 @@ export default function FillingRequests() {
         onCall={handleCall}
         onShare={handleShare}
         onPdf={handlePdf}
+        permissions={permissions}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf]);
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, permissions]);
 
   const mobileRequestItems = useMemo(() =>
     requests.map((request, index) => (
@@ -1050,10 +1148,28 @@ export default function FillingRequests() {
         onCall={handleCall}
         onShare={handleShare}
         onPdf={handlePdf}
+        permissions={permissions}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf]);
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, permissions]);
 
-  if (!user) return <QuickLoading />;
+  if (!user || authLoading) return <QuickLoading />;
+
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 px-4 py-6 overflow-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">You do not have permission to view filling requests.</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">

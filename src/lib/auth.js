@@ -1,12 +1,46 @@
 // src/lib/auth.js
 import jwt from "jsonwebtoken";
 import { executeQuery } from "./db.js";
+import { cookies } from "next/headers";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-secret';
 
 // 🔑 Generate JWT
 export function signToken(user) {
   return jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
+}
+
+// 🔑 Get Current User
+export async function getCurrentUser() {
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value;
+    
+    if (!token) return null;
+    
+    const decoded = verifyToken(token);
+    if (!decoded) return null;
+    
+    const userId = decoded.userId || decoded.id;
+    
+    const users = await executeQuery(
+      `SELECT id, name, role FROM employee_profile WHERE id = ?`,
+      [userId]
+    );
+    
+    if (users.length > 0) {
+      return {
+        userId: users[0].id,
+        userName: users[0].name,
+        role: users[0].role
+      };
+    }
+    
+    return null;
+  } catch (error) {
+    console.error("Error getting current user:", error);
+    return null;
+  }
 }
 
 // 🔑 Verify JWT - FIXED version

@@ -6,6 +6,7 @@ import { FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 
 
 export default function CstHeader() {
   const [user, setUser] = useState(null);
+  const [notifCount, setNotifCount] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false); // Mobile sidebar
   const router = useRouter();
@@ -16,6 +17,32 @@ export default function CstHeader() {
     if (userData) {
       setUser(JSON.parse(userData));
     }
+    try {
+      const c = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
+      setNotifCount(isNaN(c) ? 0 : c);
+    } catch (e) {}
+  }, []);
+
+  useEffect(() => {
+    const handler = (e) => {
+      const count = e?.detail?.count;
+      if (typeof count === 'number') {
+        setNotifCount(count);
+      } else {
+        try {
+          const c = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
+          setNotifCount(isNaN(c) ? 0 : c);
+        } catch (err) {}
+      }
+    };
+    if (typeof window !== 'undefined') {
+      window.addEventListener('cst-notif-update', handler);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener('cst-notif-update', handler);
+      }
+    };
   }, []);
 
   const handleLogout = () => {
@@ -67,7 +94,7 @@ export default function CstHeader() {
           <div className="relative hidden sm:block">
             <FaBell className="text-gray-600 cursor-pointer text-lg" />
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 rounded-full">
-              0
+              {notifCount}
             </span>
           </div>
 
@@ -93,7 +120,7 @@ export default function CstHeader() {
                   <FaCog /> Role Setting
                 </button>
                 <button
-                  onClick={() => { router.push('/profile'); setShowProfileMenu(false); }}
+                  onClick={() => { router.push('/cst/cstprofile'); setShowProfileMenu(false); }}
                   className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
                 >
                   <FaUser /> My Profile
@@ -130,7 +157,7 @@ export default function CstHeader() {
                     <FaCog /> Role Setting
                   </button>
                   <button
-                    onClick={() => { router.push('/profile'); setShowSidebar(false); }}
+                    onClick={() => { router.push('/cst/cstprofile'); setShowSidebar(false); }}
                     className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
                   >
                     <FaUser /> My Profile

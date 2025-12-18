@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from "@/lib/auditLog";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -72,6 +74,34 @@ export async function POST(request) {
       product,
       status
     ]);
+
+    // Get current user for audit log
+    const currentUser = await getCurrentUser();
+    const userId = currentUser?.userId || null;
+    const userName = currentUser?.userName || 'System';
+
+    // Create audit log
+    await createAuditLog({
+      page: 'Stock Transfers',
+      uniqueCode: `TRANSFER-${result.insertId}`,
+      section: 'Stock Transfer',
+      userId: userId,
+      userName: userName,
+      action: 'create',
+      remarks: `Stock transfer record created (Quantity: ${transfer_quantity})`,
+      oldValue: null,
+      newValue: {
+        station_from,
+        station_to,
+        driver_id,
+        vehicle_id,
+        transfer_quantity,
+        product,
+        status
+      },
+      recordType: 'stock_transfer',
+      recordId: result.insertId
+    });
 
     return NextResponse.json({ 
       message: "Stock transfer created successfully",

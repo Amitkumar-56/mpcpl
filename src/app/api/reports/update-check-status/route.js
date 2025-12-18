@@ -1,6 +1,8 @@
 // app/api/reports/update-check-status/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from "@/lib/auditLog";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function POST(request) {
   try {
@@ -55,6 +57,26 @@ export async function POST(request) {
         checkedByName = employeeResult[0].name;
       }
     }
+
+    // Get current user for audit log
+    const currentUser = await getCurrentUser();
+    const userId = currentUser?.userId || checked_by || null;
+    const userName = currentUser?.userName || checkedByName || 'System';
+
+    // Create audit log
+    await createAuditLog({
+      page: 'Reports',
+      uniqueCode: record_id.toString(),
+      section: 'Filling Requests',
+      userId: userId,
+      userName: userName,
+      action: is_checked ? 'approve' : 'reject',
+      remarks: `Record ${is_checked ? 'checked' : 'unchecked'}`,
+      oldValue: { is_checked: existingRecord[0]?.is_checked },
+      newValue: { is_checked: is_checked ? 1 : 0 },
+      recordType: 'filling_request',
+      recordId: record_id
+    });
 
     return NextResponse.json({
       success: true,

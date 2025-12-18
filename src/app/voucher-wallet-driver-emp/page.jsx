@@ -7,6 +7,7 @@ import Sidebar from 'components/sidebar';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import ExportButton from '@/components/ExportButton';
 
 // Error component
 function VoucherWalletEmpError({ error, onRetry, onGoBack }) {

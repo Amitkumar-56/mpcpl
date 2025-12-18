@@ -48,8 +48,12 @@ export default function EmployeeChatBox({ employeeId, employeeName }) {
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io(process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001', {
-      transports: ['websocket', 'polling']
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+    const newSocket = io(socketUrl, {
+      path: '/api/socket',
+      transports: ['websocket', 'polling'],
+      withCredentials: true
     });
 
     newSocket.on('connect', () => {

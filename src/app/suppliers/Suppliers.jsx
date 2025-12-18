@@ -2,21 +2,118 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 export default function SuppliersPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
   const [showPurchaseHistory, setShowPurchaseHistory] = useState(false);
   const [purchaseHistory, setPurchaseHistory] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Check permissions first
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchSuppliers();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Suppliers']) {
+      const supplierPerms = user.permissions['Suppliers'];
+      if (supplierPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: supplierPerms.can_view,
+          can_edit: supplierPerms.can_edit,
+          can_delete: supplierPerms.can_delete
+        });
+        fetchSuppliers();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Suppliers`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        fetchSuppliers();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Suppliers';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        fetchSuppliers();
+      } else {
+        setHasPermission(false);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setLoading(false);
+    }
+  };
 
   // Form data aligned with API
   const [formData, setFormData] = useState({
@@ -111,9 +208,7 @@ export default function SuppliersPage() {
     setShowPurchaseHistory(true);
   };
 
-  useEffect(() => {
-    fetchSuppliers();
-  }, []);
+  // Removed duplicate useEffect - fetchSuppliers is now called from checkPermissions
 
   // Add new supplier via API
   const handleAddSupplier = async (e) => {
@@ -163,6 +258,10 @@ export default function SuppliersPage() {
 
   // Delete supplier
   const handleDeleteSupplier = async (id) => {
+    if (!permissions.can_delete) {
+      alert('You do not have permission to delete suppliers.');
+      return;
+    }
     if (confirm('Are you sure you want to delete this supplier?')) {
       // Note: You'll need to implement DELETE API endpoint
       const updatedSuppliers = suppliers.filter(supplier => supplier.id !== id);
@@ -174,6 +273,10 @@ export default function SuppliersPage() {
 
   // Toggle supplier status
   const toggleSupplierStatus = async (id) => {
+    if (!permissions.can_edit) {
+      alert('You do not have permission to change supplier status.');
+      return;
+    }
     // Note: You'll need to implement UPDATE API endpoint
     const updatedSuppliers = suppliers.map(supplier => 
       supplier.id === id 
@@ -211,6 +314,27 @@ export default function SuppliersPage() {
     cancelled: 'bg-red-100 text-red-800',
     shipped: 'bg-blue-100 text-blue-800'
   };
+
+  // Show access denied if no permission
+  if (!authLoading && user && !hasPermission) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+          <Sidebar />
+        </div>
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <div className="flex-1 overflow-y-auto p-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">You do not have permission to view suppliers.</p>
+            </div>
+          </div>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
@@ -268,13 +392,15 @@ export default function SuppliersPage() {
                 <span>📋</span>
                 <span>Activity Logs</span>
               </Link>
-              <button
-                onClick={() => setShowForm(!showForm)}
-                className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
-              >
-                <span className="text-lg">+</span>
-                <span>{showForm ? 'Cancel' : 'Add New Supplier'}</span>
-              </button>
+                    {permissions.can_edit && (
+                      <button
+                        onClick={() => setShowForm(!showForm)}
+                        className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
+                      >
+                        <span className="text-lg">+</span>
+                        <span>{showForm ? 'Cancel' : 'Add New Supplier'}</span>
+                      </button>
+                    )}
             </div>
           </div>
 
@@ -435,22 +561,26 @@ export default function SuppliersPage() {
                               >
                                 History
                               </button>
-                              <button 
-                                onClick={() => toggleSupplierStatus(supplier.id)}
-                                className={`text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 rounded-lg transition-colors ${
-                                  supplier.status === 'active' 
-                                    ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
-                                    : 'text-green-600 hover:text-green-900 bg-green-50'
-                                }`}
-                              >
-                                {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
-                              </button>
-                              <button 
-                                onClick={() => handleDeleteSupplier(supplier.id)}
-                                className="text-red-600 hover:text-red-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-red-50 rounded-lg transition-colors"
-                              >
-                                Delete
-                              </button>
+                                    {permissions.can_edit && (
+                                      <button 
+                                        onClick={() => toggleSupplierStatus(supplier.id)}
+                                        className={`text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 rounded-lg transition-colors ${
+                                          supplier.status === 'active' 
+                                            ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
+                                            : 'text-green-600 hover:text-green-900 bg-green-50'
+                                        }`}
+                                      >
+                                        {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
+                                      </button>
+                                    )}
+                                    {permissions.can_delete && (
+                                      <button 
+                                        onClick={() => handleDeleteSupplier(supplier.id)}
+                                        className="text-red-600 hover:text-red-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-red-50 rounded-lg transition-colors"
+                                      >
+                                        Delete
+                                      </button>
+                                    )}
                             </div>
                           </td>
                         </tr>
@@ -523,22 +653,26 @@ export default function SuppliersPage() {
                           >
                             History
                           </button>
-                          <button 
-                            onClick={() => toggleSupplierStatus(supplier.id)}
-                            className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
-                              supplier.status === 'active' 
-                                ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
-                                : 'text-green-600 hover:text-green-900 bg-green-50'
-                            }`}
-                          >
-                            {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
-                          </button>
-                          <button 
-                            onClick={() => handleDeleteSupplier(supplier.id)}
-                            className="flex-1 text-red-600 hover:text-red-900 text-sm font-medium px-3 py-2 bg-red-50 rounded-lg transition-colors"
-                          >
-                            Delete
-                          </button>
+                            {permissions.can_edit && (
+                              <button 
+                                onClick={() => toggleSupplierStatus(supplier.id)}
+                                className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
+                                  supplier.status === 'active' 
+                                    ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
+                                    : 'text-green-600 hover:text-green-900 bg-green-50'
+                                }`}
+                              >
+                                {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
+                              </button>
+                            )}
+                            {permissions.can_delete && (
+                              <button 
+                                onClick={() => handleDeleteSupplier(supplier.id)}
+                                className="flex-1 text-red-600 hover:text-red-900 text-sm font-medium px-3 py-2 bg-red-50 rounded-lg transition-colors"
+                              >
+                                Delete
+                              </button>
+                            )}
                         </div>
                       </div>
                     </div>

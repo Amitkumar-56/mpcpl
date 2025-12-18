@@ -93,6 +93,29 @@ export async function POST(request) {
 
       const tanker_history_id = tankerResult.insertId;
 
+      // Create Audit Log
+      try {
+        const currentUser = await getCurrentUser();
+        const userId = currentUser?.userId || null;
+        const userName = currentUser?.userName || 'System';
+
+        await createAuditLog({
+          page: 'Tanker',
+          uniqueCode: tanker_history_id.toString(),
+          section: 'Tanker Management',
+          userId: userId,
+          userName: userName,
+          action: 'create',
+          remarks: 'New Tanker entry created',
+          oldValue: null,
+          newValue: formData,
+          recordType: 'tanker',
+          recordId: tanker_history_id
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
       // Fetch tanker_items table columns
       const [columnsResult] = await connection.execute("DESCRIBE tanker_items");
       const columns = columnsResult.map(row => row.Field);

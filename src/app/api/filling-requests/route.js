@@ -141,6 +141,12 @@ let processedRequests = []; // define at the top
 
 if (requests && requests.length > 0) {
   processedRequests = requests.map((request) => {
+    const createdName =
+      request.created_by_name &&
+      typeof request.created_by_name === 'string' &&
+      request.created_by_name.toUpperCase() === 'SWIFT'
+        ? null
+        : request.created_by_name;
     let eligibility = 'N/A';
     let eligibility_reason = '';
 
@@ -164,6 +170,7 @@ if (requests && requests.length > 0) {
 
     return {
       ...request,
+      created_by_name: createdName,
       eligibility,
       eligibility_reason
     };

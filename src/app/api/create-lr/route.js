@@ -111,7 +111,15 @@ export async function POST(request) {
       }
     }
 
+    // Get user info for audit log
+    const currentUser = await getCurrentUser();
+    const userId = currentUser?.userId || null;
+    const userName = currentUser?.userName || 'System';
+
     if (id) {
+      // Get old value for audit log
+      const [existingRecord] = await executeQuery('SELECT * FROM shipment WHERE id = ?', [id]);
+
       // Update existing record
       const result = await executeQuery(
         `UPDATE shipment SET 
@@ -125,6 +133,26 @@ export async function POST(request) {
           gross_wt, vessel, tare_wt, invoice_no, net_wt, gp_no, remarks, id
         ]
       );
+
+      // Create Audit Log
+      try {
+        await createAuditLog({
+          page: 'LR Management',
+          uniqueCode: lr_id,
+          section: 'LR',
+          userId: userId,
+          userName: userName,
+          action: 'edit',
+          remarks: 'LR updated',
+          oldValue: existingRecord,
+          newValue: formData,
+          recordType: 'lr',
+          recordId: id
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
     } else {
       // Insert new record
       const result = await executeQuery(
@@ -139,6 +167,27 @@ export async function POST(request) {
           gross_wt, vessel, tare_wt, invoice_no, net_wt, gp_no, remarks
         ]
       );
+      
+      const newId = result.insertId;
+
+      // Create Audit Log
+      try {
+        await createAuditLog({
+          page: 'LR Management',
+          uniqueCode: lr_id,
+          section: 'LR',
+          userId: userId,
+          userName: userName,
+          action: 'create',
+          remarks: 'New LR created',
+          oldValue: null,
+          newValue: formData,
+          recordType: 'lr',
+          recordId: newId
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
     }
 
     return NextResponse.json({ 

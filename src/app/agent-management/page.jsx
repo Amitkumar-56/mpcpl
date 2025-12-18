@@ -5,6 +5,7 @@ import Sidebar from "components/sidebar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useSession } from "@/context/SessionContext";
 
 export default function AgentManagement() {
   const [agents, setAgents] = useState([]);
@@ -12,10 +13,20 @@ export default function AgentManagement() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
 
   useEffect(() => {
+    if (authLoading) return;
+    if (!user) {
+      router.push("/login");
+      return;
+    }
+    if (Number(user.role) !== 5) {
+      setLoading(false);
+      return;
+    }
     fetchAgents();
-  }, []);
+  }, [user, authLoading]);
 
   // Filter agents based on search term
   useEffect(() => {
@@ -65,7 +76,27 @@ export default function AgentManagement() {
     0
   );
 
-  if (loading) return <div className="p-6">Loading agents...</div>;
+  if (authLoading || loading) return <div className="p-6">Loading...</div>;
+
+  if (Number(user?.role) !== 5) {
+    return (
+      <div className="min-h-screen flex">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <main className="flex-1 flex items-center justify-center p-6">
+            <div className="bg-white rounded-lg shadow p-8 text-center max-w-md">
+              <div className="text-red-500 text-5xl mb-2">🚫</div>
+              <h2 className="text-xl font-bold mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-4">Only Admin can view Agent Management.</p>
+              <Link href="/dashboard" className="bg-blue-600 text-white px-4 py-2 rounded">Go to Dashboard</Link>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">

@@ -2,7 +2,7 @@
 //src/app/reports/checked-records/page.jsx
 'use client';
 
-import Link from 'next/link';
+import ExportButton from '@/components/ExportButton';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 

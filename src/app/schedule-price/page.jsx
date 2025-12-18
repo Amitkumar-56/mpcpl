@@ -4,9 +4,13 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from "@/context/SessionContext";
+import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 function SchedulePriceContent() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [products, setProducts] = useState([]);
   const [stations, setStations] = useState([]);
   const [customers, setCustomers] = useState([]);
@@ -18,10 +22,107 @@ function SchedulePriceContent() {
   const [requireApproval, setRequireApproval] = useState(true);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
   const [bulkUpdateSamePrice, setBulkUpdateSamePrice] = useState(true); // Enable bulk update by default
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
+
+  // Check permissions
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchSetupData();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Schedule Prices']) {
+      const schedulePerms = user.permissions['Schedule Prices'];
+      if (schedulePerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: schedulePerms.can_view,
+          can_edit: schedulePerms.can_edit,
+          can_delete: schedulePerms.can_delete
+        });
+        fetchSetupData();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Schedule Prices`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        fetchSetupData();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Schedule Prices';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        fetchSetupData();
+      } else {
+        setHasPermission(false);
+        setPermissions(perms);
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      setHasPermission(false);
+    }
+  };
 
   useEffect(() => {
-    fetchSetupData();
-  }, []);
+    if (hasPermission) {
+      fetchSetupData();
+    }
+  }, [hasPermission]);
 
   useEffect(() => {
     if (selectedCustomers.length > 0) {
@@ -269,12 +370,33 @@ function SchedulePriceContent() {
     }
   };
 
-  if (fetchLoading) {
+  if (fetchLoading || authLoading) {
     return (
       <div className="flex h-screen bg-gray-100">
         <Sidebar />
         <div className="flex-1 flex items-center justify-center">
           <div className="text-xl">Loading...</div>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if user has view permission
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto bg-gray-50 p-4 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+              <p className="text-gray-600">You don't have permission to view Schedule Prices.</p>
+              <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
+            </div>
+          </main>
+          <Footer />
         </div>
       </div>
     );
@@ -397,13 +519,15 @@ function SchedulePriceContent() {
                   >
                     Applied
                   </button>
-                  <button
-                    type="button"
-                    onClick={handleAutoUpdate}
-                    className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
-                  >
-                    Auto-Update
-                  </button>
+                  {permissions.can_edit && (
+                    <button
+                      type="button"
+                      onClick={handleAutoUpdate}
+                      className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
+                    >
+                      Auto-Update
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -523,7 +647,7 @@ function SchedulePriceContent() {
                 <h2 className="text-lg font-bold">
                   Scheduled Prices ({scheduledPrices.length} records)
                 </h2>
-                {viewMode === "pending" && scheduledPrices.length > 0 && (
+                {viewMode === "pending" && scheduledPrices.length > 0 && permissions.can_edit && (
                   <button
                     onClick={() => handleApplyPrices(scheduledPrices.map(sp => sp.id))}
                     className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
@@ -568,7 +692,7 @@ function SchedulePriceContent() {
                           <td className="px-3 py-2 border">
                             {item.applied_at ? new Date(item.applied_at).toLocaleString() : 'Not Applied'}
                           </td>
-                          {viewMode === "pending" && (
+                          {viewMode === "pending" && permissions.can_edit && (
                             <td className="px-3 py-2 border">
                               <button
                                 onClick={() => handleApplyPrices([item.id])}

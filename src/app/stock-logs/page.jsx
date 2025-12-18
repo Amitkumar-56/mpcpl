@@ -1,8 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import Link from 'next/link';
 
 function StockLogsContent() {
   const router = useRouter();
@@ -131,12 +131,25 @@ function StockLogsContent() {
                 </p>
               </div>
             </div>
-            <Link
-              href={`/stock-history`}
-              className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-            >
-              Back to History
-            </Link>
+            <div className="flex items-center gap-4">
+              <ExportButton 
+                data={logs} 
+                fileName={`stock_logs_${stockId || stationId || 'all'}`}
+                columns={[
+                  { field: 'created_at', header: 'Date & Time', formatter: (row) => new Date(row.created_at).toLocaleString() },
+                  { field: 'action_type', header: 'Action' },
+                  { field: 'user_name', header: 'User', formatter: (row) => `${row.user_name || 'System'} ${row.user_id ? `(ID: ${row.user_id})` : ''}` },
+                  { field: 'quantity', header: 'Quantity' },
+                  { field: 'remarks', header: 'Remarks' }
+                ]}
+              />
+              <Link
+                href={`/stock-history`}
+                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
+              >
+                Back to History
+              </Link>
+            </div>
           </div>
         </div>
       </header>

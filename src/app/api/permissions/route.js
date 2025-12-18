@@ -1,3 +1,5 @@
+
+//src/app/api/permissions/route.js
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';

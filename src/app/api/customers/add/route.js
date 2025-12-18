@@ -145,6 +145,37 @@ export async function POST(req) {
       });
 
       newCustomerId = txResult;
+
+      // Create Audit Log
+      try {
+        const currentUser = await getCurrentUser();
+        const userId = currentUser?.userId || null;
+        const userName = currentUser?.userName || 'System';
+
+        await createAuditLog({
+          page: 'Customers',
+          uniqueCode: newCustomerId.toString(),
+          section: 'Customer Management',
+          userId: userId,
+          userName: userName,
+          action: 'create',
+          remarks: 'New customer created',
+          oldValue: null,
+          newValue: { 
+            name: client_name, 
+            email, 
+            phone, 
+            client_type,
+            billing_type,
+            address
+          },
+          recordType: 'customer',
+          recordId: newCustomerId
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
     } catch (txErr) {
       console.error('Transaction failed, rolled back:', txErr.code || txErr.sqlMessage || txErr.message || txErr);
       const errDetail = {

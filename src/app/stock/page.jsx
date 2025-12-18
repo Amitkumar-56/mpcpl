@@ -4,6 +4,8 @@
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
+import { useSession } from "@/context/SessionContext";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTrash } from "react-icons/bs";
@@ -373,10 +375,105 @@ export default function StockRequest() {
   const [stockRequests, setStockRequests] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
+  const { user, loading: authLoading } = useSession();
+  const router = useRouter();
 
+  // Check permissions first
   useEffect(() => {
-    fetchStockRequests();
-  }, []);
+    if (!authLoading && !user) {
+      router.push('/login');
+      return;
+    }
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchStockRequests();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Stock']) {
+      const stockPerms = user.permissions['Stock'];
+      if (stockPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: stockPerms.can_view,
+          can_edit: stockPerms.can_edit,
+          can_delete: stockPerms.can_delete
+        });
+        fetchStockRequests();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Stock`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        fetchStockRequests();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Stock';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        fetchStockRequests();
+      } else {
+        setHasPermission(false);
+        setError('You do not have permission to view stock.');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setError('Failed to check permissions.');
+      setLoading(false);
+    }
+  };
 
   const fetchStockRequests = async () => {
     try {
@@ -417,6 +514,25 @@ export default function StockRequest() {
       setLoading(false);
     }
   };
+
+  // Show access denied if no permission
+  if (!authLoading && user && !hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar />
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <Header />
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">{error || 'You do not have permission to view stock.'}</p>
+            </div>
+          </div>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-gray-100">

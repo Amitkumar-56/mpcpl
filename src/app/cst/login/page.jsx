@@ -48,6 +48,12 @@ export default function CustomerLoginPage() {
       // ✅ Also save to sessionStorage for consistency
       sessionStorage.setItem("customer", JSON.stringify(data.customer));
       
+      // ✅ Save CST token for API verification (if needed)
+      if (data.token) {
+        localStorage.setItem("cst_token", data.token);
+        sessionStorage.setItem("cst_token", data.token);
+      }
+      
       // ✅ Use window.location for reliable redirect (prevents race conditions)
       // Small delay to ensure localStorage is set
       setTimeout(() => {

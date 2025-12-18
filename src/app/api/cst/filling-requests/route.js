@@ -27,11 +27,22 @@ export async function GET(request) {
       SELECT fr.*, 
              p.pname AS product_name, 
              fs.station_name,
-             c.name AS customer_name
+             c.name AS customer_name,
+             fl_cancelled.cancelled_by_name,
+             fl_cancelled.cancelled_date
       FROM filling_requests fr
       LEFT JOIN products p ON fr.product = p.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          ep.name AS cancelled_by_name,
+          fl.cancelled_date
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.cancelled_by = ep.id
+        WHERE fl.cancelled_by IS NOT NULL
+      ) fl_cancelled ON fr.rid = fl_cancelled.request_id
       WHERE fr.cid = ?
     `;
     
@@ -40,7 +51,7 @@ export async function GET(request) {
 
     // Add status filter if provided and not 'All'
     if (status && status !== 'All') {
-      conditions.push(`fr.status = ?`);
+      conditions.push(`LOWER(fr.status) = ?`);
       params.push(status.toLowerCase());
     }
 

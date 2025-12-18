@@ -3,10 +3,13 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from "@/context/SessionContext";
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function NBBalance() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [records, setRecords] = useState([]);
   const [filteredRecords, setFilteredRecords] = useState([]);
   const [totalCash, setTotalCash] = useState(0);
@@ -19,6 +22,12 @@ export default function NBBalance() {
   const [dateFilter, setDateFilter] = useState('');
   const [paymentTypeFilter, setPaymentTypeFilter] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: '', direction: '' });
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
 
   const [formData, setFormData] = useState({
     amount: '',
@@ -27,11 +36,102 @@ export default function NBBalance() {
     comments: ''
   });
 
-  const router = useRouter();
+  // Check permissions
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchData();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['NB Accounts']) {
+      const nbPerms = user.permissions['NB Accounts'];
+      if (nbPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: nbPerms.can_view,
+          can_edit: nbPerms.can_edit,
+          can_delete: nbPerms.can_delete
+        });
+        fetchData();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_NB Accounts`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        fetchData();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'NB Accounts';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        fetchData();
+      } else {
+        setHasPermission(false);
+        setPermissions(perms);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      setHasPermission(false);
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (hasPermission) {
+      fetchData();
+    }
+  }, [hasPermission]);
 
   useEffect(() => {
     filterRecords();
@@ -240,7 +340,7 @@ export default function NBBalance() {
   };
 
   // Loading state
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <div className="flex h-screen bg-gray-50">
         <Sidebar />
@@ -252,6 +352,27 @@ export default function NBBalance() {
                 <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto"></div>
                 <p className="mt-4 text-gray-600">Loading cash history...</p>
               </div>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  // Check if user has view permission
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+              <p className="text-gray-600">You don't have permission to view NB Accounts.</p>
+              <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
             </div>
           </main>
           <Footer />
@@ -293,15 +414,17 @@ export default function NBBalance() {
                 <p className="text-sm text-gray-600">Total Cash</p>
                 <p className="text-xl font-bold text-green-600">{formatCurrency(totalCash)}</p>
               </div>
-              <a 
-                href="/nb-balance/cash-management"
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Cash Management
-              </a>
+              {permissions.can_edit && (
+                <a 
+                  href="/nb-balance/cash-management"
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center justify-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Cash Management
+                </a>
+              )}
             </div>
           </div>
 
@@ -493,24 +616,31 @@ export default function NBBalance() {
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm">
                           <div className="flex space-x-2">
-                            <button
-                              onClick={() => handleEdit(record)}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDelete(record.id)}
-                              className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
-                            >
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                              </svg>
-                              Delete
-                            </button>
+                            {permissions.can_edit && (
+                              <button
+                                onClick={() => handleEdit(record)}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
+                              >
+                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                Edit
+                              </button>
+                            )}
+                            {permissions.can_delete && (
+                              <>
+                                {permissions.can_edit && <span className="text-gray-300">|</span>}
+                                <button
+                                  onClick={() => handleDelete(record.id)}
+                                  className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
+                                >
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                  </svg>
+                                  Delete
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -559,26 +689,32 @@ export default function NBBalance() {
                         </div>
                       )}
                       
-                      <div className="flex space-x-2 pt-2 border-t border-gray-100">
-                        <button
-                          onClick={() => handleEdit(record)}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm transition-colors flex items-center justify-center"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDelete(record.id)}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm transition-colors flex items-center justify-center"
-                        >
-                          <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                          Delete
-                        </button>
-                      </div>
+                      {(permissions.can_edit || permissions.can_delete) && (
+                        <div className="flex space-x-2 pt-2 border-t border-gray-100">
+                          {permissions.can_edit && (
+                            <button
+                              onClick={() => handleEdit(record)}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded text-sm transition-colors flex items-center justify-center"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                              </svg>
+                              Edit
+                            </button>
+                          )}
+                          {permissions.can_delete && (
+                            <button
+                              onClick={() => handleDelete(record.id)}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded text-sm transition-colors flex items-center justify-center"
+                            >
+                              <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                              Delete
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

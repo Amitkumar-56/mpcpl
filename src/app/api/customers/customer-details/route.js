@@ -24,7 +24,7 @@ async function checkAndHandleOverdueCustomer(customerId) {
     
     // Get customer data with credit_days from customers table and day_limit from customer_balances
     const customerQuery = `
-      SELECT c.id, c.billing_type, c.status, c.credit_days,
+      SELECT c.id, c.billing_type, c.status,
              cb.cst_limit, cb.amtlimit, cb.hold_balance, cb.day_limit
       FROM customers c 
       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
@@ -47,8 +47,7 @@ async function checkAndHandleOverdueCustomer(customerId) {
       return { hasOverdue: false };
     }
 
-    // Use credit_days from customers table, fallback to 7 days
-    const creditDaysValue = parseInt(customer.credit_days) || 7;
+    const creditDaysValue = parseInt(customer.day_limit) || 7;
     console.log(`Using credit days: ${creditDaysValue}`);
 
     // Check for overdue invoices
@@ -147,7 +146,7 @@ async function checkCustomerEligibility(customerId) {
 
     const balanceQuery = `
       SELECT cb.cst_limit, cb.amtlimit, cb.hold_balance, cb.day_limit,
-             c.billing_type, c.status, c.credit_days
+             c.billing_type, c.status
       FROM customer_balances cb 
       JOIN customers c ON cb.com_id = c.id 
       WHERE cb.com_id = ?
@@ -171,7 +170,6 @@ async function checkCustomerEligibility(customerId) {
       day_limit,
       billing_type,
       status,
-      credit_days,
     } = balanceData[0];
 
     const totalLimit = parseFloat(cst_limit) || 0;
@@ -219,7 +217,7 @@ async function checkCustomerEligibility(customerId) {
       console.log("Customer has overdue invoices");
       return {
         eligible: false,
-        reason: `Overdue invoices exist (${credit_days || 7} days credit period)`,
+        reason: `Overdue invoices exist (${dailyLimit || 7} days credit period)`,
         availableBalance,
         totalLimit,
         remainingLimit,
@@ -594,12 +592,11 @@ export async function GET(request) {
         amtlimit: customer[0].amtlimit || 0,
         day_limit: customer[0].day_limit || 0,
         last_reset_date: customer[0].last_reset_date,
-        credit_days: customer[0].credit_days,
         payment_type:
           parseInt(customer[0].billing_type) === 1
-            ? customer[0].credit_days
-              ? "credit_days"
-              : "postpaid"
+            ? "postpaid"
+            : customer[0].day_limit
+            ? "day_limit"
             : "prepaid",
       },
     };

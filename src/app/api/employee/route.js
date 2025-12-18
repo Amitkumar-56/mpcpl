@@ -1,8 +1,8 @@
+import db from '@/lib/db';
 import crypto from 'crypto';
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import path from 'path';
-import db from '../../../lib/db';
 
 export async function GET() {
   try {
@@ -36,7 +36,7 @@ export async function POST(req) {
   try {
     const formData = await req.formData();
 
-    // --- Auto-generate Employee Code ---
+    // Auto-generate Employee Code
     const [lastRow] = await conn.execute(
       'SELECT emp_code FROM employee_profile ORDER BY id DESC LIMIT 1'
     );
@@ -48,10 +48,10 @@ export async function POST(req) {
     }
     const emp_code = `EMP${newCodeNumber.toString().padStart(3, '0')}`;
 
-    // --- Form fields ---
+    // Form fields
     const email = formData.get('email') || '';
     const rawPassword = formData.get('password') || '';
-    const role = parseInt(formData.get('role')) || 0; // Yeh role employee_profile ke liye hai
+    const role = parseInt(formData.get('role')) || 0;
     const salary = parseInt(formData.get('salary')) || 0;
     const name = formData.get('name') || '';
     const address = formData.get('address') || '';
@@ -64,10 +64,10 @@ export async function POST(req) {
     const status = parseInt(formData.get('status')) || 0;
     const account_details = formData.get('account_details') || '';
 
-    // --- Hash password with SHA-256 ---
+    // Hash password
     const password = crypto.createHash('sha256').update(rawPassword).digest('hex');
 
-    // --- Handle image ---
+    // Handle image
     const pictureFile = formData.get('picture');
     let pictureName = 'default.png';
     if (pictureFile && pictureFile.name) {
@@ -78,15 +78,15 @@ export async function POST(req) {
       fs.writeFileSync(path.join(uploadDir, pictureName), buffer);
     }
 
-    // --- Begin transaction ---
+    // Begin transaction
     await conn.beginTransaction();
 
     // Insert employee
     const [result] = await conn.execute(
       `INSERT INTO employee_profile 
-      (emp_code,email,password,role,salary,name,address,city,region,country,
-       postbox,phone,phonealt,picture,status,account_details,created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, NOW())`,
+      (emp_code, email, password, role, salary, name, address, city, region, country,
+       postbox, phone, phonealt, picture, status, account_details, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         emp_code, email, password, role, salary, name, address,
         city, region, country, postbox, phone, phonealt, pictureName, status, account_details
@@ -95,7 +95,7 @@ export async function POST(req) {
 
     const employeeId = result.insertId;
 
-    // --- Save permissions with ROLE ---
+    // Save permissions - BOTH employee_id AND role
     const perms = formData.get('permissions');
     if (perms) {
       let permissionsObj = {};
@@ -105,15 +105,22 @@ export async function POST(req) {
         console.error('Invalid permissions JSON', e);
       }
 
+      // First, delete any existing permissions for this employee
+      await conn.execute(
+        'DELETE FROM role_permissions WHERE employee_id = ?',
+        [employeeId]
+      );
+
+      // Insert new permissions
       for (let moduleName in permissionsObj) {
         const { can_view, can_edit, can_delete } = permissionsObj[moduleName];
         await conn.execute(
           `INSERT INTO role_permissions 
             (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
-           VALUES (?,?,?,?,?,?, NOW())`,
+           VALUES (?, ?, ?, ?, ?, ?, NOW())`,
           [
             employeeId, 
-            role, // Yahan same role use karenge jo employee_profile mein hai
+            role,
             moduleName, 
             can_view ? 1 : 0, 
             can_edit ? 1 : 0, 
@@ -125,11 +132,12 @@ export async function POST(req) {
 
     // Commit transaction
     await conn.commit();
+    
     return NextResponse.json({ 
-      message: 'Employee added', 
+      message: 'Employee added successfully', 
       id: employeeId, 
       emp_code,
-      role: role // Response mein role bhi send karen
+      role
     });
   } catch (err) {
     await conn.rollback();

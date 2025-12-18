@@ -17,7 +17,8 @@ export default function SocketHandler(req, res) {
           methods: ["GET", "POST"],
           credentials: true,
         },
-        transports: ["websocket"],
+        transports: ["websocket", "polling"],
+        allowEIO3: true,
         pingInterval: 25000,
         pingTimeout: 60000,
       });

@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
     
     console.log('🔐 Verify API called, token exists:', !!token);
@@ -51,26 +51,51 @@ export async function GET() {
     const user = users[0];
     console.log('✅ User authenticated:', user.name, user.role);
 
-    // ✅ FIX: Fetch permissions based on employee_id first, then role (fallback)
-    const permissions = await executeQuery(
+    // ✅ FIX: Fetch BOTH employee-specific AND role-based permissions, then merge
+    // Employee-specific permissions take priority
+    const employeePermissions = await executeQuery(
       `SELECT module_name, can_view, can_edit, can_delete
        FROM role_permissions 
        WHERE employee_id = ?`,
       [user.id]
     );
     
-    // If no permissions found for employee_id, try role-based (fallback)
-    let roleBasedPermissions = [];
-    if (permissions.length === 0) {
-      roleBasedPermissions = await executeQuery(
-        `SELECT module_name, can_view, can_edit, can_delete
-         FROM role_permissions 
-         WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
-        [user.role]
-      );
-    }
+    // Also fetch role-based permissions (for modules not covered by employee-specific)
+    const roleBasedPermissions = await executeQuery(
+      `SELECT module_name, can_view, can_edit, can_delete
+       FROM role_permissions 
+       WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
+      [user.role]
+    );
     
-    const finalPermissions = permissions.length > 0 ? permissions : roleBasedPermissions;
+    // ✅ Merge permissions: employee-specific override role-based for same module
+    const permissionMap = new Map();
+    
+    // First, add all role-based permissions
+    roleBasedPermissions.forEach((perm) => {
+      permissionMap.set(perm.module_name, {
+        can_view: perm.can_view === 1,
+        can_edit: perm.can_edit === 1,
+        can_delete: perm.can_delete === 1
+      });
+    });
+    
+    // Then, override with employee-specific permissions (they take priority)
+    employeePermissions.forEach((perm) => {
+      permissionMap.set(perm.module_name, {
+        can_view: perm.can_view === 1,
+        can_edit: perm.can_edit === 1,
+        can_delete: perm.can_delete === 1
+      });
+    });
+    
+    // Convert map to array for logging
+    const finalPermissions = Array.from(permissionMap.entries()).map(([module_name, perms]) => ({
+      module_name,
+      can_view: perms.can_view ? 1 : 0,
+      can_edit: perms.can_edit ? 1 : 0,
+      can_delete: perms.can_delete ? 1 : 0
+    }));
 
     console.log('🔑 Permissions found:', finalPermissions.length);
     console.log('🔑 Permission source:', permissions.length > 0 ? 'employee_id' : 'role');
@@ -81,13 +106,10 @@ export async function GET() {
       can_delete: p.can_delete
     })));
 
+    // ✅ Convert merged permissions to object format
     const userPermissions = {};
-    finalPermissions.forEach((p) => {
-      userPermissions[p.module_name] = {
-        can_view: p.can_view === 1,
-        can_edit: p.can_edit === 1,
-        can_delete: p.can_delete === 1,
-      };
+    permissionMap.forEach((perms, module_name) => {
+      userPermissions[module_name] = perms;
     });
     
     console.log('🔑 Processed permissions object:', Object.keys(userPermissions));

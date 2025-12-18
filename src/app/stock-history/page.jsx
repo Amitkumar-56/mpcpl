@@ -1,7 +1,8 @@
 'use client';
+
+import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import Link from 'next/link';
 
 function StockHistoryContent() {
   const searchParams = useSearchParams();
@@ -12,7 +13,6 @@ function StockHistoryContent() {
     filters: {}
   });
   const [loading, setLoading] = useState(true);
-  const [exportLoading, setExportLoading] = useState(false);
   const [filters, setFilters] = useState({
     pname: '',
     from_date: '',

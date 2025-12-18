@@ -6,7 +6,7 @@ import { NextResponse } from 'next/server';
 
 export async function PATCH(request) {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
     
     if (!token) {

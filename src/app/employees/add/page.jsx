@@ -1,13 +1,11 @@
-
-//
 'use client';
 
+import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function CreateUserPage() {
   const router = useRouter();
@@ -16,7 +14,7 @@ export default function CreateUserPage() {
   const [hasPermission, setHasPermission] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
   const [formData, setFormData] = useState({
-    emp_code: "", // auto-generated from backend, display only
+    emp_code: "",
     email: "",
     password: "",
     role: "",
@@ -36,9 +34,9 @@ export default function CreateUserPage() {
   const [permissions, setPermissions] = useState({
     Dashboard: { can_view: false, can_edit: false, can_delete: false },
     Customers: { can_view: false, can_edit: false, can_delete: false },
-    "Purchese Request": { can_view: false, can_edit: false, can_delete: false }, // Note: Spelling is "Purchese" from menu
+    "Filling Requests": { can_view: false, can_edit: false, can_delete: false },
     Stock: { can_view: false, can_edit: false, can_delete: false },
-    "Loading Stations": { can_view: false, can_edit: false, can_delete: false },
+    "Loading Station": { can_view: false, can_edit: false, can_delete: false },
     "Schedule Prices": { can_view: false, can_edit: false, can_delete: false },
     Products: { can_view: false, can_edit: false, can_delete: false },
     Employees: { can_view: false, can_edit: false, can_delete: false },
@@ -101,11 +99,11 @@ export default function CreateUserPage() {
     }
 
     try {
-      // ✅ FIX: Check both can_edit and can_view for Employees module
-      // Also check user's cached permissions from verify API
+      // Check user's permissions from session
       if (user.permissions && user.permissions['Employees']) {
         const empPerms = user.permissions['Employees'];
         if (empPerms.can_edit || empPerms.can_view) {
+          sessionStorage.setItem(cacheKey, JSON.stringify(empPerms));
           setHasPermission(true);
           setCheckingPermission(false);
           return;
@@ -118,26 +116,14 @@ export default function CreateUserPage() {
       );
       const data = await response.json();
 
-      console.log('🔐 Permission check result:', {
-        employee_id: user.id,
-        role: user.role,
-        module: 'Employees',
-        allowed: data.allowed,
-        error: data.error
-      });
-
-      // Cache permission
-      sessionStorage.setItem(cacheKey, JSON.stringify({ can_edit: data.allowed, can_view: data.allowed }));
-      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
-
       if (data.allowed) {
         setHasPermission(true);
+        sessionStorage.setItem(cacheKey, JSON.stringify({ can_edit: true, can_view: true }));
       } else {
         setHasPermission(false);
-        console.log('❌ Access denied - No permission for Employees module');
       }
     } catch (error) {
-      console.error('❌ Permission check error:', error);
+      console.error('Permission check error:', error);
       setHasPermission(false);
     } finally {
       setCheckingPermission(false);
@@ -164,19 +150,36 @@ export default function CreateUserPage() {
   const handleSubmit = async () => {
     try {
       const form = new FormData();
-      // Remove emp_code from formData; backend will auto-generate it
+      
+      // Add all form data except emp_code
       Object.keys(formData).forEach(key => {
         if (key !== "emp_code") form.append(key, formData[key]);
       });
+      
       if (image) form.append('picture', image);
-      form.append('permissions', JSON.stringify(permissions));
+      
+      // Format permissions for backend
+      const formattedPermissions = {};
+      modules.forEach(module => {
+        formattedPermissions[module] = {
+          can_view: permissions[module]?.can_view || false,
+          can_edit: permissions[module]?.can_edit || false,
+          can_delete: permissions[module]?.can_delete || false
+        };
+      });
+      
+      form.append('permissions', JSON.stringify(formattedPermissions));
 
-      const res = await fetch('/api/employee', { method: 'POST', body: form });
+      const res = await fetch('/api/employee', { 
+        method: 'POST', 
+        body: form 
+      });
+      
       const data = await res.json();
 
       if (res.ok) {
         alert('Employee added successfully!');
-        router.push('/employees'); // Redirect after success
+        router.push('/employees');
       } else {
         alert(`Error: ${data.message}`);
       }
@@ -186,7 +189,7 @@ export default function CreateUserPage() {
     }
   };
 
-  // Show loading state while checking permissions
+  // Show loading state
   if (checkingPermission || authLoading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
@@ -239,21 +242,16 @@ export default function CreateUserPage() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Fixed Sidebar */}
       <div className="sticky top-0 h-screen">
         <Sidebar activePage="Employees" />
       </div>
 
-      {/* Main content with fixed header and footer */}
       <div className="flex flex-col flex-1 w-full">
-        {/* Fixed Header */}
         <div className="sticky top-0 z-10">
           <Header />
         </div>
 
-        {/* Scrollable form content */}
         <main className="flex-1 overflow-auto p-6">
-          {/* Back Button and Page Title */}
           <div className="flex items-center mb-6">
             <button 
               onClick={() => router.back()} 
@@ -368,7 +366,6 @@ export default function CreateUserPage() {
           </div>
         </main>
 
-        {/* Fixed Footer */}
         <div className="sticky bottom-0">
           <Footer />
         </div>

@@ -1,3 +1,5 @@
+
+//src/components/sidebar.jsx
 "use client";
 import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
@@ -104,7 +106,7 @@ export default function Sidebar({ onClose }) {
     agent_management: "Agent Management", // ✅ FIX: Added missing mapping
   }), []);
 
-  // Optimized permission filtering - no logging for performance
+  // ✅ FIX: Enhanced permission filtering - only show items with can_view permission
   const allowedMenu = useMemo(() => {
     if (!user) return [];
     
@@ -113,12 +115,31 @@ export default function Sidebar({ onClose }) {
       return menuItems;
     }
     
-    // Fast filtering without logging
+    // ✅ Check if permissions exist - if not, return empty array (no menu items)
+    if (!user.permissions || typeof user.permissions !== 'object' || Object.keys(user.permissions).length === 0) {
+      return [];
+    }
+    
+    // ✅ Filter menu items based on can_view permission
     const filtered = menuItems.filter((item) => {
       const backendModuleName = moduleMapping[item.module];
-      if (!backendModuleName) return false;
       
-      return user.permissions?.[backendModuleName]?.can_view === true;
+      // If module mapping not found, hide the item
+      if (!backendModuleName) {
+        return false;
+      }
+      
+      // Check if user has permission for this module
+      const modulePermission = user.permissions[backendModuleName];
+      
+      // If no permission record exists, hide the item
+      if (!modulePermission || typeof modulePermission !== 'object') {
+        return false;
+      }
+      
+      // ✅ CRITICAL: Only show if can_view is explicitly true (strict check)
+      // This ensures menu items only show when user has view permission
+      return modulePermission.can_view === true;
     });
     
     return filtered;
@@ -178,7 +199,9 @@ export default function Sidebar({ onClose }) {
                 {user?.name || 'User'}
               </p>
               <p className="text-xs text-gray-600 truncate">
-                {user?.emp_code || (Number(user?.role) === 5 ? 'Admin' : 'Employee')}
+                {Number(user?.role) === 5 
+                  ? 'Admin' 
+                  : (user?.role_name || 'Employee')}
               </p>
               {Number(user?.role) === 5 && (
                 <p className="text-xs text-blue-600 font-semibold mt-0.5">

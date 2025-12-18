@@ -1,6 +1,8 @@
 // src/app/api/stock/purchase-for-sale/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from "@/lib/auditLog";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function POST(request) {
   try {
@@ -154,6 +156,26 @@ export async function POST(request) {
 
     const fsStockResult = await executeQuery(insertStockQuery, stockValuesForFS);
     console.log("Filling station stocks insert successful:", fsStockResult);
+
+    // Get current user for audit log
+    const currentUser = await getCurrentUser();
+    const userId = currentUser?.userId || null;
+    const userName = currentUser?.userName || 'System';
+
+    // Create audit log
+    await createAuditLog({
+      page: 'Stock Management',
+      uniqueCode: `PURCHASE-${invoiceNumber}`,
+      section: 'Purchase for Sale',
+      userId: userId,
+      userName: userName,
+      action: 'add',
+      remarks: `Purchase added: ${quantityInLtrNum} Ltr (Invoice: ${invoiceNumber}, Tanker: ${tankerNumber || 'N/A'})`,
+      oldValue: { quantity: 0 },
+      newValue: { quantity: quantityInLtrNum },
+      recordType: 'stock_purchase',
+      recordId: stockResult.insertId
+    });
 
     return NextResponse.json({ 
       success: true, 

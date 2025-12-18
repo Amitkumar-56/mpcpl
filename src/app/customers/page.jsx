@@ -26,37 +26,120 @@ function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [permissions, setPermissions] = useState({ 
-    can_edit: true, 
-    can_view: true, 
-    can_delete: true 
+    can_edit: false, 
+    can_view: false, 
+    can_delete: false 
   });
+  const [hasPermission, setHasPermission] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all"); // "all", "prepaid", "postpaid", "daylimit"
   const [updatingStatus, setUpdatingStatus] = useState({});
-  const { user } = useSession();
+  const { user, loading: authLoading } = useSession();
   const isAdmin = user?.role === 5;
+
+  // Check permissions first
+  useEffect(() => {
+    if (!authLoading && !user) {
+      return;
+    }
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchData();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Customer']) {
+      const customerPerms = user.permissions['Customer'];
+      if (customerPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: customerPerms.can_view,
+          can_edit: customerPerms.can_edit,
+          can_delete: customerPerms.can_delete
+        });
+        fetchData();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Customer`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        fetchData();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Customer';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        fetchData();
+      } else {
+        setHasPermission(false);
+        setError('You do not have permission to view customers.');
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setError('Failed to check permissions.');
+      setLoading(false);
+    }
+  };
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [customersRes, permRes] = await Promise.all([
-        fetch("/api/customers"),
-        fetch("/api/permissions?module=Customers").catch(() => null)
-      ]);
+      const customersRes = await fetch("/api/customers");
 
       if (!customersRes || !customersRes.ok) {
         throw new Error('Failed to fetch customers');
       }
       const customersData = await customersRes.json();
       setCustomers(customersData);
-
-      if (permRes && permRes.ok) {
-        const permData = await permRes.json();
-        setPermissions(permData);
-      }
     } catch (err) {
       console.error("Error fetching customers:", err);
       setError("Failed to load customers. Please try again.");
@@ -64,10 +147,6 @@ function CustomersPage() {
       setLoading(false);
     }
   }, []);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
 
   // Filter customers based on active filter
   const filterCustomersByType = useCallback((customersList, filter) => {
@@ -405,6 +484,27 @@ function CustomersPage() {
     }
   };
 
+  // Show access denied if no permission
+  if (!authLoading && user && !hasPermission) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+          <Sidebar activePage="Customers" onClose={() => setSidebarOpen(false)} />
+        </div>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
+          <main className="flex-1 overflow-auto p-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">{error || 'You do not have permission to view customers.'}</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       {/* Sidebar */}
@@ -487,13 +587,15 @@ function CustomersPage() {
                   <BiSearch className="text-lg" />
                   <span>Activity Logs</span>
                 </Link>
-                <Link
-                  href="/customers/add"
-                  className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center space-x-2 font-semibold text-sm lg:text-base whitespace-nowrap transform hover:scale-105"
-                >
-                  <BiPlus className="text-lg" />
-                  <span>Add Customer</span>
-                </Link>
+                {permissions.can_edit && (
+                  <Link
+                    href="/customers/add"
+                    className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center space-x-2 font-semibold text-sm lg:text-base whitespace-nowrap transform hover:scale-105"
+                  >
+                    <BiPlus className="text-lg" />
+                    <span>Add Customer</span>
+                  </Link>
+                )}
               </div>
             </div>
 

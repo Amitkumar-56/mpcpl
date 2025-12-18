@@ -264,6 +264,24 @@ function FillingRequestsPage() {
                             <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusClass(request.status)}`}>
                               {mapStatus(request.status)}
                             </span>
+                            {mapStatus(request.status) === 'Cancelled' && request.cancelled_by_name && (
+                              <div className="mt-1 text-xs text-gray-600">
+                                Cancelled by: <span className="font-semibold text-gray-900">{request.cancelled_by_name}</span>
+                                {request.cancelled_date && (
+                                  <span className="ml-1">
+                                    (
+                                    {new Date(request.cancelled_date).toLocaleDateString('en-US', {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                    )
+                                  </span>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {new Date(request.created).toLocaleDateString('en-US', {
@@ -323,6 +341,25 @@ function FillingRequestsPage() {
                         <div><strong>Qty:</strong> {request.qty}</div>
                         <div><strong>Date:</strong> {new Date(request.created).toLocaleDateString()}</div>
                       </div>
+                      
+                      {mapStatus(request.status) === 'Cancelled' && request.cancelled_by_name && (
+                        <div className="text-xs text-gray-600">
+                          Cancelled by: <span className="font-semibold text-gray-900">{request.cancelled_by_name}</span>
+                          {request.cancelled_date && (
+                            <span className="ml-1">
+                              (
+                              {new Date(request.cancelled_date).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                              )
+                            </span>
+                          )}
+                        </div>
+                      )}
                       
                       <div className="flex flex-wrap gap-2 pt-2">
                         <Link 

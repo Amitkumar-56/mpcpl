@@ -224,6 +224,26 @@ export async function PUT(request) {
     );
 
     const customer = updatedCustomers[0];
+
+    // Create Audit Log
+    try {
+      await createAuditLog({
+        page: 'Customers',
+        uniqueCode: id.toString(),
+        section: 'Customer Management',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: 'Customer details updated',
+        oldValue: existingCustomers[0],
+        newValue: customer,
+        recordType: 'customer',
+        recordId: id
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+      // Don't fail the request if audit logging fails
+    }
     
     // Fetch product names for the product IDs
     let productNames = {};

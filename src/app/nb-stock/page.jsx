@@ -11,7 +11,7 @@ import { Suspense, useEffect, useState } from "react";
 
 
 // ✅ Component for displaying the table content
-function StocksTable() {
+function StocksTable({ permissions = { can_view: true, can_edit: true, can_delete: true } }) {
   const [stocks, setStocks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isEmpty, setIsEmpty] = useState(false);
@@ -117,26 +117,28 @@ function StocksTable() {
                     </td>
                     <td className="p-4 text-center whitespace-nowrap">
                       <div className="flex items-center justify-center gap-2">
-                        <Link
-                          href={`/nb-stock/create-nb-expense?edit=true&station_id=${row.station_id}&product_id=${row.product_id}`}
-                          className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
-                          title="Edit"
-                        >
-                          <svg
-                            className="w-4 h-4"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
+                        {permissions.can_edit && (
+                          <Link
+                            href={`/nb-stock/create-nb-expense?edit=true&station_id=${row.station_id}&product_id=${row.product_id}`}
+                            className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors border border-blue-200"
+                            title="Edit"
                           >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                            />
-                          </svg>
-                          <span>Edit</span>
-                        </Link>
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                              />
+                            </svg>
+                            <span>Edit</span>
+                          </Link>
+                        )}
                         <Link
                           href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
                           className="inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-sm font-medium text-orange-600 hover:text-orange-700 hover:bg-orange-50 rounded-lg transition-colors border border-orange-200"
@@ -354,13 +356,97 @@ function LoadingSkeleton() {
 export default function NonBillingStocksPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
 
-  // Check authentication
+  // Check authentication and permissions
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
+      return;
+    }
+
+    if (user) {
+      checkPermissions();
     }
   }, [user, authLoading, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['NB Stock']) {
+      const nbStockPerms = user.permissions['NB Stock'];
+      if (nbStockPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: nbStockPerms.can_view,
+          can_edit: nbStockPerms.can_edit,
+          can_delete: nbStockPerms.can_delete
+        });
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_NB Stock`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'NB Stock';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+      } else {
+        setHasPermission(false);
+        setPermissions(perms);
+      }
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      setHasPermission(false);
+    }
+  };
 
   // Show loading while checking auth
   if (authLoading) {
@@ -377,6 +463,27 @@ export default function NonBillingStocksPage() {
   // Don't render if not authenticated (redirect will happen)
   if (!user) {
     return null;
+  }
+
+  // Check if user has view permission
+  if (!hasPermission) {
+    return (
+      <div className="min-h-screen flex bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-h-0">
+          <Header />
+          <main className="flex-1 overflow-auto flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
+              <p className="text-gray-600">You don't have permission to view NB Stock.</p>
+              <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -398,33 +505,37 @@ export default function NonBillingStocksPage() {
               </div>
 
               {/* Desktop Button */}
-              <Link
-                href="/nb-stock/create-nb-expense"
-                className="hidden sm:flex bg-purple-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow hover:bg-purple-800 transition-all items-center gap-2 text-sm sm:text-base"
-              >
-                <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span className="hidden lg:inline">Add NB Stock</span>
-                <span className="lg:hidden">Add</span>
-              </Link>
+              {permissions.can_edit && (
+                <Link
+                  href="/nb-stock/create-nb-expense"
+                  className="hidden sm:flex bg-purple-700 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg shadow hover:bg-purple-800 transition-all items-center gap-2 text-sm sm:text-base"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="hidden lg:inline">Add NB Stock</span>
+                  <span className="lg:hidden">Add</span>
+                </Link>
+              )}
             </div>
 
             {/* Mobile Add Button */}
-            <div className="sm:hidden mb-4">
-              <Link
-                href="/nb-stock/create-nb-expense"
-                className="w-full flex items-center justify-center gap-2 bg-purple-700 text-white px-4 py-3 rounded-lg shadow hover:bg-purple-800 transition-all"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                <span>Add NB Stock</span>
-              </Link>
-            </div>
+            {permissions.can_edit && (
+              <div className="sm:hidden mb-4">
+                <Link
+                  href="/nb-stock/create-nb-expense"
+                  className="w-full flex items-center justify-center gap-2 bg-purple-700 text-white px-4 py-3 rounded-lg shadow hover:bg-purple-800 transition-all"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span>Add NB Stock</span>
+                </Link>
+              </div>
+            )}
 
             {/* ✅ Stocks Table */}
-            <StocksTable />
+            <StocksTable permissions={permissions} />
           </div>
         </main>
 

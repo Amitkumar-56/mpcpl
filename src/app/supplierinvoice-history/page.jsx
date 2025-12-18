@@ -91,28 +91,43 @@ function SupplierInvoiceHistoryContent() {
     router.push(`/supplierinvoice-history?id=${id}`);
   };
 
-  const handleDownload = async () => {
-    try {
-      const params = new URLSearchParams({ id, type: '1' });
-      if (filters.from_date) params.append('from_date', filters.from_date);
-      if (filters.to_date) params.append('to_date', filters.to_date);
+  const getExportData = () => {
+    if (!data || data.length === 0) return [];
+    
+    return data.flatMap(invoice => {
+      const transactions = [
+        {
+          date: invoice.invoice_date,
+          invoice_number: invoice.invoice_number,
+          remarks: '-',
+          type: 'Purchase',
+          debit: null,
+          credit: invoice.v_invoice_value,
+          v_invoice_value: invoice.v_invoice_value
+        },
+        ...invoice.payments.map(p => ({
+          date: p.date,
+          invoice_number: invoice.invoice_number,
+          remarks: p.remarks,
+          type: 'Payment',
+          debit: p.payment,
+          credit: null,
+          payment: p.payment
+        })),
+        ...invoice.dncns.map(d => ({
+          date: d.dncn_date,
+          invoice_number: invoice.invoice_number,
+          remarks: d.remarks,
+          type: 'DNCN',
+          debit: d.type === 1 ? d.amount : null,
+          credit: d.type === 2 ? d.amount : null,
+          dncn_type: d.type,
+          amount: d.amount
+        }))
+      ];
 
-      const response = await fetch(`/api/export/supplier-invoices?${params}`);
-      if (!response.ok) throw new Error('Download failed');
-      
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `supplier-invoice-${id}-${new Date().toISOString().split('T')[0]}.csv`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-    } catch (error) {
-      console.error('Download error:', error);
-      alert('Failed to download file');
-    }
+      return calculateRunningBalance(transactions);
+    });
   };
 
   if (status === 'loading' || loading) {

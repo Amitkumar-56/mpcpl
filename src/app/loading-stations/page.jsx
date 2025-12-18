@@ -3,6 +3,7 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { BiEdit, BiHistory, BiShow } from "react-icons/bi";
@@ -10,33 +11,139 @@ import { BiEdit, BiHistory, BiShow } from "react-icons/bi";
 export default function LoadingStations() {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
 
+  // Check permissions first
   useEffect(() => {
-    const user = localStorage.getItem('user');
-    if (!user) {
+    if (!authLoading && !user) {
       router.push('/login');
       return;
     }
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading]);
 
-    async function fetchStations() {
-      try {
-        const res = await fetch('/api/stations');
-        const data = await res.json();
-        setStations(Array.isArray(data) ? data : []);
-      } catch (err) {
-        console.error('Error fetching stations:', err);
-        setStations([]);
-      } finally {
-        setLoading(false);
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchStations();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Loading Station']) {
+      const stationPerms = user.permissions['Loading Station'];
+      if (stationPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: stationPerms.can_view,
+          can_edit: stationPerms.can_edit,
+          can_delete: stationPerms.can_delete
+        });
+        fetchStations();
+        return;
       }
     }
 
-    fetchStations();
-  }, [router]);
+    // Check cache
+    const cacheKey = `perms_${user.id}_Loading Station`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        fetchStations();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Loading Station';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        fetchStations();
+      } else {
+        setHasPermission(false);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setLoading(false);
+    }
+  };
+
+  const fetchStations = async () => {
+    try {
+      setLoading(true);
+      const res = await fetch('/api/stations');
+      const data = await res.json();
+      setStations(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error('Error fetching stations:', err);
+      setStations([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
+
+  // Show access denied if no permission
+  if (!authLoading && user && !hasPermission) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-gray-100">
+        <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header onMenuToggle={toggleSidebar} />
+          <main className="flex-1 overflow-y-auto p-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">You do not have permission to view loading stations.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-100">

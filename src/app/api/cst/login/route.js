@@ -2,6 +2,7 @@
 import { executeQuery } from "@/lib/db";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import { signToken } from "@/lib/cstauth";
 
 export async function POST(req) {
   try {
@@ -49,8 +50,11 @@ export async function POST(req) {
       }, { status: 403 });
     }
 
-    // Return customer info (exclude password)
-    return NextResponse.json({
+    // Issue JWT for customer
+    const token = signToken({ id: customer.id, role: "customer" });
+
+    // Return customer info (exclude password) + token
+    const response = NextResponse.json({
       success: true,
       customer: {
         id: customer.id,
@@ -60,7 +64,10 @@ export async function POST(req) {
         client: customer.client,
         roleid: customer.roleid,
       },
+      token
     });
+
+    return response;
   } catch (err) {
     console.error("Login error:", err);
     return NextResponse.json({ error: "Server error" }, { status: 500 });

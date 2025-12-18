@@ -1,10 +1,9 @@
 // src/app/cst/cstdashboard/page.jsx
 "use client";
 
-import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
-import ChatBox from "@/components/ChatBox";
+import Footer from "@/components/Footer";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -114,7 +113,7 @@ export default function CustomerDashboardPage() {
       const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
       const newSocket = io(socketUrl, {
         path: '/api/socket',
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
@@ -170,6 +169,22 @@ export default function CustomerDashboardPage() {
         setMessages(prev => mergeMessages(prev, message));
         if (!showChat) {
           setUnreadCount(prev => prev + 1);
+          try {
+            if (message && message.sender === 'employee') {
+              setNotifications(prev => ([{
+                id: message.id,
+                text: message.text,
+                timestamp: message.timestamp,
+                employeeName: message.employee_name
+              }, ...prev]).slice(0, 50));
+              const prevCount = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
+              const nextCount = prevCount + 1;
+              sessionStorage.setItem('cst_notif_count', String(nextCount));
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('cst-notif-update', { detail: { count: nextCount } }));
+              }
+            }
+          } catch (e) {}
         }
         scrollToBottom();
       });
@@ -305,6 +320,14 @@ export default function CustomerDashboardPage() {
   const toggleChat = () => {
     setShowChat(!showChat);
     setChatMinimized(false);
+    try {
+      if (!showChat) {
+        sessionStorage.setItem('cst_notif_count', '0');
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('cst-notif-update', { detail: { count: 0 } }));
+        }
+      }
+    } catch (e) {}
   };
 
   const minimizeChat = () => {
@@ -420,15 +443,14 @@ export default function CustomerDashboardPage() {
       <div className="flex flex-col flex-1 overflow-hidden">
         <CstHeader />
         
-        <main className="flex-1 p-6 overflow-auto">
-          <h2 className="text-2xl font-bold mb-6 text-gray-800">{activePage}</h2>
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">
           
           {activePage === "Dashboard" && (
             <div className="space-y-6">
               {/* Day Limit Overdue Warning Banner */}
               {dayLimitStatus && dayLimitStatus.isOverdue && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
                       <div>
@@ -441,16 +463,16 @@ export default function CustomerDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex space-x-2 w-full md:w-auto">
                       <button 
                         onClick={() => setShowRechargeModal(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+                        className="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold text-center"
                       >
                         Recharge Now
                       </button>
                       <button 
                         onClick={redirectToCustomerHistory}
-                        className="bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg text-sm transition-colors"
+                        className="flex-1 md:flex-none bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg text-sm transition-colors text-center"
                       >
                         View History
                       </button>
@@ -462,7 +484,7 @@ export default function CustomerDashboardPage() {
               {/* Day Limit Warning (Not Overdue Yet) */}
               {dayLimitStatus && !dayLimitStatus.isOverdue && dayLimitStatus.remainingDays <= 3 && dayLimitStatus.remainingDays > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
                     <div className="flex items-center">
                       <div className="w-3 h-3 rounded-full bg-yellow-500 mr-3"></div>
                       <div>
@@ -476,7 +498,7 @@ export default function CustomerDashboardPage() {
                     </div>
                     <button 
                       onClick={() => setShowRechargeModal(true)}
-                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+                      className="w-full md:w-auto bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
                     >
                       Recharge Now
                     </button>
@@ -487,8 +509,8 @@ export default function CustomerDashboardPage() {
               {/* Connection Status Banner - Only show error, not connecting/reconnecting */}
               {connectionStatus === 'error' && (
                 <div className="border rounded-lg p-4 bg-red-50 border-red-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-center justify-between">
                       <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
                       <div>
                         <p className="font-medium text-red-800">
@@ -499,17 +521,17 @@ export default function CustomerDashboardPage() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex space-x-2">
-                      <button 
+                    <div className="flex space-x-2 w-full md:w-auto">
+                      <button
                         onClick={reconnectSocket}
-                        className="px-3 py-1 rounded-lg text-sm transition-colors flex items-center bg-red-100 hover:bg-red-200 text-red-800"
+                        className="flex-1 md:flex-none justify-center px-3 py-1 rounded-lg text-sm transition-colors flex items-center bg-red-100 hover:bg-red-200 text-red-800"
                       >
                         <BiRefresh className="mr-1" /> 
                         Retry
                       </button>
                       <button 
                         onClick={() => window.location.reload()}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-lg text-sm transition-colors"
+                        className="flex-1 md:flex-none justify-center bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-lg text-sm transition-colors"
                       >
                         Refresh Page
                       </button>
@@ -520,9 +542,9 @@ export default function CustomerDashboardPage() {
 
               {/* Rest of your dashboard UI remains the same */}
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
-                <div className="flex justify-between items-center">
+                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
-                    <h3 className="text-2xl font-bold mb-2">Welcome back, {user.name}! 👋</h3>
+                    <h1 className="text-2xl font-bold mb-2">Welcome back, {user?.name || 'Customer'}!</h1>
                     <p className="text-blue-100">
                       {connectionStatus === 'connected' 
                         ? 'Live support is available' 
@@ -530,10 +552,10 @@ export default function CustomerDashboardPage() {
                       }
                     </p>
                   </div>
-                  <div className="flex space-x-3">
-                    <button 
+                  <div className="flex flex-wrap justify-center gap-3 w-full md:w-auto">
+                    <button
                       onClick={redirectToMyUsers}
-                      className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                      className="flex-1 md:flex-none justify-center bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
                     >
                       <BiUser className="w-5 h-5" />
                       <span>My Users</span>
@@ -541,7 +563,7 @@ export default function CustomerDashboardPage() {
                     
                     <button 
                       onClick={redirectToCustomerHistory}
-                      className="bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
+                      className="flex-1 md:flex-none justify-center bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
                     >
                       <BiHistory className="w-5 h-5" />
                       <span>Transaction History</span>
@@ -718,7 +740,7 @@ export default function CustomerDashboardPage() {
                 ))}
               </div>
 
-              <div className="flex space-x-3">
+              <div className="flex flex-col-reverse md:flex-row gap-3">
                 <button
                   onClick={handleRecharge}
                   disabled={!rechargeAmount}
@@ -740,11 +762,10 @@ export default function CustomerDashboardPage() {
 
       {/* Chat Widget */}
       {showChat && (
-        <div className={`fixed bottom-4 right-4 z-50 ${chatMinimized ? "w-80" : "w-96"} transition-all duration-300 bg-white rounded-lg shadow-lg flex flex-col border border-gray-300 max-h-[500px]`}>
-          
+        <div className={`fixed bottom-0 right-0 md:bottom-4 md:right-4 z-50 w-full md:w-96 ${chatMinimized ? "h-14" : "h-[80vh] md:h-auto"} md:max-h-[600px] transition-all duration-300 bg-white rounded-t-xl md:rounded-lg shadow-2xl flex flex-col border border-gray-300`}>
           {/* Chat Header */}
           <div className="bg-blue-600 p-4 flex items-center justify-between text-white rounded-t-lg">
-            <div className="flex items-center space-x-3">
+            <div className="flex items-center">
               <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
               <div>
                 <h2 className="text-lg font-semibold">Customer Support</h2>
@@ -753,13 +774,13 @@ export default function CustomerDashboardPage() {
             </div>
             <div className="flex items-center space-x-2">
               <button 
-                onClick={minimizeChat}
+                onClick={(e) => { e.stopPropagation(); minimizeChat(); }}
                 className="hover:bg-blue-700 p-1 rounded transition-colors"
               >
                 <BiMinus className="w-5 h-5" />
               </button>
               <button 
-                onClick={() => setShowChat(false)}
+                onClick={(e) => { e.stopPropagation(); setShowChat(false); }}
                 className="hover:bg-blue-700 p-1 rounded transition-colors"
               >
                 <BiX className="w-5 h-5" />
@@ -767,86 +788,90 @@ export default function CustomerDashboardPage() {
             </div>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 p-4 overflow-y-auto bg-gray-50 max-h-80 space-y-3">
-            {messages.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No messages yet. Start a conversation!</p>
-            ) : (
-              messages.map((msg) => (
-                <div 
-                  key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
-                  className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div 
-                    className={`max-w-[80%] px-4 py-2 rounded-2xl ${
-                      msg.sender === 'customer' 
-                        ? 'bg-blue-500 text-white rounded-br-none' 
-                        : 'bg-white text-gray-800 border rounded-bl-none'
-                    }`}
-                  >
-                    <p className="text-sm">{msg.text}</p>
-                    <div className={`flex items-center justify-end space-x-1 mt-1 ${
-                      msg.sender === 'customer' ? 'text-blue-100' : 'text-gray-500'
-                    }`}>
-                      <span className="text-xs">{formatTime(msg.timestamp)}</span>
-                      {getStatusIcon(msg)}
+          {!chatMinimized && (
+            <>
+              {/* Messages Area */}
+              <div className="flex-1 p-4 overflow-y-auto bg-gray-50 max-h-80 space-y-3">
+                {messages.length === 0 ? (
+                  <p className="text-center text-gray-500 py-8">No messages yet. Start a conversation!</p>
+                ) : (
+                  messages.map((msg) => (
+                    <div 
+                      key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
+                      className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div 
+                        className={`max-w-[80%] px-4 py-2 rounded-2xl ${
+                          msg.sender === 'customer' 
+                            ? 'bg-blue-500 text-white rounded-br-none' 
+                            : 'bg-white text-gray-800 border rounded-bl-none'
+                        }`}
+                      >
+                        <p className="text-sm">{msg.text}</p>
+                        <div className={`flex items-center justify-end space-x-1 mt-1 ${
+                          msg.sender === 'customer' ? 'text-blue-100' : 'text-gray-500'
+                        }`}>
+                          <span className="text-xs">{formatTime(msg.timestamp)}</span>
+                          {getStatusIcon(msg)}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                {/* Typing Indicator */}
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-2">
+                      <div className="flex space-x-1">
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">{typingEmployee} is typing...</p>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-            
-            {/* Typing Indicator */}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">{typingEmployee} is typing...</p>
-                </div>
-              </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Input Area */}
-          <div className="p-3 border-t border-gray-300 bg-white rounded-b-lg">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder={
-                  connectionStatus === 'connected' 
-                    ? "Type your message..." 
-                    : "Connecting to chat..."
-                }
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={handleKeyPress}
-                disabled={sending || connectionStatus !== 'connected'}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
-                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-              >
-                {sending ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <BiSend className="w-5 h-5" />
                 )}
-              </button>
-            </div>
-            {connectionStatus !== 'connected' && (
-              <p className="text-xs text-red-500 mt-2 text-center">
-                Cannot send messages - {connectionStatus}
-              </p>
-            )}
-          </div>
+                
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <div className="p-3 border-t border-gray-300 bg-white rounded-b-lg">
+                <div className="flex space-x-2">
+                  <input
+                    type="text"
+                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder={
+                      connectionStatus === 'connected' 
+                        ? "Type your message..." 
+                        : "Connecting to chat..."
+                    }
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    disabled={sending || connectionStatus !== 'connected'}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
+                    className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+                  >
+                    {sending ? (
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    ) : (
+                      <BiSend className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+                {connectionStatus !== 'connected' && (
+                  <p className="text-xs text-red-500 mt-2 text-center">
+                    Cannot send messages - {connectionStatus}
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -865,14 +890,14 @@ export default function CustomerDashboardPage() {
         </button>
       )}
 
-      {/* ChatBox Component */}
-      {user && (
+      {/* ChatBox Component - Commented out as we have inline chat */}
+      {/* {user && (
         <ChatBox 
           customerId={user.id} 
           customerName={user.name} 
           userRole="customer"
         />
-      )}
+      )} */}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import ExportButton from './ExportButton';
 
 /**
  * Reusable Activity Logs Component
@@ -169,11 +170,27 @@ export default function ActivityLogs({
   return (
     <div className="bg-white rounded-lg shadow">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-gray-200">
+      <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
         <h2 className="text-lg font-semibold text-gray-900">
           Activity Logs
           {pageName && <span className="text-sm font-normal text-gray-500 ml-2">({pageName})</span>}
         </h2>
+        <ExportButton 
+          data={logs} 
+          fileName={`activity_logs_${pageName || 'all'}`} 
+          columns={[
+            { header: 'Date', key: 'action_date' },
+            { header: 'Time', key: 'action_time' },
+            { header: 'Section', key: 'section' },
+            { header: 'Unique Code', key: 'unique_code' },
+            { header: 'Action', key: 'action' },
+            { header: 'User', key: 'user_name' },
+            { header: 'Field', key: 'field_name' },
+            { header: 'Old Value', key: 'old_value' },
+            { header: 'New Value', key: 'new_value' },
+            { header: 'Remarks', key: 'remarks' }
+          ]}
+        />
       </div>
 
       {/* Filters */}

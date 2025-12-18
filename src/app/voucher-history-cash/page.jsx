@@ -1,5 +1,6 @@
 'use client';
 
+import ExportButton from '@/components/ExportButton';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
@@ -55,13 +56,6 @@ export default function VoucherHistoryCash() {
     }
   };
 
-  const handleExport = () => {
-    const url = buildUrl({});
-    // append export flag
-    const sep = url.includes('?') ? '&' : '?';
-    window.location.href = url + sep + 'export=1';
-  };
-
   const openLog = async (voucherId) => {
     try {
       setLogModal({ open: true, voucherId, rows: [] });
@@ -101,7 +95,19 @@ export default function VoucherHistoryCash() {
               <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm" />
               <div className="flex gap-2 w-full md:w-auto">
                 <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-600 text-white px-3 md:px-4 py-2 rounded text-sm font-medium">Filter</button>
-                <button onClick={handleExport} className="flex-1 md:flex-none bg-green-600 text-white px-3 md:px-4 py-2 rounded text-sm font-medium">Export</button>
+                <ExportButton 
+                  data={rows} 
+                  fileName={`voucher_history_cash_${new Date().toISOString().split('T')[0]}`}
+                  columns={[
+                    { field: 'voucher_no', header: 'Voucher No' },
+                    { field: 'exp_date', header: 'Date', formatter: (row) => row.exp_date ? new Date(row.exp_date).toLocaleDateString('en-IN') : '' },
+                    { field: 'emp_name', header: 'Employee', formatter: (row) => row.emp_name || row.emp_id },
+                    { field: 'vehicle_no', header: 'Vehicle No' },
+                    { field: 'driver_name', header: 'Driver' },
+                    { field: 'item_details', header: 'Item', formatter: (row) => row.item_details || row.history_type },
+                    { field: 'history_amount', header: 'Amount', formatter: (row) => parseFloat(row.history_amount || 0).toFixed(2) }
+                  ]}
+                />
               </div>
             </div>
 

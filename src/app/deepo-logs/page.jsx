@@ -1,8 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import Link from 'next/link';
 
 function DeepoLogsContent() {
   const router = useRouter();

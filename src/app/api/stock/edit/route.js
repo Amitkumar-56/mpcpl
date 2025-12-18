@@ -1,9 +1,8 @@
 // src/app/api/stock/edit/route.js
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
-import { createAuditLog } from '@/lib/auditLog';
 
 // GET - Fetch stock data for editing
 export async function GET(request) {
@@ -67,27 +66,9 @@ export async function PUT(request) {
     }
 
     // Get user info for audit log
-    let userId = null;
-    let userName = 'System';
-    try {
-      const cookieStore = await cookies();
-      const token = cookieStore.get('token')?.value;
-      if (token) {
-        const decoded = verifyToken(token);
-        if (decoded) {
-          userId = decoded.userId || decoded.id;
-          const users = await executeQuery(
-            `SELECT id, name FROM employee_profile WHERE id = ?`,
-            [userId]
-          );
-          if (users.length > 0) {
-            userName = users[0].name;
-          }
-        }
-      }
-    } catch (userError) {
-      console.error('Error getting user info:', userError);
-    }
+    const currentUser = await getCurrentUser();
+    const userId = currentUser?.userId || null;
+    const userName = currentUser?.userName || 'System';
 
     // Get old stock data
     const oldStockQuery = `SELECT * FROM stock WHERE id = ?`;

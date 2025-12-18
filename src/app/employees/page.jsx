@@ -6,46 +6,155 @@ import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaEdit, FaEye, FaToggleOff, FaToggleOn, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaTrash } from 'react-icons/fa';
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState({});
-  const { user } = useSession();
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
+  const { user, loading: authLoading } = useSession();
   const isAdmin = user?.role === 5;
   const router = useRouter();
+
+  // Role names mapping
+  const roleNames = {
+    1: "Staff",
+    2: "Incharge",
+    3: "Team Leader",
+    4: "Accountant",
+    5: "Admin",
+    6: "Driver"
+  };
+
+  // ✅ FIXED: Check permissions first
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setHasPermission(false);
+      setLoading(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchEmployees();
+      return;
+    }
+
+    try {
+      // ✅ FIXED: Use correct API endpoint
+      const response = await fetch(
+        `/api/permissions?module=${encodeURIComponent('Employees')}`,
+        {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+            'Pragma': 'no-cache'
+          }
+        }
+      );
+      
+      if (!response.ok) {
+        console.error('Permission check failed:', response.status);
+        setHasPermission(false);
+        setLoading(false);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      console.log('🔐 Employees List Permission check:', {
+        userId: user.id,
+        role: user.role,
+        roleName: roleNames[user.role] || 'Unknown',
+        permissions: data
+      });
+
+      if (data.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: data.can_view,
+          can_edit: data.can_edit,
+          can_delete: data.can_delete
+        });
+        fetchEmployees();
+      } else {
+        setHasPermission(false);
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error('❌ Permission check error:', error);
+      setHasPermission(false);
+      setLoading(false);
+    }
+  };
 
   const fetchEmployees = async () => {
     try {
       setLoading(true);
       const res = await fetch('/api/employee');
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
       setEmployees(data);
     } catch (err) {
-      console.error(err);
+      console.error('Error fetching employees:', err);
+      alert('Failed to load employees. Please try again.');
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchEmployees();
-  }, []);
-
   const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this employee?')) return;
+    if (!permissions.can_delete && !isAdmin) {
+      alert('You do not have permission to delete employees.');
+      return;
+    }
+    
+    if (!confirm('Are you sure you want to delete this employee?\nThis action cannot be undone.')) {
+      return;
+    }
+    
     try {
-      await fetch(`/api/employee?id=${id}`, { method: 'DELETE' });
-      fetchEmployees();
+      const res = await fetch(`/api/employee?id=${id}`, { 
+        method: 'DELETE' 
+      });
+      
+      if (!res.ok) {
+        throw new Error('Failed to delete employee');
+      }
+      
+      const result = await res.json();
+      alert(result.message || 'Employee deleted successfully');
+      fetchEmployees(); // Refresh the list
     } catch (err) {
-      console.error(err);
+      console.error('Delete error:', err);
+      alert('Failed to delete employee. Please try again.');
     }
   };
 
   const handleStatusToggle = async (employeeId, currentStatus) => {
-    if (!isAdmin) {
-      alert('Only admin can change employee status');
+    // Check permission
+    if (!permissions.can_edit && !isAdmin) {
+      alert('You do not have permission to change employee status');
       return;
     }
 
@@ -59,21 +168,24 @@ export default function EmployeeHistory() {
     try {
       setUpdatingStatus(prev => ({ ...prev, [employeeId]: true }));
       
-      const res = await fetch('/api/employee/update-status', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include', // Include cookies for authentication
-        body: JSON.stringify({ employeeId, status: newStatus })
+      // ✅ FIXED: Use the employee PUT endpoint to update status
+      const formData = new FormData();
+      formData.append('id', employeeId);
+      formData.append('status', newStatus.toString());
+      
+      const res = await fetch('/api/employee', {
+        method: 'PUT',
+        body: formData
       });
 
       const result = await res.json();
 
       if (!res.ok || !result.success) {
-        throw new Error(result.error || 'Failed to update status');
+        throw new Error(result.error || result.message || 'Failed to update status');
       }
 
       alert(result.message || `Employee ${action}d successfully`);
-      fetchEmployees();
+      fetchEmployees(); // Refresh the list
     } catch (err) {
       console.error('Error updating status:', err);
       alert(err.message || 'Failed to update employee status');
@@ -82,163 +194,382 @@ export default function EmployeeHistory() {
     }
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return 'Invalid Date';
+    }
+  };
+
+  // Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar activePage="Employees" />
+        <div className="flex flex-col flex-1">
+          <Header />
+          <main className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied if no permission
+  if (!hasPermission && !authLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar activePage="Employees" />
+        <div className="flex flex-col flex-1">
+          <Header />
+          <main className="flex-1 flex items-center justify-center p-6">
+            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-4">
+                You don't have permission to view employees.
+              </p>
+              <p className="text-sm text-gray-500 mb-6">
+                Your Role: <span className="font-semibold">{user ? roleNames[user.role] || user.role : 'Unknown'}</span>
+              </p>
+              <button
+                onClick={() => router.push('/dashboard')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="md:sticky md:top-0 md:h-screen w-full md:w-64 z-20">
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Fixed Sidebar */}
+      <div className="fixed left-0 top-0 h-screen hidden md:block">
         <Sidebar activePage="Employees" />
       </div>
 
-      {/* Main content */}
-      <div className="flex-1 flex flex-col w-full">
-        {/* Header */}
-        <div className="sticky top-0 z-10">
+      {/* Main Content with fixed header and footer */}
+      <div className="flex flex-col flex-1 md:ml-64 ml-0"> {/* ml-64 sidebar width ke liye */}
+        {/* Fixed Header */}
+        <div className="fixed top-0 right-0 md:left-64 left-0 h-16 z-10 bg-white border-b">
           <Header />
         </div>
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col p-4 md:p-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4 gap-2">
-            <div>
-              <h1 className="text-2xl font-bold">Employee History</h1>
-              <p className="text-gray-600 text-sm mt-1">
-                Total Employees: <span className="font-bold text-indigo-600">{employees.length}</span>
-                {' | '}
-                Active: <span className="font-bold text-green-600">{employees.filter(e => e.status === 1).length}</span>
-                {' | '}
-                Inactive: <span className="font-bold text-red-600">{employees.filter(e => e.status === 0).length}</span>
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => router.push('/employees/activity-logs')}
-                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 flex items-center gap-1"
-              >
-                📋 Activity Logs
-              </button>
-              <button
-                onClick={() => router.push('/employees/add')}
-                className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700 flex items-center gap-1"
-              >
-                + Add Employee
-              </button>
-            </div>
-          </div>
-
-          {/* Scrollable employee list */}
-          <div className="flex-1 overflow-hidden bg-white rounded shadow">
-            {loading ? (
-              <div className="flex justify-center items-center h-64 md:h-full">
-                <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500"></div>
+        {/* Scrollable Main Content */}
+        <main className="flex-1 mt-16 overflow-y-auto">
+          <div className="p-6">
+            {/* Header Section */}
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>
+                <p className="text-sm text-gray-600 mt-1">
+                  Manage your employees and their permissions
+                </p>
               </div>
-            ) : (
-              <div className="overflow-x-auto h-full">
-                <table className="min-w-full border-collapse">
-                  <thead className="sticky top-0 bg-gray-100">
-                    <tr>
-                      <th className="border px-4 py-2 text-left">#</th>
-                      <th className="border px-4 py-2 text-left">Name</th>
-                      <th className="border px-4 py-2 text-left">Email</th>
-                      <th className="border px-4 py-2 text-left">Role</th>
-                      <th className="border px-4 py-2 text-left">Salary</th>
-                      <th className="border px-4 py-2 text-left">Status</th>
-                      <th className="border px-4 py-2 text-left">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {employees.length > 0 ? (
-                      employees.map((emp, idx) => (
+              
+              <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+                {/* Activity Logs Button */}
+                <button
+                  onClick={() => router.push('/employees/activity-logs')}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Activity Logs
+                </button>
+                
+                {/* Add Employee Button - Only show if user has permission */}
+                {(permissions.can_edit || isAdmin) && (
+                  <button
+                    onClick={() => router.push('/employees/add')}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
+                  >
+                    <FaPlus className="w-4 h-4" />
+                    Add Employee
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="bg-white border rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Total Employees</p>
+                    <p className="text-2xl font-bold">{employees.length}</p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-full">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 3.136a5.5 5.5 0 00-11 0" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white border rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Active</p>
+                    <p className="text-2xl font-bold text-green-600">
+                      {employees.filter(e => e.status === 1).length}
+                    </p>
+                  </div>
+                  <div className="bg-green-100 p-3 rounded-full">
+                    <FaToggleOn className="w-6 h-6 text-green-600" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white border rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Inactive</p>
+                    <p className="text-2xl font-bold text-red-600">
+                      {employees.filter(e => e.status === 0).length}
+                    </p>
+                  </div>
+                  <div className="bg-red-100 p-3 rounded-full">
+                    <FaToggleOff className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="bg-white border rounded-lg p-4 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-600">Admin Users</p>
+                    <p className="text-2xl font-bold text-purple-600">
+                      {employees.filter(e => e.role === 5).length}
+                    </p>
+                  </div>
+                  <div className="bg-purple-100 p-3 rounded-full">
+                    <svg className="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5.121 17.804A7 7 0 0114.828 17H19a2 2 0 002-2v-4a2 2 0 00-2-2h-1.828c-.346 0-.682.044-1.006.127l-2.712-.734A3 3 0 0012.464 7c-.85 0-1.66.34-2.263.94l-2.349 2.35A3 3 0 005 12.828V17a2 2 0 002 2h.121z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Employee Table */}
+            <div className="bg-white border rounded-lg shadow-sm overflow-hidden mb-16"> {/* mb-16 for footer space */}
+              <div className="p-4 border-b bg-gray-50">
+                <h2 className="text-lg font-semibold text-gray-900">Employee List</h2>
+                <p className="text-sm text-gray-600">
+                  Showing {employees.length} employees
+                </p>
+              </div>
+              
+              {loading ? (
+                <div className="flex justify-center items-center h-64">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading employees...</p>
+                  </div>
+                </div>
+              ) : employees.length === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-gray-400 mb-4">
+                    <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5 3.136a5.5 5.5 0 00-11 0" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No Employees Found</h3>
+                  <p className="text-gray-600 mb-6">Get started by adding your first employee.</p>
+                  {(permissions.can_edit || isAdmin) && (
+                    <button
+                      onClick={() => router.push('/employees/add')}
+                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"
+                    >
+                      <FaPlus className="w-4 h-4" />
+                      Add First Employee
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">#</th>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Employee Details</th>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Role</th>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Salary</th>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Status</th>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Created</th>
+                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {employees.map((emp, idx) => (
                         <tr key={emp.id} className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
-                          <td className="border px-4 py-2">{idx + 1}</td>
-                          <td className="border px-4 py-2">{emp.name}</td>
-                          <td className="border px-4 py-2">{emp.email}</td>
-                          <td className="border px-4 py-2">{roleName(emp.role)}</td>
-                          <td className="border px-4 py-2">₹{emp.salary?.toLocaleString('en-IN') || '0'}</td>
-                          <td className="border px-4 py-2">
-                            <span className={`px-2 py-1 rounded text-xs font-medium ${
-                              emp.status === 1 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {emp.status === 1 ? 'Active' : 'Inactive'}
-                            </span>
+                          <td className="p-3 border-b">
+                            <div className="text-sm text-gray-900">{idx + 1}</div>
                           </td>
-                          <td className="border px-4 py-2 flex flex-wrap gap-2">
-                            <button
-                              onClick={() => router.push(`/employees/view?id=${emp.id}`)}
-                              className="p-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                              title="View"
-                            >
-                              <FaEye />
-                            </button>
-                            <button
-                              onClick={() => router.push(`/employees/edit?id=${emp.id}`)}
-                              className="p-2 bg-green-500 text-white rounded hover:bg-green-600"
-                              title="Edit"
-                            >
-                              <FaEdit />
-                            </button>
-                            {isAdmin && (
-                              <button
-                                onClick={() => handleStatusToggle(emp.id, emp.status)}
-                                disabled={updatingStatus[emp.id]}
-                                className={`p-2 rounded hover:opacity-80 ${
-                                  emp.status === 1
-                                    ? 'bg-yellow-500 text-white'
-                                    : 'bg-gray-500 text-white'
-                                }`}
-                                title={emp.status === 1 ? 'Deactivate' : 'Activate'}
-                              >
-                                {updatingStatus[emp.id] ? (
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                                ) : emp.status === 1 ? (
-                                  <FaToggleOn className="text-lg" />
+                          <td className="p-3 border-b">
+                            <div className="flex items-center">
+                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                {emp.picture && emp.picture !== 'default.png' ? (
+                                  <img 
+                                    src={`/uploads/profiles/${emp.picture}`} 
+                                    alt={emp.name}
+                                    className="h-10 w-10 rounded-full object-cover"
+                                  />
                                 ) : (
-                                  <FaToggleOff className="text-lg" />
+                                  <span className="text-blue-600 font-semibold">
+                                    {emp.name?.charAt(0).toUpperCase() || 'U'}
+                                  </span>
                                 )}
-                              </button>
-                            )}
-                            <button
-                              onClick={() => handleDelete(emp.id)}
-                              className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
-                              title="Delete"
-                            >
-                              <FaTrash />
-                            </button>
+                              </div>
+                              <div>
+                                <div className="font-medium text-gray-900">{emp.name}</div>
+                                <div className="text-sm text-gray-600">{emp.email}</div>
+                                <div className="text-xs text-gray-500">Code: {emp.emp_code || 'N/A'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3 border-b">
+                            <div className="flex flex-col">
+                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                emp.role === 5 
+                                  ? 'bg-purple-100 text-purple-800'
+                                  : emp.role === 3 || emp.role === 2 || emp.role === 4
+                                  ? 'bg-green-100 text-green-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {roleNames[emp.role] || `Role ${emp.role}`}
+                              </span>
+                              {emp.role_name && (
+                                <span className="text-xs text-gray-500 mt-1">{emp.role_name}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-3 border-b">
+                            <div className="text-gray-900">₹{emp.salary?.toLocaleString('en-IN') || '0'}</div>
+                          </td>
+                          <td className="p-3 border-b">
+                            <div className="flex items-center">
+                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                emp.status === 1 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {emp.status === 1 ? 'Active' : 'Inactive'}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-3 border-b">
+                            <div className="text-sm text-gray-600">
+                              {formatDate(emp.created_at)}
+                            </div>
+                          </td>
+                          <td className="p-3 border-b">
+                            <div className="flex items-center space-x-2">
+                              {/* View Button */}
+                              {permissions.can_view && (
+                                <button
+                                  onClick={() => router.push(`/employees/view?id=${emp.id}`)}
+                                  className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                  title="View Details"
+                                >
+                                  <FaEye className="w-4 h-4" />
+                                </button>
+                              )}
+                              
+                              {/* Edit Button */}
+                              {permissions.can_edit && (
+                                <button
+                                  onClick={() => router.push(`/employees/edit?id=${emp.id}`)}
+                                  className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                  title="Edit Employee"
+                                >
+                                  <FaEdit className="w-4 h-4" />
+                                </button>
+                              )}
+                              
+                              {/* Status Toggle Button */}
+                              {(permissions.can_edit || isAdmin) && (
+                                <button
+                                  onClick={() => handleStatusToggle(emp.id, emp.status)}
+                                  disabled={updatingStatus[emp.id]}
+                                  className={`p-2 rounded-lg transition-colors ${
+                                    emp.status === 1
+                                      ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                  }`}
+                                  title={emp.status === 1 ? 'Deactivate' : 'Activate'}
+                                >
+                                  {updatingStatus[emp.id] ? (
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                                  ) : emp.status === 1 ? (
+                                    <FaToggleOn className="w-4 h-4" />
+                                  ) : (
+                                    <FaToggleOff className="w-4 h-4" />
+                                  )}
+                                </button>
+                              )}
+                              
+                              {/* Delete Button */}
+                              {permissions.can_delete && (
+                                <button
+                                  onClick={() => handleDelete(emp.id)}
+                                  className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
+                                  title="Delete Employee"
+                                >
+                                  <FaTrash className="w-4 h-4" />
+                                </button>
+                              )}
+                              
+                              {/* No Actions Message */}
+                              {!permissions.can_view && !permissions.can_edit && !permissions.can_delete && (
+                                <span className="text-sm text-gray-400">No actions available</span>
+                              )}
+                            </div>
                           </td>
                         </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="7" className="border px-4 py-4 text-center">
-                          No employees found. Click "Add Employee" to create one.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              
+              {/* Table Footer */}
+              {employees.length > 0 && (
+                <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
+                  <div className="text-sm text-gray-600">
+                    Showing <span className="font-medium">{employees.length}</span> of <span className="font-medium">{employees.length}</span> employees
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    Last updated: {new Date().toLocaleTimeString('en-IN')}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        </main>
 
-        {/* Footer */}
-        <div className="sticky bottom-0">
+        {/* Fixed Footer at bottom */}
+        <div className="fixed bottom-0 right-0 md:left-64 left-0 h-16 bg-white border-t z-10">
           <Footer />
         </div>
       </div>
     </div>
   );
-}
-
-function roleName(role) {
-  switch (role) {
-    case 1: return 'Staff';
-    case 2: return 'Incharge';
-    case 3: return 'Team Leader';
-    case 4: return 'Accountant';
-    case 5: return 'Admin';
-    case 6: return 'Driver';
-    default: return 'Unknown';
-  }
 }
