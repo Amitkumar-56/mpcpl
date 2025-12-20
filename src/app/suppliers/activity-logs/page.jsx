@@ -1,13 +1,43 @@
 'use client';
 
+import ActivityLogs from '@/components/ActivityLogs';
+import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
-import ActivityLogs from '@/components/ActivityLogs';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
 
 export default function SupplierActivityLogsPage() {
   const router = useRouter();
+  
+  useEffect(() => {
+    try {
+      const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      let userId = null;
+      let userName = 'System';
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        userId = parsed?.id || parsed?.userId || null;
+        userName = parsed?.name || 'System';
+      }
+      const uniqueCode = `PAGEVIEW-SUPPLIER-${Date.now()}`;
+      fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page: 'Supplier Management',
+          section: 'Activity Logs',
+          action: 'view',
+          uniqueCode,
+          userId,
+          userName,
+          recordType: 'page_view',
+          remarks: 'Visited Supplier Activity Logs page'
+        })
+      }).catch(() => {});
+    } catch {}
+  }, []);
 
   return (
     <div className="flex h-screen bg-gray-50">
@@ -46,6 +76,7 @@ export default function SupplierActivityLogsPage() {
             limit={50}
           />
         </main>
+        <Footer />
       </div>
     </div>
   );

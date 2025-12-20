@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
+import Footer from "../../components/Footer";
+import Header from "../../components/Header";
+import Sidebar from "../../components/sidebar";
+
 // Inner component that uses useSearchParams
 function ItemsListContent() {
   const router = useRouter();
@@ -161,35 +165,11 @@ function ItemsListContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
-          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 sm:gap-0 py-4 sm:py-6">
-            <div className="flex items-center">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Items</h1>
-            </div>
-            <nav className="flex" aria-label="Breadcrumb">
-              <ol className="flex items-center space-x-2 sm:space-x-4">
-                <li>
-                  <Link href="/" className="text-xs sm:text-sm text-gray-400 hover:text-gray-500">
-                    Home
-                  </Link>
-                </li>
-                <li>
-                  <div className="flex items-center">
-                    <svg className="flex-shrink-0 h-4 w-4 sm:h-5 sm:w-5 text-gray-300" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
-                    </svg>
-                    <span className="ml-2 sm:ml-4 text-xs sm:text-sm font-medium text-gray-500">Items List</span>
-                  </div>
-                </li>
-              </ol>
-            </nav>
-          </div>
-        </div>
-      </header>
-
+   <div className="flex h-screen bg-gray-50">
+          <Sidebar />
+          <div className="flex-1 flex flex-col overflow-hidden">
+            <Header />
+      
       <main className="max-w-7xl mx-auto py-4 sm:py-6 px-3 sm:px-4 lg:px-8">
         {/* Error Message */}
         {error && (
@@ -403,7 +383,9 @@ function ItemsListContent() {
           )}
         </div>
       </main>
-    </div>
+     <Footer />
+         </div>
+       </div>
   );
 }
 

@@ -23,6 +23,7 @@ export default function SocketHandler(req, res) {
         pingTimeout: 60000,
       });
       res.socket.server.io = io;
+      try { global._io = io; } catch (e) {}
       io.on("connection", (socket) => {
         socket.on("customer_join", async (data) => {
           try {
@@ -233,6 +234,7 @@ export default function SocketHandler(req, res) {
     }
   } else {
     io = res.socket.server.io;
+    try { global._io = io; } catch (e) {}
   }
   res.end("ok");
 }

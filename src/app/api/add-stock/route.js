@@ -5,12 +5,28 @@ import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
-    const { station_id, product_id, quantity, remarks } = await request.json();
+    const { station_id, product_id, quantity, remarks, agent_id } = await request.json();
     
     // Get user info for audit log
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
     const userName = currentUser?.userName || 'System';
+    
+    // If agent_id is provided, get agent name
+    let agentName = null;
+    if (agent_id) {
+      try {
+        const agentResult = await executeQuery(
+          `SELECT CONCAT(first_name, ' ', last_name) AS name FROM agents WHERE id = ?`,
+          [agent_id]
+        );
+        if (agentResult.length > 0) {
+          agentName = agentResult[0].name;
+        }
+      } catch (agentError) {
+        console.error('Error fetching agent name:', agentError);
+      }
+    }
 
     // Validate required fields
     if (!station_id || !product_id || !quantity) {
@@ -58,20 +74,48 @@ export async function POST(request) {
       ]);
     }
 
-    // Insert into stock_history with remarks (if stock_history table exists)
+    // Insert into stock_history with remarks and agent_id (if stock_history table exists)
     try {
-      const historyQuery = `
+      const historyQuery = agent_id ? `
+        INSERT INTO stock_history (fs_id, product_id, quantity, remarks, agent_id, created_at) 
+        VALUES (?, ?, ?, ?, ?, NOW())
+      ` : `
         INSERT INTO stock_history (fs_id, product_id, quantity, remarks, created_at) 
         VALUES (?, ?, ?, ?, NOW())
       `;
-      await executeQuery(historyQuery, [
-        station_id, 
-        product_id, 
-        parseInt(quantity), 
-        remarks || 'Stock added'
-      ]);
+      
+      const historyParams = agent_id 
+        ? [station_id, product_id, parseInt(quantity), remarks || 'Stock added', agent_id]
+        : [station_id, product_id, parseInt(quantity), remarks || 'Stock added'];
+        
+      await executeQuery(historyQuery, historyParams);
     } catch (historyError) {
       console.log('stock_history table might not exist, skipping...');
+    }
+    
+    // Also insert into filling_history for inward transaction
+    try {
+      const fillingHistoryQuery = `
+        INSERT INTO filling_history 
+        (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, agent_id, created_at) 
+        VALUES (?, ?, ?, 'Inward', 
+          (SELECT COALESCE(stock, 0) FROM filling_station_stocks WHERE fs_id = ? AND product = ?),
+          (SELECT COALESCE(stock, 0) FROM filling_station_stocks WHERE fs_id = ? AND product = ?),
+          NOW(), ?, ?, NOW())
+      `;
+      await executeQuery(fillingHistoryQuery, [
+        station_id,
+        product_id,
+        parseInt(quantity),
+        station_id,
+        product_id,
+        station_id,
+        product_id,
+        userId || null,
+        agent_id || null
+      ]);
+    } catch (fillingError) {
+      console.log('filling_history insert failed, skipping...', fillingError);
     }
 
     // Get stock ID and old value for audit log
@@ -103,16 +147,17 @@ export async function POST(request) {
     }
 
     // Create comprehensive audit log entry
+    const logUserName = agentName || userName;
     await createAuditLog({
       page: 'Stock Management',
       uniqueCode: stockId ? `STOCK-${stockId}` : `NEW-STOCK-${station_id}-${product_id}`,
       section: 'Add Stock',
-      userId: userId,
-      userName: userName,
+      userId: agent_id ? null : userId,
+      userName: logUserName,
       action: existingRecord.length > 0 ? 'update' : 'add',
-      remarks: remarks || `Stock ${existingRecord.length > 0 ? 'updated' : 'added'} for ${stationName} - ${productName}`,
+      remarks: remarks || `Stock ${existingRecord.length > 0 ? 'updated' : 'added'} for ${stationName} - ${productName}${agent_id ? ' (by Agent)' : ''}`,
       oldValue: { stock: oldStock, station_id, product_id },
-      newValue: { stock: newStock, station_id, product_id, quantity_added: parseInt(quantity) },
+      newValue: { stock: newStock, station_id, product_id, quantity_added: parseInt(quantity), agent_id: agent_id || null },
       fieldName: 'stock',
       recordType: 'stock',
       recordId: stockId

@@ -4,6 +4,9 @@ import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 
 // Loading components
 function LoadingSpinner() {
@@ -519,8 +522,17 @@ function TankerViewContent() {
 // Main component with Suspense boundary
 export default function TankerView() {
   return (
-    <Suspense fallback={<PDFSkeleton />}>
-      <TankerViewContent />
-    </Suspense>
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 to-blue-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col h-screen">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <Suspense fallback={<PDFSkeleton />}>
+            <TankerViewContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

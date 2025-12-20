@@ -7,20 +7,20 @@ import Footer from "@/components/Footer";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  BiBell,
-  BiCheckDouble,
-  BiHistory,
-  BiMessageRounded,
-  BiMinus,
-  BiReceipt,
-  BiRefresh,
-  BiSend,
-  BiTime,
-  BiUser,
-  BiWallet,
-  BiWifi,
-  BiWifiOff,
-  BiX
+    BiBell,
+    BiCheckDouble,
+    BiHistory,
+    BiMessageRounded,
+    BiMinus,
+    BiReceipt,
+    BiRefresh,
+    BiSend,
+    BiTime,
+    BiUser,
+    BiWallet,
+    BiWifi,
+    BiWifiOff,
+    BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -109,9 +109,7 @@ export default function CustomerDashboardPage() {
       try {
         await fetch('/api/socket');
       } catch (e) {}
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-      const newSocket = io(socketUrl, {
+      const newSocket = io({
         path: '/api/socket',
         transports: ['websocket', 'polling'],
         reconnection: true,

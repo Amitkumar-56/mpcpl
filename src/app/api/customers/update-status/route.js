@@ -65,6 +65,67 @@ export async function PATCH(request) {
       [status ? 1 : 0, customerId]
     );
 
+    // Ensure customer_permissions exists
+    try {
+      await executeQuery(`
+        CREATE TABLE IF NOT EXISTS customer_permissions (
+          id INT AUTO_INCREMENT PRIMARY KEY,
+          customer_id INT NOT NULL,
+          module_name VARCHAR(255) NOT NULL,
+          can_view TINYINT(1) DEFAULT 0,
+          can_edit TINYINT(1) DEFAULT 0,
+          can_delete TINYINT(1) DEFAULT 0,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          INDEX idx_customer (customer_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+      `);
+    } catch (permErr) {
+      // continue even if ensure fails
+      console.error('Ensure customer_permissions error:', permErr);
+    }
+
+    // Sync key modules permissions on activate/deactivate
+    const modulesToSync = ['Products', 'Loading Station'];
+    for (const moduleName of modulesToSync) {
+      // Check existing permission
+      const existing = await executeQuery(
+        `SELECT id FROM customer_permissions WHERE customer_id = ? AND module_name = ? LIMIT 1`,
+        [customerId, moduleName]
+      );
+      if (existing.length > 0) {
+        await executeQuery(
+          `UPDATE customer_permissions SET can_view = ?, can_edit = ? WHERE id = ?`,
+          [status ? 1 : 0, status ? 1 : 0, existing[0].id]
+        );
+      } else {
+        await executeQuery(
+          `INSERT INTO customer_permissions (customer_id, module_name, can_view, can_edit, created_at)
+           VALUES (?, ?, ?, ?, NOW())`,
+          [customerId, moduleName, status ? 1 : 0, status ? 1 : 0]
+        );
+      }
+    }
+
+    // Create audit log for status change
+    try {
+      const { createAuditLog } = await import('@/lib/auditLog');
+      await createAuditLog({
+        page: 'Customers',
+        uniqueCode: customerId.toString(),
+        section: 'Customer Management',
+        userId: decoded.userId,
+        userName: 'Admin',
+        action: status ? 'approve' : 'reject',
+        remarks: status ? 'Customer enabled' : 'Customer disabled',
+        oldValue: { status: customer[0].status },
+        newValue: { status: status ? 1 : 0 },
+        recordType: 'customer',
+        recordId: customerId
+      });
+    } catch (auditErr) {
+      console.error('Audit log error:', auditErr);
+    }
+
     return NextResponse.json({ 
       success: true,
       message: `Customer ${status ? 'activated' : 'deactivated'} successfully` 

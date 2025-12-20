@@ -7,7 +7,7 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import Link from "next/link";
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BiCoin,
   BiEdit,
@@ -25,6 +25,7 @@ function CustomersPage() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [loading, setLoading] = useState(false);
   const [permissions, setPermissions] = useState({ 
     can_edit: false, 
     can_view: false, 
@@ -32,22 +33,19 @@ function CustomersPage() {
   });
   const [hasPermission, setHasPermission] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all"); // "all", "prepaid", "postpaid", "daylimit"
   const [updatingStatus, setUpdatingStatus] = useState({});
-  const { user, loading: authLoading } = useSession();
+  const { user } = useSession();
   const isAdmin = user?.role === 5;
 
   // Check permissions first
   useEffect(() => {
-    if (!authLoading && !user) {
-      return;
-    }
     if (user) {
       checkPermissions();
     }
-  }, [user, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const checkPermissions = async () => {
     if (!user || !user.id) return;
@@ -119,13 +117,11 @@ function CustomersPage() {
       } else {
         setHasPermission(false);
         setError('You do not have permission to view customers.');
-        setLoading(false);
       }
     } catch (error) {
       console.error('Permission check error:', error);
       setHasPermission(false);
       setError('Failed to check permissions.');
-      setLoading(false);
     }
   };
 
@@ -485,7 +481,7 @@ function CustomersPage() {
   };
 
   // Show access denied if no permission
-  if (!authLoading && user && !hasPermission) {
+  if (user && !hasPermission) {
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
         <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
@@ -1364,9 +1360,5 @@ function CustomersPage() {
 }
 
 export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <CustomersPage />
-    </Suspense>
-  );
+  return <CustomersPage />;
 }

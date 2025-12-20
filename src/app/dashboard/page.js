@@ -7,22 +7,22 @@ import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  BiCalendar,
-  BiChart,
-  BiCheckCircle,
-  BiDollar,
-  BiError,
-  BiGroup,
-  BiHide,
-  BiMessageRounded,
-  BiPackage,
-  BiRefresh,
-  BiSend,
-  BiShoppingBag,
-  BiShow,
-  BiTrendingDown,
-  BiTrendingUp,
-  BiX
+    BiCalendar,
+    BiChart,
+    BiCheckCircle,
+    BiDollar,
+    BiError,
+    BiGroup,
+    BiHide,
+    BiMessageRounded,
+    BiPackage,
+    BiRefresh,
+    BiSend,
+    BiShoppingBag,
+    BiShow,
+    BiTrendingDown,
+    BiTrendingUp,
+    BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -64,7 +64,6 @@ export default function DashboardPage() {
     pendingPayments: 0,
     clearedPayments: 0,
   });
-  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showDetailedView, setShowDetailedView] = useState(false);
@@ -80,6 +79,7 @@ export default function DashboardPage() {
   const messagesEndRef = useRef(null);
   const [notifCount, setNotifCount] = useState(0);
   const [socketConnected, setSocketConnected] = useState(false);
+  const ringIntervalRef = useRef(null);
 
   // Helper function to remove duplicates from activeChats based on customerId
   const deduplicateChats = useCallback((chats) => {
@@ -232,11 +232,7 @@ export default function DashboardPage() {
       try {
         await fetch('/api/socket');
         
-        const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-        const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-        
-        console.log('Dashboard: Connecting to socket:', socketUrl);
-        socketInstance = io(socketUrl, {
+        socketInstance = io({
           path: '/api/socket',
           transports: ['websocket', 'polling'],
           reconnection: true,
@@ -279,6 +275,23 @@ export default function DashboardPage() {
           const isCurrentChat = selectedCustomer && selectedCustomer.customerId === data.customerId;
           if (!isCurrentChat) {
             setNotifCount(prev => prev + 1);
+          }
+          if (!showChat && !ringIntervalRef.current) {
+            ringIntervalRef.current = setInterval(() => {
+              try {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                const oscillator = audioContext.createOscillator();
+                const gainNode = audioContext.createGain();
+                oscillator.connect(gainNode);
+                gainNode.connect(audioContext.destination);
+                oscillator.frequency.value = 800;
+                oscillator.type = 'sine';
+                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
+                oscillator.start();
+                oscillator.stop(audioContext.currentTime + 0.2);
+              } catch {}
+            }, 2000);
           }
           
           // Update active chats
@@ -329,6 +342,35 @@ export default function DashboardPage() {
             setNotifCount(prev => Math.max(0, prev - 1));
           }
         });
+        
+        // Also handle server broadcast for employees
+        socketInstance.on('customer_message_notification', (data) => {
+          console.log('Dashboard: Received customer_message_notification:', data);
+          const isCurrentChat = selectedCustomer && selectedCustomer.customerId === data.customerId;
+          if (!isCurrentChat) {
+            setNotifCount(prev => prev + 1);
+          }
+          setActiveChats(prev => {
+            const existingChatIndex = prev.findIndex(chat => chat.customerId === data.customerId);
+            const newChatItem = {
+              customerId: data.customerId,
+              customerName: data.customerName,
+              lastMessage: {
+                text: data.text,
+                sender: 'customer',
+                timestamp: data.timestamp
+              },
+              unreadCount: (prev[existingChatIndex]?.unreadCount || 0) + 1
+            };
+            if (existingChatIndex !== -1) {
+              const updated = [...prev];
+              updated[existingChatIndex] = newChatItem;
+              return updated;
+            } else {
+              return [newChatItem, ...prev];
+            }
+          });
+        });
 
         // Handle message sent confirmation
         socketInstance.on('message_sent', (data) => {
@@ -369,6 +411,10 @@ export default function DashboardPage() {
         socketInstance.disconnect();
         setSocketConnected(false);
       }
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current);
+        ringIntervalRef.current = null;
+      }
     };
   }, [sessionUser, selectedCustomer, loadActiveChatSessions, markMessagesAsRead, deduplicateChats]);
 
@@ -379,13 +425,8 @@ export default function DashboardPage() {
       return;
     }
 
-    const loadData = async () => {
-      setLoading(true);
-      await fetchDashboardData();
-      setLoading(false);
-    };
-
-    loadData();
+    // Load data immediately - no loading state
+    fetchDashboardData();
   }, [sessionUser, router, fetchDashboardData]);
 
   // Load active chats when chat is opened
@@ -401,18 +442,6 @@ export default function DashboardPage() {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [employeeMessages, selectedCustomer]);
-
-  // Fast loading component
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen bg-gradient-to-br from-blue-50 to-purple-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto mb-3"></div>
-          <p className="text-gray-600 text-sm">Loading Dashboard...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">

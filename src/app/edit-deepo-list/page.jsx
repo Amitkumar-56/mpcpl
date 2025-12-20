@@ -2,6 +2,9 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 
 // Inner component that uses useSearchParams
 function EditDeepoListContent() {
@@ -535,8 +538,17 @@ function EditDeepoListContent() {
 // Main component with Suspense
 export default function EditDeepoList() {
   return (
-    <Suspense fallback={null}>
-      <EditDeepoListContent />
-    </Suspense>
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 to-blue-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col h-screen">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <Suspense fallback={null}>
+            <EditDeepoListContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { BiMessageRounded, BiSend, BiX, BiUser, BiChevronDown, BiSearch } from 'react-icons/bi';
+import { useEffect, useRef, useState } from 'react';
+import { BiMessageRounded, BiSearch, BiSend, BiUser, BiX } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 
 export default function EmployeeChatBox({ employeeId, employeeName }) {
@@ -19,6 +19,8 @@ export default function EmployeeChatBox({ employeeId, employeeName }) {
   const [searchQuery, setSearchQuery] = useState('');
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
+  const [ringing, setRinging] = useState(false);
+  const ringIntervalRef = useRef(null);
 
   // Create notification sound programmatically
   useEffect(() => {
@@ -48,12 +50,9 @@ export default function EmployeeChatBox({ employeeId, employeeName }) {
 
   // Initialize socket connection
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-    const newSocket = io(socketUrl, {
+    const newSocket = io({
       path: '/api/socket',
       transports: ['websocket', 'polling'],
-      withCredentials: true
     });
 
     newSocket.on('connect', () => {
@@ -101,6 +100,15 @@ export default function EmployeeChatBox({ employeeId, employeeName }) {
 
       // Update total unread count
       setTotalUnreadCount(prev => prev + 1);
+      if (!showChat && !ringing) {
+        setRinging(true);
+        if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
+        ringIntervalRef.current = setInterval(() => {
+          if (audioRef.current?.playBeep) {
+            audioRef.current.playBeep();
+          }
+        }, 2000);
+      }
 
       // Add message to this customer's thread (with deduplication)
       setMessages(prev => {
@@ -142,8 +150,22 @@ export default function EmployeeChatBox({ employeeId, employeeName }) {
 
     return () => {
       newSocket.close();
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current);
+        ringIntervalRef.current = null;
+      }
     };
-  }, [employeeId, showChat, selectedCustomer]);
+  }, [employeeId, showChat, selectedCustomer, ringing]);
+
+  useEffect(() => {
+    if (showChat || totalUnreadCount === 0) {
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current);
+        ringIntervalRef.current = null;
+      }
+      setRinging(false);
+    }
+  }, [showChat, totalUnreadCount]);
 
   // Function to update chat sessions
   const updateChatSessions = async () => {

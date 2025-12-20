@@ -2,16 +2,13 @@
 'use client';
 
 import { ArrowLeft, Download, Filter } from 'lucide-react';
-import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
-// Separate component that uses useSearchParams
 function SupplierInvoiceHistoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession();
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [supplierName, setSupplierName] = useState('');
   const [filters, setFilters] = useState({
@@ -23,15 +20,10 @@ function SupplierInvoiceHistoryContent() {
   const id = searchParams.get('id');
 
   useEffect(() => {
-    if (status === 'unauthenticated') {
-      router.push('/login');
-      return;
-    }
-
-    if (status === 'authenticated') {
+    if (id) {
       fetchData();
     }
-  }, [status, searchParams]);
+  }, [searchParams]);
 
   useEffect(() => {
     // Set initial filter values from URL
@@ -53,7 +45,7 @@ function SupplierInvoiceHistoryContent() {
     }
 
     try {
-      setLoading(true);
+      // No loading state - instant display
       
       const params = new URLSearchParams({ id });
       if (filters.from_date) params.append('from_date', filters.from_date);
@@ -71,8 +63,6 @@ function SupplierInvoiceHistoryContent() {
     } catch (error) {
       console.error('Error:', error);
       setData([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -89,6 +79,40 @@ function SupplierInvoiceHistoryContent() {
   const handleResetFilters = () => {
     setFilters({ from_date: '', to_date: '' });
     router.push(`/supplierinvoice-history?id=${id}`);
+  };
+
+  const handleDownload = () => {
+    const exportData = getExportData();
+    if (exportData.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    // Create CSV content
+    const headers = ['Date', 'Invoice#', 'Remarks', 'Type', 'Debit', 'Credit', 'Balance'];
+    const csvRows = [
+      headers.join(','),
+      ...exportData.map(row => [
+        row.date || '',
+        row.invoice_number || '',
+        (row.remarks || '-').replace(/,/g, ';'),
+        row.type || '',
+        row.debit || '',
+        row.credit || '',
+        row.balance || 0
+      ].join(','))
+    ];
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `supplier-invoice-history-${id}-${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getExportData = () => {
@@ -130,13 +154,6 @@ function SupplierInvoiceHistoryContent() {
     });
   };
 
-  if (status === 'loading' || loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   const calculateRunningBalance = (transactions) => {
     let balance = 0;
@@ -389,45 +406,9 @@ function SupplierInvoiceHistoryContent() {
   );
 }
 
-// Main page component with Suspense
 export default function SupplierInvoiceHistoryPage() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen bg-gray-50">
-        {/* Header Skeleton */}
-        <header className="bg-white shadow-sm border-b">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center py-4">
-              <div className="flex items-center space-x-4">
-                <div className="p-2 rounded-full bg-gray-200 animate-pulse"></div>
-                <div className="space-y-2">
-                  <div className="h-6 bg-gray-200 rounded w-64 animate-pulse"></div>
-                  <div className="h-4 bg-gray-200 rounded w-48 animate-pulse"></div>
-                </div>
-              </div>
-              <div className="flex space-x-3">
-                <div className="h-10 bg-gray-200 rounded-lg w-24 animate-pulse"></div>
-                <div className="h-10 bg-gray-200 rounded-lg w-32 animate-pulse"></div>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {/* Main Content Skeleton */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="bg-white rounded-xl shadow-sm p-6">
-            <div className="space-y-4">
-              <div className="h-8 bg-gray-200 rounded w-1/3 animate-pulse"></div>
-              <div className="space-y-2">
-                {[...Array(10)].map((_, i) => (
-                  <div key={i} className="h-12 bg-gray-200 rounded animate-pulse"></div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </main>
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <SupplierInvoiceHistoryContent />
     </Suspense>
   );

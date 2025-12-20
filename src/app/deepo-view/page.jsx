@@ -1,5 +1,8 @@
 'use client';
 
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -143,17 +146,17 @@ function DeepoViewContent() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* PDF Content */}
-        <div 
-          id="pdf-content"
-          className="bg-white shadow-sm border border-gray-200 transition-all duration-200"
-          style={{ 
-            width: '210mm', 
-            minHeight: '297mm',
-            padding: '15mm',
-            boxSizing: 'border-box'
-          }}
-        >
+        <div className="overflow-x-auto">
+          <div 
+            id="pdf-content"
+            className="bg-white shadow-sm border border-gray-200 transition-all duration-200"
+            style={{ 
+              width: '210mm', 
+              minHeight: '297mm',
+              padding: '15mm',
+              boxSizing: 'border-box'
+            }}
+          >
           {/* Header */}
           <div className="flex justify-between items-center mb-6">
             <img 
@@ -382,6 +385,7 @@ function DeepoViewContent() {
               No attachments found
             </p>
           )}
+          </div>
         </div>
 
         {/* Action Buttons */}
@@ -407,17 +411,26 @@ function DeepoViewContent() {
 // Main component with Suspense
 export default function DeepoView() {
   return (
-    <Suspense 
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading deepo view...</p>
-          </div>
-        </div>
-      }
-    >
-      <DeepoViewContent />
-    </Suspense>
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 to-blue-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col h-screen">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <Suspense 
+            fallback={
+              <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading deepo view...</p>
+                </div>
+              </div>
+            }
+          >
+            <DeepoViewContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

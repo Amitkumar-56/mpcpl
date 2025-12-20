@@ -1,5 +1,8 @@
 'use client';
 
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -12,22 +15,23 @@ function StockHistoryContent() {
     rows: [],
     filters: {}
   });
-  const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState({
     pname: '',
     from_date: '',
     to_date: ''
   });
+  const [exportLoading, setExportLoading] = useState(false);
 
   const cid = searchParams.get('id');
 
   useEffect(() => {
     fetchStockHistory();
-  }, [searchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cid]);
 
   const fetchStockHistory = async (filterParams = {}) => {
     try {
-      setLoading(true);
+      // No loading state - instant display
       const params = new URLSearchParams();
       
       if (cid) params.append('id', cid);
@@ -55,9 +59,7 @@ function StockHistoryContent() {
       }
     } catch (error) {
       console.error('Error fetching stock history:', error);
-      alert('Error loading stock history: ' + error.message);
-    } finally {
-      setLoading(false);
+      // Silent error - don't show alert, just log
     }
   };
 
@@ -146,20 +148,13 @@ function StockHistoryContent() {
     return num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : '0';
   };
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600">Loading stock history...</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
-    <>
-    <main className="min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
       {/* Header Section */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
@@ -339,6 +334,9 @@ function StockHistoryContent() {
                       Available Qty
                     </th>
                     <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Created By
+                    </th>
+                    <th scope="col" className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
                   </tr>
@@ -389,6 +387,9 @@ function StockHistoryContent() {
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           {formatNumber(row.available_stock)}
                         </td>
+                        <td className="px-4 py-3 text-sm text-gray-900">
+                          {row.user_name || row.created_by_name || 'System'}
+                        </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-2">
                             <button
@@ -427,7 +428,7 @@ function StockHistoryContent() {
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="10" className="px-6 py-12 text-center">
+                      <td colSpan="11" className="px-6 py-12 text-center">
                         <div className="flex flex-col items-center justify-center text-gray-500">
                           <svg className="w-16 h-16 mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -444,22 +445,16 @@ function StockHistoryContent() {
           </div>
         </div>
       </div>
-    </main>
-    </>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }
 
-// Main component with Suspense boundary
 export default function StockHistory() {
   return (
-    <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
-          <p className="text-gray-600">Loading stock history...</p>
-        </div>
-      </div>
-    }>
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
       <StockHistoryContent />
     </Suspense>
   );

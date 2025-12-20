@@ -354,10 +354,7 @@ function PDFModalContent() {
           <Header />
           <main className="flex-1 p-6">
             <div className="flex items-center justify-center h-full">
-              <div className="text-center">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-                <p className="text-gray-600">Loading request details...</p>
-              </div>
+              <div className="text-center text-gray-600">Loading request details...</div>
             </div>
           </main>
           <Footer />
@@ -402,6 +399,32 @@ function PDFModalContent() {
             <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
               <div className="text-center">
                 <p className="text-gray-600 mb-4">Request not found</p>
+                <button
+                  onClick={handleBack}
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  Go Back
+                </button>
+              </div>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  if (request && request.status !== 'Completed') {
+    return (
+      <div className="min-h-screen flex bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <Header />
+          <main className="flex-1 p-6">
+            <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
+              <div className="text-center">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">PDF Unavailable</h2>
+                <p className="text-gray-600 mb-4">PDF can be generated only for completed requests.</p>
                 <button
                   onClick={handleBack}
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
@@ -571,13 +594,10 @@ function PDFModalContent() {
                 <button
                   onClick={handleDownloadPDF}
                   disabled={generating || pdfGenerated}
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed flex items-center gap-2"
+                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
                 >
                   {generating ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      Generating...
-                    </>
+                    'Generating...'
                   ) : pdfGenerated ? (
                     'PDF Downloaded'
                   ) : (
@@ -597,28 +617,14 @@ function PDFModalContent() {
 // Loading Component
 function PDFModalLoading() {
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col">
-        <Header />
-        <main className="flex-1 p-6">
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <span className="ml-3">Loading PDF Details...</span>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </div>
-    </div>
+    <></>
   );
 }
 
 // Main Export with Suspense
 export default function PDFModalPage() {
   return (
-    <Suspense fallback={<PDFModalLoading />}>
+    <Suspense fallback={null}>
       <PDFModalContent />
     </Suspense>
   );

@@ -7,7 +7,7 @@ import Sidebar from "@/components/sidebar";
 import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTrash } from "react-icons/bs";
 
 // A sub-component for data rendering inside Suspense
@@ -374,26 +374,26 @@ function StockTable({ stockRequests }) {
 export default function StockRequest() {
   const [stockRequests, setStockRequests] = useState([]);
   const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
     can_delete: false
   });
-  const { user, loading: authLoading } = useSession();
+  const { user } = useSession();
   const router = useRouter();
 
   // Check permissions first
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!user) {
       router.push('/login');
       return;
     }
     if (user) {
       checkPermissions();
     }
-  }, [user, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const checkPermissions = async () => {
     if (!user || !user.id) return;
@@ -465,19 +465,16 @@ export default function StockRequest() {
       } else {
         setHasPermission(false);
         setError('You do not have permission to view stock.');
-        setLoading(false);
       }
     } catch (error) {
       console.error('Permission check error:', error);
       setHasPermission(false);
       setError('Failed to check permissions.');
-      setLoading(false);
     }
   };
 
   const fetchStockRequests = async () => {
     try {
-      setLoading(true);
       setError(null);
       
       console.log("Fetching stock data...");
@@ -510,13 +507,11 @@ export default function StockRequest() {
       console.error("Fetch error details:", err);
       setError("Error fetching stock requests: " + err.message);
       setStockRequests([]);
-    } finally {
-      setLoading(false);
     }
   };
 
   // Show access denied if no permission
-  if (!authLoading && user && !hasPermission) {
+  if (user && !hasPermission) {
     return (
       <div className="flex h-screen bg-gray-100">
         <Sidebar />
@@ -599,21 +594,7 @@ export default function StockRequest() {
                 </div>
               )}
               
-              {loading ? (
-                <div className="flex items-center justify-center py-20">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                </div>
-              ) : (
-                <Suspense
-                  fallback={
-                    <div className="flex items-center justify-center py-20">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-                    </div>
-                  }
-                >
-                  <StockTable stockRequests={stockRequests} />
-                </Suspense>
-              )}
+              <StockTable stockRequests={stockRequests} />
             </div>
           </main>
           <Footer />

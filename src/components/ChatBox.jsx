@@ -16,6 +16,8 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
   const [socket, setSocket] = useState(null);
   const messagesEndRef = useRef(null);
   const audioRef = useRef(null);
+  const [ringing, setRinging] = useState(false);
+  const ringIntervalRef = useRef(null);
 
   // Create notification sound programmatically
   useEffect(() => {
@@ -45,12 +47,9 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
   // Initialize socket connection
   useEffect(() => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-    const newSocket = io(socketUrl, {
+    const newSocket = io({
       path: '/api/socket',
       transports: ['websocket', 'polling'],
-      withCredentials: true
     });
 
     newSocket.on('connect', () => {
@@ -107,6 +106,15 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
       // Update unread count if chat is closed
       if (!showChat) {
         setUnreadCount(prev => prev + 1);
+        if (!ringing) {
+          setRinging(true);
+          if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
+          ringIntervalRef.current = setInterval(() => {
+            if (audioRef.current?.playBeep) {
+              audioRef.current.playBeep();
+            }
+          }, 2000);
+        }
       }
 
       scrollToBottom();
@@ -116,8 +124,22 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
     return () => {
       newSocket.close();
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current);
+        ringIntervalRef.current = null;
+      }
     };
-  }, [customerId]);
+  }, [customerId, ringing, showChat]);
+
+  useEffect(() => {
+    if (showChat || unreadCount === 0) {
+      if (ringIntervalRef.current) {
+        clearInterval(ringIntervalRef.current);
+        ringIntervalRef.current = null;
+      }
+      setRinging(false);
+    }
+  }, [showChat, unreadCount]);
 
   // Fetch employees list
   useEffect(() => {

@@ -1,6 +1,8 @@
-// src/app/loading-unloading-history/create-loading-unloading/page.jsx
 'use client';
 
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -760,17 +762,26 @@ function CreateLoadingUnloadingContent() {
 // Main component with Suspense
 export default function CreateLoadingUnloading() {
   return (
-    <Suspense 
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading form...</p>
-          </div>
-        </div>
-      }
-    >
-      <CreateLoadingUnloadingContent />
-    </Suspense>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
+          <Suspense 
+            fallback={
+              <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading form...</p>
+                </div>
+              </div>
+            }
+          >
+            <CreateLoadingUnloadingContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

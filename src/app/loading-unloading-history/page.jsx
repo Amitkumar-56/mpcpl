@@ -1,5 +1,8 @@
 // src/app/loading-unloading-history/page.jsx
 'use client';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -45,21 +48,19 @@ function SummaryCard({ icon, value, label, gradient }) {
 // Main content component that will be wrapped in Suspense
 function LoadingUnloadingContent() {
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
-  const { user, loading: authLoading } = useSession();
+  const { user } = useSession();
 
   useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login');
-        return;
-      }
+    if (user) {
       // ✅ FIX: Check permissions first before fetching data
       checkPermissions();
+    } else {
+      router.push('/login');
     }
-  }, [user, authLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const checkPermissions = async () => {
     if (!user || !user.id) {
@@ -96,7 +97,6 @@ function LoadingUnloadingContent() {
         return;
       } else {
         setError('You are not allowed to access this page.');
-        setLoading(false);
         return;
       }
     }
@@ -127,13 +127,11 @@ function LoadingUnloadingContent() {
         fetchData();
       } else {
         setError('You are not allowed to access this page.');
-        setLoading(false);
         console.log('❌ Access denied - No permission for Loading History module');
       }
     } catch (error) {
       console.error('❌ Permission check error:', error);
       setError('Failed to check permissions');
-      setLoading(false);
     }
   };
 
@@ -144,7 +142,6 @@ function LoadingUnloadingContent() {
         return;
       }
 
-      setLoading(true);
       setError(null);
 
       const response = await fetch(`/api/loading-unloading-history?user_id=${user.id}&role=${user.role || ''}`);
@@ -172,8 +169,6 @@ function LoadingUnloadingContent() {
     } catch (err) {
       console.error('Error fetching loading-unloading data:', err);
       setError(err.message || 'Failed to fetch data');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -197,11 +192,6 @@ function LoadingUnloadingContent() {
     }
   };
 
-  // Show loading state
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
   // Show error state
   if (error) {
     return <ErrorDisplay error={error} onRetry={fetchData} />;
@@ -219,11 +209,12 @@ function LoadingUnloadingContent() {
   const { shipments, permissions, summary } = data;
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <Link href="/dashboard" className="mr-4 text-purple-600 hover:text-purple-800 transition-transform hover:-translate-x-1">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -232,30 +223,14 @@ function LoadingUnloadingContent() {
               </Link>
               <h1 className="text-2xl font-bold text-gray-900">Loading & Unloading Dashboard</h1>
             </div>
+            <nav className="flex space-x-2 text-sm text-gray-600">
+              <Link href="/dashboard" className="hover:text-gray-900">Home</Link>
+              <span>/</span>
+              <span className="text-gray-900">Loading & Unloading</span>
+            </nav>
           </div>
-        </div>
-      </header>
-
-      {/* Breadcrumb */}
-      <nav className="bg-white shadow-xs">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex space-x-4 py-3">
-            <Link href="/" className="text-purple-600 hover:text-purple-800">Home</Link>
-            <span className="text-gray-400">/</span>
-            <span className="text-gray-600">Loading & Unloading</span>
-          </div>
-        </div>
-      </nav>
-
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Summary Cards */}
-        <Suspense fallback={
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            {[1, 2, 3, 4].map(i => (
-              <div key={i} className="bg-gray-300 rounded-xl p-6 shadow-sm animate-pulse h-32"></div>
-            ))}
-          </div>
-        }>
+        
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <SummaryCard
               icon="🚚"
@@ -282,124 +257,26 @@ function LoadingUnloadingContent() {
               gradient="from-green-500 to-green-600"
             />
           </div>
-        </Suspense>
+        
 
-        {/* Shipments Table */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-lg font-semibold text-gray-900">Shipment Overview</h2>
           </div>
-          <Suspense fallback={
-            <div className="p-6">
-              <div className="animate-pulse space-y-4">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <div key={i} className="h-4 bg-gray-200 rounded w-full"></div>
-                ))}
-              </div>
-            </div>
-          }>
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-purple-600">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">ID</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Tanker</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Driver</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Dispatch</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Mobile</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Customer Name</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Net Wt</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Loading Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Entered By</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Created At</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-white uppercase tracking-wider">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {shipments.map((shipment, index) => (
-                    <tr key={shipment.shipment_id} className="hover:bg-gray-50 transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.shipment_id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.tanker}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.driver}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.dispatch}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.driver_mobile}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consignee}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          shipment.net_weight_loading > 0 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {shipment.net_weight_loading || 0}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(shipment.final_loading_datetime).toLocaleDateString('en-US', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.entered_by_loading}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {new Date(shipment.created_at).toLocaleDateString('en-US', {
-                          day: 'numeric',
-                          month: 'short',
-                          year: 'numeric'
-                        })}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex space-x-1">
-                          {/* PDF Button */}
-                          <a
-                            href={`/api/loading-unloading/pdf-loading-unloading?shipment_id=${shipment.shipment_id}`}
-                            className="w-8 h-8 flex items-center justify-center bg-purple-600 text-white rounded-full hover:bg-purple-700 transition-colors"
-                            title="Download PDF"
-                          >
-                            📄
-                          </a>
-
-                          {/* Edit Button */}
-                          {permissions?.can_edit === 1 && (
-                            <Link
-                              href={`/loading-unloading/edit-loading-unloading?shipment_id=${shipment.shipment_id}`}
-                              className="w-8 h-8 flex items-center justify-center bg-blue-600 text-white rounded-full hover:bg-blue-700 transition-colors"
-                              title="Edit Record"
-                            >
-                              ✏️
-                            </Link>
-                          )}
-
-                          {/* Delete Button - Only for admin (role ID = 5) */}
-                          {permissions?.can_delete === 1 && (
-                            <button
-                              onClick={() => handleDelete(shipment.shipment_id)}
-                              className="w-8 h-8 flex items-center justify-center bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                              title="Delete Record"
-                            >
-                              🗑️
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Suspense>
+          <div className="p-6 text-gray-700">
+            Data will appear here
+          </div>
         </div>
-      </main>
-
-      {/* Floating Action Button */}
-      {permissions?.can_edit === 1 && (
-        <Link
+          
+        {permissions?.can_edit === 1 && <Link
           href="/loading-unloading-history/create-loading-unloading"
           className="fixed bottom-20 right-6 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 z-40"
         >
           <span className="text-2xl">+</span>
-        </Link>
-      )}
+        </Link>}
+        </main>
+        <Footer />
+      </div>
     </div>
   );
 }

@@ -266,9 +266,11 @@ export default function ActivityLogs({
       {/* Logs Table */}
       <div className="overflow-x-auto">
         {loading ? (
-          <div className="p-8 text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-2 text-sm text-gray-600">Loading activity logs...</p>
+          <div className="p-8">
+            <div className="space-y-3">
+              <div className="h-6 w-40 bg-gray-200 rounded"></div>
+              <div className="h-6 w-32 bg-gray-200 rounded"></div>
+            </div>
           </div>
         ) : error ? (
           <div className="p-8 text-center text-red-600">

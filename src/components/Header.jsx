@@ -3,8 +3,8 @@
 import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { FaBell, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 import { io } from 'socket.io-client';
-import { FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 export default function Header({ onMenuToggle }) {
   const { user, logout, loading } = useSession();
@@ -50,13 +50,10 @@ export default function Header({ onMenuToggle }) {
     let s;
     (async () => {
       try { await fetch('/api/socket'); } catch (e) {}
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-      s = io(socketUrl, {
+      s = io({
         path: '/api/socket',
         transports: ['websocket', 'polling'],
         reconnection: true,
-        withCredentials: true,
       });
       s.on('connect', () => {
         s.emit('employee_join', {
@@ -82,6 +79,17 @@ export default function Header({ onMenuToggle }) {
           // Optionally redirect to dashboard with chat open
           // router.push('/dashboard?chat=true&customerId=' + data.customerId);
         }
+      });
+      s.on('new_customer', (data) => {
+        setNotifCount((c) => c + 1);
+        setNotifications((list) => [{
+          id: `new_customer_${data.customerId}`,
+          customerId: data.customerId,
+          customerName: data.name,
+          text: `New customer registered`,
+          timestamp: data.timestamp || Date.now(),
+          status: 'new_customer',
+        }, ...list].slice(0, 20));
       });
       s.on('chat_assigned', (data) => {
         setNotifications((list) => [{
@@ -212,10 +220,16 @@ export default function Header({ onMenuToggle }) {
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
                 <p className="text-xs text-gray-500">
-                  {user.emp_code || user.emp_id || (user.role === 5 ? 'Admin' : 'Employee')}
+                  {user.emp_code || user.emp_id || (user.role === 5 ? 'Admin' : user.role === 4 ? 'Accountant' : user.role === 3 ? 'Team Leader' : user.role === 2 ? 'Incharge' : 'Employee')}
                 </p>
                 {user.role === 5 && (
                   <p className="text-xs text-blue-600 font-semibold mt-0.5">Administrator</p>
+                )}
+                {user.role === 4 && (
+                  <p className="text-xs text-green-600 font-semibold mt-0.5">Accountant</p>
+                )}
+                {user.role === 3 && (
+                  <p className="text-xs text-purple-600 font-semibold mt-0.5">Team Leader</p>
                 )}
               </div>
               <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold shadow-md">
@@ -237,6 +251,16 @@ export default function Header({ onMenuToggle }) {
                     {user.role === 5 && (
                       <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-semibold">
                         Admin
+                      </span>
+                    )}
+                    {user.role === 4 && (
+                      <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-semibold">
+                        Accountant
+                      </span>
+                    )}
+                    {user.role === 3 && (
+                      <span className="text-xs bg-purple-100 text-purple-800 px-2 py-0.5 rounded-full font-semibold">
+                        Team Leader
                       </span>
                     )}
                   </div>

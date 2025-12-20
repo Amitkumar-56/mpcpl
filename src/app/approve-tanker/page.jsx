@@ -2,6 +2,9 @@
 
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useRef, useState } from 'react';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 
 // Inner component that uses useSearchParams
 function ApproveTankerContent() {
@@ -932,17 +935,26 @@ function ApproveTankerContent() {
 // Main component with Suspense
 export default function ApproveTanker() {
   return (
-    <Suspense 
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading tanker details...</p>
-          </div>
-        </div>
-      }
-    >
-      <ApproveTankerContent />
-    </Suspense>
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 to-blue-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col h-screen">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <Suspense 
+            fallback={
+              <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading tanker details...</p>
+                </div>
+              </div>
+            }
+          >
+            <ApproveTankerContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

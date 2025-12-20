@@ -176,6 +176,21 @@ export async function POST(req) {
         console.error('Error creating audit log:', auditError);
       }
 
+      try {
+        const io = global._io;
+        if (io) {
+          io.to('role_5').emit('new_customer', {
+            customerId: newCustomerId,
+            name: client_name,
+            phone,
+            email,
+            timestamp: Date.now()
+          });
+        }
+      } catch (emitError) {
+        console.error('Socket emit failed for new_customer:', emitError?.message || emitError);
+      }
+
     } catch (txErr) {
       console.error('Transaction failed, rolled back:', txErr.code || txErr.sqlMessage || txErr.message || txErr);
       const errDetail = {

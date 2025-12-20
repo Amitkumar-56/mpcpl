@@ -1,5 +1,9 @@
 'use client';
 import ExportButton from '@/components/ExportButton';
+import Link from 'next/link';
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -320,8 +324,17 @@ function LRManagementContent() {
 // Main Component with Suspense
 export default function LRManagement() {
   return (
-    <Suspense fallback={<LoadingFallback />}>
-      <LRManagementContent />
-    </Suspense>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
+          <Suspense fallback={<LoadingFallback />}>
+            <LRManagementContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

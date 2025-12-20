@@ -1,5 +1,8 @@
 'use client';
 
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -507,8 +510,17 @@ function DeepoListContent() {
 // Main component with Suspense
 export default function DeepoList() {
   return (
-    <Suspense fallback={null}>
-      <DeepoListContent />
-    </Suspense>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
+          <Suspense fallback={null}>
+            <DeepoListContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

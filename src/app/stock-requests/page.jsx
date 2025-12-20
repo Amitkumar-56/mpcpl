@@ -5,21 +5,21 @@ import Sidebar from '@/components/sidebar';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
+import Footer from '@/components/Footer';
 
 function StockRequestsContent() {
   const [stockRequests, setStockRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const router = useRouter();
 
   useEffect(() => {
     fetchStockRequests();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStockRequests = async () => {
     try {
-      setLoading(true);
       setError(null);
       
       // Get token from localStorage
@@ -65,8 +65,6 @@ function StockRequestsContent() {
       console.error('Error fetching stock requests:', error);
       setError(error.message || 'Error fetching stock requests. Please try again.');
       setStockRequests([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -111,22 +109,6 @@ function StockRequestsContent() {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto py-6 px-4 sm:px-6 lg:px-8 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-2 text-sm text-gray-600">Loading stock requests...</p>
-            </div>
-          </main>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -328,17 +310,14 @@ function StockRequestsContent() {
                 )}
               </div>
             </div>
-          </main>
-        </div>
+        </main>
+        <Footer />
       </div>
+    </div>
     </>
   );
 }
 
 export default function StockRequests() {
-  return (
-    <Suspense fallback={null}>
-      <StockRequestsContent />
-    </Suspense>
-  );
+  return <StockRequestsContent />;
 }

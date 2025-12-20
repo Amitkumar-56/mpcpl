@@ -11,16 +11,23 @@ export async function GET(request) {
 
     const cid = id ? parseInt(id) : 0;
 
+    // Check if agents table exists, if not use simpler query
     let sql = `
       SELECT 
         fh.*, 
         p.pname, 
         fr.vehicle_number,
-        fs.station_name
+        fs.station_name,
+        COALESCE(ep.name, 'System') AS created_by_name,
+        CASE 
+          WHEN ep.id IS NOT NULL THEN ep.name
+          ELSE 'System'
+        END AS user_name
       FROM filling_history AS fh
       INNER JOIN products AS p ON fh.product_id = p.id
       LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
+      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE 1=1
     `;
 

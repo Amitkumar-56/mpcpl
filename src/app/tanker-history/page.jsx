@@ -1,6 +1,10 @@
 'use client';
 
 import ExportButton from '@/components/ExportButton';
+import Link from 'next/link';
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -552,8 +556,17 @@ function TankerHistoryContent() {
 // Main component with Suspense boundary
 export default function TankerHistory() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
-      <TankerHistoryContent />
-    </Suspense>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
+          <Suspense fallback={<LoadingSpinner />}>
+            <TankerHistoryContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }

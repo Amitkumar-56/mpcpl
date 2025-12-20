@@ -1,5 +1,6 @@
 'use client';
 
+import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 import Link from 'next/link';
@@ -32,6 +33,34 @@ export default function AuditLogsPage() {
   useEffect(() => {
     fetchLogs();
   }, [currentPage, filters]);
+  
+  useEffect(() => {
+    try {
+      const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      let userId = null;
+      let userName = 'System';
+      if (userData) {
+        const parsed = JSON.parse(userData);
+        userId = parsed?.id || parsed?.userId || null;
+        userName = parsed?.name || 'System';
+      }
+      const uniqueCode = `PAGEVIEW-AUDIT-${Date.now()}`;
+      fetch('/api/audit-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          page: 'Audit Logs',
+          section: 'Audit Logs Page',
+          action: 'view',
+          uniqueCode,
+          userId,
+          userName,
+          recordType: 'page_view',
+          remarks: 'Visited Audit Logs page'
+        })
+      }).catch(() => {});
+    } catch {}
+  }, []);
 
   const fetchLogs = async () => {
     try {
@@ -264,18 +293,20 @@ export default function AuditLogsPage() {
             Showing {logs.length} of {total} logs
           </div>
 
-          {/* Audit Logs Table */}
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            {loading ? (
-              <div className="p-8 text-center">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-sm text-gray-600">Loading audit logs...</p>
+        {/* Audit Logs Table */}
+        <div className="bg-white rounded-lg shadow overflow-hidden">
+          {loading ? (
+            <div className="p-8">
+              <div className="space-y-3">
+                <div className="h-6 w-40 bg-gray-200 rounded"></div>
+                <div className="h-6 w-32 bg-gray-200 rounded"></div>
               </div>
-            ) : error ? (
-              <div className="p-8 text-center text-red-600">
-                {error}
-              </div>
-            ) : logs.length === 0 ? (
+            </div>
+          ) : error ? (
+            <div className="p-8 text-center text-red-600">
+              {error}
+            </div>
+          ) : logs.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 No audit logs found
               </div>
@@ -373,6 +404,7 @@ export default function AuditLogsPage() {
             </div>
           )}
         </main>
+        <Footer />
       </div>
     </div>
   );

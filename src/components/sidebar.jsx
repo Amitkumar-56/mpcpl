@@ -53,6 +53,8 @@ export default function Sidebar({ onClose }) {
     { name: "Customers", icon: <FaUsers />, module: "customers", path: "/customers" },
     { name: "Purchese Request", icon: <FaFileInvoice />, module: "filling_requests", path: "/filling-requests" },
     { name: "Stock", icon: <FaUsers />, module: "stock", path: "/stock" },
+    { name: "Stock History", icon: <FaHistory />, module: "stock_history", path: "/stock-history" },
+    { name: "Outstanding History", icon: <FaFileInvoice />, module: "outstanding_history", path: "/outstanding-history" },
     { name: "Loading Stations", icon: <FaTruck />, module: "loading_stations", path: "/loading-stations" },
     { name: "Schedule Prices", icon: <FaMoneyBill />, module: "schedule_price", path: "/schedule-price" },
     { name: "Products", icon: <FaBox />, module: "products", path: "/products" },
@@ -95,6 +97,9 @@ export default function Sidebar({ onClose }) {
     nb_balance: "NB Accounts", // ✅ FIX: Added missing mapping
     vouchers: "Voucher",
     stock_transfers: "Stock Transfer", // ✅ FIX: "Stock Transfer" module
+    stock_history: "Stock History", // ✅ Added stock history mapping
+    stock_requests: "Stock Requests", // ✅ Added stock requests mapping
+    outstanding_history: "Outstanding History", // ✅ Added outstanding history mapping
     remarks: "Remarks",
     items: "Items",
     customers: "Customer",

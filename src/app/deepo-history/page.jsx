@@ -1,5 +1,8 @@
 'use client';
 
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -479,17 +482,26 @@ function DeepoHistoryContent() {
 // Main component with Suspense
 export default function DeepoHistory() {
   return (
-    <Suspense 
-      fallback={
-        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading...</p>
-          </div>
-        </div>
-      }
-    >
-      <DeepoHistoryContent />
-    </Suspense>
+    <div className="flex h-screen bg-gray-50">
+      <Sidebar />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
+          <Suspense 
+            fallback={
+              <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading...</p>
+                </div>
+              </div>
+            }
+          >
+            <DeepoHistoryContent />
+          </Suspense>
+        </main>
+        <Footer />
+      </div>
+    </div>
   );
 }
