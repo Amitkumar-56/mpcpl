@@ -77,6 +77,7 @@ export default function Sidebar({ onClose }) {
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
+    { name: "Roles", icon: <FaUserTie />, module: "roles", path: "/roles", adminOnly: true },
   ], []);
 
   const moduleMapping = useMemo(() => ({
@@ -127,6 +128,16 @@ export default function Sidebar({ onClose }) {
     
     // ✅ Filter menu items based on can_view permission
     const filtered = menuItems.filter((item) => {
+      // ✅ Admin-only items (like Roles) - only show to admin
+      if (item.adminOnly && Number(user.role) !== 5) {
+        return false;
+      }
+      
+      // ✅ Admin gets all items (except adminOnly is handled above)
+      if (Number(user.role) === 5 && !item.adminOnly) {
+        return true;
+      }
+      
       const backendModuleName = moduleMapping[item.module];
       
       // If module mapping not found, hide the item

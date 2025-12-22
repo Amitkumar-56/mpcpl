@@ -2,7 +2,8 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/auditLog";
-import { getCurrentUser } from "@/lib/auth";
+import { verifyToken } from "@/lib/auth";
+import { cookies } from "next/headers";
 
 export async function POST(request) {
   try {
@@ -58,10 +59,32 @@ export async function POST(request) {
       }
     }
 
-    // Get current user for audit log
-    const currentUser = await getCurrentUser();
-    const userId = currentUser?.userId || checked_by || null;
-    const userName = currentUser?.userName || checkedByName || 'System';
+    // Get current user for audit log (cookie + Authorization fallback)
+    let userId = checked_by || null;
+    let userName = checkedByName || 'System';
+    try {
+      const cookieStore = await cookies();
+      let token = cookieStore.get('token')?.value;
+      if (!token && typeof request.headers?.get === 'function') {
+        const authHeader = request.headers.get('authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7);
+        }
+      }
+      const decoded = verifyToken(token);
+      if (decoded) {
+        userId = decoded.userId || decoded.id || userId;
+        const users = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name || userName;
+        }
+      }
+    } catch (uerr) {
+      console.error('Error resolving current user:', uerr);
+    }
 
     // Create audit log
     await createAuditLog({

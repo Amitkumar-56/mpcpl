@@ -11,6 +11,9 @@ export default function CreateUserPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
   const [image, setImage] = useState(null);
+  const [qrCode, setQrCode] = useState(null);
+  const [stations, setStations] = useState([]);
+  const [selectedStations, setSelectedStations] = useState([]);
   const [hasPermission, setHasPermission] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
   const [formData, setFormData] = useState({
@@ -27,7 +30,7 @@ export default function CreateUserPage() {
     postbox: "",
     phone: "",
     phonealt: "",
-    status: "0",
+    status: "1",
     account_details: "",
   });
 
@@ -62,7 +65,7 @@ export default function CreateUserPage() {
 
   const modules = Object.keys(permissions);
 
-  // Check permissions on mount
+  // Check permissions on mount and fetch stations
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
@@ -70,8 +73,21 @@ export default function CreateUserPage() {
         return;
       }
       checkPermissions();
+      fetchStations();
     }
   }, [user, authLoading]);
+
+  const isAdmin = user?.role === 5;
+
+  const fetchStations = async () => {
+    try {
+      const response = await fetch('/api/stations');
+      const data = await response.json();
+      setStations(data || []);
+    } catch (err) {
+      console.error('Error fetching stations:', err);
+    }
+  };
 
   const checkPermissions = async () => {
     if (!user || !user.id) {
@@ -140,6 +156,21 @@ export default function CreateUserPage() {
     if (file) setImage(file);
   };
 
+  const handleQrCodeChange = (e) => {
+    const file = e.target.files[0];
+    if (file) setQrCode(file);
+  };
+
+  const handleStationToggle = (stationId) => {
+    setSelectedStations(prev => {
+      if (prev.includes(stationId)) {
+        return prev.filter(id => id !== stationId);
+      } else {
+        return [...prev, stationId];
+      }
+    });
+  };
+
   const handlePermissionChange = (module, perm) => {
     setPermissions(prev => ({
       ...prev,
@@ -150,25 +181,38 @@ export default function CreateUserPage() {
   const handleSubmit = async () => {
     try {
       const form = new FormData();
+      const payloadData = { ...formData };
+      if (!isAdmin) {
+        payloadData.status = "1";
+      }
       
       // Add all form data except emp_code
-      Object.keys(formData).forEach(key => {
-        if (key !== "emp_code") form.append(key, formData[key]);
+      Object.keys(payloadData).forEach(key => {
+        if (key !== "emp_code") form.append(key, payloadData[key]);
       });
       
       if (image) form.append('picture', image);
+      if (qrCode) form.append('qr_code', qrCode);
       
-      // Format permissions for backend
-      const formattedPermissions = {};
-      modules.forEach(module => {
-        formattedPermissions[module] = {
-          can_view: permissions[module]?.can_view || false,
-          can_edit: permissions[module]?.can_edit || false,
-          can_delete: permissions[module]?.can_delete || false
-        };
-      });
+      // Add station assignments (admin only)
+      if (isAdmin) {
+        selectedStations.forEach(stationId => {
+          form.append('fs_id[]', stationId);
+        });
+      }
       
-      form.append('permissions', JSON.stringify(formattedPermissions));
+      // Format permissions for backend (admin only)
+      if (isAdmin) {
+        const formattedPermissions = {};
+        modules.forEach(module => {
+          formattedPermissions[module] = {
+            can_view: permissions[module]?.can_view || false,
+            can_edit: permissions[module]?.can_edit || false,
+            can_delete: permissions[module]?.can_delete || false
+          };
+        });
+        form.append('permissions', JSON.stringify(formattedPermissions));
+      }
 
       const res = await fetch('/api/employee', { 
         method: 'POST', 
@@ -295,63 +339,145 @@ export default function CreateUserPage() {
                 <input type="number" name="salary" placeholder="Salary" value={formData.salary} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="phonealt" placeholder="Alternate Phone" value={formData.phonealt} onChange={handleChange} className="border rounded p-2" />
-                <select name="status" value={formData.status} onChange={handleChange} className="border rounded p-2">
-                  <option value="0">Inactive</option>
-                  <option value="1">Active</option>
-                </select>
+                {isAdmin && (
+                  <select name="status" value={formData.status} onChange={handleChange} className="border rounded p-2">
+                    <option value="0">Inactive</option>
+                    <option value="1">Active</option>
+                  </select>
+                )}
                 <input type="text" name="address" placeholder="Address" value={formData.address} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="city" placeholder="City" value={formData.city} onChange={handleChange} className="border rounded p-2" />
-                <input type="text" name="region" placeholder="Region" value={formData.region} onChange={handleChange} className="border rounded p-2" />
+                <select name="region" value={formData.region} onChange={handleChange} className="border rounded p-2">
+                  <option value="">Select Region</option>
+                  {['andhra_pradesh','arunachal_pradesh','assam','bihar','chhattisgarh','goa','gujarat','haryana','himachal_pradesh','jharkhand','karnataka','kerala','madhya_pradesh','maharashtra','manipur','meghalaya','mizoram','nagaland','odisha','punjab','rajasthan','sikkim','tamil_nadu','telangana','tripura','uttar_pradesh','uttarakhand','west_bengal'].map(state => (
+                    <option key={state} value={state}>
+                      {state.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
+                    </option>
+                  ))}
+                </select>
                 <input type="text" name="country" placeholder="Country" value={formData.country} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="postbox" placeholder="Postbox" value={formData.postbox} onChange={handleChange} className="border rounded p-2" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Account Details</label>
+                <textarea 
+                  name="account_details" 
+                  placeholder="Bank Account Number / IFSC / Account Holder Name" 
+                  value={formData.account_details} 
+                  onChange={handleChange} 
+                  className="w-full border rounded p-2 min-h-20 resize-vertical"
+                />
               </div>
             </div>
           </div>
 
-          <div className="mt-6 overflow-x-auto bg-white rounded-lg p-4">
-            <h3 className="text-md font-semibold mb-3">Assign Module Permissions</h3>
-            <table className="w-full border border-gray-200 text-sm">
-              <thead className="bg-gray-100">
-                <tr>
-                  <th className="p-2 border">Module</th>
-                  <th className="p-2 border">View</th>
-                  <th className="p-2 border">Edit</th>
-                  <th className="p-2 border">Delete</th>
-                </tr>
-              </thead>
-              <tbody>
-                {modules.map((mod, idx) => (
-                  <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                    <td className="p-2 border font-medium">{mod}</td>
-                    <td className="p-2 border text-center">
-                      <input 
-                        type="checkbox" 
-                        checked={permissions[mod].can_view} 
-                        onChange={() => handlePermissionChange(mod, "can_view")} 
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                    </td>
-                    <td className="p-2 border text-center">
-                      <input 
-                        type="checkbox" 
-                        checked={permissions[mod].can_edit} 
-                        onChange={() => handlePermissionChange(mod, "can_edit")} 
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                    </td>
-                    <td className="p-2 border text-center">
-                      <input 
-                        type="checkbox" 
-                        checked={permissions[mod].can_delete} 
-                        onChange={() => handlePermissionChange(mod, "can_delete")} 
-                        className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          {/* QR Code Upload */}
+          <div className="mt-6 bg-white rounded-lg p-4">
+            <label className="block text-sm font-medium text-gray-700 mb-2">QR Code Upload (Image or PDF)</label>
+            <input 
+              type="file" 
+              accept="image/*,.pdf" 
+              onChange={handleQrCodeChange} 
+              className="border rounded p-2 w-full"
+            />
+            {qrCode && (
+              <div className="mt-3 p-3 bg-blue-50 rounded">
+                <span className="text-blue-700 text-sm font-semibold">✓ File Selected: {qrCode.name}</span>
+              </div>
+            )}
           </div>
+
+          {/* Station Assignment */}
+          {isAdmin && (
+            <div className="mt-6 bg-white rounded-lg p-4">
+              <label className="block text-sm font-medium text-gray-700 mb-3">Assign Stations</label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-2">
+                {stations.map((station) => (
+                  <label
+                    key={station.id}
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                      selectedStations.includes(station.id)
+                        ? "bg-orange-50 border border-orange-200 shadow-sm"
+                        : "hover:bg-gray-50 border border-gray-200"
+                    }`}
+                  >
+                    <div className="relative">
+                      <input
+                        type="checkbox"
+                        checked={selectedStations.includes(station.id)}
+                        onChange={() => handleStationToggle(station.id)}
+                        className="sr-only"
+                      />
+                      <div className={`w-5 h-5 border rounded flex items-center justify-center transition-all ${
+                        selectedStations.includes(station.id)
+                          ? "bg-orange-600 border-orange-600"
+                          : "border-gray-300"
+                      }`}>
+                        {selectedStations.includes(station.id) && (
+                          <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                          </svg>
+                        )}
+                      </div>
+                    </div>
+                    <span className="flex-1 text-gray-700 font-medium">
+                      {station.station_name}
+                    </span>
+                  </label>
+                ))}
+              </div>
+              {stations.length === 0 && (
+                <p className="text-gray-500 text-sm mt-2">No stations available</p>
+              )}
+            </div>
+          )}
+
+          {isAdmin && (
+            <div className="mt-6 overflow-x-auto bg-white rounded-lg p-4">
+              <h3 className="text-md font-semibold mb-3">Assign Module Permissions</h3>
+              <table className="w-full border border-gray-200 text-sm">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="p-2 border">Module</th>
+                    <th className="p-2 border">View</th>
+                    <th className="p-2 border">Edit</th>
+                    <th className="p-2 border">Delete</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {modules.map((mod, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                      <td className="p-2 border font-medium">{mod}</td>
+                      <td className="p-2 border text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={permissions[mod].can_view} 
+                          onChange={() => handlePermissionChange(mod, "can_view")} 
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={permissions[mod].can_edit} 
+                          onChange={() => handlePermissionChange(mod, "can_edit")} 
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={permissions[mod].can_delete} 
+                          onChange={() => handlePermissionChange(mod, "can_delete")} 
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           <div className="mt-6 flex gap-4">
             <button className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded" onClick={handleSubmit}>

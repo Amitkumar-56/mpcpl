@@ -3,6 +3,8 @@
 import { getConnection } from '@/lib/db';
 import crypto from 'crypto';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
 
 // Helper function for password hashing
 function hashPassword(password) {
@@ -132,12 +134,33 @@ export async function PUT(request) {
       updateValues.push(billingTypeValue);
     }
 
+    // Handle payment_type (gid) - Cash (1) or Credit (2)
+    if (payment_type !== undefined) {
+      let paymentTypeValue;
+      if (typeof payment_type === 'string') {
+        paymentTypeValue = payment_type === 'Cash' ? 1 : (payment_type === 'Credit' ? 2 : parseInt(payment_type));
+      } else {
+        paymentTypeValue = payment_type;
+      }
+      updateFields.push('gid = ?');
+      updateValues.push(paymentTypeValue);
+    }
+
     if (status !== undefined) {
       // Convert Enable/Disable to 1/0
       // Handle both string and number values
       let statusValue;
       if (typeof status === 'string') {
-        statusValue = (status === 'Enable' || status.toLowerCase() === 'enable') ? 1 : 0;
+        // Handle "1"/"0" strings or "Enable"/"Disable"
+        if (status === '1' || status === '0') {
+          statusValue = parseInt(status);
+        } else if (status === 'Enable' || status.toLowerCase() === 'enable') {
+          statusValue = 1;
+        } else if (status === 'Disable' || status.toLowerCase() === 'disable') {
+          statusValue = 0;
+        } else {
+          statusValue = 1; // Default to Enable
+        }
       } else if (typeof status === 'number') {
         statusValue = status === 1 ? 1 : 0;
       } else if (status === true) {
@@ -227,6 +250,31 @@ export async function PUT(request) {
 
     // Create Audit Log
     try {
+      // Get authenticated user for audit log
+      let userId = null;
+      let userName = 'System';
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            // Fetch user name from database
+            const [users] = await connection.execute(
+              'SELECT name FROM employee_profile WHERE id = ?',
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || 'Unknown';
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+
+      const { createAuditLog } = await import('@/lib/auditLog');
       await createAuditLog({
         page: 'Customers',
         uniqueCode: id.toString(),
@@ -264,13 +312,14 @@ export async function PUT(request) {
     // Format response to match what the frontend expects
     const formattedCustomer = {
       ...customer,
-      customer_type: customer.status === 1 ? 'Enable' : 'Disable',
+      customer_type: customer.status === 1 ? '1' : '0',
       billing_type: customer.billing_type ? customer.billing_type.toString() : "1", // Convert to string for dropdown
-      payment_type: payment_type || 'Cash', // This might need to come from another field
+      payment_type: customer.gid ? customer.gid.toString() : '1', // Use gid field for payment_type
+      gid: customer.gid || 1, // Include gid in response
       blocklocation: customer.blocklocation ? customer.blocklocation.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       products: customer.product ? customer.product.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       productNames: productNames, // Add product names mapping
-      status: customer.status === 1 ? 'Enable' : 'Disable',
+      status: customer.status === 1 ? '1' : '0', // Return as string "1" or "0"
     };
 
     return NextResponse.json({
@@ -399,13 +448,14 @@ export async function GET(request) {
     // Format response to match what the frontend expects
     const formattedCustomer = {
       ...customer,
-      customer_type: customer.status === 1 ? 'Enable' : 'Disable',
+      customer_type: customer.status === 1 ? '1' : '0',
       billing_type: customer.billing_type ? customer.billing_type.toString() : "1", // Convert to string for dropdown
-      payment_type: 'Cash', // Default value, adjust if you have this field
+      payment_type: customer.gid ? customer.gid.toString() : '1', // Use gid field for payment_type
+      gid: customer.gid || 1, // Include gid in response
       blocklocation: customer.blocklocation ? customer.blocklocation.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       products: customer.product ? customer.product.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       productNames: productNames, // Add product names mapping
-      status: customer.status === 1 ? 'Enable' : 'Disable',
+      status: customer.status === 1 ? '1' : '0', // Return as string "1" or "0"
     };
 
     return NextResponse.json({

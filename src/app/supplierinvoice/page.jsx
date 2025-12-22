@@ -4,6 +4,7 @@ import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import Sidebar from '@/components/sidebar';
 import Link from 'next/link';
 
 function SupplierInvoiceContent() {
@@ -124,10 +125,21 @@ function SupplierInvoiceContent() {
   }
 
   return (
-    <>
-      <Header />
-      
-      <main className="min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Fixed Sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto bg-gray-50">
         <div className="p-4 md:p-6">
           {/* Breadcrumb and Header */}
           <div className="mb-6">
@@ -344,10 +356,10 @@ function SupplierInvoiceContent() {
             </div>
           </div>
         </div>
-      </main>
+        </main>
 
-      {/* Payment Modal */}
-      {showModal && (
+        {/* Payment Modal */}
+        {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
             <div className="p-6">
@@ -430,10 +442,14 @@ function SupplierInvoiceContent() {
             </div>
           </div>
         </div>
-      )}
+        )}
 
-      <Footer />
-    </>
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
+      </div>
+    </div>
   );
 }
 

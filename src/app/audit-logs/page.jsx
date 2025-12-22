@@ -155,12 +155,21 @@ export default function AuditLogsPage() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <Header />
-        
-        <main className="flex-1 overflow-y-auto py-6 px-4 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Fixed Sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto py-6 px-4 sm:px-6 lg:px-8">
           {/* Page Header */}
           <div className="mb-6">
             <div className="flex items-center space-x-2 mb-2">
@@ -345,6 +354,19 @@ export default function AuditLogsPage() {
                           {log.user_id && (
                             <span className="text-gray-500 ml-1">(ID: {log.user_id})</span>
                           )}
+                          {/* Only show role for admin users */}
+                          {(() => {
+                            try {
+                              const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+                              if (userData) {
+                                const user = JSON.parse(userData);
+                                if (user && Number(user.role) === 5 && log.creator_info?.role_name) {
+                                  return <span className="text-gray-500 ml-1">- {log.creator_info.role_name}</span>;
+                                }
+                              }
+                            } catch (e) {}
+                            return null;
+                          })()}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getActionColor(log.action)}`}>
@@ -404,7 +426,11 @@ export default function AuditLogsPage() {
             </div>
           )}
         </main>
-        <Footer />
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

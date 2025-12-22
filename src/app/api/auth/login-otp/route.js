@@ -9,6 +9,29 @@ export async function POST(request) {
     const { mobile } = await request.json();
     connection = await db.getConnection();
 
+    // First check if user exists (without status filter to detect disabled accounts)
+    const [userCheck] = await connection.execute(
+      `SELECT id, status FROM employee_profile WHERE mobile = ?`,
+      [mobile]
+    );
+
+    if (userCheck.length === 0) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Mobile number not found" 
+      }, { status: 401 });
+    }
+
+    // Check if user is disabled BEFORE fetching full data - strict comparison
+    const userStatus = Number(userCheck[0].status);
+    if (userStatus !== 1) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Your account has been deactivated by admin. Please contact administrator." 
+      }, { status: 403 });
+    }
+
+    // Fetch full user data (only active users)
     const [rows] = await connection.execute(
       `SELECT id, emp_code, name, email, role, status, fs_id, fl_id, station, client
        FROM employee_profile 
@@ -19,27 +42,59 @@ export async function POST(request) {
     if (rows.length === 0) {
       return NextResponse.json({ 
         success: false, 
-        message: "Mobile number not found or account disabled" 
-      }, { status: 401 });
+        message: "Account is inactive" 
+      }, { status: 403 });
     }
 
     const user = rows[0];
 
-    const [permissions] = await connection.execute(
+    // ✅ FIX: Fetch BOTH employee-specific AND role-based permissions
+    // Employee-specific permissions take priority
+    const [employeePermissions] = await connection.execute(
       `SELECT module_name, can_view, can_edit, can_delete
        FROM role_permissions 
        WHERE employee_id = ?`,
       [user.id]
     );
-
-    const userPermissions = {};
-    permissions.forEach((p) => {
-      userPermissions[p.module_name] = {
-        can_view: p.can_view === 1,
-        can_edit: p.can_edit === 1,
-        can_delete: p.can_delete === 1,
-      };
+    
+    // Also fetch role-based permissions (for modules not covered by employee-specific)
+    const [roleBasedPermissions] = await connection.execute(
+      `SELECT module_name, can_view, can_edit, can_delete
+       FROM role_permissions
+       WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
+      [user.role]
+    );
+    
+    // ✅ Merge permissions: employee-specific override role-based for same module
+    const permissionMap = new Map();
+    
+    // First, add all role-based permissions
+    roleBasedPermissions.forEach((perm) => {
+      permissionMap.set(perm.module_name, {
+        can_view: perm.can_view === 1,
+        can_edit: perm.can_edit === 1,
+        can_delete: perm.can_delete === 1
+      });
     });
+    
+    // Then, override with employee-specific permissions (they take priority)
+    employeePermissions.forEach((perm) => {
+      permissionMap.set(perm.module_name, {
+        can_view: perm.can_view === 1,
+        can_edit: perm.can_edit === 1,
+        can_delete: perm.can_delete === 1
+      });
+    });
+    
+    // Convert to object format
+    const userPermissions = {};
+    permissionMap.forEach((perms, module_name) => {
+      userPermissions[module_name] = perms;
+    });
+    
+    console.log('🔑 OTP Login - Employee-specific permissions:', employeePermissions.length);
+    console.log('🔑 OTP Login - Role-based permissions:', roleBasedPermissions.length);
+    console.log('🔑 OTP Login - Final merged permissions:', Object.keys(userPermissions).length);
 
     const token = signToken({ 
       id: user.id, 

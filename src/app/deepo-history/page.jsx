@@ -399,18 +399,24 @@ function DeepoHistoryContent() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                       <div className="flex flex-wrap gap-1">
-                        <Link
-                          href={`/edit-deepo-list?id=${deepo.id}`}
-                          className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                        >
-                          Edit
-                        </Link>
-                        <Link
-                          href={`/deepo-view?id=${deepo.id}`}
-                          className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                        >
-                          View
-                        </Link>
+                        {/* View Button - visible if can_view */}
+                        {permissions.can_view && (
+                          <Link
+                            href={`/deepo-view?id=${deepo.id}`}
+                            className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                          >
+                            View
+                          </Link>
+                        )}
+                        {/* Edit Button - visible only if can_edit */}
+                        {permissions.can_edit && (
+                          <Link
+                            href={`/edit-deepo-list?id=${deepo.id}`}
+                            className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                          >
+                            Edit
+                          </Link>
+                        )}
                         <Link
                           href={`/deepo-logs?deepo_id=${deepo.id}`}
                           className="inline-block text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer"
@@ -419,14 +425,16 @@ function DeepoHistoryContent() {
                           📋 Logs
                         </Link>
 
-                        {deepo.status !== 'approved' ? (
+                        {/* Approve button - only if can_edit */}
+                        {deepo.status !== 'approved' && permissions.can_edit && (
                           <button
                             onClick={() => handleApprove(deepo.id)}
                             className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
                           >
                             Approve
                           </button>
-                        ) : (
+                        )}
+                        {deepo.status === 'approved' && (
                           <>
                             <button
                               onClick={() => handleDownloadPDF(deepo.id)}

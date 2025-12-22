@@ -3,6 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import Sidebar from "@/components/sidebar";
 
 // Create a separate component that contains the main logic
 function StockTransfersContent() {
@@ -62,34 +65,21 @@ function StockTransfersContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
-              <button 
-                onClick={() => router.back()}
-                className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-3xl font-bold text-gray-900">Stock Transfer</h1>
-                <nav className="flex space-x-2 text-sm text-gray-600 mt-2">
-                  <Link href="/" className="hover:text-blue-600 transition-colors">Home</Link>
-                  <span>/</span>
-                  <span className="text-gray-900">Stock Transfer</span>
-                </nav>
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Fixed Sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Floating Action Button */}
         <Link
           href="/stock-transfers/create"
@@ -186,7 +176,13 @@ function StockTransfersContent() {
             </div>
           </div>
         </div>
-      </main>
+        </main>
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
+      </div>
     </div>
   );
 }

@@ -7,16 +7,20 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
+    let token = cookieStore.get('token')?.value;
     
-    console.log('🔐 Verify API called, token exists:', !!token);
+    console.log('🔐 Verify API called, token exists in cookies:', !!token);
     
-    if (!token) {
-      console.log('❌ No token found in cookies');
-      return NextResponse.json({ 
-        authenticated: false,
-        error: 'Not authenticated' 
-      });
+    // Fallback: Support Authorization header (Bearer token) for mobile/edge cases
+    if (!token && typeof headers !== 'undefined') {
+      try {
+        const reqHeaders = headers();
+        const authHeader = reqHeaders.get('authorization');
+        if (authHeader && authHeader.startsWith('Bearer ')) {
+          token = authHeader.substring(7);
+          console.log('🔐 Token found in Authorization header');
+        }
+      } catch {}
     }
 
     const decoded = verifyToken(token);
@@ -24,27 +28,51 @@ export async function GET() {
       console.log('❌ Token verification failed');
       return NextResponse.json({ 
         authenticated: false,
-        error: 'Invalid token' 
+        error: token ? 'Invalid token' : 'Not authenticated'
       });
     }
 
     console.log('✅ Token verified, user ID:', decoded.userId);
 
-    // Fetch complete user data from database
+    // First check if user exists (without status filter to detect disabled accounts)
+    const userCheck = await executeQuery(
+      `SELECT id, status FROM employee_profile WHERE id = ?`,
+      [decoded.userId]
+    );
+
+    if (userCheck.length === 0) {
+      console.log('❌ User not found in database');
+      return NextResponse.json({ 
+        authenticated: false,
+        error: 'User not found' 
+      });
+    }
+
+    // Check if user is disabled - strict comparison with number
+    const userStatus = Number(userCheck[0].status);
+    if (userStatus !== 1) {
+      console.log('❌ User account is disabled, status:', userStatus);
+      return NextResponse.json({ 
+        authenticated: false,
+        error: 'Your account has been deactivated by admin. Please contact administrator.' 
+      });
+    }
+
+    // Fetch complete user data from database (only active users)
     const users = await executeQuery(
       `SELECT id, emp_code, name, email, role, status, fs_id, fl_id, station, client
        FROM employee_profile 
        WHERE id = ? AND status = 1`,
-      [decoded.userId]  // Use decoded.userId instead of decoded.id
+      [decoded.userId]
     );
 
     console.log('📊 Users found:', users.length);
 
     if (users.length === 0) {
-      console.log('❌ User not found in database');
+      console.log('❌ User not found or inactive');
       return NextResponse.json({ 
         authenticated: false,
-        error: 'User not found' 
+        error: 'Account is inactive' 
       });
     }
 
@@ -98,7 +126,9 @@ export async function GET() {
     }));
 
     console.log('🔑 Permissions found:', finalPermissions.length);
-    console.log('🔑 Permission source:', permissions.length > 0 ? 'employee_id' : 'role');
+    console.log('🔑 Employee-specific permissions:', employeePermissions.length);
+    console.log('🔑 Role-based permissions:', roleBasedPermissions.length);
+    console.log('🔑 Permission source:', employeePermissions.length > 0 ? 'employee_id + role' : 'role only');
     console.log('🔑 Raw permissions:', finalPermissions.map(p => ({
       module: p.module_name,
       can_view: p.can_view,

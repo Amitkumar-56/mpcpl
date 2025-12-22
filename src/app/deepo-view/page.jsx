@@ -46,52 +46,92 @@ function DeepoViewContent() {
 
   const generatePDF = async () => {
     if (typeof window === 'undefined') {
-      console.error('html2pdf is not available on server');
+      console.error('PDF generation is not available on server');
       return;
     }
     
     const element = document.getElementById('pdf-content');
     if (!element) {
       console.error('PDF content element not found');
+      alert('PDF content not found. Please refresh the page.');
       return;
     }
     
-    // Dynamically import html2pdf only when needed (client-side only)
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
+      // Try using html2canvas + jsPDF method first (more reliable)
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDF = (await import('jspdf')).default;
       
-      // Add scaling class
-      element.classList.add("scale-80", "origin-top-left", "w-[125%]");
+      // Show loading indicator
+      const loadingText = document.createElement('div');
+      loadingText.id = 'pdf-loading';
+      loadingText.className = 'fixed top-4 right-4 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg z-50';
+      loadingText.textContent = 'Generating PDF...';
+      document.body.appendChild(loadingText);
       
-      const opt = {
-        margin: 0,
-        filename: `deepo-details-${id}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          scrollY: 0,
-          logging: false
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        },
-        pagebreak: { mode: 'avoid-all' }
-      };
-
-      html2pdf()
-        .set(opt)
-        .from(element)
-        .save()
-        .then(() => {
-          // Remove scaling class after PDF generation
-          element.classList.remove("scale-80", "origin-top-left", "w-[125%]");
-        });
+      const canvas = await html2canvas(element, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        allowTaint: true
+      });
+      
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const imgWidth = 210; // A4 width in mm
+      const pageHeight = 297; // A4 height in mm
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      pdf.save(`deepo-details-${id || 'unknown'}.pdf`);
+      
+      // Remove loading indicator
+      document.body.removeChild(loadingText);
+      alert('PDF downloaded successfully!');
     } catch (error) {
       console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
+      
+      // Fallback to html2pdf.js
+      try {
+        const html2pdf = (await import('html2pdf.js')).default;
+        
+        const opt = {
+          margin: [5, 5, 5, 5],
+          filename: `deepo-details-${id || 'unknown'}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2, 
+            useCORS: true, 
+            scrollY: 0,
+            logging: false,
+            backgroundColor: '#ffffff'
+          },
+          jsPDF: { 
+            unit: 'mm', 
+            format: 'a4', 
+            orientation: 'portrait' 
+          },
+          pagebreak: { mode: 'avoid-all', before: '.page-break' }
+        };
+
+        await html2pdf().set(opt).from(element).save();
+        alert('PDF downloaded successfully!');
+      } catch (fallbackError) {
+        console.error('Fallback PDF generation also failed:', fallbackError);
+        alert('Failed to generate PDF. Please try again or contact support.');
+      }
     }
   };
 

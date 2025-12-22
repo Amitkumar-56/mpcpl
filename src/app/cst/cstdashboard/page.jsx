@@ -29,6 +29,7 @@ export default function CustomerDashboardPage() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Socket and Chat States
   const [socket, setSocket] = useState(null);
@@ -435,13 +436,36 @@ export default function CustomerDashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+    <div className="flex min-h-screen bg-gray-100 overflow-hidden">
+      {/* Fixed Sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      </div>
+
+      {/* Mobile Sidebar */}
+      <div className={`lg:hidden fixed z-40 h-full transition-transform duration-300 ease-in-out ${
+        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+      }`}>
+        <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      </div>
+
+      {/* Mobile Overlay */}
+      {sidebarOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
       
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <CstHeader />
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <CstHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
+        </div>
         
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        {/* Scrollable Main Content */}
+        <main className="pt-16 lg:pt-20 flex-1 p-4 lg:p-6 overflow-auto">
           
           {activePage === "Dashboard" && (
             <div className="space-y-6">

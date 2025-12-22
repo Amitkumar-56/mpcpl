@@ -17,6 +17,9 @@ function ViewEmployeeContent() {
   const [error, setError] = useState(null);
   const [employee, setEmployee] = useState(null);
   const [permissions, setPermissions] = useState([]);
+  const [canViewEmployees, setCanViewEmployees] = useState(false);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [loadingLogs, setLoadingLogs] = useState(false);
 
   useEffect(() => {
     if (!authLoading) {
@@ -24,6 +27,25 @@ function ViewEmployeeContent() {
         router.push('/login');
         return;
       }
+      // Check permissions for Employees module (view OR edit)
+      const checkPerms = async () => {
+        if (user?.role === 5) {
+          setCanViewEmployees(true);
+          return;
+        }
+        try {
+          const resp = await fetch(`/api/permissions?module=${encodeURIComponent('Employees')}`, { cache: 'no-store' });
+          if (!resp.ok) {
+            setCanViewEmployees(false);
+            return;
+          }
+          const data = await resp.json();
+          setCanViewEmployees(Boolean(data.can_view || data.can_edit));
+        } catch {
+          setCanViewEmployees(false);
+        }
+      };
+      checkPerms();
       if (id) {
         fetchEmployee();
       } else {
@@ -43,18 +65,68 @@ function ViewEmployeeContent() {
       const result = await response.json();
 
       if (result.success && result.data) {
-        setEmployee(result.data);
-        if (result.data.permissions) {
-          setPermissions(result.data.permissions);
+        const employeeData = result.data.employee || result.data;
+        setEmployee(employeeData);
+        
+        // Only set permissions if user is admin (role 5) - admin can see all employee permissions
+        // Employees can only see their own permissions when viewing their own profile
+        if (user?.role === 5) {
+          // Admin viewing any employee - show that employee's permissions
+          if (employeeData.permissions) {
+            const permsArray = Object.entries(employeeData.permissions).map(([module_name, perms]) => ({
+              module_name,
+              can_view: perms.can_view,
+              can_edit: perms.can_edit,
+              can_delete: perms.can_delete
+            }));
+            setPermissions(permsArray);
+          }
+        } else if (user?.id && parseInt(id) === user.id) {
+          // Employee viewing their own profile - show their own permissions from session
+          if (user.permissions) {
+            const permsArray = Object.entries(user.permissions).map(([module_name, perms]) => ({
+              module_name,
+              can_view: perms.can_view,
+              can_edit: perms.can_edit,
+              can_delete: perms.can_delete
+            }));
+            setPermissions(permsArray);
+          }
         }
+        // If employee is viewing another employee's profile (not admin), don't show permissions
       } else {
         setError(result.error || 'Failed to load employee data');
+      }
+      
+      // Fetch audit logs for this employee
+      if (employeeData?.id || employeeData?.emp_code) {
+        fetchAuditLogs(employeeData.id || id, employeeData.emp_code);
       }
     } catch (err) {
       console.error(err);
       setError('Error loading employee data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAuditLogs = async (empId, empCode) => {
+    try {
+      setLoadingLogs(true);
+      const params = new URLSearchParams();
+      if (empId) params.append('employee_id', empId);
+      if (empCode) params.append('emp_code', empCode);
+      
+      const response = await fetch(`/api/employee-audit-logs?${params.toString()}`);
+      const result = await response.json();
+      
+      if (result.success) {
+        setAuditLogs(result.data || []);
+      }
+    } catch (err) {
+      console.error('Error fetching audit logs:', err);
+    } finally {
+      setLoadingLogs(false);
     }
   };
 
@@ -114,6 +186,29 @@ function ViewEmployeeContent() {
     );
   }
 
+  if (!authLoading && user && user.role !== 5 && !canViewEmployees) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <Sidebar activePage="Employees" />
+        </div>
+        <div className="flex-1 lg:ml-64">
+          <div className="fixed top-0 left-0 lg:left-64 right-0 z-40">
+            <Header />
+          </div>
+          <main className="pt-16 lg:pt-20 min-h-screen flex items-center justify-center">
+            <div className="text-center max-w-md mx-auto p-4">
+              <p className="text-red-600 mb-4">Access denied: you don’t have permission to view Employees.</p>
+              <Link href="/dashboard" className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 inline-block">
+                Go to Dashboard
+              </Link>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex min-h-screen bg-gray-50">
       {/* Fixed Sidebar - Only on desktop */}
@@ -156,12 +251,15 @@ function ViewEmployeeContent() {
                 </button>
                 <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Employee Details</h1>
               </div>
-              <Link
-                href={`/employees/edit?id=${id}`}
-                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-center font-medium transition-colors"
-              >
-                Edit Employee
-              </Link>
+              {/* Only show Edit button if user has edit permission or is admin */}
+              {(user?.role === 5 || (user?.permissions && user.permissions['Employees']?.can_edit)) && (
+                <Link
+                  href={`/employees/edit?id=${id}`}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-center font-medium transition-colors"
+                >
+                  Edit Employee
+                </Link>
+              )}
             </div>
 
             {employee && (
@@ -269,10 +367,12 @@ function ViewEmployeeContent() {
                   )}
                 </div>
 
-                {/* Permissions Section */}
-                {permissions.length > 0 && (
+                {/* Permissions Section - Only show to admin OR if employee is viewing their own profile */}
+                {permissions.length > 0 && (user?.role === 5 || (user?.id && parseInt(id) === user.id)) && (
                   <div className="mt-8 md:mt-10 pt-6 md:pt-8 border-t">
-                    <h3 className="text-lg md:text-xl font-semibold text-gray-800 mb-4 md:mb-6">Module Permissions</h3>
+                    <h3 className="text-lg md:text-xl font-semibold text-gray-800 mb-4 md:mb-6">
+                      {user?.role === 5 ? 'Employee Module Permissions' : 'My Module Permissions'}
+                    </h3>
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                       {permissions.map((perm, idx) => (
                         <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -306,6 +406,97 @@ function ViewEmployeeContent() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Employee Audit Logs Section */}
+                {auditLogs.length > 0 && (
+                  <div className="mt-8 md:mt-10 pt-6 md:pt-8 border-t">
+                    <h3 className="text-lg md:text-xl font-semibold text-gray-800 mb-4 md:mb-6">
+                      Employee Activity Logs
+                    </h3>
+                    <div className="space-y-4">
+                      {auditLogs.map((log, idx) => (
+                        <div key={idx} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+                            <div className="flex items-center gap-2">
+                              <span className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                log.action === 'create' ? 'bg-green-100 text-green-800' :
+                                log.action === 'edit' ? 'bg-blue-100 text-blue-800' :
+                                'bg-gray-100 text-gray-800'
+                              }`}>
+                                {log.action?.toUpperCase() || 'ACTION'}
+                              </span>
+                              <span className="text-sm text-gray-600">
+                                {log.action_date} {log.action_time}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-sm">
+                            {log.creator_info && (
+                              <>
+                                <div>
+                                  <span className="text-gray-500">Created/Edited by:</span>
+                                  <span className="ml-2 font-medium text-gray-900">
+                                    {log.creator_info.name || 'System'}
+                                  </span>
+                                </div>
+                                {log.creator_info.id && (
+                                  <div>
+                                    <span className="text-gray-500">Creator ID:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {log.creator_info.id}
+                                    </span>
+                                  </div>
+                                )}
+                                {log.creator_info.role_name && (
+                                  <div>
+                                    <span className="text-gray-500">Creator Role:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {log.creator_info.role_name} ({log.creator_info.role})
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                            
+                            {log.employee_info && (
+                              <>
+                                {log.employee_info.id && (
+                                  <div>
+                                    <span className="text-gray-500">Employee ID:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {log.employee_info.id}
+                                    </span>
+                                  </div>
+                                )}
+                                {log.employee_info.role_name && (
+                                  <div>
+                                    <span className="text-gray-500">Employee Role:</span>
+                                    <span className="ml-2 font-medium text-gray-900">
+                                      {log.employee_info.role_name} ({log.employee_info.role})
+                                    </span>
+                                  </div>
+                                )}
+                              </>
+                            )}
+                          </div>
+                          
+                          {log.remarks && (
+                            <div className="mt-3 pt-3 border-t border-gray-300">
+                              <p className="text-sm text-gray-700">{log.remarks}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    
+                    {loadingLogs && (
+                      <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto"></div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

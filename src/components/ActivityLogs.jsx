@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from '@/context/SessionContext';
 import ExportButton from './ExportButton';
 
 /**
@@ -24,6 +25,8 @@ export default function ActivityLogs({
   showFilters = true,
   limit = 50
 }) {
+  const { user } = useSession();
+  const isAdmin = user && Number(user.role) === 5;
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -134,9 +137,21 @@ export default function ActivityLogs({
   };
 
   const formatValue = (value) => {
-    if (!value) return 'N/A';
+    if (!value && value !== 0) return 'N/A';
     if (typeof value === 'object') {
       return JSON.stringify(value, null, 2);
+    }
+    // Format role numbers to role names
+    const roleNames = {
+      1: 'Staff',
+      2: 'Incharge',
+      3: 'Team Leader',
+      4: 'Accountant',
+      5: 'Admin',
+      6: 'Driver'
+    };
+    if (typeof value === 'number' && roleNames[value]) {
+      return `${roleNames[value]} (${value})`;
     }
     return String(value);
   };
@@ -310,6 +325,10 @@ export default function ActivityLogs({
                     {log.user_id && (
                       <span className="text-gray-500 ml-1">(ID: {log.user_id})</span>
                     )}
+                    {/* Only show role for admin users */}
+                    {isAdmin && log.creator_info?.role_name && (
+                      <span className="text-gray-500 ml-1">- {log.creator_info.role_name}</span>
+                    )}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getActionColor(log.action)}`}>
@@ -329,6 +348,10 @@ export default function ActivityLogs({
                             Object.keys({...log.old_value, ...log.new_value}).map(key => {
                               const oldVal = log.old_value?.[key];
                               const newVal = log.new_value?.[key];
+                              // Skip internal fields like created_by_employee_id, edited_by_employee_id, etc.
+                              if (key.includes('created_by') || key.includes('edited_by') || key === 'employee_id') {
+                                return null;
+                              }
                               if (oldVal !== newVal) {
                                 return (
                                   <div key={key} className="border-l-2 border-gray-300 pl-2">

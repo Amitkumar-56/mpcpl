@@ -6,7 +6,7 @@ import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaTrash } from 'react-icons/fa';
+import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaTrash, FaKey } from 'react-icons/fa';
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
@@ -168,14 +168,16 @@ export default function EmployeeHistory() {
     try {
       setUpdatingStatus(prev => ({ ...prev, [employeeId]: true }));
       
-      // ✅ FIXED: Use the employee PUT endpoint to update status
-      const formData = new FormData();
-      formData.append('id', employeeId);
-      formData.append('status', newStatus.toString());
-      
-      const res = await fetch('/api/employee', {
-        method: 'PUT',
-        body: formData
+      // Use update-status API endpoint
+      const res = await fetch('/api/employee/update-status', {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employeeId: employeeId,
+          status: newStatus
+        })
       });
 
       const result = await res.json();
@@ -191,6 +193,50 @@ export default function EmployeeHistory() {
       alert(err.message || 'Failed to update employee status');
     } finally {
       setUpdatingStatus(prev => ({ ...prev, [employeeId]: false }));
+    }
+  };
+
+  const handlePasswordChange = async (employeeId) => {
+    // Check permission - only admin or user with edit permission
+    if (!permissions.can_edit && !isAdmin) {
+      alert('You do not have permission to change employee password');
+      return;
+    }
+
+    const newPassword = prompt('Enter new password (minimum 6 characters):');
+    if (!newPassword || newPassword.length < 6) {
+      if (newPassword !== null) {
+        alert('Password must be at least 6 characters long');
+      }
+      return;
+    }
+
+    if (!confirm('Are you sure you want to change this employee\'s password?')) {
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          employeeId: employeeId,
+          newPassword: newPassword
+        })
+      });
+
+      const result = await res.json();
+
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || result.message || 'Failed to change password');
+      }
+
+      alert('Password changed successfully');
+    } catch (err) {
+      console.error('Error changing password:', err);
+      alert(err.message || 'Failed to change password');
     }
   };
 
@@ -504,6 +550,17 @@ export default function EmployeeHistory() {
                                 </button>
                               )}
                               
+                              {/* Password Change Button */}
+                              {(permissions.can_edit || isAdmin) && (
+                                <button
+                                  onClick={() => handlePasswordChange(emp.id)}
+                                  className="p-2 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors"
+                                  title="Change Password"
+                                >
+                                  <FaKey className="w-4 h-4" />
+                                </button>
+                              )}
+
                               {/* Status Toggle Button */}
                               {(permissions.can_edit || isAdmin) && (
                                 <button

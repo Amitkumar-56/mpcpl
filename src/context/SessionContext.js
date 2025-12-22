@@ -74,8 +74,7 @@ export function SessionProvider({ children }) {
             // No token means logged out, clear cache
             sessionStorage.removeItem('user');
             localStorage.removeItem('user');
-            setLoading(false);
-            return;
+            // Continue to normal verify below
           }
           
           setUser(userData);
@@ -86,8 +85,7 @@ export function SessionProvider({ children }) {
           if (!localUser && sessionUser) {
             localStorage.setItem('user', sessionUser);
           }
-          setLoading(false);
-          return;
+          // Continue to verify below to ensure account is still active
         } catch (e) {
           console.error('Error parsing cached user:', e);
           // Clear invalid data
@@ -96,9 +94,11 @@ export function SessionProvider({ children }) {
         }
       }
 
+      const tokenHeader = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch('/api/auth/verify', {
         credentials: 'include',
-        cache: 'no-store'
+        cache: 'no-store',
+        headers: tokenHeader ? { Authorization: `Bearer ${tokenHeader}` } : {}
       });
       
       if (res.ok) {
@@ -123,14 +123,31 @@ export function SessionProvider({ children }) {
           sessionStorage.setItem('user', cacheData);
           localStorage.setItem('user', cacheData);
         } else {
+          // Account disabled or not authenticated - clear everything
           setUser(null);
-          sessionStorage.removeItem('user');
-          localStorage.removeItem('user');
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+            localStorage.removeItem('token');
+            // If account is disabled, show message
+            if (data.error && data.error.includes('deactivated')) {
+              alert('Your account has been deactivated by admin. Please contact administrator.');
+            }
+          }
         }
       } else {
+        // API error - clear user data
+        const errorData = await res.json().catch(() => ({}));
         setUser(null);
-        sessionStorage.removeItem('user');
-        localStorage.removeItem('user');
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('user');
+          localStorage.removeItem('user');
+          localStorage.removeItem('token');
+          // If account is disabled, show message
+          if (errorData.error && errorData.error.includes('deactivated')) {
+            alert('Your account has been deactivated by admin. Please contact administrator.');
+          }
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error);

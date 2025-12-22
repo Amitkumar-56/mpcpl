@@ -27,6 +27,18 @@ export async function POST(req) {
 
     const customer = rows[0];
 
+    // Check if customer is active (status = 1) BEFORE password check for security
+    if (customer.status === 0 || customer.status === null || customer.status === undefined) {
+      return NextResponse.json({ 
+        error: "Your account has been deactivated by admin. Please contact administrator." 
+      }, { status: 403 });
+    }
+
+    // Only allow customers with roleid = 1
+    if (customer.roleid !== 1) {
+      return NextResponse.json({ error: "Access denied" }, { status: 403 });
+    }
+
     // Compute SHA256 hash of input password
     const hash = crypto.createHash("sha256").update(password).digest("hex");
 
@@ -36,18 +48,6 @@ export async function POST(req) {
       await executeQuery("UPDATE customers SET password=? WHERE id=?", [hash, customer.id]);
     } else if (customer.password !== hash) {
       return NextResponse.json({ error: "Invalid password" }, { status: 401 });
-    }
-
-    // Only allow customers with rollid = 1
-    if (customer.roleid !== 1) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 });
-    }
-
-    // Check if customer is active (status = 1)
-    if (customer.status === 0) {
-      return NextResponse.json({ 
-        error: "Your account has been deactivated by admin. Please contact administrator." 
-      }, { status: 403 });
     }
 
     // Issue JWT for customer

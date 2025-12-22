@@ -74,6 +74,15 @@ export async function GET(request) {
 
     const user = users[0];
     
+    // Check if employee is active (status = 1)
+    if (user.status === 0 || user.status === null || user.status === undefined) {
+      console.log('❌ Employee account is disabled');
+      return NextResponse.json({ 
+        success: false,
+        error: 'Your account has been deactivated by admin. Please contact administrator.' 
+      }, { status: 403 });
+    }
+    
     // Ensure role is a number
     if (user.role !== undefined && user.role !== null) {
       user.role = Number(user.role);

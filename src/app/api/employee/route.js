@@ -1,8 +1,11 @@
+import { verifyToken } from '@/lib/auth';
 import db from '@/lib/db';
 import crypto from 'crypto';
 import fs from 'fs';
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import path from 'path';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET() {
   try {
@@ -35,6 +38,25 @@ export async function POST(req) {
   const conn = await db.getConnection();
   try {
     const formData = await req.formData();
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value || null;
+    let isAdmin = false;
+    let currentUserId = null;
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded) {
+        currentUserId = decoded.userId || decoded.id;
+        try {
+          const [rows] = await conn.execute(
+            'SELECT role FROM employee_profile WHERE id = ? LIMIT 1',
+            [currentUserId]
+          );
+          if (rows.length > 0 && Number(rows[0].role) === 5) {
+            isAdmin = true;
+          }
+        } catch {}
+      }
+    }
 
     // Auto-generate Employee Code
     const [lastRow] = await conn.execute(
@@ -61,8 +83,18 @@ export async function POST(req) {
     const postbox = formData.get('postbox') || '';
     const phone = formData.get('phone') || '';
     const phonealt = formData.get('phonealt') || '';
-    const status = parseInt(formData.get('status')) || 0;
+    let status = parseInt(formData.get('status')) || 1;
+    if (!isAdmin) {
+      status = 1;
+    }
     const account_details = formData.get('account_details') || '';
+    
+    // Handle station assignment (fs_id) - comma-separated string
+    let fs_id = '';
+    if (isAdmin) {
+      const fsIds = formData.getAll('fs_id[]');
+      fs_id = fsIds.length > 0 ? fsIds.join(',') : '';
+    }
 
     // Hash password
     const password = crypto.createHash('sha256').update(rawPassword).digest('hex');
@@ -78,6 +110,17 @@ export async function POST(req) {
       fs.writeFileSync(path.join(uploadDir, pictureName), buffer);
     }
 
+    // Handle QR code upload
+    const qrCodeFile = formData.get('qr_code');
+    let qrCodeName = '';
+    if (qrCodeFile && qrCodeFile.name) {
+      qrCodeName = `qr_${Date.now()}_${qrCodeFile.name}`;
+      const uploadDir = path.join(process.cwd(), 'public', 'uploads');
+      fs.mkdirSync(uploadDir, { recursive: true });
+      const buffer = Buffer.from(await qrCodeFile.arrayBuffer());
+      fs.writeFileSync(path.join(uploadDir, qrCodeName), buffer);
+    }
+
     // Begin transaction
     await conn.beginTransaction();
 
@@ -85,18 +128,18 @@ export async function POST(req) {
     const [result] = await conn.execute(
       `INSERT INTO employee_profile 
       (emp_code, email, password, role, salary, name, address, city, region, country,
-       postbox, phone, phonealt, picture, status, account_details, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       postbox, phone, phonealt, picture, status, account_details, fs_id, qr_code, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         emp_code, email, password, role, salary, name, address,
-        city, region, country, postbox, phone, phonealt, pictureName, status, account_details
+        city, region, country, postbox, phone, phonealt, pictureName, status, account_details, fs_id, qrCodeName
       ]
     );
 
     const employeeId = result.insertId;
 
     // Save permissions - BOTH employee_id AND role
-    const perms = formData.get('permissions');
+    const perms = isAdmin ? formData.get('permissions') : null;
     if (perms) {
       let permissionsObj = {};
       try {
@@ -128,6 +171,53 @@ export async function POST(req) {
           ]
         );
       }
+    }
+
+    // Create audit log for employee creation
+    try {
+      let creatorName = 'System';
+      let creatorRole = null;
+      if (currentUserId) {
+        try {
+          const [creatorRows] = await conn.execute(
+            'SELECT name, role FROM employee_profile WHERE id = ? LIMIT 1',
+            [currentUserId]
+          );
+          if (creatorRows.length > 0) {
+            creatorName = creatorRows[0].name;
+            creatorRole = Number(creatorRows[0].role);
+          }
+        } catch (err) {
+          console.error('Error fetching creator info:', err);
+        }
+      }
+
+      await createAuditLog({
+        page: 'Employees',
+        uniqueCode: emp_code,
+        section: 'Employee Management',
+        userId: currentUserId,
+        userName: creatorName,
+        action: 'create',
+        remarks: `Employee created: ${name} (ID: ${employeeId}, Role: ${role}, Created by: ${creatorName} - ID: ${currentUserId || 'N/A'}, Role: ${creatorRole || 'N/A'})`,
+        oldValue: null,
+        newValue: {
+          employee_id: employeeId,
+          emp_code: emp_code,
+          name: name,
+          email: email,
+          role: role,
+          role_name: role === 1 ? 'Staff' : role === 2 ? 'Incharge' : role === 3 ? 'Team Leader' : role === 4 ? 'Accountant' : role === 5 ? 'Admin' : role === 6 ? 'Driver' : 'Unknown',
+          created_by_employee_id: currentUserId,
+          created_by_name: creatorName,
+          created_by_role: creatorRole
+        },
+        recordType: 'employee',
+        recordId: employeeId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+      // Don't fail the main operation
     }
 
     // Commit transaction

@@ -23,14 +23,46 @@ function EditCustomerContent() {
     region: "",
     postbox: "",
     customer_type: "Enable",
-    billing_type: "Billing",
-    payment_type: "Cash",
+    billing_type: "1",
+    payment_type: "1",
     blocklocation: [],
     products: [],
-    status: "Enable",
+    status: "1",
     gst_name: "",
     gst_number: "",
   });
+
+  // Indian states for region dropdown
+  const regions = {
+    'andhra_pradesh': 'Andhra Pradesh',
+    'arunachal_pradesh': 'Arunachal Pradesh',
+    'assam': 'Assam',
+    'bihar': 'Bihar',
+    'chhattisgarh': 'Chhattisgarh',
+    'goa': 'Goa',
+    'gujarat': 'Gujarat',
+    'haryana': 'Haryana',
+    'himachal_pradesh': 'Himachal Pradesh',
+    'jharkhand': 'Jharkhand',
+    'karnataka': 'Karnataka',
+    'kerala': 'Kerala',
+    'madhya_pradesh': 'Madhya Pradesh',
+    'maharashtra': 'Maharashtra',
+    'manipur': 'Manipur',
+    'meghalaya': 'Meghalaya',
+    'mizoram': 'Mizoram',
+    'nagaland': 'Nagaland',
+    'odisha': 'Odisha',
+    'punjab': 'Punjab',
+    'rajasthan': 'Rajasthan',
+    'sikkim': 'Sikkim',
+    'tamil_nadu': 'Tamil Nadu',
+    'telangana': 'Telangana',
+    'tripura': 'Tripura',
+    'uttar_pradesh': 'Uttar Pradesh',
+    'uttarakhand': 'Uttarakhand',
+    'west_bengal': 'West Bengal'
+  };
 
   const [stations, setStations] = useState([]);
   const [productList, setProductList] = useState([]);
@@ -71,6 +103,22 @@ function EditCustomerContent() {
           billingType = "1"; // Default to "Billing"
         }
         
+        // Get payment_type (gid) from customer data
+        let paymentType = customer.gid || customer.payment_type || "1";
+        if (typeof paymentType === 'string') {
+          paymentType = paymentType === 'Cash' ? '1' : (paymentType === 'Credit' ? '2' : paymentType);
+        } else {
+          paymentType = paymentType.toString();
+        }
+
+        // Get status as numeric (1 or 0)
+        let statusValue = customer.status;
+        if (typeof statusValue === 'string') {
+          statusValue = (statusValue === 'Enable' || statusValue.toLowerCase() === 'enable') ? '1' : '0';
+        } else {
+          statusValue = statusValue === 1 ? '1' : '0';
+        }
+        
         setForm({
           id: customer.id || customerId,
           name: customer.name || "",
@@ -80,12 +128,12 @@ function EditCustomerContent() {
           address: customer.address || "",
           region: customer.region || "",
           postbox: customer.postbox || "",
-          customer_type: customer.customer_type || (customer.status === 1 ? 'Enable' : 'Disable'),
+          customer_type: customer.status === 1 ? '1' : '0',
           billing_type: billingType,
-          payment_type: customer.payment_type || "Cash",
+          payment_type: paymentType,
           blocklocation: customer.blocklocation || [],
           products: customer.products || [],
-          status: customer.status || (customer.status === 1 ? 'Enable' : 'Disable'),
+          status: statusValue,
           gst_name: customer.gst_name || "",
           gst_number: customer.gst_number || "",
         });
@@ -130,6 +178,33 @@ function EditCustomerContent() {
     updateForm("products", updated);
   };
 
+  // Handle immediate status update (like PHP AJAX)
+  const handleStatusChange = async (newStatus) => {
+    try {
+      updateForm("status", newStatus);
+      
+      // Immediately update status via API (like PHP update_customer_status.php)
+      const response = await axios.put(`/api/customers/edit`, {
+        id: customerId,
+        status: newStatus
+      });
+      
+      if (response.data.success) {
+        console.log('Status updated successfully');
+      } else {
+        console.error('Status update failed:', response.data.message);
+        // Revert status on failure
+        updateForm("status", form.status);
+        alert('Failed to update status: ' + (response.data.message || 'Unknown error'));
+      }
+    } catch (err) {
+      console.error('Status update error:', err);
+      // Revert status on error
+      updateForm("status", form.status);
+      alert('Error updating status: ' + (err.response?.data?.message || err.message));
+    }
+  };
+
   const submitForm = async () => {
     try {
       setSaving(true);
@@ -145,6 +220,7 @@ function EditCustomerContent() {
         region: form.region,
         postbox: form.postbox,
         billing_type: form.billing_type,
+        payment_type: form.payment_type, // gid
         status: form.status,
         gst_name: form.gst_name,
         gst_number: form.gst_number,
@@ -306,13 +382,18 @@ function EditCustomerContent() {
                 {/* Region */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Region</label>
-                  <input
-                    type="text"
+                  <select
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
                     value={form.region}
                     onChange={(e) => updateForm("region", e.target.value)}
-                    placeholder="Enter region"
-                  />
+                  >
+                    <option value="">Select Region</option>
+                    {Object.entries(regions).map(([key, value]) => (
+                      <option key={key} value={key}>
+                        {value}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Postbox */}
@@ -403,30 +484,19 @@ function EditCustomerContent() {
                 {/* Customer Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Customer Type</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateForm("customer_type", "Enable")}
-                      className={`flex-1 py-2.5 rounded-lg border transition-all font-medium ${
-                        form.customer_type === "Enable"
-                          ? "bg-green-500 text-white border-green-500 shadow-sm"
-                          : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                      }`}
-                    >
-                      Enable
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateForm("customer_type", "Disable")}
-                      className={`flex-1 py-2.5 rounded-lg border transition-all font-medium ${
-                        form.customer_type === "Disable"
-                          ? "bg-red-500 text-white border-red-500 shadow-sm"
-                          : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                      }`}
-                    >
-                      Disable
-                    </button>
-                  </div>
+                  <select
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                    value={form.customer_type}
+                    onChange={(e) => {
+                      const newStatus = e.target.value;
+                      updateForm("customer_type", newStatus);
+                      updateForm("status", newStatus);
+                      handleStatusChange(newStatus);
+                    }}
+                  >
+                    <option value="1">Enable</option>
+                    <option value="0">Disable</option>
+                  </select>
                 </div>
 
                 {/* Billing Type */}
@@ -445,55 +515,28 @@ function EditCustomerContent() {
                 {/* Payment Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Payment Type</label>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => updateForm("payment_type", "Cash")}
-                      className={`flex-1 py-2.5 rounded-lg border transition-all font-medium ${
-                        form.payment_type === "Cash"
-                          ? "bg-blue-500 text-white border-blue-500 shadow-sm"
-                          : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                      }`}
-                    >
-                      Cash
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => updateForm("payment_type", "Credit")}
-                      className={`flex-1 py-2.5 rounded-lg border transition-all font-medium ${
-                        form.payment_type === "Credit"
-                          ? "bg-orange-500 text-white border-orange-500 shadow-sm"
-                          : "bg-gray-100 text-gray-700 border-gray-300 hover:bg-gray-200"
-                      }`}
-                    >
-                      Credit
-                    </button>
-                  </div>
+                  <select
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                    value={form.payment_type}
+                    onChange={(e) => updateForm("payment_type", e.target.value)}
+                  >
+                    <option value="1">Cash</option>
+                    <option value="2">Credit</option>
+                  </select>
                 </div>
 
                 {/* Status */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                    <span className="font-medium text-gray-700">Account Status</span>
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.status === "Enable"}
-                        onChange={(e) => updateForm("status", e.target.checked ? "Enable" : "Disable")}
-                        className="sr-only"
-                      />
-                      <div className={`w-12 h-6 rounded-full transition-colors ${
-                        form.status === "Enable" ? "bg-green-500" : "bg-red-500"
-                      }`}>
-                        <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-transform ${
-                          form.status === "Enable"
-                            ? "transform translate-x-7"
-                            : "transform translate-x-1"
-                        }`} />
-                      </div>
-                    </label>
-                  </div>
+                  <select
+                    id="statusDropdown"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                    value={form.status}
+                    onChange={(e) => handleStatusChange(e.target.value)}
+                  >
+                    <option value="1">Enable</option>
+                    <option value="0">Disable</option>
+                  </select>
                 </div>
 
                 {/* GST Details */}

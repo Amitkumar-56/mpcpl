@@ -30,8 +30,8 @@ export async function POST(request) {
 
     const agent = agents[0];
 
-    // Check if agent is active
-    if (agent.status === 0) {
+    // Check if agent is active (status = 1) BEFORE password check for security
+    if (agent.status === 0 || agent.status === null || agent.status === undefined) {
       return NextResponse.json(
         { success: false, error: "Your account has been deactivated. Please contact administrator." },
         { status: 403 }

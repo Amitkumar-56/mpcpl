@@ -209,11 +209,21 @@ function LoadingUnloadingContent() {
   const { shipments, permissions, summary } = data;
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Fixed Sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center">
               <Link href="/dashboard" className="mr-4 text-purple-600 hover:text-purple-800 transition-transform hover:-translate-x-1">
@@ -231,7 +241,7 @@ function LoadingUnloadingContent() {
           </div>
         {/* Summary Cards */}
         
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
             <SummaryCard
               icon="🚚"
               value={summary.total}
@@ -242,13 +252,13 @@ function LoadingUnloadingContent() {
               icon="✅"
               value={summary.completed}
               label="Completed Loadings"
-              gradient="from-blue-500 to-gray-800"
+              gradient="from-blue-500 to-blue-700"
             />
             <SummaryCard
               icon="⏳"
               value={summary.pending}
               label="Pending Loadings"
-              gradient="from-yellow-500 to-red-500"
+              gradient="from-yellow-500 to-orange-500"
             />
             <SummaryCard
               icon="👨‍💼"
@@ -268,14 +278,20 @@ function LoadingUnloadingContent() {
           </div>
         </div>
           
-        {permissions?.can_edit === 1 && <Link
-          href="/loading-unloading-history/create-loading-unloading"
-          className="fixed bottom-20 right-6 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 z-40"
-        >
-          <span className="text-2xl">+</span>
-        </Link>}
+        {permissions?.can_edit === 1 && (
+          <Link
+            href="/loading-unloading-history/create-loading-unloading"
+            className="fixed bottom-20 right-6 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 z-40"
+          >
+            <span className="text-2xl">+</span>
+          </Link>
+        )}
         </main>
-        <Footer />
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

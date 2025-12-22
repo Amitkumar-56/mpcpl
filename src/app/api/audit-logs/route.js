@@ -128,7 +128,16 @@ export async function GET(request) {
     
     const logs = await executeQuery(query, [...params, limit, offset]);
     
-    // Parse JSON values
+    // Parse JSON values and enhance with role information
+    const roleNames = {
+      1: 'Staff',
+      2: 'Incharge',
+      3: 'Team Leader',
+      4: 'Accountant',
+      5: 'Admin',
+      6: 'Driver'
+    };
+
     const logsWithParsedValues = logs.map(log => {
       let oldValue = null;
       let newValue = null;
@@ -149,12 +158,26 @@ export async function GET(request) {
         oldValue = log.old_value;
         newValue = log.new_value;
       }
+
+      // Enhance with creator/editor info for employee records
+      let creatorInfo = null;
+      if (log.record_type === 'employee' && newValue) {
+        const creatorId = newValue.created_by_employee_id || newValue.edited_by_employee_id || log.user_id;
+        const creatorRole = newValue.created_by_role || newValue.edited_by_role;
+        creatorInfo = {
+          id: creatorId,
+          name: newValue.created_by_name || newValue.edited_by_name || log.user_display_name || 'System',
+          role: creatorRole,
+          role_name: creatorRole ? roleNames[creatorRole] || 'Unknown' : null
+        };
+      }
       
       return {
         ...log,
         user_name: log.user_display_name || log.user_name || 'System',
         old_value: oldValue,
-        new_value: newValue
+        new_value: newValue,
+        creator_info: creatorInfo
       };
     });
     

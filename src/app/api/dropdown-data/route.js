@@ -4,32 +4,39 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // Fetch suppliers
-    const suppliersQuery = 'SELECT id, name FROM suppliers ORDER BY name';
-    const suppliers = await executeQuery(suppliersQuery);
+    const suppliers = await executeQuery('SELECT id, name FROM suppliers ORDER BY name');
     
     // Fetch products
-    const productsQuery = 'SELECT id, pname FROM products ORDER BY pname';
-    const products = await executeQuery(productsQuery);
+    const products = await executeQuery('SELECT id, pname FROM products ORDER BY pname');
     
     // Fetch stations
-    const stationsQuery = 'SELECT id, station_name FROM filling_stations ORDER BY station_name';
-    const stations = await executeQuery(stationsQuery);
+    const stations = await executeQuery('SELECT id, station_name FROM filling_stations ORDER BY station_name');
 
-    return NextResponse.json({
+    // Ensure arrays are always returned
+    const response = {
       success: true,
-      suppliers: suppliers || [],
-      products: products || [],
-      stations: stations || []
+      suppliers: Array.isArray(suppliers) ? suppliers : [],
+      products: Array.isArray(products) ? products : [],
+      stations: Array.isArray(stations) ? stations : []
+    };
+
+    console.log('📦 Dropdown data loaded:', {
+      suppliers: response.suppliers.length,
+      products: response.products.length,
+      stations: response.stations.length
     });
+
+    return NextResponse.json(response);
   } catch (error) {
-    console.error('Error fetching dropdown data:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Error fetching dropdown data', 
-        error: error.message 
-      },
-      { status: 500 }
-    );
+    console.error('❌ Error fetching dropdown data:', error);
+    // Return empty arrays on error instead of failing
+    return NextResponse.json({
+      success: false,
+      message: 'Error fetching dropdown data',
+      error: error.message,
+      suppliers: [],
+      products: [],
+      stations: []
+    }, { status: 500 });
   }
 }

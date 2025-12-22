@@ -141,9 +141,10 @@ export async function POST(req) {
       }
     }
 
-    // Get station and product names for audit log
+    // Get station and product names, and user role for audit log
     let stationName = `Station ${station_id}`;
     let productName = `Product ${product_id}`;
+    let userRole = null;
     try {
       const stationResult = await executeQuery(
         `SELECT station_name FROM filling_stations WHERE id = ?`,
@@ -160,6 +161,15 @@ export async function POST(req) {
       if (productResult.length > 0) {
         productName = productResult[0].pname;
       }
+
+      // Get user role for audit log
+      const userResult = await executeQuery(
+        `SELECT role FROM employee_profile WHERE id = ?`,
+        [user_id]
+      );
+      if (userResult.length > 0) {
+        userRole = Number(userResult[0].role);
+      }
     } catch (nameError) {
       console.error('Error fetching names:', nameError);
     }
@@ -171,7 +181,16 @@ export async function POST(req) {
     );
     const expenseId = expenseResult.length > 0 ? expenseResult[0].id : null;
 
-    // Create audit log
+    // Create audit log with role information
+    const roleNames = {
+      1: 'Staff',
+      2: 'Incharge',
+      3: 'Team Leader',
+      4: 'Accountant',
+      5: 'Admin',
+      6: 'Driver'
+    };
+
     await createAuditLog({
       page: 'NB Stock',
       uniqueCode: expenseId ? `NB-EXPENSE-${expenseId}` : `NB-EXPENSE-${station_id}-${product_id}`,
@@ -179,9 +198,26 @@ export async function POST(req) {
       userId: user_id,
       userName: userName,
       action: 'add',
-      remarks: `NB Expense created: ${title} - ₹${amount} to ${paid_to || 'N/A'}. Stock deducted from ${stationName} - ${productName}`,
-      oldValue: { stock: oldStock, station_id, product_id },
-      newValue: { stock: newStock, station_id, product_id, expense_amount: amount },
+      remarks: `NB Expense created: ${title} - ₹${amount} to ${paid_to || 'N/A'}. Stock deducted from ${stationName} - ${productName}. Created by: ${userName} (ID: ${user_id}, Role: ${userRole ? roleNames[userRole] || userRole : 'N/A'})`,
+      oldValue: { 
+        stock: oldStock, 
+        station_id, 
+        product_id,
+        station_name: stationName,
+        product_name: productName
+      },
+      newValue: { 
+        stock: newStock, 
+        station_id, 
+        product_id, 
+        expense_amount: amount,
+        station_name: stationName,
+        product_name: productName,
+        created_by_employee_id: user_id,
+        created_by_name: userName,
+        created_by_role: userRole,
+        created_by_role_name: userRole ? roleNames[userRole] || 'Unknown' : null
+      },
       fieldName: 'stock',
       recordType: 'nb_stock',
       recordId: expenseId

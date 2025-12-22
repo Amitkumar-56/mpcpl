@@ -70,16 +70,16 @@ export default function AgentSidebar() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Red Theme */}
       <aside
-        className={`fixed md:relative z-40 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
+        className={`fixed md:relative z-40 w-64 h-screen bg-red-200 text-black flex flex-col transform ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0 transition-transform duration-300`}
       >
         {/* User Info */}
-        <div className="p-4 border-b border-gray-300 bg-blue-300">
+        <div className="p-4 border-b border-gray-300 bg-red-300">
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white font-bold">
               {agent?.name?.charAt(0).toUpperCase() || 'A'}
             </div>
             <div className="flex-1 min-w-0">
@@ -89,7 +89,7 @@ export default function AgentSidebar() {
               <p className="text-xs text-gray-600 truncate">
                 {agent?.agent_id || 'Agent ID'}
               </p>
-              <p className="text-xs text-blue-600 font-semibold mt-0.5">
+              <p className="text-xs text-red-600 font-semibold mt-0.5">
                 Agent
               </p>
             </div>
@@ -108,8 +108,8 @@ export default function AgentSidebar() {
                 onClick={() => setIsOpen(false)}
                 className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
                   isActive
-                    ? "bg-blue-500 text-white shadow-md"
-                    : "text-black hover:bg-blue-300 hover:text-gray-900"
+                    ? "bg-red-500 text-white shadow-md"
+                    : "text-black hover:bg-red-300 hover:text-gray-900"
                 }`}
               >
                 <span className="mr-3 text-lg">{item.icon}</span>
@@ -120,7 +120,7 @@ export default function AgentSidebar() {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-3 border-t border-gray-300 bg-blue-300">
+        <div className="p-3 border-t border-gray-300 bg-red-300">
           <button
             onClick={handleLogout}
             className="flex items-center justify-center w-full p-3 text-black rounded transition-colors hover:bg-red-500 hover:text-white"
