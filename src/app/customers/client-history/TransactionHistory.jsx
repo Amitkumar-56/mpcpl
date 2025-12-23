@@ -331,10 +331,23 @@ export default function TransactionHistory() {
     }
   };
 
-  // Calculate outstanding balance
-  const outstandingBalance = historyData.transactions?.reduce((total, item) => {
-    return total + (parseFloat(item.outstanding_amount) || 0);
-  }, 0) || 0;
+  // Calculate outstanding balance from pending (unpaid) transactions
+  const outstandingBalance = (historyData.pendingTransactions || []).reduce((total, t) => {
+    return total + (parseFloat(t.outstanding_balance ?? t.amount ?? 0) || 0);
+  }, 0);
+
+  // Calculate Today and Yesterday outstanding totals (unpaid outward)
+  const todayDate = new Date(); todayDate.setHours(0,0,0,0);
+  const yesterdayDate = new Date(todayDate); yesterdayDate.setDate(todayDate.getDate() - 1);
+  const toDateStr = (d) => d.toISOString().split('T')[0];
+  const todayOutstanding = (historyData.pendingTransactions || []).reduce((sum, t) => {
+    const ds = t.completed_date ? new Date(t.completed_date).toISOString().split('T')[0] : '';
+    return ds === toDateStr(todayDate) ? sum + (parseFloat(t.amount ?? t.outstanding_balance ?? 0) || 0) : sum;
+  }, 0);
+  const yesterdayOutstanding = (historyData.pendingTransactions || []).reduce((sum, t) => {
+    const ds = t.completed_date ? new Date(t.completed_date).toISOString().split('T')[0] : '';
+    return ds === toDateStr(yesterdayDate) ? sum + (parseFloat(t.amount ?? t.outstanding_balance ?? 0) || 0) : sum;
+  }, 0);
 
   if (loading) {
     return (
@@ -441,6 +454,18 @@ export default function TransactionHistory() {
                 <span>⬇</span>
                 Export CSV
               </button>
+            </div>
+          </div>
+
+          {/* Daily Outstanding Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <div className="rounded-xl p-4 md:p-6 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+              <div className="text-sm">Yesterday Outstanding</div>
+              <div className="text-2xl md:text-3xl font-bold">₹{yesterdayOutstanding.toLocaleString('en-IN')}</div>
+            </div>
+            <div className="rounded-xl p-4 md:p-6 bg-gradient-to-r from-green-500 to-green-600 text-white">
+              <div className="text-sm">Today Outstanding</div>
+              <div className="text-2xl md:text-3xl font-bold">₹{todayOutstanding.toLocaleString('en-IN')}</div>
             </div>
           </div>
 

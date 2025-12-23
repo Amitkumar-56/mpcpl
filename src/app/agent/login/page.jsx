@@ -48,7 +48,7 @@ export default function AgentLoginPage() {
         <div className="bg-white rounded-2xl shadow-xl p-8">
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold text-gray-800 mb-2">Agent Login</h1>
-            <p className="text-gray-600">Enter your Agent ID and password</p>
+            <p className="text-gray-600">Enter your Agent email or ID and password</p>
           </div>
 
           {error && (
@@ -60,13 +60,13 @@ export default function AgentLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-6">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Agent ID
+                Agent Email or ID
               </label>
               <div className="flex items-center border rounded-lg px-3 w-full">
                 <FaUser className="text-gray-400 mr-2" />
                 <input
                   type="text"
-                  placeholder="Enter Agent ID"
+                  placeholder="Enter Agent email or ID"
                   value={agentId}
                   onChange={(e) => setAgentId(e.target.value)}
                   className="w-full py-3 outline-none"

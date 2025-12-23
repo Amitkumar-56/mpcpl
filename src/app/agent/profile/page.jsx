@@ -1,9 +1,9 @@
 "use client";
 
+import AgentHeader from "@/components/agentHeader";
+import AgentSidebar from "@/components/agentSidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import AgentSidebar from "@/components/agentSidebar";
-import AgentHeader from "@/components/agentHeader";
 
 export default function AgentProfilePage() {
   const router = useRouter();
@@ -34,6 +34,10 @@ export default function AgentProfilePage() {
     }
   }, [agent, router]);
 
+  if (!agent) {
+    return null; // Or a loading spinner
+  }
+
   return (
     <div className="flex h-screen bg-gray-50">
       <AgentSidebar />
@@ -53,7 +57,7 @@ export default function AgentProfilePage() {
                     Agent ID
                   </label>
                   <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                    <p className="text-gray-900">{agent?.agent_id || '-'}</p>
+                    <p className="text-gray-900">{agent.agent_id}</p>
                   </div>
                 </div>
 
@@ -63,7 +67,7 @@ export default function AgentProfilePage() {
                       First Name
                     </label>
                     <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                      <p className="text-gray-900">{agent?.first_name || '-'}</p>
+                      <p className="text-gray-900">{agent.first_name}</p>
                     </div>
                   </div>
 
@@ -72,7 +76,7 @@ export default function AgentProfilePage() {
                       Last Name
                     </label>
                     <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                      <p className="text-gray-900">{agent?.last_name || '-'}</p>
+                      <p className="text-gray-900">{agent.last_name}</p>
                     </div>
                   </div>
                 </div>
@@ -82,7 +86,7 @@ export default function AgentProfilePage() {
                     Email
                   </label>
                   <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                    <p className="text-gray-900">{agent?.email || '-'}</p>
+                    <p className="text-gray-900">{agent.email}</p>
                   </div>
                 </div>
 
@@ -91,7 +95,7 @@ export default function AgentProfilePage() {
                     Phone
                   </label>
                   <div className="px-4 py-2 bg-gray-50 border border-gray-300 rounded-lg">
-                    <p className="text-gray-900">{agent?.phone || '-'}</p>
+                    <p className="text-gray-900">{agent.phone}</p>
                   </div>
                 </div>
               </div>

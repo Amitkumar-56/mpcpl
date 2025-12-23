@@ -15,6 +15,34 @@ function EditEmployeeContent() {
   const [stations, setStations] = useState([]);
   const [formData, setFormData] = useState(null);
   const [error, setError] = useState(null);
+  const [permissions, setPermissions] = useState({
+    Dashboard: { can_view: false, can_edit: false, can_delete: false },
+    Customers: { can_view: false, can_edit: false, can_delete: false },
+    "Filling Requests": { can_view: false, can_edit: false, can_delete: false },
+    Stock: { can_view: false, can_edit: false, can_delete: false },
+    "Loading Station": { can_view: false, can_edit: false, can_delete: false },
+    "Schedule Prices": { can_view: false, can_edit: false, can_delete: false },
+    Products: { can_view: false, can_edit: false, can_delete: false },
+    Employees: { can_view: false, can_edit: false, can_delete: false },
+    Suppliers: { can_view: false, can_edit: false, can_delete: false },
+    Transporters: { can_view: false, can_edit: false, can_delete: false },
+    "NB Accounts": { can_view: false, can_edit: false, can_delete: false },
+    "NB Expenses": { can_view: false, can_edit: false, can_delete: false },
+    "NB Stock": { can_view: false, can_edit: false, can_delete: false },
+    "Stock Transfer": { can_view: false, can_edit: false, can_delete: false },
+    Reports: { can_view: false, can_edit: false, can_delete: false },
+    "Agent Management": { can_view: false, can_edit: false, can_delete: false },
+    Users: { can_view: false, can_edit: false, can_delete: false },
+    Vehicles: { can_view: false, can_edit: false, can_delete: false },
+    "LR Management": { can_view: false, can_edit: false, can_delete: false },
+    "Loading History": { can_view: false, can_edit: false, can_delete: false },
+    "Tanker History": { can_view: false, can_edit: false, can_delete: false },
+    "Deepo History": { can_view: false, can_edit: false, can_delete: false },
+    Vouchers: { can_view: false, can_edit: false, can_delete: false },
+    Remarks: { can_view: false, can_edit: false, can_delete: false },
+    Items: { can_view: false, can_edit: false, can_delete: false },
+  });
+  const modules = Object.keys(permissions);
 
   useEffect(() => {
     if (!authLoading) {
@@ -66,6 +94,13 @@ function EditEmployeeContent() {
         // IMPORTANT: Accessing .data because your API wraps it there
         setFormData(result.data.employee);
         setStations(result.data.stations || []);
+        // Set permissions if returned (admin only)
+        if (result.data.permissions) {
+          setPermissions(prev => ({
+            ...prev,
+            ...result.data.permissions
+          }));
+        }
         setError(null);
       } else {
         const errorMsg = result.error || 'Failed to load employee data';
@@ -80,12 +115,32 @@ function EditEmployeeContent() {
     }
   }
 
+  const handlePermissionChange = (module, perm) => {
+    setPermissions(prev => ({
+      ...prev,
+      [module]: { ...prev[module], [perm]: !prev[module][perm] }
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
     
     // Add employee ID to form data
     fd.append('id', id);
+    
+    // Add permissions if admin (same as add page)
+    if (isAdmin) {
+      const formattedPermissions = {};
+      modules.forEach(module => {
+        formattedPermissions[module] = {
+          can_view: permissions[module]?.can_view || false,
+          can_edit: permissions[module]?.can_edit || false,
+          can_delete: permissions[module]?.can_delete || false
+        };
+      });
+      fd.append('permissions', JSON.stringify(formattedPermissions));
+    }
     
     // Get token from localStorage for Authorization header
     const authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -292,6 +347,56 @@ function EditEmployeeContent() {
              )}
           </div>
 
+          {/* Permissions Section - Only for Admin */}
+          {isAdmin && (
+            <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
+              <h3 className="text-md font-semibold mb-3 text-gray-800">Assign Module Permissions</h3>
+              <div className="overflow-x-auto">
+                <table className="w-full border border-gray-200 text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="p-2 border text-left">Module</th>
+                      <th className="p-2 border text-center">View</th>
+                      <th className="p-2 border text-center">Edit</th>
+                      <th className="p-2 border text-center">Delete</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {modules.map((mod, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
+                        <td className="p-2 border font-medium text-gray-700">{mod}</td>
+                        <td className="p-2 border text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={permissions[mod]?.can_view || false} 
+                            onChange={() => handlePermissionChange(mod, "can_view")} 
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                          />
+                        </td>
+                        <td className="p-2 border text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={permissions[mod]?.can_edit || false} 
+                            onChange={() => handlePermissionChange(mod, "can_edit")} 
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                          />
+                        </td>
+                        <td className="p-2 border text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={permissions[mod]?.can_delete || false} 
+                            onChange={() => handlePermissionChange(mod, "can_delete")} 
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
               <div className="md:col-span-2 flex items-center justify-end space-x-4 pt-6 border-t">
                 <button type="button" onClick={() => router.back()} className="px-4 md:px-6 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 transition text-sm md:text-base">Cancel</button>
                 <button type="submit" className="px-6 md:px-8 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition text-sm md:text-base">Save Changes</button>
@@ -302,7 +407,7 @@ function EditEmployeeContent() {
         </main>
 
         {/* Fixed Footer */}
-        <div className="sticky top-[100vh] mt-8">
+        <div className="flex-shrink-0">
           <Footer />
         </div>
       </div>

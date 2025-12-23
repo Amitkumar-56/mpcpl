@@ -1,9 +1,9 @@
 "use client";
 
+import AgentHeader from "@/components/agentHeader";
+import AgentSidebar from "@/components/agentSidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import AgentSidebar from "@/components/agentSidebar";
-import AgentHeader from "@/components/agentHeader";
 
 export default function AgentDashboard() {
   const router = useRouter();
@@ -23,6 +23,8 @@ export default function AgentDashboard() {
     return null;
   });
 
+  const [commissionData, setCommissionData] = useState(null);
+
   useEffect(() => {
     // Only redirect if no agent data
     if (!agent) {
@@ -31,99 +33,176 @@ export default function AgentDashboard() {
       if (!agentData || !agentToken) {
         router.push("/agent/login");
       }
+    } else if (agent.id) {
+        // Fetch commission data
+        fetch(`/api/agent/commission-history?agentId=${agent.id}`)
+            .then(res => res.json())
+            .then(data => setCommissionData(data))
+            .catch(err => console.error("Error fetching commissions:", err));
     }
   }, [agent, router]);
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-red-50 via-red-50 to-pink-50">
-      {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
-        <AgentSidebar />
-      </div>
+    <div className="flex h-screen bg-gray-50">
+      <AgentSidebar />
 
-      {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
-          <AgentHeader />
-        </div>
-
-        {/* Scrollable Main Content */}
-        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto p-4 lg:p-6">
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <AgentHeader />
+        
+        {/* Main Content */}
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">
           <div className="max-w-7xl mx-auto">
-            <h1 className="text-3xl font-bold text-gray-900 mb-6">Agent Dashboard</h1>
+            <h1 className="text-3xl font-bold text-gray-900 mb-6">Dashboard</h1>
 
-            {/* Welcome Message - Red Theme */}
-            <div className="bg-gradient-to-r from-red-600 to-red-700 rounded-xl shadow-lg p-6 mb-6 text-white">
-              <h2 className="text-2xl font-bold mb-2">
-                Welcome, {agent?.name || 'Agent'}!
+            {/* Welcome Message */}
+            <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200 mb-6">
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                Welcome, {agent?.name}!
               </h2>
-              <p className="text-red-100">
-                You are logged in as Agent ID: <span className="font-semibold text-white">{agent?.agent_id || '-'}</span>
+              <p className="text-gray-600">
+                You are logged in as Agent ID: <span className="font-semibold">{agent?.agent_id}</span>
               </p>
             </div>
 
-            {/* Stats Cards - Red Theme */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-              <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Agent Status</p>
-                    <p className="text-2xl font-bold text-red-600">Active</p>
-                  </div>
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                    <span className="text-2xl">✓</span>
-                  </div>
+            {/* Commission Summary */}
+            {commissionData && commissionData.summary && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+                    <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-blue-500">
+                        <p className="text-gray-500 text-sm">Total Commission</p>
+                        <p className="text-2xl font-bold text-blue-600">₹{commissionData.summary.totalCommission.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-green-500">
+                        <p className="text-gray-500 text-sm">Total Paid</p>
+                        <p className="text-2xl font-bold text-green-600">₹{commissionData.summary.totalPaid.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                    </div>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border-l-4 border-yellow-500">
+                        <p className="text-gray-500 text-sm">Remaining Due</p>
+                        <p className="text-2xl font-bold text-yellow-600">₹{commissionData.summary.remaining.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</p>
+                    </div>
                 </div>
-              </div>
+            )}
 
-              <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Agent ID</p>
-                    <p className="text-xl font-bold text-gray-900">{agent?.agent_id || '-'}</p>
-                  </div>
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                    <span className="text-xl">👤</span>
-                  </div>
+            {/* Allocated Customers */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">My Allocated Customers & Rates</h3>
                 </div>
-              </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission Rate</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {commissionData?.allocatedCustomers?.map((item, index) => (
+                                <tr key={index}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.client_name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.product_name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-blue-600 font-medium">₹{item.commission_rate}</td>
+                                </tr>
+                            ))}
+                            {(!commissionData?.allocatedCustomers || commissionData.allocatedCustomers.length === 0) && (
+                                <tr>
+                                    <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">No allocated customers found</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
 
-              <div className="bg-white rounded-xl shadow-sm p-6 border-l-4 border-red-500">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm text-gray-600 mb-1">Profile</p>
-                    <p className="text-sm font-semibold text-gray-900">Complete</p>
-                  </div>
-                  <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                    <span className="text-xl">📋</span>
-                  </div>
+            {/* Commission History Log */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Commission History Log</h3>
                 </div>
-              </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commission</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {commissionData?.history?.map((item, index) => (
+                                <tr key={item.id || index}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {new Date(item.completed_date).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{item.client_name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.product_name}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">₹{item.commission_rate}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.quantity}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                                        ₹{parseFloat(item.commission_amount).toFixed(2)}
+                                    </td>
+                                </tr>
+                            ))}
+                            {(!commissionData?.history || commissionData.history.length === 0) && (
+                                <tr>
+                                    <td colSpan="6" className="px-6 py-4 text-center text-sm text-gray-500">No commission history found</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            {/* Payment History Log */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
+                <div className="p-6 border-b border-gray-200">
+                    <h3 className="text-lg font-semibold text-gray-900">Payment History</h3>
+                </div>
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+                            </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                            {commissionData?.payments?.map((item, index) => (
+                                <tr key={item.id || index}>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                        {new Date(item.payment_date).toLocaleDateString()}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">
+                                        ₹{parseFloat(item.amount).toFixed(2)}
+                                    </td>
+                                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.remarks || '-'}</td>
+                                </tr>
+                            ))}
+                             {(!commissionData?.payments || commissionData.payments.length === 0) && (
+                                <tr>
+                                    <td colSpan="3" className="px-6 py-4 text-center text-sm text-gray-500">No payment history found</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
             </div>
 
             {/* Profile Card */}
             <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                <span className="w-1 h-6 bg-red-600 mr-3 rounded"></span>
-                Profile Information
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Email</p>
-                  <p className="text-gray-900 font-medium">{agent?.email || '-'}</p>
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Profile Information</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-sm text-gray-600">Email</p>
+                  <p className="text-gray-900 font-medium">{agent?.email}</p>
                 </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Phone</p>
-                  <p className="text-gray-900 font-medium">{agent?.phone || '-'}</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Full Name</p>
-                  <p className="text-gray-900 font-medium">{agent?.first_name} {agent?.last_name}</p>
-                </div>
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-1">Agent Type</p>
-                  <p className="text-gray-900 font-medium">Agent</p>
+                <div>
+                  <p className="text-sm text-gray-600">Phone</p>
+                  <p className="text-gray-900 font-medium">{agent?.phone}</p>
                 </div>
               </div>
             </div>

@@ -141,8 +141,18 @@ export default function CreateRequestForm() {
             customer_id: customerId
           });
 
+          // Get first product_code for the selected product
+          const productCodeResponse = await fetch(`/api/cst/product-codes?product_id=${selectedProduct.product_id || selectedProduct.id}`);
+          let subProductId = null;
+          if (productCodeResponse.ok) {
+            const productCodeData = await productCodeResponse.json();
+            if (productCodeData.success && productCodeData.codes && productCodeData.codes.length > 0) {
+              subProductId = productCodeData.codes[0].id;
+            }
+          }
+          
           const response = await fetch(
-            `/api/cst/deal-prices?customer_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id}&sub_product_id=${selectedProduct.id}`
+            `/api/cst/deal-prices?customer_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${subProductId || ''}`
           );
           const data = await response.json();
           
@@ -311,11 +321,12 @@ export default function CreateRequestForm() {
       console.log('🔄 Selected Product:', product);
       
       if (product) {
-        const productId = product.product_id;
+        // product.id is now the product id, not product_code id
+        const productId = product.id || product.product_id;
         const productConfigData = productConfig[productId] || null;
         console.log('🎯 Product config for product_id', productId, ':', productConfigData);
         
-        setSelectedProduct(prev => ({ ...prev, ...productConfigData }));
+        setSelectedProduct(prev => ({ ...prev, ...productConfigData, product_id: productId }));
         setMaxQuantity(productConfigData?.maxQuantity || 0);
         
         // Reset quantity fields when product changes
@@ -873,7 +884,7 @@ export default function CreateRequestForm() {
                           <option value="">Select Product</option>
                           {products.map(product => (
                             <option key={product.id} value={product.id}>
-                              {product.pcode} - {product.product_name}
+                              {product.product_name || product.pname}
                             </option>
                           ))}
                         </select>

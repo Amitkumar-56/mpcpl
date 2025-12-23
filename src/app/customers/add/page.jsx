@@ -69,11 +69,21 @@ export default function AddCustomer() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto p-6">
+    <div className="flex min-h-screen bg-gray-100">
+      {/* Fixed Sidebar */}
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+        {/* Fixed Header */}
+        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto p-4 md:p-6">
           <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-lg p-6">
             <h1 className="text-2xl font-bold mb-6">Add New Customer</h1>
 
@@ -383,7 +393,11 @@ export default function AddCustomer() {
             </form>
           </div>
         </main>
-        <Footer />
+
+        {/* Fixed Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

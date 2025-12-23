@@ -8,22 +8,22 @@ export async function POST(request) {
 
     if (!agent_id || !password) {
       return NextResponse.json(
-        { success: false, error: "Agent ID and password are required" },
+        { success: false, error: "Agent email/ID and password are required" },
         { status: 400 }
       );
     }
 
-    // Find agent by agent_id
+    // Find agent by agent_id OR email
     const agents = await executeQuery(
       `SELECT id, agent_id, first_name, last_name, email, phone, password, status 
        FROM agents 
-       WHERE agent_id = ?`,
-      [agent_id]
+       WHERE agent_id = ? OR email = ? LIMIT 1`,
+      [agent_id, agent_id]
     );
 
     if (agents.length === 0) {
       return NextResponse.json(
-        { success: false, error: "Agent ID not found" },
+        { success: false, error: "Agent not found" },
         { status: 401 }
       );
     }

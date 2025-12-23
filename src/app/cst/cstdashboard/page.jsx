@@ -1,6 +1,7 @@
 // src/app/cst/cstdashboard/page.jsx
 "use client";
 
+import ChatBox from "@/components/ChatBox";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Footer from "@/components/Footer";
@@ -29,7 +30,6 @@ export default function CustomerDashboardPage() {
   const [activePage, setActivePage] = useState("Dashboard");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Socket and Chat States
   const [socket, setSocket] = useState(null);
@@ -46,6 +46,10 @@ export default function CustomerDashboardPage() {
   const [rechargeAmount, setRechargeAmount] = useState("");
   const [showRechargeModal, setShowRechargeModal] = useState(false);
   const [dayLimitStatus, setDayLimitStatus] = useState(null);
+  const [amtLimitStatus, setAmtLimitStatus] = useState(null);
+  const [outstandingToday, setOutstandingToday] = useState(0);
+  const [outstandingYesterday, setOutstandingYesterday] = useState(0);
+  const [outstandingTotal, setOutstandingTotal] = useState(0);
   const messagesEndRef = useRef(null);
 
   // Load user data
@@ -78,7 +82,9 @@ export default function CustomerDashboardPage() {
           if (data.success && data.customer) {
             // Check if customer has day limit and calculate status
             const dayLimit = data.customer.day_limit || 0;
+            const amtLimit = data.customer.amtlimit || 0;
             const paymentDaysPending = data.pending?.payment_days_pending || 0;
+            const totalUnpaid = data.pending?.total_amount || 0;
             
             if (dayLimit > 0) {
               const isOverdue = paymentDaysPending >= dayLimit;
@@ -89,7 +95,20 @@ export default function CustomerDashboardPage() {
                 daysElapsed: paymentDaysPending,
                 remainingDays,
                 isOverdue,
-                totalUnpaid: data.pending?.total_amount || 0
+                totalUnpaid
+              });
+            }
+
+            // Amount Limit Logic
+            if (amtLimit > 0) {
+              const isAmtOverdue = totalUnpaid >= amtLimit;
+              const remainingAmt = Math.max(0, amtLimit - totalUnpaid);
+              
+              setAmtLimitStatus({
+                amtLimit,
+                totalUnpaid,
+                remainingAmt,
+                isOverdue: isAmtOverdue
               });
             }
           }
@@ -102,6 +121,26 @@ export default function CustomerDashboardPage() {
     fetchDayLimitStatus();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    const fetchOutstanding = async () => {
+      try {
+        const response = await fetch(`/api/cst/customer-history?cl_id=${user.id}`);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.outstandings) {
+            setOutstandingToday(data.outstandings.today || 0);
+            setOutstandingYesterday(data.outstandings.yesterday || 0);
+            setOutstandingTotal(data.outstandings.total || (data.outstandings.yesterday + data.outstandings.today) || 0);
+          }
+        }
+      } catch (e) {
+        console.error('Error fetching outstanding:', e);
+      }
+    };
+    fetchOutstanding();
+  }, [user?.id]);
+
   // 🔥 SIMPLIFIED SOCKET CONNECTION
   useEffect(() => {
     if (!user?.id) return;
@@ -110,9 +149,11 @@ export default function CustomerDashboardPage() {
       try {
         await fetch('/api/socket');
       } catch (e) {}
-      const newSocket = io({
+      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
+      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
+      const newSocket = io(socketUrl, {
         path: '/api/socket',
-        transports: ['websocket', 'polling'],
+        transports: ['websocket'],
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,
@@ -168,22 +209,6 @@ export default function CustomerDashboardPage() {
         setMessages(prev => mergeMessages(prev, message));
         if (!showChat) {
           setUnreadCount(prev => prev + 1);
-          try {
-            if (message && message.sender === 'employee') {
-              setNotifications(prev => ([{
-                id: message.id,
-                text: message.text,
-                timestamp: message.timestamp,
-                employeeName: message.employee_name
-              }, ...prev]).slice(0, 50));
-              const prevCount = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
-              const nextCount = prevCount + 1;
-              sessionStorage.setItem('cst_notif_count', String(nextCount));
-              if (typeof window !== 'undefined') {
-                window.dispatchEvent(new CustomEvent('cst-notif-update', { detail: { count: nextCount } }));
-              }
-            }
-          } catch (e) {}
         }
         scrollToBottom();
       });
@@ -319,14 +344,6 @@ export default function CustomerDashboardPage() {
   const toggleChat = () => {
     setShowChat(!showChat);
     setChatMinimized(false);
-    try {
-      if (!showChat) {
-        sessionStorage.setItem('cst_notif_count', '0');
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('cst-notif-update', { detail: { count: 0 } }));
-        }
-      }
-    } catch (e) {}
   };
 
   const minimizeChat = () => {
@@ -436,36 +453,13 @@ export default function CustomerDashboardPage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100 overflow-hidden">
-      {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
-        <Sidebar activePage={activePage} setActivePage={setActivePage} />
-      </div>
-
-      {/* Mobile Sidebar */}
-      <div className={`lg:hidden fixed z-40 h-full transition-transform duration-300 ease-in-out ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
-        <Sidebar activePage={activePage} setActivePage={setActivePage} />
-      </div>
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      <Sidebar activePage={activePage} setActivePage={setActivePage} />
       
-      {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
-          <CstHeader onMenuClick={() => setSidebarOpen(!sidebarOpen)} />
-        </div>
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <CstHeader />
         
-        {/* Scrollable Main Content */}
-        <main className="pt-16 lg:pt-20 flex-1 p-4 lg:p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-auto">
           
           {activePage === "Dashboard" && (
             <div className="space-y-6">
@@ -473,20 +467,20 @@ export default function CustomerDashboardPage() {
               {dayLimitStatus && dayLimitStatus.isOverdue && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
+                    <div className="flex items-start">
+                      <div className="w-3 h-3 rounded-full bg-red-500 mr-3 mt-1 flex-shrink-0"></div>
                       <div>
                         <p className="font-medium text-red-800">
                           Day Limit Exceeded - Please Recharge
                         </p>
                         <p className="text-sm text-red-600">
                           Your day limit has been exceeded. Days elapsed: {dayLimitStatus.daysElapsed} days (Limit: {dayLimitStatus.dayLimit} days). 
-                          Total unpaid amount: ₹{dayLimitStatus.totalUnpaid.toFixed(2)}. Please recharge your account to continue.
+                          Total payment due: ₹{dayLimitStatus.totalUnpaid.toFixed(2)}. Please recharge your account to continue.
                         </p>
                       </div>
                     </div>
                     <div className="flex space-x-2 w-full md:w-auto">
-                      <button 
+                      <button
                         onClick={() => setShowRechargeModal(true)}
                         className="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold text-center"
                       >
@@ -507,8 +501,8 @@ export default function CustomerDashboardPage() {
               {dayLimitStatus && !dayLimitStatus.isOverdue && dayLimitStatus.remainingDays <= 3 && dayLimitStatus.remainingDays > 0 && (
                 <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-3"></div>
+                    <div className="flex items-start">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-3 mt-1 flex-shrink-0"></div>
                       <div>
                         <p className="font-medium text-yellow-800">
                           Day Limit Warning
@@ -520,7 +514,61 @@ export default function CustomerDashboardPage() {
                     </div>
                     <button 
                       onClick={() => setShowRechargeModal(true)}
-                      className="w-full md:w-auto bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+                    >
+                      Recharge Now
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Amount Limit Overdue Warning Banner */}
+              {amtLimitStatus && amtLimitStatus.isOverdue && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-start">
+                      <div className="w-3 h-3 rounded-full bg-red-500 mr-3 mt-1 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-medium text-red-800">
+                          Credit Limit Exceeded - Please Recharge
+                        </p>
+                        <p className="text-sm text-red-600">
+                          Your credit limit of ₹{amtLimitStatus.amtLimit.toLocaleString()} has been exceeded. 
+                          Total payment due: ₹{amtLimitStatus.totalUnpaid.toFixed(2)}. Please recharge your account immediately.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex space-x-2 w-full md:w-auto">
+                      <button 
+                        onClick={() => setShowRechargeModal(true)}
+                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+                      >
+                        Recharge Now
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Amount Limit Warning (Near Limit) */}
+              {amtLimitStatus && !amtLimitStatus.isOverdue && amtLimitStatus.remainingAmt <= (amtLimitStatus.amtLimit * 0.2) && (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-start">
+                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-3 mt-1 flex-shrink-0"></div>
+                      <div>
+                        <p className="font-medium text-yellow-800">
+                          Credit Limit Warning
+                        </p>
+                        <p className="text-sm text-yellow-600">
+                          You have used ₹{amtLimitStatus.totalUnpaid.toFixed(2)} of your ₹{amtLimitStatus.amtLimit.toLocaleString()} limit.
+                          Remaining: ₹{amtLimitStatus.remainingAmt.toFixed(2)}. Please recharge soon.
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setShowRechargeModal(true)}
+                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
                     >
                       Recharge Now
                     </button>
@@ -532,8 +580,8 @@ export default function CustomerDashboardPage() {
               {connectionStatus === 'error' && (
                 <div className="border rounded-lg p-4 bg-red-50 border-red-200">
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center justify-between">
-                      <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
+                    <div className="flex items-start">
+                      <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3 mt-1 flex-shrink-0`}></div>
                       <div>
                         <p className="font-medium text-red-800">
                           Chat Connection Issue
@@ -566,7 +614,6 @@ export default function CustomerDashboardPage() {
               <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
-                    <h1 className="text-2xl font-bold mb-2">Welcome back, {user?.name || 'Customer'}!</h1>
                     <p className="text-blue-100">
                       {connectionStatus === 'connected' 
                         ? 'Live support is available' 
@@ -722,6 +769,36 @@ export default function CustomerDashboardPage() {
                   </button>
                 </div>
               </div>
+
+              {/* Outstanding Summary Section */}
+              <div className="px-4 lg:px-6 pb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Outstanding Summary</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                  <div className="rounded-xl p-5 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                    <div className="text-xs opacity-90 mb-1 font-medium">Yesterday Outstanding</div>
+                    <div className="text-2xl md:text-3xl font-bold">₹{outstandingYesterday.toLocaleString('en-IN')}</div>
+                    <div className="text-xs opacity-75 mt-1">Previous days total</div>
+                  </div>
+                  <div className="rounded-xl p-5 bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                    <div className="text-xs opacity-90 mb-1 font-medium">Today Outstanding</div>
+                    <div className="text-2xl md:text-3xl font-bold">₹{outstandingToday.toLocaleString('en-IN')}</div>
+                    <div className="text-xs opacity-75 mt-1">Today's transactions</div>
+                  </div>
+                  <div className="rounded-xl p-5 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                    <div className="text-xs opacity-90 mb-1 font-medium">Total Outstanding</div>
+                    <div className="text-2xl md:text-3xl font-bold">₹{outstandingTotal.toLocaleString('en-IN')}</div>
+                    <div className="text-xs opacity-75 mt-1">Yesterday + Today</div>
+                  </div>
+                  {/* Current Balance Card */}
+                  {user && (
+                    <div className="rounded-xl p-5 bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg hover:shadow-xl transition-shadow">
+                      <div className="text-xs opacity-90 mb-1 font-medium">Current Balance</div>
+                      <div className="text-2xl md:text-3xl font-bold">₹{((user.balance || 0) + (user.amtlimit || 0)).toLocaleString('en-IN')}</div>
+                      <div className="text-xs opacity-75 mt-1">Available for use</div>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           )}
         </main>
@@ -766,17 +843,17 @@ export default function CustomerDashboardPage() {
                 <button
                   onClick={handleRecharge}
                   disabled={!rechargeAmount}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold"
+                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold text-center"
                 >
                   Proceed to Pay ₹{rechargeAmount || '0'}
                 </button>
+              </div>
                 <button
                   onClick={() => setShowRechargeModal(false)}
                   className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                 >
                   Cancel
                 </button>
-              </div>
             </div>
           </div>
         </div>
@@ -814,88 +891,88 @@ export default function CustomerDashboardPage() {
             <>
               {/* Messages Area */}
               <div className="flex-1 p-4 overflow-y-auto bg-gray-50 max-h-80 space-y-3">
-                {messages.length === 0 ? (
-                  <p className="text-center text-gray-500 py-8">No messages yet. Start a conversation!</p>
-                ) : (
-                  messages.map((msg) => (
-                    <div 
-                      key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
-                      className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div 
-                        className={`max-w-[80%] px-4 py-2 rounded-2xl ${
-                          msg.sender === 'customer' 
-                            ? 'bg-blue-500 text-white rounded-br-none' 
-                            : 'bg-white text-gray-800 border rounded-bl-none'
-                        }`}
-                      >
-                        <p className="text-sm">{msg.text}</p>
-                        <div className={`flex items-center justify-end space-x-1 mt-1 ${
-                          msg.sender === 'customer' ? 'text-blue-100' : 'text-gray-500'
-                        }`}>
-                          <span className="text-xs">{formatTime(msg.timestamp)}</span>
-                          {getStatusIcon(msg)}
-                        </div>
-                      </div>
-                    </div>
-                  ))
-                )}
-                
-                {/* Typing Indicator */}
-                {isTyping && (
-                  <div className="flex justify-start">
-                    <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-2">
-                      <div className="flex space-x-1">
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                      </div>
-                      <p className="text-xs text-gray-500 mt-1">{typingEmployee} is typing...</p>
+            {messages.length === 0 ? (
+              <p className="text-center text-gray-500 py-8">No messages yet. Start a conversation!</p>
+            ) : (
+              messages.map((msg) => (
+                <div 
+                  key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
+                  className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+                >
+                  <div 
+                    className={`max-w-[80%] px-4 py-2 rounded-2xl ${
+                      msg.sender === 'customer' 
+                        ? 'bg-blue-500 text-white rounded-br-none' 
+                        : 'bg-white text-gray-800 border rounded-bl-none'
+                    }`}
+                  >
+                    <p className="text-sm">{msg.text}</p>
+                    <div className={`flex items-center justify-end space-x-1 mt-1 ${
+                      msg.sender === 'customer' ? 'text-blue-100' : 'text-gray-500'
+                    }`}>
+                      <span className="text-xs">{formatTime(msg.timestamp)}</span>
+                      {getStatusIcon(msg)}
                     </div>
                   </div>
-                )}
-                
-                <div ref={messagesEndRef} />
-              </div>
-
-              {/* Input Area */}
-              <div className="p-3 border-t border-gray-300 bg-white rounded-b-lg">
-                <div className="flex space-x-2">
-                  <input
-                    type="text"
-                    className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder={
-                      connectionStatus === 'connected' 
-                        ? "Type your message..." 
-                        : "Connecting to chat..."
-                    }
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyDown={handleKeyPress}
-                    disabled={sending || connectionStatus !== 'connected'}
-                  />
-                  <button
-                    onClick={sendMessage}
-                    disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
-                    className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                  >
-                    {sending ? (
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    ) : (
-                      <BiSend className="w-5 h-5" />
-                    )}
-                  </button>
                 </div>
-                {connectionStatus !== 'connected' && (
-                  <p className="text-xs text-red-500 mt-2 text-center">
-                    Cannot send messages - {connectionStatus}
-                  </p>
-                )}
+              ))
+            )}
+            
+            {/* Typing Indicator */}
+            {isTyping && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-2">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">{typingEmployee} is typing...</p>
+                </div>
               </div>
-            </>
-          )}
-        </div>
+            )}
+            
+            <div ref={messagesEndRef} />
+          </div>
+              {/* Input Area */}
+          {/* Input Area */}
+          <div className="p-3 border-t border-gray-300 bg-white rounded-b-lg">
+            <div className="flex space-x-2">
+              <input
+                type="text"
+                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder={
+                  connectionStatus === 'connected' 
+                    ? "Type your message..." 
+                    : "Connecting to chat..."
+                }
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyDown={handleKeyPress}
+                disabled={sending || connectionStatus !== 'connected'}
+              />
+              <button
+                onClick={sendMessage}
+                disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
+                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
+              >
+                {sending ? (
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                ) : (
+                  <BiSend className="w-5 h-5" />
+                )}
+              </button>
+            </div>
+            {connectionStatus !== 'connected' && (
+              <p className="text-xs text-red-500 mt-2 text-center">
+                Cannot send messages - {connectionStatus}
+              </p>
+            )}
+          </div>
+        </>
       )}
+      </div>
+    )}
 
       {/* Chat Toggle Button */}
       {!showChat && (
@@ -912,14 +989,15 @@ export default function CustomerDashboardPage() {
         </button>
       )}
 
-      {/* ChatBox Component - Commented out as we have inline chat */}
-      {/* {user && (
+      {/* ChatBox Component */}
+      {user && (
         <ChatBox 
           customerId={user.id} 
           customerName={user.name} 
           userRole="customer"
         />
-      )} */}
+      )}
     </div>
   );
 }
+

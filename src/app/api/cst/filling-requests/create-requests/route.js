@@ -72,24 +72,28 @@ export async function POST(request) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // Get product details
+    // Get product details - product_id is now a product id, not product_code id
+    // Get the first product_code for this product
     const productQuery = `
       SELECT 
         pc.id as product_code_id,
         pc.pcode,
         pc.product_id,
         pc.id as sub_product_id,
-        p.pname as product_name
-      FROM product_codes pc 
-      LEFT JOIN products p ON pc.product_id = p.id 
-      WHERE pc.id = ?
+        p.pname as product_name,
+        p.id as main_product_id
+      FROM products p
+      LEFT JOIN product_codes pc ON pc.product_id = p.id
+      WHERE p.id = ?
+      ORDER BY pc.id ASC
+      LIMIT 1
     `;
     const productResult = await executeQuery(productQuery, [product_id]);
     
-    if (productResult.length === 0) {
+    if (productResult.length === 0 || !productResult[0].product_code_id) {
       return NextResponse.json({
         success: false,
-        message: 'Invalid product selected'
+        message: 'Invalid product selected or no product code found for this product'
       }, { status: 400 });
     }
 

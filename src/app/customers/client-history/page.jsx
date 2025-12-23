@@ -707,7 +707,7 @@ function ClientHistoryContent() {
                   </p>
                   <p className="text-sm text-red-600">
                     Your day limit has been exceeded ({dayLimitInfo.daysUsed} days elapsed, limit: {dayLimitInfo.dayLimit} days). 
-                    Total outstanding: ₹{formatCurrency(totalPendingAmount)}. Please recharge your account to continue.
+                    Total payment due: ₹{formatCurrency(totalPayableAmount)}. Please recharge your account to continue.
                   </p>
                 </div>
               </div>
@@ -801,18 +801,20 @@ function ClientHistoryContent() {
               </label>
               <div className="text-sm text-gray-600">
                 <div>Total Records: {filteredTransactions.length}</div>
-                <div className="text-red-600 font-semibold">
-                  Total Due: ₹{formatCurrency(totalPendingAmount)}
-                </div>
                 {isDayLimitCustomer && (
                   <>
                     <div className="text-blue-600 font-semibold">
                       Day Limit: {customerBalanceInfo?.day_limit} days
                     </div>
                     <div className="text-orange-600 font-semibold">
-                      Payable Amount: ₹{formatCurrency(totalPayableAmount)}
+                      Total Payment Due: ₹{formatCurrency(totalPayableAmount)}
                     </div>
                   </>
+                )}
+                {!isDayLimitCustomer && (
+                  <div className="text-red-600 font-semibold">
+                    Total Payment Due: ₹{formatCurrency(totalPayableAmount)}
+                  </div>
                 )}
                 {isAmountLimitCustomer && (
                   <div className="text-purple-600 font-semibold">
@@ -1134,7 +1136,7 @@ function ClientHistoryContent() {
               Total Outstanding Due:
             </p>
             <p className="text-xl font-bold text-red-600">
-              ₹{formatCurrency(totalPendingAmount)}
+              ₹{formatCurrency(totalPayableAmount)}
             </p>
             <p className="text-xs text-blue-600 mt-1 font-semibold">
               Day Limit Customer - Payments clear oldest days first

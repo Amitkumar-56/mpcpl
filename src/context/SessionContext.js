@@ -74,7 +74,8 @@ export function SessionProvider({ children }) {
             // No token means logged out, clear cache
             sessionStorage.removeItem('user');
             localStorage.removeItem('user');
-            // Continue to normal verify below
+            setLoading(false);
+            return;
           }
           
           setUser(userData);
@@ -85,7 +86,8 @@ export function SessionProvider({ children }) {
           if (!localUser && sessionUser) {
             localStorage.setItem('user', sessionUser);
           }
-          // Continue to verify below to ensure account is still active
+          setLoading(false);
+          return;
         } catch (e) {
           console.error('Error parsing cached user:', e);
           // Clear invalid data
@@ -94,11 +96,9 @@ export function SessionProvider({ children }) {
         }
       }
 
-      const tokenHeader = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       const res = await fetch('/api/auth/verify', {
         credentials: 'include',
-        cache: 'no-store',
-        headers: tokenHeader ? { Authorization: `Bearer ${tokenHeader}` } : {}
+        cache: 'no-store'
       });
       
       if (res.ok) {
@@ -123,31 +123,14 @@ export function SessionProvider({ children }) {
           sessionStorage.setItem('user', cacheData);
           localStorage.setItem('user', cacheData);
         } else {
-          // Account disabled or not authenticated - clear everything
           setUser(null);
-          if (typeof window !== 'undefined') {
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            localStorage.removeItem('token');
-            // If account is disabled, show message
-            if (data.error && data.error.includes('deactivated')) {
-              alert('Your account has been deactivated by admin. Please contact administrator.');
-            }
-          }
-        }
-      } else {
-        // API error - clear user data
-        const errorData = await res.json().catch(() => ({}));
-        setUser(null);
-        if (typeof window !== 'undefined') {
           sessionStorage.removeItem('user');
           localStorage.removeItem('user');
-          localStorage.removeItem('token');
-          // If account is disabled, show message
-          if (errorData.error && errorData.error.includes('deactivated')) {
-            alert('Your account has been deactivated by admin. Please contact administrator.');
-          }
         }
+      } else {
+        setUser(null);
+        sessionStorage.removeItem('user');
+        localStorage.removeItem('user');
       }
     } catch (error) {
       console.error('Auth check failed:', error);

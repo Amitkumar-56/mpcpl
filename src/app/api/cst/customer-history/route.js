@@ -174,14 +174,84 @@ export async function GET(request) {
       openingBalance = currentBalance;
     }
 
-    // 6. Prepare transactions - WITH outstanding (new_amount)
+    // 6. Calculate Yesterday's and Today's Outstandings based on cl_id
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    const todayFormatted = today.toISOString().split('T')[0];
+    const yesterdayFormatted = yesterday.toISOString().split('T')[0];
+
+    // Today's outstanding (transactions completed today with new_amount > 0)
+    const todayOutstandingQuery = `
+      SELECT COALESCE(SUM(fh.new_amount), 0) as total 
+      FROM filling_history fh
+      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+      WHERE (fh.cl_id = ? OR fr.cid = ?)
+        AND fh.new_amount > 0
+        AND (
+          DATE(fr.completed_date) = ? 
+          OR DATE(fh.created_at) = ?
+        )
+    `;
+    const todayOutstandingResult = await executeQuery(todayOutstandingQuery, [
+      customerId, customerId, todayFormatted, todayFormatted
+    ]).catch(() => [{ total: 0 }]);
+    const todayOutstanding = parseFloat(todayOutstandingResult[0]?.total) || 0;
+
+    // Yesterday's outstanding (all transactions before today with new_amount > 0)
+    const yesterdayOutstandingQuery = `
+      SELECT COALESCE(SUM(fh.new_amount), 0) as total 
+      FROM filling_history fh
+      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+      WHERE (fh.cl_id = ? OR fr.cid = ?)
+        AND fh.new_amount > 0
+        AND (
+          DATE(fr.completed_date) < ? 
+          OR DATE(fh.created_at) < ?
+        )
+    `;
+    const yesterdayOutstandingResult = await executeQuery(yesterdayOutstandingQuery, [
+      customerId, customerId, todayFormatted, todayFormatted
+    ]).catch(() => [{ total: 0 }]);
+    const yesterdayOutstanding = parseFloat(yesterdayOutstandingResult[0]?.total) || 0;
+
+    // 7. Check for low balance notifications
+    const lowBalanceThreshold = amtLimit * 0.2; // 20% of limit
+    const isLowBalance = amtLimit > 0 && amtLimit < lowBalanceThreshold;
+    const balanceNotification = isLowBalance 
+      ? "Your balance is low. Please recharge on time to continue services."
+      : null;
+
+    // Check if payment is overdue (for day limit customers)
+    let paymentOverdue = false;
+    let paymentNotification = null;
+    if (dayLimit > 0) {
+      const overdueCheck = await executeQuery(
+        `SELECT COUNT(*) as count 
+         FROM filling_requests fr
+         WHERE fr.cid = ? 
+           AND fr.status = 'Completed' 
+           AND fr.payment_status = 0
+           AND DATE(fr.completed_date) < DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+        [customerId, dayLimit]
+      ).catch(() => [{ count: 0 }]);
+      
+      if (overdueCheck[0]?.count > 0) {
+        paymentOverdue = true;
+        paymentNotification = "Payment is overdue. Please recharge immediately to continue services.";
+      }
+    }
+
+    // 8. Prepare transactions - WITH outstanding (new_amount)
     const finalTransactions = transactions.map((transaction) => ({
       ...transaction,
       outstanding: transaction.new_amount, // new_amount as Outstanding
       remaining_limit: transaction.remaining_limit
     }));
 
-    // 7. Calculate summary
+    // 9. Calculate summary
     const totalCredit = finalTransactions
       .filter(t => t.trans_type === 'credit')
       .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
@@ -210,6 +280,17 @@ export async function GET(request) {
         dayLimit: dayLimit,
         dayAmount: dayAmount,
         totalDayAmount: totalDayAmount
+      },
+      outstandings: {
+        yesterday: yesterdayOutstanding,
+        today: todayOutstanding,
+        total: yesterdayOutstanding + todayOutstanding
+      },
+      notifications: {
+        lowBalance: isLowBalance,
+        balanceNotification: balanceNotification,
+        paymentOverdue: paymentOverdue,
+        paymentNotification: paymentNotification
       },
       summary: {
         totalTransactions: finalTransactions.length,

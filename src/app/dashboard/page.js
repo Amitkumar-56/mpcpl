@@ -520,86 +520,103 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* Action Buttons */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-            <button
-              onClick={handleViewStockHistory}
-              className="bg-purple-600 hover:bg-purple-700 text-white p-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
-            >
-              <BiCalendar />
-              <span>Stock History</span>
-            </button>
 
-            <button
-              onClick={handleViewAllStocks}
-              className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
-            >
-              <BiShoppingBag />
-              <span>All Stocks</span>
-            </button>
+          {/* Outstanding Group */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Outstandings</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <a 
+                href="/customers/client-history"
+                className="block"
+              >
+                <StatCard
+                  title="Yesterday Outstanding"
+                  amount={stats.clientYesterdayOutstanding}
+                  icon={<BiDollar />}
+                  gradient="from-blue-500 to-blue-600"
+                  showDetails={false}
+                />
+              </a>
 
-            <button
-              onClick={handleViewStockRequest}
-              className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg flex items-center justify-center space-x-2 transition-colors"
-            >
-              <BiPackage />
-              <span>Stock Request</span>
-            </button>
+              <a 
+                href="/customers/client-history"
+                className="block"
+              >
+                <StatCard
+                  title="Today Outstanding"
+                  amount={stats.clientTodayOutstanding}
+                  icon={<BiChart />}
+                  gradient="from-green-500 to-green-600"
+                  showDetails={false}
+                />
+              </a>
+            </div>
           </div>
 
-          {/* Main Stats Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <StatCard
-              title="Yesterday Outstanding"
-              amount={stats.clientYesterdayOutstanding}
-              icon={<BiDollar />}
-              gradient="from-blue-500 to-blue-600"
-              change={calculatePercentageChange(
-                stats.clientYesterdayOutstanding,
-                stats.clientTodayOutstanding
-              )}
-              showDetails={showDetailedView}
-            />
-
-            <StatCard
-              title="Today Outstanding"
-              amount={stats.clientTodayOutstanding}
-              icon={<BiChart />}
-              gradient="from-green-500 to-green-600"
-              change={calculatePercentageChange(
-                stats.clientTodayOutstanding,
-                stats.clientYesterdayOutstanding
-              )}
-              showDetails={showDetailedView}
-            />
+          {/* Stock Group */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Stock Management</h2>
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <a href="/stock-history" className="block">
+                <InfoCard
+                  title="Stock History"
+                  value={stats.totalTransactions || 0}
+                  icon={<BiCalendar />}
+                  color="purple"
+                />
+              </a>
+              <a href="/all-stock" className="block">
+                <InfoCard
+                  title="All Stocks"
+                  value={stats.totalClients || 0}
+                  icon={<BiShoppingBag />}
+                  color="blue"
+                />
+              </a>
+              <a href="/stock-requests" className="block">
+                <InfoCard
+                  title="Stock Requests"
+                  value={stats.pendingPayments || 0}
+                  icon={<BiPackage />}
+                  color="yellow"
+                />
+              </a>
+            </div>
           </div>
 
           {/* Quick Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
-            <InfoCard
-              title="Total Clients"
-              value={stats.totalClients}
-              icon={<BiGroup />}
-              color="purple"
-            />
-            <InfoCard
-              title="Transactions"
-              value={stats.totalTransactions}
-              icon={<BiShoppingBag />}
-              color="blue"
-            />
-            <InfoCard
-              title="Pending"
-              value={stats.pendingPayments}
-              icon={<BiError />}
-              color="yellow"
-            />
-            <InfoCard
-              title="Cleared"
-              value={stats.clearedPayments}
-              icon={<BiCheckCircle />}
-              color="green"
-            />
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <a href="/customers" className="block">
+                <InfoCard
+                  title="Total Clients"
+                  value={stats.totalClients}
+                  icon={<BiGroup />}
+                  color="purple"
+                />
+              </a>
+              <a href="/filling-requests" className="block">
+                <InfoCard
+                  title="Transactions"
+                  value={stats.totalTransactions}
+                  icon={<BiShoppingBag />}
+                  color="blue"
+                />
+              </a>
+              <InfoCard
+                title="Pending"
+                value={stats.pendingPayments}
+                icon={<BiError />}
+                color="yellow"
+              />
+              <InfoCard
+                title="Cleared"
+                value={stats.clearedPayments}
+                icon={<BiCheckCircle />}
+                color="green"
+              />
+            </div>
           </div>
 
           {/* Summary Card */}
@@ -658,17 +675,11 @@ export default function DashboardPage() {
 
 // Optimized Stat Card Component
 const StatCard = ({ title, amount, icon, gradient, change, showDetails }) => (
-  <div className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-xl shadow-lg`}>
+  <div className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-xl shadow-lg hover:shadow-xl transition-shadow cursor-pointer`}>
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm opacity-90">{title}</p>
         <p className="text-2xl font-bold mt-2">{formatIndianRupees(amount)}</p>
-        <div className="flex items-center mt-3">
-          {change.isPositive ? <BiTrendingUp className="text-green-300 mr-1" /> : <BiTrendingDown className="text-red-300 mr-1" />}
-          <span className="text-sm opacity-90">
-            {change.isPositive ? '+' : '-'}{change.change}%
-          </span>
-        </div>
       </div>
       <div className="p-3 bg-white bg-opacity-20 rounded-lg">
         {icon}
@@ -680,14 +691,14 @@ const StatCard = ({ title, amount, icon, gradient, change, showDetails }) => (
 // Optimized Info Card Component
 const InfoCard = ({ title, value, icon, color }) => {
   const colorClasses = {
-    purple: "bg-purple-100 text-purple-800 border-purple-200",
-    blue: "bg-blue-100 text-blue-800 border-blue-200",
-    green: "bg-green-100 text-green-800 border-green-200",
-    yellow: "bg-yellow-100 text-yellow-800 border-yellow-200",
+    purple: "bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200",
+    blue: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200",
+    green: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200",
+    yellow: "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200",
   };
 
   return (
-    <div className={`border rounded-lg p-4 ${colorClasses[color]} shadow-sm`}>
+    <div className={`border rounded-lg p-4 ${colorClasses[color]} shadow-sm transition-colors cursor-pointer`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">{title}</p>

@@ -38,16 +38,14 @@ export async function GET(request) {
     if (!customerData.product || customerData.product.trim() === '') {
       console.log('ℹ️ No products assigned to customer - product column is empty');
       
-      // If no products in customer table, fetch ALL product_codes with product names
+      // If no products in customer table, fetch ALL products (not sub-products)
       const allProductsQuery = `
         SELECT 
-          pc.id, 
-          pc.pcode, 
-          pc.product_id,
-          p.pname as product_name
-        FROM product_codes pc
-        LEFT JOIN products p ON pc.product_id = p.id
-        ORDER BY pc.pcode
+          p.id, 
+          p.pname as product_name,
+          p.id as product_id
+        FROM products p
+        ORDER BY p.pname
       `;
       
       const allProductsData = await executeQuery(allProductsQuery);
@@ -68,16 +66,14 @@ export async function GET(request) {
     if (allowedProductIds.length === 0) {
       console.log('ℹ️ No valid product IDs found after processing');
       
-      // Fallback to all products with product names
+      // Fallback to all products (not sub-products)
       const allProductsQuery = `
         SELECT 
-          pc.id, 
-          pc.pcode, 
-          pc.product_id,
-          p.pname as product_name
-        FROM product_codes pc
-        LEFT JOIN products p ON pc.product_id = p.id
-        ORDER BY pc.pcode
+          p.id, 
+          p.pname as product_name,
+          p.id as product_id
+        FROM products p
+        ORDER BY p.pname
       `;
       
       const allProductsData = await executeQuery(allProductsQuery);
@@ -90,17 +86,15 @@ export async function GET(request) {
       });
     }
 
-    // Step 2: Fetch product_codes with product names based on customer's allowed product IDs
+    // Step 2: Fetch products (not sub-products) based on customer's allowed product IDs
     const productsQuery = `
       SELECT 
-        pc.id, 
-        pc.pcode, 
-        pc.product_id,
-        p.pname as product_name
-      FROM product_codes pc
-      LEFT JOIN products p ON pc.product_id = p.id
-      WHERE pc.product_id IN (${allowedProductIds.map(() => '?').join(',')})
-      ORDER BY pc.pcode
+        p.id, 
+        p.pname as product_name,
+        p.id as product_id
+      FROM products p
+      WHERE p.id IN (${allowedProductIds.map(() => '?').join(',')})
+      ORDER BY p.pname
     `;
     
     console.log('🔍 Products query:', productsQuery);

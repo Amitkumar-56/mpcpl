@@ -15,6 +15,8 @@ export default function CustomerHistoryContent() {
   const [customerInfo, setCustomerInfo] = useState(null);
   const [summary, setSummary] = useState({});
   const [dayLimitInfo, setDayLimitInfo] = useState({ hasDayLimit: false });
+  const [outstandings, setOutstandings] = useState({ yesterday: 0, today: 0, total: 0 });
+  const [notifications, setNotifications] = useState({ lowBalance: false, balanceNotification: null, paymentOverdue: false, paymentNotification: null });
   
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -88,6 +90,8 @@ export default function CustomerHistoryContent() {
         setCustomerInfo(data.customer || {});
         setSummary(data.summary || {});
         setDayLimitInfo(data.dayLimitInfo || { hasDayLimit: false });
+        setOutstandings(data.outstandings || { yesterday: 0, today: 0, total: 0 });
+        setNotifications(data.notifications || { lowBalance: false, balanceNotification: null, paymentOverdue: false, paymentNotification: null });
         
         console.log('✅ Data loaded successfully:', {
           transactionsCount: data.transactions?.length,
@@ -228,8 +232,8 @@ export default function CustomerHistoryContent() {
 
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
-              {/* Balance Summary - 3 columns only */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+              {/* Balance Summary - 5 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
                 <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
                   <p className="text-sm text-gray-600">Current Balance</p>
                   <p className="text-2xl font-bold text-blue-600">₹{formatCurrency(balance)}</p>
@@ -242,7 +246,38 @@ export default function CustomerHistoryContent() {
                   <p className="text-sm text-gray-600">Amount Limit</p>
                   <p className="text-2xl font-bold text-purple-600">₹{formatCurrency(amtLimit)}</p>
                 </div>
+                <div className="bg-orange-50 p-4 rounded-lg text-center border border-orange-200">
+                  <p className="text-sm text-gray-600">Yesterday Outstanding</p>
+                  <p className="text-2xl font-bold text-orange-600">₹{formatCurrency(outstandings.yesterday)}</p>
+                </div>
+                <div className="bg-red-50 p-4 rounded-lg text-center border border-red-200">
+                  <p className="text-sm text-gray-600">Today Outstanding</p>
+                  <p className="text-2xl font-bold text-red-600">₹{formatCurrency(outstandings.today)}</p>
+                </div>
               </div>
+
+              {/* Notifications */}
+              {notifications.balanceNotification && (
+                <div className="mb-6 p-4 bg-yellow-50 border-l-4 border-yellow-400 rounded-lg">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-yellow-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p className="text-yellow-800 font-semibold">{notifications.balanceNotification}</p>
+                  </div>
+                </div>
+              )}
+
+              {notifications.paymentNotification && (
+                <div className="mb-6 p-4 bg-red-50 border-l-4 border-red-400 rounded-lg">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p className="text-red-800 font-semibold">{notifications.paymentNotification}</p>
+                  </div>
+                </div>
+              )}
 
               {/* Day Limit Details - Only show if customer has day limit */}
               {dayLimitInfo.hasDayLimit && (

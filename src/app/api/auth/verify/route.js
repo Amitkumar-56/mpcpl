@@ -7,20 +7,16 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     const cookieStore = await cookies();
-    let token = cookieStore.get('token')?.value;
+    const token = cookieStore.get('token')?.value;
     
-    console.log('🔐 Verify API called, token exists in cookies:', !!token);
+    console.log('🔐 Verify API called, token exists:', !!token);
     
-    // Fallback: Support Authorization header (Bearer token) for mobile/edge cases
-    if (!token && typeof headers !== 'undefined') {
-      try {
-        const reqHeaders = headers();
-        const authHeader = reqHeaders.get('authorization');
-        if (authHeader && authHeader.startsWith('Bearer ')) {
-          token = authHeader.substring(7);
-          console.log('🔐 Token found in Authorization header');
-        }
-      } catch {}
+    if (!token) {
+      console.log('❌ No token found in cookies');
+      return NextResponse.json({ 
+        authenticated: false,
+        error: 'Not authenticated' 
+      });
     }
 
     const decoded = verifyToken(token);
@@ -28,7 +24,7 @@ export async function GET() {
       console.log('❌ Token verification failed');
       return NextResponse.json({ 
         authenticated: false,
-        error: token ? 'Invalid token' : 'Not authenticated'
+        error: 'Invalid token' 
       });
     }
 
@@ -48,10 +44,9 @@ export async function GET() {
       });
     }
 
-    // Check if user is disabled - strict comparison with number
-    const userStatus = Number(userCheck[0].status);
-    if (userStatus !== 1) {
-      console.log('❌ User account is disabled, status:', userStatus);
+    // Check if user is disabled
+    if (userCheck[0].status === 0 || userCheck[0].status === null || userCheck[0].status === undefined) {
+      console.log('❌ User account is disabled');
       return NextResponse.json({ 
         authenticated: false,
         error: 'Your account has been deactivated by admin. Please contact administrator.' 
