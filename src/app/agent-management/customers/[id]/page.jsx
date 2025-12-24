@@ -26,19 +26,28 @@ export default function AgentAllocation({ params }) {
             const response = await fetch(`/api/agent-management/allocate?agentId=${agentId}`);
             if (response.ok) {
                 const data = await response.json();
-                setCustomers(data.customers);
-                setProducts(data.products);
+                
+                if (!data.customers || data.customers.length === 0) {
+                    console.warn("No customers found in response");
+                }
+                
+                if (!data.products || data.products.length === 0) {
+                    console.warn("No products found in response");
+                }
+                
+                setCustomers(data.customers || []);
+                setProducts(data.products || []);
                 
                 // Process existing commissions
                 const initialAssignments = {};
                 
                 // Initialize for all customers first (unselected)
-                data.customers.forEach(c => {
+                (data.customers || []).forEach(c => {
                     initialAssignments[c.id] = { selected: false, rates: {} };
                 });
 
-                // Apply existing
-                data.commissions.forEach(comm => {
+                // Apply existing commissions
+                (data.commissions || []).forEach(comm => {
                     if (!initialAssignments[comm.customer_id]) {
                         initialAssignments[comm.customer_id] = { selected: true, rates: {} };
                     }
@@ -48,9 +57,14 @@ export default function AgentAllocation({ params }) {
                 });
                 
                 setAssignments(initialAssignments);
+            } else {
+                const errorData = await response.json().catch(() => ({}));
+                console.error("Failed to fetch data:", errorData.error || response.statusText);
+                alert(`Failed to load data: ${errorData.error || response.statusText}`);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
+            alert(`Error loading data: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -96,11 +110,13 @@ export default function AgentAllocation({ params }) {
                     
                     products.forEach(p => {
                         p.codes.forEach(code => {
-                            if (data.rates[code.id]) {
+                            const rateValue = data.rates[code.id];
+                            // Include rate even if 0, but skip if empty/null/undefined
+                            if (rateValue !== undefined && rateValue !== null && rateValue !== '') {
                                 productRates.push({
                                     productId: p.id,
                                     codeId: code.id,
-                                    rate: data.rates[code.id]
+                                    rate: parseFloat(rateValue) || 0
                                 });
                             }
                         });
@@ -121,10 +137,13 @@ export default function AgentAllocation({ params }) {
             });
 
             if (response.ok) {
+                const result = await response.json();
                 alert("Allocations saved successfully!");
                 router.push('/agent-management');
             } else {
-                alert("Failed to save allocations.");
+                const errorData = await response.json().catch(() => ({}));
+                alert(`Failed to save allocations: ${errorData.error || response.statusText}`);
+                console.error("Save error:", errorData);
             }
         } catch (error) {
             console.error("Error saving:", error);
@@ -186,7 +205,32 @@ export default function AgentAllocation({ params }) {
                             />
                         </div>
 
-                        <div className="space-y-4">
+                        {filteredCustomers.length === 0 ? (
+                            <div className="text-center py-8 text-gray-500">
+                                {searchTerm ? (
+                                    <>
+                                        No customers found matching "{searchTerm}".{" "}
+                                        <button 
+                                            onClick={() => setSearchTerm("")}
+                                            className="text-blue-600 hover:underline"
+                                        >
+                                            Clear search
+                                        </button>
+                                    </>
+                                ) : (
+                                    <>
+                                        No customers available.{" "}
+                                        <button 
+                                            onClick={fetchData}
+                                            className="text-blue-600 hover:underline"
+                                        >
+                                            Refresh
+                                        </button>
+                                    </>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="space-y-4">
                             {filteredCustomers.map(customer => {
                                 const isAssigned = assignments[customer.id]?.selected;
                                 const isExpanded = expandedCustomer === customer.id;
@@ -258,7 +302,8 @@ export default function AgentAllocation({ params }) {
                                     </div>
                                 );
                             })}
-                        </div>
+                            </div>
+                        )}
                     </div>
                 </main>
             </div>

@@ -19,6 +19,13 @@ export default function AgentHeader() {
     }
     return null;
   });
+  const [mounted, setMounted] = useState(false);
+  if (!mounted) {
+    // Defer dynamic content to client to avoid hydration mismatch
+    setTimeout(() => {
+      try { setMounted(true); } catch {}
+    }, 0);
+  }
 
   return (
     <header className="bg-white shadow-sm border-b">
@@ -31,11 +38,17 @@ export default function AgentHeader() {
             {agent && (
               <div className="flex items-center space-x-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-sm font-bold">
-                  {agent.name?.charAt(0).toUpperCase() || 'A'}
+                  <span suppressHydrationWarning={true}>
+                    {mounted ? (agent.name?.charAt(0).toUpperCase() || 'A') : ''}
+                  </span>
                 </div>
                 <div className="hidden md:block">
-                  <p className="text-sm font-medium text-gray-900">{agent.name}</p>
-                  <p className="text-xs text-gray-500">{agent.agent_id}</p>
+                  <p className="text-sm font-medium text-gray-900" suppressHydrationWarning={true}>
+                    {mounted ? agent.name : ''}
+                  </p>
+                  <p className="text-xs text-gray-500" suppressHydrationWarning={true}>
+                    {mounted ? agent.agent_id : ''}
+                  </p>
                 </div>
               </div>
             )}

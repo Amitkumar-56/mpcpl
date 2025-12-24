@@ -1,5 +1,9 @@
+// src/app/api/agent-management/route.js
+import { createAuditLog } from "@/lib/auditLog";
+import { verifyToken } from "@/lib/auth";
 import { executeQuery } from "@/lib/db";
 import crypto from "crypto";
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function POST(request) {
@@ -44,31 +48,7 @@ export async function POST(request) {
       .update(agentData.password)
       .digest("hex");
 
-    // Ensure tables exist
-    await executeQuery(`
-      CREATE TABLE IF NOT EXISTS agent_customers (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        agent_id INT,
-        customer_id INT,
-        allocated_by INT,
-        status VARCHAR(20) DEFAULT 'active',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_allocation (agent_id, customer_id)
-      )
-    `);
-
-    await executeQuery(`
-      CREATE TABLE IF NOT EXISTS agent_commissions (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        agent_id INT,
-        customer_id INT,
-        product_id INT,
-        product_code_id INT,
-        commission_rate DECIMAL(10, 2) DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_rate (agent_id, customer_id, product_id, product_code_id)
-      )
-    `);
+   
 
     // Insert agent with ALL required fields
     const result = await executeQuery(
@@ -139,6 +119,55 @@ export async function POST(request) {
         }
       }
     }
+
+    // Gather actor info for audit
+    let actorId = null;
+    let actorName = 'System';
+    try {
+      const cookieStore = await cookies();
+      let token = cookieStore.get("token")?.value;
+      const authHeader = request.headers.get('authorization');
+      if (!token && authHeader) {
+        token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+      }
+      if (token) {
+        const decoded = verifyToken(token.trim());
+        actorId = decoded.userId || decoded.id || decoded.emp_id || null;
+        if (actorId) {
+          const userRes = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [actorId]
+          );
+          if (userRes.length > 0) {
+            actorName = userRes[0].name || actorName;
+          }
+        }
+      }
+    } catch (e) {
+      // silently continue
+    }
+
+    await createAuditLog({
+      page: 'Agent Management',
+      uniqueCode: `AGENT-CREATE-${agentId}-${newAgentId}`,
+      section: 'Create Agent',
+      userId: actorId,
+      userName: actorName,
+      action: 'create',
+      remarks: `Agent created: ${agentData.firstName} ${agentData.lastName} (${agentId})`,
+      oldValue: null,
+      newValue: {
+        agent_db_id: newAgentId,
+        agent_code: agentId,
+        first_name: agentData.firstName,
+        last_name: agentData.lastName,
+        email: agentData.email,
+        phone: agentData.phone,
+        status: 1
+      },
+      recordType: 'agent',
+      recordId: newAgentId
+    });
 
     return NextResponse.json(
       { message: "Agent created successfully", id: newAgentId, agentId: agentId },
@@ -211,10 +240,11 @@ export async function GET(request) {
       return NextResponse.json([], { status: 200 });
     }
 
+    // Calculate agent commissions from filling_requests
     const agents = await executeQuery(`
       SELECT 
         a.id, a.agent_id, a.first_name, a.last_name, a.email, a.phone, 
-        a.address, a.status, a.created_at,
+        a.address, a.bank_name, a.account_number, a.ifsc_code, a.status, a.created_at,
         COALESCE(e.total_earned, 0) as total_earned,
         COALESCE(p.total_paid, 0) as total_paid,
         (COALESCE(e.total_earned, 0) - COALESCE(p.total_paid, 0)) as total_due_commission
@@ -224,19 +254,31 @@ export async function GET(request) {
               ac.agent_id, 
               SUM(COALESCE(fr.aqty, 0) * COALESCE(ac.commission_rate, 0)) as total_earned
           FROM agent_commissions ac
-          LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id AND fr.status = 'Completed'
-          LEFT JOIN product_codes pc ON fr.fl_id = pc.id AND pc.id = ac.product_code_id
-          WHERE ac.agent_id IS NOT NULL AND ac.commission_rate > 0
+          INNER JOIN agent_customers acust ON acust.agent_id = ac.agent_id 
+            AND acust.customer_id = ac.customer_id 
+            AND acust.status = 'active'
+          LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id 
+            AND fr.status = 'Completed' 
+            AND (
+              fr.fl_id = ac.product_code_id 
+              OR fr.sub_product_id = ac.product_code_id
+              OR COALESCE(fr.sub_product_id, fr.fl_id) = ac.product_code_id
+            )
+            AND COALESCE(fr.aqty, 0) > 0
+          WHERE ac.agent_id IS NOT NULL 
+            AND COALESCE(ac.commission_rate, 0) > 0
           GROUP BY ac.agent_id
       ) e ON e.agent_id = a.id
       LEFT JOIN (
-          SELECT agent_id, SUM(COALESCE(amount, 0)) as total_paid 
+          SELECT agent_id, SUM(COALESCE(net_amount, amount, 0)) as total_paid 
           FROM agent_payments 
+          WHERE agent_id IS NOT NULL
           GROUP BY agent_id
       ) p ON p.agent_id = a.id
       ORDER BY a.created_at DESC
     `).catch((err) => {
-      console.error("Query error:", err);
+      console.error("Agent commission calculation error:", err);
+      // Fallback: return agents with zero commission
       return executeQuery(`
         SELECT 
           id, agent_id, first_name, last_name, email, phone, 
@@ -249,7 +291,12 @@ export async function GET(request) {
       `);
     });
 
-    return NextResponse.json(agents || [], { status: 200 });
+    const adjustedAgents = (agents || []).map(a => ({
+      ...a,
+      total_due_commission: Math.max(0, (parseFloat(a.total_earned || 0) || 0) - (parseFloat(a.total_paid || 0) || 0))
+    }));
+
+    return NextResponse.json(adjustedAgents, { status: 200 });
   } catch (error) {
     console.error("Error fetching agents:", error);
     return NextResponse.json(
@@ -418,6 +465,53 @@ export async function PUT(request) {
         }
       }
     }
+
+    // Gather actor info for audit
+    let actorId = null;
+    let actorName = 'System';
+    try {
+      const cookieStore = await cookies();
+      let token = cookieStore.get("token")?.value;
+      const authHeader = request.headers.get('authorization');
+      if (!token && authHeader) {
+        token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+      }
+      if (token) {
+        const decoded = verifyToken(token.trim());
+        actorId = decoded.userId || decoded.id || decoded.emp_id || null;
+        if (actorId) {
+          const userRes = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [actorId]
+          );
+          if (userRes.length > 0) {
+            actorName = userRes[0].name || actorName;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    await createAuditLog({
+      page: 'Agent Management',
+      uniqueCode: `AGENT-UPDATE-${agentId}`,
+      section: 'Update Agent',
+      userId: actorId,
+      userName: actorName,
+      action: 'update',
+      remarks: `Agent updated: ID ${agentId}`,
+      oldValue: null,
+      newValue: {
+        id: agentId,
+        ...Object.fromEntries(updateFields.map((f, idx) => {
+          const key = f.split('=')[0].trim();
+          return [key, updateValues[idx]];
+        }))
+      },
+      recordType: 'agent',
+      recordId: agentId
+    });
 
     return NextResponse.json(
       { message: "Agent updated successfully" },

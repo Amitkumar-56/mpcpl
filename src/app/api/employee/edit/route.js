@@ -40,13 +40,28 @@ export async function GET(request) {
       FROM role_permissions 
       WHERE employee_id = ?
     `;
-    const permissions = await executeQuery(permissionsQuery, [id]);
+    const permissionsResult = await executeQuery(permissionsQuery, [id]);
+
+    // Convert permissions array to object format
+    const permissionsObj = {};
+    permissionsResult.forEach(perm => {
+      permissionsObj[perm.module_name] = {
+        can_view: perm.can_view === 1 || perm.can_view === true,
+        can_edit: perm.can_edit === 1 || perm.can_edit === true,
+        can_delete: perm.can_delete === 1 || perm.can_delete === true
+      };
+    });
+
+    // Get stations for this employee
+    const stationsQuery = `SELECT * FROM filling_stations ORDER BY station_name`;
+    const stations = await executeQuery(stationsQuery);
 
     return NextResponse.json({
       success: true,
       data: {
-        ...employeeResult[0],
-        permissions: permissions
+        employee: employeeResult[0],
+        permissions: permissionsObj,
+        stations: stations || []
       }
     });
 

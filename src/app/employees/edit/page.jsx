@@ -72,7 +72,7 @@ function EditEmployeeContent() {
       
       if (!res.ok) {
         const errorData = await res.json().catch(() => ({ error: 'Network error' }));
-        console.error('API Error:', errorData.error);
+        console.error('API Error:', errorData);
         // If token is invalid, redirect to login
         if (res.status === 401) {
           if (typeof window !== 'undefined') {
@@ -84,6 +84,7 @@ function EditEmployeeContent() {
           window.location.href = '/login';
           return;
         }
+        setError(errorData.error || errorData.message || 'Failed to load employee data');
         setLoading(false);
         return;
       }
@@ -91,20 +92,30 @@ function EditEmployeeContent() {
       const result = await res.json();
       
       if (result.success && result.data) {
-        // IMPORTANT: Accessing .data because your API wraps it there
-        setFormData(result.data.employee);
-        setStations(result.data.stations || []);
-        // Set permissions if returned (admin only)
-        if (result.data.permissions) {
-          setPermissions(prev => ({
-            ...prev,
-            ...result.data.permissions
-          }));
+        // Check if data has employee property (new format) or is the employee directly (old format)
+        const employeeData = result.data.employee || result.data;
+        const stationsData = result.data.stations || [];
+        const permissionsData = result.data.permissions || {};
+        
+        if (employeeData && employeeData.id) {
+          setFormData(employeeData);
+          setStations(stationsData);
+          // Set permissions if returned (admin only)
+          if (permissionsData && Object.keys(permissionsData).length > 0) {
+            setPermissions(prev => ({
+              ...prev,
+              ...permissionsData
+            }));
+          }
+          setError(null);
+        } else {
+          const errorMsg = 'Invalid employee data received';
+          console.error('API returned invalid data:', result);
+          setError(errorMsg);
         }
-        setError(null);
       } else {
-        const errorMsg = result.error || 'Failed to load employee data';
-        console.error('API returned error:', errorMsg);
+        const errorMsg = result.error || result.message || 'Failed to load employee data';
+        console.error('API returned error:', errorMsg, result);
         setError(errorMsg);
       }
     } catch (err) {
@@ -322,18 +333,35 @@ function EditEmployeeContent() {
             <div className="md:col-span-2">
               <label className="text-sm font-semibold text-gray-600 block mb-3">Assigned Filling Stations</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300 max-h-60 overflow-y-auto">
-                {stations.map(station => (
-                  <label key={station.id} className="flex items-center space-x-3 p-2 bg-white rounded-md shadow-sm cursor-pointer hover:bg-blue-50 transition">
-                    <input 
-                      type="checkbox" 
-                      name="fs_id" 
-                      value={station.id}
-                      defaultChecked={formData.fs_id?.includes(station.id)}
-                      className="w-4 h-4 text-blue-600 rounded" 
-                    />
-                    <span className="text-sm text-gray-700 font-medium">{station.station_name}</span>
-                  </label>
-                ))}
+                {stations.map(station => {
+                  // Handle fs_id - it could be a number, string, array, or comma-separated string
+                  let fsIdArray = [];
+                  if (formData.fs_id) {
+                    if (Array.isArray(formData.fs_id)) {
+                      fsIdArray = formData.fs_id;
+                    } else if (typeof formData.fs_id === 'string') {
+                      // Handle comma-separated string like "1,2,3"
+                      fsIdArray = formData.fs_id.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+                    } else {
+                      // Single number
+                      fsIdArray = [parseInt(formData.fs_id)];
+                    }
+                  }
+                  const isChecked = fsIdArray.includes(parseInt(station.id));
+                  
+                  return (
+                    <label key={station.id} className="flex items-center space-x-3 p-2 bg-white rounded-md shadow-sm cursor-pointer hover:bg-blue-50 transition">
+                      <input 
+                        type="checkbox" 
+                        name="fs_id" 
+                        value={station.id}
+                        defaultChecked={isChecked}
+                        className="w-4 h-4 text-blue-600 rounded" 
+                      />
+                      <span className="text-sm text-gray-700 font-medium">{station.station_name}</span>
+                    </label>
+                  );
+                })}
               </div>
             </div>
           )}

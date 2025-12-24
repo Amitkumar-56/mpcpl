@@ -30,6 +30,8 @@ export default function AgentSidebar() {
     }
     return null;
   });
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   const handleLogout = () => {
     localStorage.removeItem("agent");
@@ -80,14 +82,20 @@ export default function AgentSidebar() {
         <div className="p-4 border-b border-gray-300 bg-red-300">
           <div className="flex items-center space-x-3">
             <div className="w-10 h-10 bg-red-600 rounded-full flex items-center justify-center text-white font-bold">
-              {agent?.name?.charAt(0).toUpperCase() || 'A'}
+              <span suppressHydrationWarning={true}>
+                {mounted ? (agent?.name?.charAt(0).toUpperCase() || 'A') : ''}
+              </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 truncate">
-                {agent?.name || 'Agent'}
+                <span suppressHydrationWarning={true}>
+                  {mounted ? (agent?.name || 'Agent') : ''}
+                </span>
               </p>
               <p className="text-xs text-gray-600 truncate">
-                {agent?.agent_id || 'Agent ID'}
+                <span suppressHydrationWarning={true}>
+                  {mounted ? (agent?.agent_id || 'Agent ID') : ''}
+                </span>
               </p>
               <p className="text-xs text-red-600 font-semibold mt-0.5">
                 Agent

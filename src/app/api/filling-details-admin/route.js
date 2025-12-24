@@ -442,6 +442,36 @@ export async function POST(request) {
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
         isDayLimitCustomer
       });
+      
+      try {
+        const userRows = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
+          [userId]
+        );
+        const userNameForLog = userRows.length > 0 ? userRows[0].name : 'System';
+        const oldDataForAudit = await executeQuery(`SELECT aqty, price FROM filling_requests WHERE id = ?`, [id]);
+        const oldQty = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].aqty || 0) : 0;
+        const oldPrice = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].price || 0) : 0;
+        const newQty = parseFloat(aqty || 0);
+        const newPrice = parseFloat(price || 0);
+        const oldAmount = (oldPrice || newPrice) * oldQty;
+        const newAmount = newPrice * newQty;
+        const deltaQty = newQty - oldQty;
+        const deltaAmount = newAmount - oldAmount;
+        await createAuditLog({
+          page: 'Filling Details Admin',
+          uniqueCode: `REQ-EDIT-${rid}`,
+          section: 'Edit Completed Request',
+          userId: userId,
+          userName: userNameForLog,
+          action: 'update',
+          remarks: `Quantity updated on completed request. ΔQty: ${deltaQty.toFixed(2)}L, ΔAmount: ₹${deltaAmount.toFixed(2)}.`,
+          oldValue: { qty: oldQty, amount: oldAmount, price: oldPrice || newPrice },
+          newValue: { qty: newQty, amount: newAmount, price: newPrice },
+          recordType: 'filling_request',
+          recordId: parseInt(id)
+        });
+      } catch (auditErr) {}
     } else if (status === 'Cancel') {
       console.log('🔄 Handling Cancel status...');
       resultMessage = await handleCancelStatus({
@@ -472,6 +502,35 @@ export async function POST(request) {
       resultMessage = await updateFillingRequest({
         id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
       });
+      try {
+        const userRows = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
+          [userId]
+        );
+        const userNameForLog = userRows.length > 0 ? userRows[0].name : 'System';
+        const oldDataForAudit = await executeQuery(`SELECT aqty, price FROM filling_requests WHERE id = ?`, [id]);
+        const oldQty = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].aqty || 0) : 0;
+        const oldPrice = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].price || 0) : 0;
+        const newQty = parseFloat(aqty || 0);
+        const newPrice = parseFloat(price || 0);
+        const oldAmount = (oldPrice || newPrice) * oldQty;
+        const newAmount = newPrice * newQty;
+        const deltaQty = newQty - oldQty;
+        const deltaAmount = newAmount - oldAmount;
+        await createAuditLog({
+          page: 'Filling Details Admin',
+          uniqueCode: `REQ-EDIT-${rid}`,
+          section: 'Edit Request',
+          userId: userId,
+          userName: userNameForLog,
+          action: 'update',
+          remarks: `Request edited. ΔQty: ${deltaQty.toFixed(2)}L, ΔAmount: ₹${deltaAmount.toFixed(2)}.`,
+          oldValue: { qty: oldQty, amount: oldAmount, price: oldPrice || newPrice },
+          newValue: { qty: newQty, amount: newAmount, price: newPrice },
+          recordType: 'filling_request',
+          recordId: parseInt(id)
+        });
+      } catch (auditErr) {}
     }
 
     console.log('✅ Update successful:', resultMessage);

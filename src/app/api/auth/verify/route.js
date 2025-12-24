@@ -4,15 +4,24 @@ import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request) {
   try {
     const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
+    let token = cookieStore.get('token')?.value;
     
     console.log('🔐 Verify API called, token exists:', !!token);
     
+    // Fallback: read Authorization header if cookie is missing
+    if (!token && request && typeof request.headers?.get === 'function') {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader) {
+        token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
+        console.log('🔐 Verify API used Authorization header token:', !!token);
+      }
+    }
+
     if (!token) {
-      console.log('❌ No token found in cookies');
+      console.log('❌ No token found in cookies or Authorization header');
       return NextResponse.json({ 
         authenticated: false,
         error: 'Not authenticated' 

@@ -1,3 +1,4 @@
+// src/app/api/agent-management/export-commissions/route.js
 import { executeQuery } from "@/lib/db";
 import ExcelJS from "exceljs";
 import { NextResponse } from "next/server";
@@ -29,17 +30,19 @@ export async function GET(request) {
           (fr.aqty * ac.commission_rate) as commission_amount
       FROM filling_requests fr
       JOIN customers c ON fr.cid = c.id
-      JOIN product_codes pc ON fr.fl_id = pc.id
-      JOIN agent_commissions ac ON ac.customer_id = fr.cid AND ac.product_code_id = pc.id
-      WHERE ac.agent_id = ? 
-        AND fr.status = 'Completed'
+      JOIN agent_commissions ac 
+        ON ac.customer_id = fr.cid 
+       AND ac.agent_id = ?
+       AND COALESCE(fr.sub_product_id, fr.fl_id) = ac.product_code_id
+      LEFT JOIN product_codes pc ON ac.product_code_id = pc.id
+      WHERE fr.status = 'Completed'
       ORDER BY fr.completed_date DESC
     `;
     const history = await executeQuery(commissionQuery, [agentId]);
 
     // 3. Fetch Payments
     const payments = await executeQuery(
-      "SELECT * FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
+      "SELECT payment_date, amount, COALESCE(net_amount, amount) as net_amount, tds_amount, remarks FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
       [agentId]
     );
 
@@ -73,6 +76,8 @@ export async function GET(request) {
     sheet2.columns = [
       { header: "Date", key: "date", width: 20 },
       { header: "Amount", key: "amount", width: 15 },
+      { header: "TDS", key: "tds", width: 12 },
+      { header: "Net Amount", key: "net", width: 15 },
       { header: "Remarks", key: "remarks", width: 30 },
     ];
 
@@ -80,6 +85,8 @@ export async function GET(request) {
       sheet2.addRow({
         date: new Date(row.payment_date).toLocaleString(),
         amount: row.amount,
+        tds: row.tds_amount || 0,
+        net: row.net_amount || row.amount,
         remarks: row.remarks
       });
     });

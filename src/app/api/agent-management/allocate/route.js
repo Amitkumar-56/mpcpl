@@ -1,3 +1,5 @@
+
+// src/app/api/agent-management/allocate/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -10,71 +12,6 @@ export async function GET(request) {
   }
 
   try {
-      // 1. Ensure agent_customers table exists (Relationship)
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS agent_customers (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            agent_id INT NOT NULL,
-            customer_id INT NOT NULL,
-            allocated_by INT DEFAULT 1,
-            status ENUM('active', 'inactive') DEFAULT 'active',
-            allocated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_allocation (agent_id, customer_id),
-            FOREIGN KEY (agent_id) REFERENCES agents(id),
-            FOREIGN KEY (customer_id) REFERENCES customers(id)
-        )
-      `);
-
-      // 2. Ensure agent_commissions table exists (Rates Settings)
-      // We need to handle schema migration for existing tables that might lack product_code_id
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS agent_commissions (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            agent_id INT NOT NULL,
-            customer_id INT NOT NULL,
-            product_id INT NOT NULL,
-            product_code_id INT,
-            commission_rate DECIMAL(10, 2) DEFAULT 0.00,
-            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            UNIQUE KEY unique_rate (agent_id, customer_id, product_id, product_code_id)
-        )
-      `);
-
-      // 2.1 Schema Migration: Ensure product_code_id column exists
-      try {
-        await executeQuery("SELECT product_code_id FROM agent_commissions LIMIT 1");
-      } catch (error) {
-        // Column doesn't exist, add it
-        console.log("Adding product_code_id to agent_commissions");
-        await executeQuery("ALTER TABLE agent_commissions ADD COLUMN product_code_id INT AFTER product_id");
-        
-        // Update unique index to include product_code_id
-        // First try to drop existing unique indexes if they exist
-        try { await executeQuery("ALTER TABLE agent_commissions DROP INDEX unique_rate"); } catch(e) {}
-        try { await executeQuery("ALTER TABLE agent_commissions DROP INDEX unique_assignment"); } catch(e) {}
-        
-        // Add new unique index
-        await executeQuery("ALTER TABLE agent_commissions ADD UNIQUE KEY unique_rate (agent_id, customer_id, product_id, product_code_id)");
-      }
-
-      // 3. Ensure agent_earnings table exists (History Log)
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS agent_earnings (
-            id INT AUTO_INCREMENT PRIMARY KEY,
-            agent_id INT NOT NULL,
-            customer_id INT NOT NULL,
-            filling_request_id INT,
-            product_code_id INT,
-            quantity DECIMAL(10, 2),
-            commission_rate DECIMAL(10, 2),
-            commission_amount DECIMAL(10, 2),
-            earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (agent_id) REFERENCES agents(id),
-            FOREIGN KEY (customer_id) REFERENCES customers(id)
-        )
-      `);
-
       // Fetch customers with their current agent assignment status
       const customers = await executeQuery(`
         SELECT 
@@ -169,12 +106,27 @@ export async function POST(request) {
             // 2. Insert/Update agent_commissions (Rates)
             if (products && products.length > 0) {
                 for (const prod of products) {
-                    await executeQuery(`
-                        INSERT INTO agent_commissions (agent_id, customer_id, product_id, product_code_id, commission_rate)
-                        VALUES (?, ?, ?, ?, ?)
-                        ON DUPLICATE KEY UPDATE commission_rate = VALUES(commission_rate)
-                    `, [agentId, customerId, prod.productId, prod.codeId, prod.rate]);
+                    // Only insert if rate is provided and greater than 0
+                    if (prod.rate && parseFloat(prod.rate) > 0) {
+                        await executeQuery(`
+                            INSERT INTO agent_commissions (agent_id, customer_id, product_id, product_code_id, commission_rate)
+                            VALUES (?, ?, ?, ?, ?)
+                            ON DUPLICATE KEY UPDATE commission_rate = VALUES(commission_rate)
+                        `, [agentId, customerId, prod.productId, prod.codeId, parseFloat(prod.rate)]);
+                    } else {
+                        // Remove commission if rate is 0 or empty
+                        await executeQuery(`
+                            DELETE FROM agent_commissions 
+                            WHERE agent_id = ? AND customer_id = ? AND product_code_id = ?
+                        `, [agentId, customerId, prod.codeId]);
+                    }
                 }
+            } else {
+                // If no products provided but customer is selected, remove all commissions for this customer
+                await executeQuery(`
+                    DELETE FROM agent_commissions 
+                    WHERE agent_id = ? AND customer_id = ?
+                `, [agentId, customerId]);
             }
         }
         

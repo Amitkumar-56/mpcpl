@@ -1,10 +1,9 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
-import Sidebar from "components/sidebar";
 import Header from "components/Header";
-import Footer from "components/Footer";
+import Sidebar from "components/sidebar";
 import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 
 export default function AgentCommissionsPage() {
   const { id } = useParams(); // agent id
@@ -13,6 +12,7 @@ export default function AgentCommissionsPage() {
   const [data, setData] = useState(null);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [paymentAmount, setPaymentAmount] = useState("");
+  const [tdsAmount, setTdsAmount] = useState("");
   const [paymentRemarks, setPaymentRemarks] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('history');
@@ -27,9 +27,11 @@ export default function AgentCommissionsPage() {
   const fetchData = async () => {
     setLoading(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
+      const authHeader = token ? { Authorization: `Bearer ${token.trim()}` } : {};
       const [historyRes, logsRes] = await Promise.all([
-        fetch(`/api/agent/commission-history?agentId=${id}`),
-        fetch(`/api/agent-management/payments?agentId=${id}`)
+        fetch(`/api/agent/commission-history?agentId=${id}`, { headers: authHeader, credentials: 'include' }),
+        fetch(`/api/agent-management/payments?agentId=${id}`, { headers: authHeader, credentials: 'include' })
       ]);
       
       if (historyRes.ok) {
@@ -54,12 +56,19 @@ export default function AgentCommissionsPage() {
 
     setSubmitting(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
       const res = await fetch("/api/agent-management/payments", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: (() => {
+          const h = { "Content-Type": "application/json" };
+          if (token) h.Authorization = `Bearer ${token.trim()}`;
+          return h;
+        })(),
+        credentials: 'include',
         body: JSON.stringify({
           agentId: id,
           amount: parseFloat(paymentAmount),
+          tdsAmount: tdsAmount ? parseFloat(tdsAmount) : 0,
           remarks: paymentRemarks,
         }),
       });
@@ -67,6 +76,7 @@ export default function AgentCommissionsPage() {
       if (res.ok) {
         setShowPaymentModal(false);
         setPaymentAmount("");
+        setTdsAmount("");
         setPaymentRemarks("");
         fetchData(); // Refresh data including logs
         alert("Payment recorded successfully!");
@@ -134,17 +144,17 @@ export default function AgentCommissionsPage() {
             </div>
             <div className="bg-white p-6 rounded-lg shadow border-l-4 border-green-500">
               <h3 className="text-gray-500 text-sm font-medium uppercase">Total Paid</h3>
-              <p className="text-3xl font-bold text-gray-800 mt-2">₹{summary?.totalPaid?.toFixed(2) || '0.00'}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">₹{(summary?.totalPaid ?? 0).toFixed(2)}</p>
               <p className="text-xs text-gray-500 mt-1">Amount paid by admin</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow border-l-4 border-orange-500">
               <h3 className="text-gray-500 text-sm font-medium uppercase">Due Commission</h3>
-              <p className="text-3xl font-bold text-gray-800 mt-2">₹{summary?.remaining?.toFixed(2) || '0.00'}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">₹{Math.max(0, summary?.remaining ?? 0).toFixed(2)}</p>
               <p className="text-xs text-gray-500 mt-1">Pending payment</p>
             </div>
             <div className="bg-white p-6 rounded-lg shadow border-l-4 border-purple-500">
               <h3 className="text-gray-500 text-sm font-medium uppercase">Remaining Balance</h3>
-              <p className="text-3xl font-bold text-gray-800 mt-2">₹{summary?.remaining?.toFixed(2) || '0.00'}</p>
+              <p className="text-3xl font-bold text-gray-800 mt-2">₹{Math.max(0, summary?.remaining ?? 0).toFixed(2)}</p>
               <p className="text-xs text-gray-500 mt-1">Available to pay</p>
             </div>
           </div>
@@ -260,6 +270,8 @@ export default function AgentCommissionsPage() {
                       <th className="px-4 py-2">Date</th>
                       <th className="px-4 py-2">Remarks</th>
                       <th className="px-4 py-2 text-right">Amount</th>
+                      <th className="px-4 py-2 text-right">TDS</th>
+                      <th className="px-4 py-2 text-right">Net</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -269,8 +281,10 @@ export default function AgentCommissionsPage() {
                           <td className="px-4 py-2">{new Date(pay.payment_date).toLocaleDateString()}</td>
                           <td className="px-4 py-2">{pay.remarks || "-"}</td>
                           <td className="px-4 py-2 text-right font-semibold text-blue-600">
-                            ₹{parseFloat(pay.amount).toFixed(2)}
+                            ₹{parseFloat(pay.amount || 0).toFixed(2)}
                           </td>
+                          <td className="px-4 py-2 text-right">₹{parseFloat(pay.tds_amount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 text-right font-semibold">₹{parseFloat(pay.net_amount || ((pay.amount || 0) - (pay.tds_amount || 0))).toFixed(2)}</td>
                         </tr>
                       ))
                     ) : (
@@ -295,6 +309,8 @@ export default function AgentCommissionsPage() {
                     <tr>
                       <th className="px-4 py-2">Date & Time</th>
                       <th className="px-4 py-2">Amount (₹)</th>
+                      <th className="px-4 py-2">TDS (₹)</th>
+                      <th className="px-4 py-2">Net (₹)</th>
                       <th className="px-4 py-2">Paid By</th>
                       <th className="px-4 py-2">Remarks</th>
                       <th className="px-4 py-2">Payment ID</th>
@@ -316,6 +332,8 @@ export default function AgentCommissionsPage() {
                           <td className="px-4 py-2 font-semibold text-green-600">
                             ₹{parseFloat(log.amount || 0).toFixed(2)}
                           </td>
+                          <td className="px-4 py-2">₹{parseFloat(log.tds_amount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-2 font-semibold">₹{parseFloat(log.net_amount || ((log.amount || 0) - (log.tds_amount || 0))).toFixed(2)}</td>
                           <td className="px-4 py-2">
                             <div>
                               <div className="font-medium">{log.paid_by_user_name || 'System'}</div>
@@ -430,6 +448,22 @@ export default function AgentCommissionsPage() {
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
                   />
+                </div>
+                <div className="mb-4">
+                  <label className="block text-gray-700 mb-2">TDS (₹)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={tdsAmount}
+                    onChange={(e) => setTdsAmount(e.target.value)}
+                  />
+                  <p className="text-xs text-gray-600 mt-1">
+                    Net Pay: ₹{(
+                      Math.max(0, (parseFloat(paymentAmount || 0) || 0) - (parseFloat(tdsAmount || 0) || 0))
+                    ).toFixed(2)}
+                  </p>
                 </div>
                 <div className="mb-4">
                   <label className="block text-gray-700 mb-2">Remarks</label>

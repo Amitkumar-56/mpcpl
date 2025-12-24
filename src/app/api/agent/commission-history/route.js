@@ -50,15 +50,19 @@ export async function GET(request) {
             ac.agent_id,
             fr.cid,
             fr.id,
-            pc.id,
+            ac.product_code_id,
             fr.aqty,
             ac.commission_rate,
             (fr.aqty * ac.commission_rate) as commission_amount,
             fr.completed_date
         FROM filling_requests fr
-        JOIN agent_commissions ac ON fr.cid = ac.customer_id
-        JOIN product_codes pc ON fr.fl_id = pc.id AND ac.product_code_id = pc.id
-        WHERE fr.status = 'Completed' AND ac.agent_id = ? AND ac.commission_rate > 0
+        JOIN agent_commissions ac 
+          ON fr.cid = ac.customer_id 
+         AND COALESCE(fr.sub_product_id, fr.fl_id) = ac.product_code_id
+        WHERE fr.status = 'Completed' 
+          AND ac.agent_id = ? 
+          AND ac.commission_rate > 0
+          AND COALESCE(fr.aqty, 0) > 0
       `, [agentId]);
 
       // 2. Fetch History from the STORED agent_earnings table
@@ -83,13 +87,12 @@ export async function GET(request) {
 
       // 3. Fetch Payments
       const payments = await executeQuery(
-          "SELECT * FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
+          "SELECT id, agent_id, amount, COALESCE(net_amount, amount) as net_amount, tds_amount, payment_date, remarks FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
           [agentId]
       );
       
-      const totalPaid = payments.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
-      
-      const remaining = totalCommission - totalPaid;
+      const totalPaid = payments.reduce((sum, item) => sum + (parseFloat(item.net_amount) || parseFloat(item.amount) || 0), 0);
+      const remaining = Math.max(0, totalCommission - totalPaid);
 
       // 4. Fetch Allocated Customers (Display only)
       const allocatedCustomers = await executeQuery(`
