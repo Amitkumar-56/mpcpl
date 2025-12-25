@@ -130,40 +130,7 @@ export default function CreateRequestPage() {
     fetchData();
   }, []);
 
-  if (authLoading) {
-    return (
-      <div className="flex h-screen bg-gray-100 overflow-hidden">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
-            <div>Checking permissions...</div>
-          </main>
-          <Footer />
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasPermission) {
-    return (
-      <div className="flex h-screen bg-gray-100 overflow-hidden">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
-            <div className="bg-white rounded-lg shadow p-6 text-center">
-              <div className="text-red-500 text-4xl mb-2">🚫</div>
-              <div>You do not have permission to create filling requests.</div>
-              <p className="text-sm text-gray-500 mt-2">Edit permission is required.</p>
-            </div>
-          </main>
-          <Footer />
-        </div>
-      </div>
-    );
-  }
-
+  // ✅ FIX: Move all hooks BEFORE early returns to maintain hook order
   // Barrel calculation - 200 liters per barrel
   useEffect(() => {
     if (selectedProduct?.barrelSize && formData.qty) {
@@ -211,6 +178,41 @@ export default function CreateRequestPage() {
       }
     }
   }, [formData.remarks, selectedProduct]);
+
+  // ✅ Early returns AFTER all hooks
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div>Checking permissions...</div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+              <div className="text-red-500 text-4xl mb-2">🚫</div>
+              <div>You do not have permission to create filling requests.</div>
+              <p className="text-sm text-gray-500 mt-2">Edit permission is required.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   const handleChange = (e) => {
     const { name, value } = e.target;

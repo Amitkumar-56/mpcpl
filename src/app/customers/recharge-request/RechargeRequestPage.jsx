@@ -175,10 +175,14 @@ export default function RechargeRequestPage() {
 
       console.log('Submitting payment request:', payload);
 
-      const response = await fetch('/api/customers/recharge-request', {
-        method: "POST",
+      // ✅ FIX: Use client-history PATCH route for payment processing (same as day_limit recharge)
+      const response = await fetch('/api/customers/client-history', {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          customerId: parseInt(customerId),
+          rechargeAmount: parseFloat(formData.amount)
+        }),
       });
 
       const data = await response.json();
@@ -187,20 +191,24 @@ export default function RechargeRequestPage() {
       if (response.ok && data.success) {
         let message = data.message || "Payment processed successfully!";
         
-        if (data.data) {
-          if (data.data.old_balance !== undefined && data.data.new_balance !== undefined) {
-            message += `\n\n💰 Balance: ₹${data.data.old_balance} → ₹${data.data.new_balance}`;
-          }
-          if (data.data.old_total_day_amount !== undefined && data.data.new_total_day_amount !== undefined) {
-            message += `\n\n📊 Total Day Amount: ₹${data.data.old_total_day_amount} → ₹${data.data.new_total_day_amount}`;
-          }
-          if (data.data.old_day_limit !== undefined && data.data.new_day_limit !== undefined) {
-            message += `\n\n📅 Day Limit: ${data.data.old_day_limit} → ${data.data.new_day_limit} days`;
-          }
-          if (data.data.paid_requests) {
-            message += `\n\n✅ Cleared requests: ${data.data.paid_requests}`;
-          }
-          // ❌ Days added message removed
+        // ✅ FIX: Update message format to match client-history API response
+        if (data.newBalance !== undefined) {
+          message += `\n\n💰 New Balance: ₹${data.newBalance.toFixed(2)}`;
+        }
+        if (data.newTotalDayAmount !== undefined) {
+          message += `\n\n📊 Total Day Amount: ₹${data.newTotalDayAmount.toFixed(2)}`;
+        }
+        if (data.dayRemainingAmount !== undefined && data.dayRemainingAmount > 0) {
+          message += `\n\n💵 Extra Payment Stored: ₹${data.dayRemainingAmount.toFixed(2)} (will be used for future requests)`;
+        }
+        if (data.daysCleared !== undefined && data.daysCleared > 0) {
+          message += `\n\n📅 Days Cleared: ${data.daysCleared}`;
+        }
+        if (data.invoicesPaid !== undefined && data.invoicesPaid > 0) {
+          message += `\n\n✅ Paid Requests: ${data.invoicesPaid}`;
+        }
+        if (data.amountPaid !== undefined) {
+          message += `\n\n💳 Amount Paid: ₹${data.amountPaid.toFixed(2)}`;
         }
         
         setSuccessMessage(message);

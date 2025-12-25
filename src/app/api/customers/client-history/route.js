@@ -247,8 +247,32 @@ export async function PATCH(request) {
     // Use executeTransaction helper to avoid prepared statement error
     const result = await executeTransaction(async (connection) => {
       // Get customer info first to check if day_limit customer
+      // ✅ ADD: Check if day_remaining_amount column exists, if not add it
+      try {
+        // Check if column exists
+        const [columns] = await connection.execute(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'customer_balances' 
+          AND COLUMN_NAME = 'day_remaining_amount'
+        `);
+        
+        if (columns.length === 0) {
+          // Column doesn't exist, add it
+          await connection.execute(`
+            ALTER TABLE customer_balances 
+            ADD COLUMN day_remaining_amount DECIMAL(10,2) DEFAULT 0.00
+          `);
+          console.log('Added day_remaining_amount column to customer_balances');
+        }
+      } catch (alterError) {
+        // Column might already exist or other error, ignore
+        console.log('day_remaining_amount column check:', alterError.message);
+      }
+
       const [customerInfo] = await connection.execute(
-        'SELECT day_limit, amtlimit, is_active, balance, total_day_amount FROM customer_balances WHERE com_id = ?',
+        'SELECT day_limit, amtlimit, is_active, balance, total_day_amount, COALESCE(day_remaining_amount, 0) as day_remaining_amount FROM customer_balances WHERE com_id = ?',
         [customerId]
       );
       
@@ -260,6 +284,7 @@ export async function PATCH(request) {
       const currentIsActive = parseInt(customerInfo[0].is_active) || 1;
       const currentBalance = parseFloat(customerInfo[0].balance) || 0;
       const currentTotalDayAmount = parseFloat(customerInfo[0].total_day_amount) || 0;
+      const currentDayRemainingAmount = parseFloat(customerInfo[0].day_remaining_amount || 0) || 0;
 
       // ✅ ONLY allow payment processing for day_limit customers
       if (!isDayLimit) {
@@ -270,11 +295,14 @@ export async function PATCH(request) {
       
       // ✅ Balance logic: Payment amount ADD to balance (inward transaction)
       // Then paid transactions amount SUBTRACT from balance
+      // ✅ NEW: Use day_remaining_amount first if available
+      let availableAmount = paymentAmount + currentDayRemainingAmount; // Payment + existing remaining
       let tempBalance = currentBalance + paymentAmount; // Add payment to balance first
       let tempTotalDayAmount = currentTotalDayAmount + paymentAmount; // Add payment to total_day_amount
       let invoicesPaid = 0;
       let totalPaidAmount = 0;
       let daysCleared = 0;
+      let usedRemainingAmount = 0; // Track how much from day_remaining_amount was used
 
       // ✅ FIXED: Get pending transactions without GROUP_CONCAT
       const [pendingTransactions] = await connection.execute(
@@ -315,16 +343,16 @@ export async function PATCH(request) {
 
       console.log('Grouped by day:', pendingTransactionsByDay);
 
-      // Clear each day's amount starting from oldest day USING TOTAL_DAY_AMOUNT
+      // Clear each day's amount starting from oldest day USING TOTAL_DAY_AMOUNT + day_remaining_amount
       for (const dayData of pendingTransactionsByDay) {
-        if (tempTotalDayAmount <= 0) break;
+        if (availableAmount <= 0) break;
 
         const dayTotal = parseFloat(dayData.day_total) || 0;
         const transactionIds = dayData.transaction_ids;
 
-        console.log(`Processing day: ${dayData.day_date}, Total: ${dayTotal}, Available in total_day_amount: ${tempTotalDayAmount}`);
+        console.log(`Processing day: ${dayData.day_date}, Total: ${dayTotal}, Available: ${availableAmount} (payment: ${paymentAmount}, remaining: ${currentDayRemainingAmount})`);
 
-        if (tempTotalDayAmount >= dayTotal) {
+        if (availableAmount >= dayTotal) {
           // Full payment for this day - mark all transactions of this day as paid
           if (transactionIds.length > 0) {
             // Create placeholders for IN clause
@@ -338,19 +366,34 @@ export async function PATCH(request) {
             );
             invoicesPaid += transactionIds.length;
             totalPaidAmount += dayTotal;
-            tempTotalDayAmount -= dayTotal; // Deduct from total_day_amount
+            
+            // ✅ NEW: Use day_remaining_amount first, then payment amount
+            if (currentDayRemainingAmount > 0 && usedRemainingAmount < currentDayRemainingAmount) {
+              const remainingToUse = Math.min(dayTotal, currentDayRemainingAmount - usedRemainingAmount);
+              usedRemainingAmount += remainingToUse;
+              availableAmount -= remainingToUse;
+              tempTotalDayAmount -= (dayTotal - remainingToUse); // Only deduct from total_day_amount what wasn't from remaining
+            } else {
+              tempTotalDayAmount -= dayTotal; // Deduct from total_day_amount
+              availableAmount -= dayTotal;
+            }
+            
             tempBalance -= dayTotal; // ✅ Subtract paid amount from balance
             daysCleared++;
             console.log(`✅ Paid day ${dayData.day_date}: ${transactionIds.length} transactions, Amount: ${dayTotal}, Payment Date: ${paymentDate}`);
           }
         } else {
           // Partial payment - cannot partially pay a day, need full day amount
-          console.log(`❌ Insufficient amount for day ${dayData.day_date}: Need ${dayTotal}, Have ${tempTotalDayAmount}`);
+          console.log(`❌ Insufficient amount for day ${dayData.day_date}: Need ${dayTotal}, Have ${availableAmount}`);
           break;
         }
       }
 
+      // ✅ NEW: Calculate remaining amounts
+      // remainingDayAmount = unused payment in total_day_amount
+      // dayRemainingAmount = unused payment amount (extra payment)
       const remainingDayAmount = tempTotalDayAmount;
+      const newDayRemainingAmount = Math.max(0, availableAmount); // Extra payment amount
 
       console.log('Payment summary:', {
         paymentAmount,
@@ -404,10 +447,10 @@ export async function PATCH(request) {
         }
       }
       
-      // ✅ Update balance, total_day_amount and is_active
+      // ✅ Update balance, total_day_amount, day_remaining_amount and is_active
       await connection.execute(
-        'UPDATE customer_balances SET balance = ?, total_day_amount = ?, is_active = ? WHERE com_id = ?',
-        [newBalance, newTotalDayAmount, newIsActive, customerId]
+        'UPDATE customer_balances SET balance = ?, total_day_amount = ?, day_remaining_amount = ?, is_active = ? WHERE com_id = ?',
+        [newBalance, newTotalDayAmount, newDayRemainingAmount, newIsActive, customerId]
       );
 
       // Record the recharge in filling_history as inward transaction
@@ -433,6 +476,7 @@ export async function PATCH(request) {
         invoicesPaid,
         totalPaidAmount,
         remainingDayAmount,
+        dayRemainingAmount: newDayRemainingAmount, // ✅ NEW: Extra payment amount
         daysCleared,
         isOverdue,
         newIsActive,
@@ -453,6 +497,11 @@ export async function PATCH(request) {
       
       if (result.remainingDayAmount > 0) {
         message += ` Remaining balance in day account: ₹${result.remainingDayAmount}.`;
+      }
+      
+      // ✅ NEW: Show extra payment amount
+      if (result.dayRemainingAmount > 0) {
+        message += ` Extra payment stored: ₹${result.dayRemainingAmount} (will be used for future requests).`;
       }
       
       message += result.isOverdue ? ' ⚠️ Status: Overdue' : ' ✅ Status: Active';
@@ -504,6 +553,7 @@ export async function PATCH(request) {
       invoicesPaid: result.invoicesPaid,
       amountPaid: result.totalPaidAmount,
       remainingDayAmount: result.remainingDayAmount,
+      dayRemainingAmount: result.dayRemainingAmount, // ✅ NEW: Extra payment amount
       daysCleared: result.daysCleared,
       isOverdue: result.isOverdue,
       isActive: result.newIsActive,

@@ -28,6 +28,8 @@ export async function PUT(request) {
       customer_type,
       billing_type,
       payment_type,
+      client_type,
+      day_limit,
       blocklocation,
       products,
       status,
@@ -134,8 +136,19 @@ export async function PUT(request) {
       updateValues.push(billingTypeValue);
     }
 
-    // Handle payment_type (gid) - Cash (1) or Credit (2)
-    if (payment_type !== undefined) {
+    // Handle client_type (1=Prepaid, 2=Postpaid, 3=Day Limit)
+    if (client_type !== undefined) {
+      const clientTypeValue = typeof client_type === 'string' ? parseInt(client_type) : client_type;
+      updateFields.push('client_type = ?');
+      updateValues.push(clientTypeValue);
+      
+      // Also update gid based on client_type for backward compatibility
+      // 1=Prepaid (Cash), 2=Postpaid (Credit), 3=Day Limit (Credit)
+      const gidValue = clientTypeValue === 1 ? 1 : 2;
+      updateFields.push('gid = ?');
+      updateValues.push(gidValue);
+    } else if (payment_type !== undefined) {
+      // Fallback to old payment_type logic
       let paymentTypeValue;
       if (typeof payment_type === 'string') {
         paymentTypeValue = payment_type === 'Cash' ? 1 : (payment_type === 'Credit' ? 2 : parseInt(payment_type));
@@ -144,6 +157,33 @@ export async function PUT(request) {
       }
       updateFields.push('gid = ?');
       updateValues.push(paymentTypeValue);
+    }
+
+    // Handle day_limit update for day_limit customers
+    if (day_limit !== undefined && day_limit !== null) {
+      const dayLimitValue = typeof day_limit === 'string' ? parseInt(day_limit) : day_limit;
+      
+      // Update customer_balances table
+      const [balanceCheck] = await connection.execute(
+        'SELECT id FROM customer_balances WHERE com_id = ?',
+        [id]
+      );
+      
+      if (balanceCheck.length > 0) {
+        // Update existing balance record
+        await connection.execute(
+          'UPDATE customer_balances SET day_limit = ? WHERE com_id = ?',
+          [dayLimitValue, id]
+        );
+      } else {
+        // Insert new balance record
+        await connection.execute(
+          `INSERT INTO customer_balances 
+           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [0, 0, 0, 0, id, dayLimitValue, 0, 1]
+        );
+      }
     }
 
     if (status !== undefined) {

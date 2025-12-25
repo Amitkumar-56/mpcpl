@@ -25,6 +25,8 @@ function EditCustomerContent() {
     customer_type: "Enable",
     billing_type: "1",
     payment_type: "1",
+    client_type: "1", // 1=Prepaid, 2=Postpaid, 3=Day Limit
+    day_limit: "0",
     blocklocation: [],
     products: [],
     status: "1",
@@ -119,6 +121,25 @@ function EditCustomerContent() {
           statusValue = statusValue === 1 ? '1' : '0';
         }
         
+        // Get client_type from customer (1=Prepaid, 2=Postpaid, 3=Day Limit)
+        let clientType = customer.client_type || paymentType;
+        if (typeof clientType === 'number') {
+          clientType = clientType.toString();
+        } else if (!clientType) {
+          clientType = paymentType; // Fallback to payment_type
+        }
+
+        // Fetch customer balance info for day_limit
+        let dayLimit = 0;
+        try {
+          const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
+          if (balanceRes.data.success && balanceRes.data.customer) {
+            dayLimit = balanceRes.data.customer.day_limit || 0;
+          }
+        } catch (err) {
+          console.error('Error fetching balance info:', err);
+        }
+
         setForm({
           id: customer.id || customerId,
           name: customer.name || "",
@@ -131,6 +152,8 @@ function EditCustomerContent() {
           customer_type: customer.status === 1 ? '1' : '0',
           billing_type: billingType,
           payment_type: paymentType,
+          client_type: clientType,
+          day_limit: dayLimit.toString(),
           blocklocation: customer.blocklocation || [],
           products: customer.products || [],
           status: statusValue,
@@ -221,6 +244,8 @@ function EditCustomerContent() {
         postbox: form.postbox,
         billing_type: form.billing_type,
         payment_type: form.payment_type, // gid
+        client_type: form.client_type, // client_type (1=Prepaid, 2=Postpaid, 3=Day Limit)
+        day_limit: form.client_type === "3" ? parseInt(form.day_limit) : null, // Only set if day_limit customer
         status: form.status,
         gst_name: form.gst_name,
         gst_number: form.gst_number,
@@ -512,18 +537,86 @@ function EditCustomerContent() {
                   </select>
                 </div>
 
-                {/* Payment Type */}
+                {/* Client Type (Payment Type) */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Payment Type</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Client Type</label>
                   <select
                     className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                    value={form.payment_type}
-                    onChange={(e) => updateForm("payment_type", e.target.value)}
+                    value={form.client_type || form.payment_type}
+                    onChange={(e) => {
+                      const newClientType = e.target.value;
+                      updateForm("client_type", newClientType);
+                      updateForm("payment_type", newClientType); // Keep for backward compatibility
+                    }}
                   >
-                    <option value="1">Cash</option>
-                    <option value="2">Credit</option>
+                    <option value="1">Cash (Prepaid)</option>
+                    <option value="2">Credit (Postpaid)</option>
+                    <option value="3">Day Limit</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Cash = Prepaid, Credit = Postpaid, Day Limit = Day Limit Customer
+                  </p>
                 </div>
+
+                {/* Day Limit Controls - Only for Day Limit customers */}
+                {form.client_type === "3" && (
+                  <div className="pt-4 border-t">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit Management</label>
+                    <div className="flex gap-2 items-center">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const newDayLimit = Math.max(0, (parseInt(form.day_limit) || 0) - 1);
+                          updateForm("day_limit", newDayLimit.toString());
+                          try {
+                            await axios.put(`/api/customers/edit`, {
+                              id: customerId,
+                              day_limit: newDayLimit,
+                              client_type: 3
+                            });
+                            alert(`Day limit decreased to ${newDayLimit} days`);
+                          } catch (err) {
+                            alert('Error updating day limit: ' + (err.response?.data?.message || err.message));
+                          }
+                        }}
+                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                      >
+                        - Decrease
+                      </button>
+                      <input
+                        type="number"
+                        className="flex-1 p-2 border border-gray-300 rounded-lg text-center font-semibold"
+                        value={form.day_limit || 0}
+                        onChange={(e) => updateForm("day_limit", e.target.value)}
+                        min="0"
+                        placeholder="Days"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const newDayLimit = (parseInt(form.day_limit) || 0) + 1;
+                          updateForm("day_limit", newDayLimit.toString());
+                          try {
+                            await axios.put(`/api/customers/edit`, {
+                              id: customerId,
+                              day_limit: newDayLimit,
+                              client_type: 3
+                            });
+                            alert(`Day limit increased to ${newDayLimit} days`);
+                          } catch (err) {
+                            alert('Error updating day limit: ' + (err.response?.data?.message || err.message));
+                          }
+                        }}
+                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                      >
+                        + Increase
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Admin can increase/decrease day limit for day_limit customers
+                    </p>
+                  </div>
+                )}
 
                 {/* Status */}
                 <div>

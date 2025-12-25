@@ -13,9 +13,37 @@ export async function GET(request) {
       );
     }
 
+    // ✅ ADD: Check if day_remaining_amount column exists
+    try {
+      // Check if column exists
+      const columns = await executeQuery(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'customer_balances' 
+        AND COLUMN_NAME = 'day_remaining_amount'
+      `);
+      
+      if (columns.length === 0) {
+        // Column doesn't exist, add it
+        await executeQuery(`
+          ALTER TABLE customer_balances 
+          ADD COLUMN day_remaining_amount DECIMAL(10,2) DEFAULT 0.00
+        `);
+        console.log('Added day_remaining_amount column to customer_balances');
+      }
+    } catch (alterError) {
+      // Column might already exist or other error, ignore
+      console.log('day_remaining_amount column check:', alterError.message);
+    }
+
     // Fetch customer with balance info
     const customerRows = await executeQuery(
-      `SELECT c.id, c.name, c.phone, c.client_type, cb.day_limit, cb.amtlimit, cb.balance
+      `SELECT c.id, c.name, c.phone, c.client_type, 
+              cb.day_limit, cb.amtlimit, cb.balance, 
+              COALESCE(cb.total_day_amount, 0) as total_day_amount, 
+              COALESCE(cb.day_remaining_amount, 0) as day_remaining_amount,
+              cb.is_active
        FROM customers c
        LEFT JOIN customer_balances cb ON c.id = cb.com_id
        WHERE c.id = ?`,
@@ -75,7 +103,12 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
-      customer,
+      customer: {
+        ...customer,
+        balance: customer.balance || 0,
+        total_day_amount: customer.total_day_amount || 0,
+        day_remaining_amount: customer.day_remaining_amount || 0 // ✅ NEW: Extra payment amount
+      },
       pending: {
         total_amount: totalUnpaid,
         payment_days_pending: paymentDaysPending,
