@@ -29,7 +29,7 @@ function EditCustomerContent() {
     day_limit: "0",
     blocklocation: [],
     products: [],
-    status: "1",
+    status: "1", // Default to Enable
     gst_name: "",
     gst_number: "",
   });
@@ -113,12 +113,34 @@ function EditCustomerContent() {
           paymentType = paymentType.toString();
         }
 
-        // Get status as numeric (1 or 0)
+        // Get status as numeric (1 or 0) - Default to '1' (Enable) if not set
+        // Only set to '0' (Disable) if explicitly '0' or 'Disable', otherwise default to '1' (Enable)
         let statusValue = customer.status;
-        if (typeof statusValue === 'string') {
-          statusValue = (statusValue === 'Enable' || statusValue.toLowerCase() === 'enable') ? '1' : '0';
+        if (statusValue === null || statusValue === undefined || statusValue === '' || statusValue === 'undefined') {
+          statusValue = '1'; // Default to Enable
+        } else if (typeof statusValue === 'string') {
+          // Only set to '0' if explicitly "Disable", otherwise default to '1' (Enable)
+          statusValue = (statusValue.toLowerCase() === 'disable') ? '0' : '1';
         } else {
-          statusValue = statusValue === 1 ? '1' : '0';
+          // Only set to '0' if explicitly 0, otherwise default to '1' (Enable)
+          statusValue = (statusValue === 0) ? '0' : '1';
+        }
+        
+        // Ensure customer_type also defaults to '1' (Enable) if not explicitly set to '0' (Disable)
+        let customerTypeValue = customer.customer_type;
+        if (customerTypeValue === null || customerTypeValue === undefined || customerTypeValue === '' || customerTypeValue === 'undefined') {
+          customerTypeValue = '1'; // Default to Enable
+        } else if (typeof customerTypeValue === 'string') {
+          // Only set to '0' if explicitly "Disable", otherwise default to '1' (Enable)
+          customerTypeValue = (customerTypeValue.toLowerCase() === 'disable') ? '0' : '1';
+        } else {
+          // Only set to '0' if explicitly 0, otherwise default to '1' (Enable)
+          customerTypeValue = (customerTypeValue === 0) ? '0' : '1';
+        }
+        
+        // If customer_type is not set, use statusValue, but ensure it defaults to '1' (Enable)
+        if (!customer.customer_type) {
+          customerTypeValue = statusValue;
         }
         
         // Get client_type from customer (1=Prepaid, 2=Postpaid, 3=Day Limit)
@@ -149,7 +171,7 @@ function EditCustomerContent() {
           address: customer.address || "",
           region: customer.region || "",
           postbox: customer.postbox || "",
-          customer_type: customer.status === 1 ? '1' : '0',
+          customer_type: customerTypeValue, // Use customerTypeValue which defaults to '1' (Enable)
           billing_type: billingType,
           payment_type: paymentType,
           client_type: clientType,
@@ -510,18 +532,22 @@ function EditCustomerContent() {
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Customer Type</label>
                   <select
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                    value={form.customer_type}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white text-gray-900 cursor-pointer hover:border-purple-400"
+                    value={form.customer_type && form.customer_type === '0' ? '0' : '1'}
                     onChange={(e) => {
                       const newStatus = e.target.value;
                       updateForm("customer_type", newStatus);
                       updateForm("status", newStatus);
                       handleStatusChange(newStatus);
                     }}
+                    style={{ opacity: 1, cursor: 'pointer' }}
                   >
                     <option value="1">Enable</option>
                     <option value="0">Disable</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Default is Enable. Click dropdown to change to Disable if needed.
+                  </p>
                 </div>
 
                 {/* Billing Type */}
@@ -623,13 +649,22 @@ function EditCustomerContent() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
                   <select
                     id="statusDropdown"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                    value={form.status}
-                    onChange={(e) => handleStatusChange(e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white text-gray-900 cursor-pointer hover:border-purple-400"
+                    value={form.status && form.status === '0' ? '0' : '1'}
+                    onChange={(e) => {
+                      // Only update when user explicitly changes
+                      const newStatus = e.target.value;
+                      updateForm("status", newStatus);
+                      handleStatusChange(newStatus);
+                    }}
+                    style={{ opacity: 1, cursor: 'pointer' }}
                   >
                     <option value="1">Enable</option>
                     <option value="0">Disable</option>
                   </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Default is Enable. Click dropdown to change to Disable if needed.
+                  </p>
                 </div>
 
                 {/* GST Details */}
@@ -665,7 +700,6 @@ function EditCustomerContent() {
                 <FiMapPin className="text-xl text-orange-600" />
                 <h2 className="text-xl font-bold text-gray-800">Assigned Stations</h2>
               </div>
-              
               <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
                 {stations.map((station) => (
                   <div

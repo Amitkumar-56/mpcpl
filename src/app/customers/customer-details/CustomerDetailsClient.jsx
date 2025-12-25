@@ -124,7 +124,14 @@ export default function CustomerDetailsClient() {
 
       console.log("Fetching customer details for ID:", id);
       
-      const res = await fetch(`/api/customers/customer-details?id=${id}`);
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const res = await fetch(`/api/customers/customer-details?id=${id}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       
       console.log("Response status:", res.status);
       
@@ -154,7 +161,11 @@ export default function CustomerDetailsClient() {
       }, 1000);
     } catch (err) {
       console.error("Error in fetchCustomerDetails:", err);
-      setError(err.message || "Failed to load customer details");
+      if (err.name === 'AbortError') {
+        setError("Request timeout. Please check your connection and try again.");
+      } else {
+        setError(err.message || "Failed to load customer details");
+      }
     } finally {
       setLoading(false);
     }

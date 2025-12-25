@@ -6,7 +6,7 @@ import { createAuditLog } from '@/lib/auditLog';
 
 export async function PUT(request) {
   try {
-    const { id, manager, phone, email, gst_name, gst_number, map_link } = await request.json();
+    const { id, manager, phone, email, gst_name, gst_number, map_link, status } = await request.json();
     
     if (!id) {
       return NextResponse.json(
@@ -64,12 +64,35 @@ export async function PUT(request) {
     }
 
     // Update the station
+    const stationStatus = status !== undefined ? parseInt(status) : 1; // Default to enabled
     const result = await executeQuery(
       `UPDATE filling_stations 
-       SET manager = ?, phone = ?, email = ?, gst_name = ?, gst_number = ?, map_link = ?
+       SET manager = ?, phone = ?, email = ?, gst_name = ?, gst_number = ?, map_link = ?, status = ?
        WHERE id = ?`,
-      [manager, phone, email, gst_name, gst_number, processedMapLink, id]
+      [manager, phone, email, gst_name, gst_number, processedMapLink, stationStatus, id]
     );
+
+    // ✅ NEW: When station is disabled, disable all staff/incharge IDs for this station
+    // When station is enabled, enable all staff/incharge IDs for this station
+    if (stationStatus === 0) {
+      // Disable all employees assigned to this station
+      await executeQuery(
+        `UPDATE employee_profile 
+         SET status = 0 
+         WHERE station_id = ? AND status = 1`,
+        [id]
+      );
+      console.log(`✅ Disabled all staff/incharge IDs for station ${id}`);
+    } else if (stationStatus === 1) {
+      // Enable all employees assigned to this station
+      await executeQuery(
+        `UPDATE employee_profile 
+         SET status = 1 
+         WHERE station_id = ? AND status = 0`,
+        [id]
+      );
+      console.log(`✅ Enabled all staff/incharge IDs for station ${id}`);
+    }
 
     // Create audit log
     await createAuditLog({
@@ -86,7 +109,8 @@ export async function PUT(request) {
         email: oldStation.email,
         gst_name: oldStation.gst_name,
         gst_number: oldStation.gst_number,
-        map_link: oldStation.map_link
+        map_link: oldStation.map_link,
+        status: oldStation.status
       },
       newValue: {
         manager: manager,
@@ -94,7 +118,8 @@ export async function PUT(request) {
         email: email,
         gst_name: gst_name,
         gst_number: gst_number,
-        map_link: processedMapLink
+        map_link: processedMapLink,
+        status: stationStatus
       },
       recordType: 'station',
       recordId: parseInt(id)

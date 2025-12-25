@@ -66,6 +66,7 @@ function AddStockModal({
   onClose, 
   selectedStation, 
   selectedProduct, 
+  operationType = 'plus',
   quantity, 
   onQuantityChange, 
   remarks, 
@@ -107,8 +108,12 @@ function AddStockModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-blue-50">
-          <h3 className="text-lg font-semibold text-gray-800">Add Stock</h3>
+        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${
+          operationType === 'minus' ? 'bg-red-50' : 'bg-blue-50'
+        }`}>
+          <h3 className="text-lg font-semibold text-gray-800">
+            {operationType === 'minus' ? 'Minus Stock (Shortage)' : 'Add Stock'}
+          </h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
@@ -137,16 +142,16 @@ function AddStockModal({
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Quantity to Add *
+              Quantity to {operationType === 'minus' ? 'Deduct (Shortage)' : 'Add'} *
             </label>
             <input
               type="number"
               value={quantity}
               onChange={onQuantityChange}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                formErrors.quantity ? 'border-red-500' : 'border-gray-300'
-              }`}
-              placeholder="Enter quantity"
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
+                operationType === 'minus' ? 'focus:ring-red-500' : 'focus:ring-blue-500'
+              } ${formErrors.quantity ? 'border-red-500' : 'border-gray-300'}`}
+              placeholder={`Enter quantity to ${operationType === 'minus' ? 'deduct' : 'add'}`}
               min="1"
               max="10000"
             />
@@ -173,10 +178,20 @@ function AddStockModal({
           </div>
 
           {quantity && !formErrors.quantity && (
-            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+            <div className={`p-3 rounded-lg border ${
+              operationType === 'minus' 
+                ? 'bg-red-50 border-red-200' 
+                : 'bg-blue-50 border-blue-200'
+            }`}>
               <div className="grid grid-cols-2 gap-2 text-sm">
-                <div className="text-blue-600">New Total:</div>
-                <div className="font-semibold text-blue-700">{getNewStockTotal()}</div>
+                <div className={operationType === 'minus' ? 'text-red-600' : 'text-blue-600'}>
+                  {operationType === 'minus' ? 'After Deduction:' : 'New Total:'}
+                </div>
+                <div className={`font-semibold ${
+                  operationType === 'minus' ? 'text-red-700' : 'text-blue-700'
+                }`}>
+                  {getNewStockTotal()}
+                </div>
               </div>
             </div>
           )}
@@ -215,6 +230,7 @@ function ConfirmationModal({
   onClose, 
   selectedStation, 
   selectedProduct, 
+  operationType = 'plus',
   quantity, 
   remarks, 
   onSubmit, 
@@ -246,15 +262,22 @@ function ConfirmationModal({
 
   const getNewStockTotal = () => {
     const currentStock = getCurrentStock();
-    const addedQuantity = parseInt(quantity) || 0;
-    return currentStock + addedQuantity;
+    const quantityValue = parseInt(quantity) || 0;
+    if (operationType === 'minus') {
+      return Math.max(0, currentStock - quantityValue); // Don't go below 0
+    }
+    return currentStock + quantityValue;
   };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
-        <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-yellow-50">
-          <h3 className="text-lg font-semibold text-gray-800">Confirm Stock Addition</h3>
+        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${
+          operationType === 'minus' ? 'bg-red-50' : 'bg-yellow-50'
+        }`}>
+          <h3 className="text-lg font-semibold text-gray-800">
+            {operationType === 'minus' ? 'Confirm Stock Deduction (Shortage)' : 'Confirm Stock Addition'}
+          </h3>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-gray-600 transition-colors duration-200"
@@ -275,7 +298,7 @@ function ConfirmationModal({
 
           <div className="text-center">
             <h4 className="text-lg font-medium text-gray-900 mb-2">
-              Confirm Stock Addition?
+              {operationType === 'minus' ? 'Confirm Stock Deduction (Shortage)?' : 'Confirm Stock Addition?'}
             </h4>
             <p className="text-gray-600 text-sm">
               Please review the details below before confirming.
@@ -294,11 +317,17 @@ function ConfirmationModal({
               <div className="text-gray-600">Current Stock:</div>
               <div className="font-semibold">{getCurrentStock()}</div>
               
-              <div className="text-gray-600">Adding Quantity:</div>
-              <div className="font-semibold text-green-600">+{quantity}</div>
+              <div className="text-gray-600">{operationType === 'minus' ? 'Deducting Quantity:' : 'Adding Quantity:'}</div>
+              <div className={`font-semibold ${
+                operationType === 'minus' ? 'text-red-600' : 'text-green-600'
+              }`}>
+                {operationType === 'minus' ? `-${quantity}` : `+${quantity}`}
+              </div>
               
-              <div className="text-gray-600 font-medium">New Total:</div>
-              <div className="font-semibold text-blue-700">{getNewStockTotal()}</div>
+              <div className="text-gray-600 font-medium">{operationType === 'minus' ? 'After Deduction:' : 'New Total:'}</div>
+              <div className={`font-semibold ${
+                operationType === 'minus' ? 'text-red-700' : 'text-blue-700'
+              }`}>{getNewStockTotal()}</div>
 
               {remarks && (
                 <>
@@ -350,6 +379,7 @@ function AllStockContent() {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [selectedStation, setSelectedStation] = useState(null);
   const [selectedProduct, setSelectedProduct] = useState('');
+  const [operationType, setOperationType] = useState('plus'); // 'plus' or 'minus'
   const [quantity, setQuantity] = useState('');
   const [remarks, setRemarks] = useState('');
   const [addingStock, setAddingStock] = useState(false);
@@ -409,8 +439,9 @@ function AllStockContent() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleAddStock = (station, productType) => {
+  const handleAddStock = (station, productType, operation = 'plus') => {
     setSelectedStation(station);
+    setOperationType(operation);
     
     // Map product type to product ID
     const productMap = {
@@ -446,15 +477,17 @@ function AllStockContent() {
         body: JSON.stringify({
           station_id: selectedStation.station_id,
           product_id: selectedProduct,
-          quantity: parseInt(quantity),
-          remarks: remarks
+          quantity: operationType === 'minus' ? -parseInt(quantity) : parseInt(quantity), // Negative for minus
+          remarks: remarks || (operationType === 'minus' ? 'Stock shortage deducted' : 'Stock added'),
+          operation_type: operationType
         }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        setSuccessMessage(`Stock added successfully! ${quantity} units of ${getProductName(selectedProduct)} added to ${selectedStation.station_name}`);
+        const actionText = operationType === 'minus' ? 'deducted' : 'added';
+        setSuccessMessage(`Stock ${actionText} successfully! ${quantity} units of ${getProductName(selectedProduct)} ${actionText} ${operationType === 'minus' ? 'from' : 'to'} ${selectedStation.station_name}`);
         setShowConfirmModal(false);
         setShowAddModal(false);
         
@@ -464,7 +497,7 @@ function AllStockContent() {
         }, 1000);
         
       } else {
-        alert(result.error || 'Failed to add stock');
+        alert(result.error || `Failed to ${operationType === 'minus' ? 'deduct' : 'add'} stock`);
       }
     } catch (err) {
       alert('Error adding stock: ' + err.message);
@@ -629,15 +662,26 @@ function AllStockContent() {
                           }`}>
                             {station.industrial_oil_40}
                           </span>
-                          <button
-                            onClick={() => handleAddStock(station, 'industrial_oil_40')}
-                            className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                            title="Add Stock"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleAddStock(station, 'industrial_oil_40', 'plus')}
+                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Add Stock"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleAddStock(station, 'industrial_oil_40', 'minus')}
+                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Minus Stock (Shortage)"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </td>
 
@@ -651,15 +695,26 @@ function AllStockContent() {
                           }`}>
                             {station.industrial_oil_60}
                           </span>
-                          <button
-                            onClick={() => handleAddStock(station, 'industrial_oil_60')}
-                            className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                            title="Add Stock"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleAddStock(station, 'industrial_oil_60', 'plus')}
+                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Add Stock"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleAddStock(station, 'industrial_oil_60', 'minus')}
+                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Minus Stock (Shortage)"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </td>
 
@@ -673,15 +728,26 @@ function AllStockContent() {
                           }`}>
                             {station.def_loose}
                           </span>
-                          <button
-                            onClick={() => handleAddStock(station, 'def_loose')}
-                            className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                            title="Add Stock"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleAddStock(station, 'def_loose', 'plus')}
+                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Add Stock"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleAddStock(station, 'def_loose', 'minus')}
+                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Minus Stock (Shortage)"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </td>
 
@@ -695,15 +761,26 @@ function AllStockContent() {
                           }`}>
                             {station.def_bucket}
                           </span>
-                          <button
-                            onClick={() => handleAddStock(station, 'def_bucket')}
-                            className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                            title="Add Stock"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                            </svg>
-                          </button>
+                          <div className="flex items-center space-x-1">
+                            <button
+                              onClick={() => handleAddStock(station, 'def_bucket', 'plus')}
+                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Add Stock"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => handleAddStock(station, 'def_bucket', 'minus')}
+                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                              title="Minus Stock (Shortage)"
+                            >
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            </button>
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -733,6 +810,7 @@ function AllStockContent() {
         onClose={closeAddModal}
         selectedStation={selectedStation}
         selectedProduct={selectedProduct}
+        operationType={operationType}
         quantity={quantity}
         onQuantityChange={handleQuantityChange}
         remarks={remarks}
@@ -748,6 +826,7 @@ function AllStockContent() {
         onClose={closeConfirmModal}
         selectedStation={selectedStation}
         selectedProduct={selectedProduct}
+        operationType={operationType}
         quantity={quantity}
         remarks={remarks}
         onSubmit={submitAddStock}

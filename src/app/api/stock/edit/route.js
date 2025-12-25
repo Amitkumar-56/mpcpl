@@ -83,6 +83,114 @@ export async function PUT(request) {
 
     const oldStock = oldStockResult[0];
 
+    // ✅ NEW: Handle status changes for stock management
+    const oldStatus = oldStock.status?.toString().toLowerCase() || 'pending';
+    const newStatus = updateData.status?.toString().toLowerCase() || oldStatus;
+    
+    // Check if status is changing
+    const statusChanged = oldStatus !== newStatus;
+    const quantity = parseFloat(oldStock.ltr) || 0;
+    
+    // ✅ NEW: Handle stock updates based on status changes
+    if (statusChanged && quantity > 0) {
+      // Get current stock in filling_station_stocks
+      const currentStockQuery = `
+        SELECT stock FROM filling_station_stocks 
+        WHERE fs_id = ? AND product = ?
+      `;
+      const currentStockResult = await executeQuery(currentStockQuery, [
+        oldStock.fs_id, 
+        oldStock.product_id
+      ]);
+      
+      let currentStock = 0;
+      if (currentStockResult.length > 0) {
+        currentStock = parseFloat(currentStockResult[0].stock) || 0;
+      }
+      
+      // Status transition logic:
+      // pending -> on_the_way: No stock change (stock not added yet)
+      // pending -> delivered: Add stock
+      // on_the_way -> delivered: Add stock
+      // delivered -> on_the_way: Decrease stock
+      // delivered -> pending: Decrease stock
+      // on_the_way -> pending: No stock change
+      
+      if (newStatus === 'delivered' || newStatus === '3') {
+        // Add stock when delivered
+        const newStock = currentStock + quantity;
+        if (currentStockResult.length > 0) {
+          await executeQuery(
+            `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+            [newStock, oldStock.fs_id, oldStock.product_id]
+          );
+        } else {
+          await executeQuery(
+            `INSERT INTO filling_station_stocks (fs_id, product, stock, msg, remark, created_at) 
+             VALUES (?, ?, ?, ?, ?, NOW())`,
+            [
+              oldStock.fs_id,
+              oldStock.product_id,
+              quantity,
+              `Stock delivered - Invoice: ${oldStock.invoice_number || 'N/A'}`,
+              `Status changed from ${oldStatus} to delivered`
+            ]
+          );
+        }
+        
+        // Insert into filling_history
+        try {
+          await executeQuery(
+            `INSERT INTO filling_history 
+             (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
+             VALUES (?, ?, ?, 'Inward', ?, ?, NOW(), ?, NOW())`,
+            [
+              oldStock.fs_id,
+              oldStock.product_id,
+              quantity,
+              currentStock,
+              currentStock + quantity,
+              userId || null
+            ]
+          );
+        } catch (historyError) {
+          console.log('filling_history insert failed:', historyError);
+        }
+        
+        console.log(`✅ Stock added: ${quantity} Ltr (Status: ${oldStatus} -> delivered)`);
+      } else if ((oldStatus === 'delivered' || oldStatus === '3') && (newStatus === 'on_the_way' || newStatus === '1' || newStatus === 'pending' || newStatus === '2')) {
+        // Decrease stock when moving from delivered to other status
+        if (currentStockResult.length > 0 && currentStock >= quantity) {
+          const newStock = currentStock - quantity;
+          await executeQuery(
+            `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+            [newStock, oldStock.fs_id, oldStock.product_id]
+          );
+          
+          // Insert into filling_history
+          try {
+            await executeQuery(
+              `INSERT INTO filling_history 
+               (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
+               VALUES (?, ?, ?, 'Outward', ?, ?, NOW(), ?, NOW())`,
+              [
+                oldStock.fs_id,
+                oldStock.product_id,
+                -quantity,
+                currentStock,
+                newStock,
+                userId || null
+              ]
+            );
+          } catch (historyError) {
+            console.log('filling_history insert failed:', historyError);
+          }
+          
+          console.log(`✅ Stock decreased: ${quantity} Ltr (Status: delivered -> ${newStatus})`);
+        }
+      }
+    }
+
     // Build update query dynamically
     const updateFields = [];
     const updateValues = [];

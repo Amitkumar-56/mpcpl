@@ -1096,6 +1096,40 @@ async function handleCompletedStatus(data) {
     ]);
   }
 
+  // ✅ NEW: Create separate Inward entry for stock history (without rid, cl_id, vehicle_number)
+  // This is for stock tracking - customer loading count is separate entry with customer details
+  // Stock history entry shows stock was used but without customer-specific information
+  try {
+    const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+    const colSet = new Set(colsInfo.map(r => r.Field));
+    
+    const stockInwardCols = ['fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'available_stock', 'filling_date', 'created_by'];
+    const stockInwardVals = [
+      fs_id, 
+      product_id, 
+      sub_product_id || null, 
+      'Inward', 
+      oldstock, 
+      aqty, // Quantity used (shown as inward for stock tracking)
+      newStock, 
+      now, 
+      userId
+    ];
+    
+    // Add optional columns if they exist
+    if (colSet.has('agent_id')) {
+      stockInwardCols.push('agent_id');
+      stockInwardVals.push(null);
+    }
+    
+    const placeholders = stockInwardCols.map(() => '?').join(', ');
+    const stockInwardSql = `INSERT INTO filling_history (${stockInwardCols.join(',')}) VALUES (${placeholders})`;
+    await executeQuery(stockInwardSql, stockInwardVals);
+    console.log('✅ Created separate Inward entry for stock history (without customer details)');
+  } catch (stockInwardError) {
+    console.log('Stock inward entry creation failed (non-critical):', stockInwardError);
+  }
+
   // Get user info for audit log
   let userName = 'System';
   try {

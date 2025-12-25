@@ -53,6 +53,30 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
+    // ✅ NEW: Check if station is enabled
+    const stationCheck = await executeQuery(
+      'SELECT id, station_name, status FROM filling_stations WHERE id = ?',
+      [parseInt(station_id)]
+    );
+
+    if (stationCheck.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Station not found'
+      }, { status: 404 });
+    }
+
+    const station = stationCheck[0];
+    
+    // Block request if station is disabled (status = 0)
+    if (station.status === 0 || station.status === '0') {
+      console.log('❌ Station is disabled:', station.station_name, 'Status:', station.status);
+      return NextResponse.json({
+        success: false,
+        message: `Station "${station.station_name}" is disabled. Please enable the station first to create filling requests.`
+      }, { status: 403 });
+    }
+
     // Generate RID
     const lastRequestQuery = `SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1`;
     const lastRequest = await executeQuery(lastRequestQuery);

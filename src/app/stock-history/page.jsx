@@ -362,20 +362,31 @@ function StockHistoryContent() {
                           <span className="font-medium">{row.pname}</span>
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            row.trans_type?.toLowerCase() === 'inward' 
-                              ? 'bg-green-100 text-green-800'
-                              : row.trans_type?.toLowerCase() === 'outward'
-                              ? 'bg-blue-100 text-blue-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {row.trans_type}
-                          </span>
+                          {(() => {
+                            // Determine type: Add for inward/positive, Minus for negative quantity
+                            const fillingQty = parseFloat(row.filling_qty || 0);
+                            const isAdd = row.trans_type?.toLowerCase() === 'inward' || fillingQty > 0;
+                            const isMinus = fillingQty < 0 || (row.trans_type?.toLowerCase() === 'outward' && fillingQty <= 0);
+                            const typeText = isMinus ? 'Minus' : isAdd ? 'Add' : row.trans_type || 'N/A';
+                            
+                            return (
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                isAdd
+                                  ? 'bg-green-100 text-green-800'
+                                  : isMinus
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}>
+                                {typeText}
+                              </span>
+                            );
+                          })()}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {row.trans_type?.toLowerCase() === 'outward' 
-                            ? (row.vehicle_number || 'N/A')
-                            : 'N/A'
+                          {/* Show vehicle number only for outward with rid (customer loading), blank for stock inward */}
+                          {row.trans_type?.toLowerCase() === 'outward' && row.rid
+                            ? (row.vehicle_number || '')
+                            : ''
                           }
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">

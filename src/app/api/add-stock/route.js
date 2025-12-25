@@ -5,7 +5,7 @@ import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
-    const { station_id, product_id, quantity, remarks, agent_id } = await request.json();
+    const { station_id, product_id, quantity, remarks, agent_id, operation_type } = await request.json();
     
     // Get user info for audit log
     const currentUser = await getCurrentUser();
@@ -44,34 +44,48 @@ export async function POST(request) {
     
     const existingRecord = await executeQuery(checkQuery, [station_id, product_id]);
 
+    const quantityValue = parseInt(quantity);
+    const isMinus = operation_type === 'minus' || quantityValue < 0;
+    const absQuantity = Math.abs(quantityValue);
+    
     if (existingRecord.length > 0) {
+      const currentStock = parseFloat(existingRecord[0].stock) || 0;
+      const newStock = isMinus ? Math.max(0, currentStock - absQuantity) : currentStock + absQuantity;
+      
       // Update existing record
       const updateQuery = `
         UPDATE filling_station_stocks 
-        SET stock = stock + ?, msg = ?, remark = ?, created_at = NOW() 
+        SET stock = ?, msg = ?, remark = ?, created_at = NOW() 
         WHERE fs_id = ? AND product = ?
       `;
       await executeQuery(updateQuery, [
-        parseInt(quantity), 
-        `Stock added: ${quantity}`, 
-        remarks || 'Stock added',
+        newStock, 
+        isMinus ? `Stock shortage: -${absQuantity}` : `Stock added: +${absQuantity}`, 
+        remarks || (isMinus ? 'Stock shortage deducted' : 'Stock added'),
         station_id, 
         product_id
       ]);
     } else {
-      // Insert new record
-      const insertQuery = `
-        INSERT INTO filling_station_stocks 
-        (fs_id, product, stock, msg, remark, created_at) 
-        VALUES (?, ?, ?, ?, ?, NOW())
-      `;
-      await executeQuery(insertQuery, [
-        station_id, 
-        product_id, 
-        parseInt(quantity),
-        `Stock added: ${quantity}`,
-        remarks || 'Stock added'
-      ]);
+      // Insert new record (only for plus, not for minus if no record exists)
+      if (!isMinus) {
+        const insertQuery = `
+          INSERT INTO filling_station_stocks 
+          (fs_id, product, stock, msg, remark, created_at) 
+          VALUES (?, ?, ?, ?, ?, NOW())
+        `;
+        await executeQuery(insertQuery, [
+          station_id, 
+          product_id, 
+          absQuantity,
+          `Stock added: +${absQuantity}`,
+          remarks || 'Stock added'
+        ]);
+      } else {
+        return NextResponse.json(
+          { success: false, error: 'Cannot deduct stock: No stock record exists for this station/product' },
+          { status: 400 }
+        );
+      }
     }
 
     // Insert into stock_history with remarks and agent_id (if stock_history table exists)
@@ -93,24 +107,29 @@ export async function POST(request) {
       console.log('stock_history table might not exist, skipping...');
     }
     
-    // Also insert into filling_history for inward transaction
+    // Also insert into filling_history for inward transaction (both plus and minus)
     try {
+      // Get current stock after update
+      const currentStockResult = await executeQuery(
+        `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+        [station_id, product_id]
+      );
+      const currentStock = currentStockResult.length > 0 ? parseFloat(currentStockResult[0].stock) || 0 : 0;
+      
       const fillingHistoryQuery = `
         INSERT INTO filling_history 
         (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, agent_id, created_at) 
         VALUES (?, ?, ?, 'Inward', 
-          (SELECT COALESCE(stock, 0) FROM filling_station_stocks WHERE fs_id = ? AND product = ?),
-          (SELECT COALESCE(stock, 0) FROM filling_station_stocks WHERE fs_id = ? AND product = ?),
-          NOW(), ?, ?, NOW())
+          ?, ?, NOW(), ?, ?, NOW())
       `;
       await executeQuery(fillingHistoryQuery, [
         station_id,
         product_id,
-        parseInt(quantity),
+        isMinus ? -absQuantity : absQuantity, // Negative for minus
         station_id,
         product_id,
-        station_id,
-        product_id,
+        currentStock,
+        currentStock,
         userId || null,
         agent_id || null
       ]);
@@ -120,8 +139,8 @@ export async function POST(request) {
 
     // Get stock ID and old value for audit log
     const stockId = existingRecord.length > 0 ? existingRecord[0].id : null;
-    const oldStock = existingRecord.length > 0 ? existingRecord[0].stock : 0;
-    const newStock = oldStock + parseInt(quantity);
+    const oldStock = existingRecord.length > 0 ? parseFloat(existingRecord[0].stock) || 0 : 0;
+    const newStock = isMinus ? Math.max(0, oldStock - absQuantity) : oldStock + absQuantity;
     
     // Get station and product names for better logging
     let stationName = 'N/A';
@@ -154,10 +173,10 @@ export async function POST(request) {
       section: 'Add Stock',
       userId: agent_id ? null : userId,
       userName: logUserName,
-      action: existingRecord.length > 0 ? 'update' : 'add',
-      remarks: remarks || `Stock ${existingRecord.length > 0 ? 'updated' : 'added'} for ${stationName} - ${productName}${agent_id ? ' (by Agent)' : ''}`,
+      action: isMinus ? 'deduct' : (existingRecord.length > 0 ? 'update' : 'add'),
+      remarks: remarks || `Stock ${isMinus ? 'shortage deducted' : (existingRecord.length > 0 ? 'updated' : 'added')} for ${stationName} - ${productName}${agent_id ? ' (by Agent)' : ''}`,
       oldValue: { stock: oldStock, station_id, product_id },
-      newValue: { stock: newStock, station_id, product_id, quantity_added: parseInt(quantity), agent_id: agent_id || null },
+      newValue: { stock: newStock, station_id, product_id, quantity_change: isMinus ? -absQuantity : absQuantity, agent_id: agent_id || null },
       fieldName: 'stock',
       recordType: 'stock',
       recordId: stockId
@@ -165,7 +184,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       success: true,
-      message: 'Stock added successfully'
+      message: isMinus ? `Stock shortage deducted successfully (${absQuantity} units)` : `Stock added successfully (${absQuantity} units)`
     });
 
   } catch (error) {

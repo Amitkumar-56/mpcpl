@@ -22,6 +22,8 @@ function SchedulePriceContent() {
   const [requireApproval, setRequireApproval] = useState(true);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
   const [bulkUpdateSamePrice, setBulkUpdateSamePrice] = useState(true); // Enable bulk update by default
+  const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split("T")[0]);
+  const [scheduleTime, setScheduleTime] = useState(new Date().toTimeString().slice(0, 5));
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({
     can_view: false,
@@ -252,21 +254,20 @@ function SchedulePriceContent() {
         stations.forEach(station => {
           Object.values(groupedProducts).forEach(group => {
             group.sub_products.forEach(subProduct => {
-              // Use current date and time for the key
-              const currentDate = new Date().toISOString().split('T')[0];
-              const currentTime = new Date().toTimeString().slice(0, 5);
-              
-              const key = `${customerId}_${station.id}_${subProduct.code_id}_${currentDate}_${currentTime}`;
+              // Use scheduleDate and scheduleTime from state
+              const key = `${customerId}_${station.id}_${subProduct.code_id}_${scheduleDate}_${scheduleTime}`;
               const data = scheduleData[key];
               
-              if (data && data.price && data.date && data.time) {
+              // Only update if price is entered and greater than 0 (zero will never update)
+              if (data && data.price && parseFloat(data.price) > 0) {
                 updates.push({
+                  customer_id: customerId,
                   station_id: station.id,
                   product_id: subProduct.product_id,
                   sub_product_id: subProduct.code_id,
                   price: parseFloat(data.price),
-                  schedule_date: data.date,
-                  schedule_time: data.time
+                  schedule_date: scheduleDate,
+                  schedule_time: scheduleTime
                 });
               }
             });
@@ -489,46 +490,79 @@ function SchedulePriceContent() {
           {/* Price Schedule Form */}
           {selectedCustomers.length > 0 && (
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4 border border-gray-200">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-lg font-semibold">Price Schedule Form</h2>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("all")}
-                    className={`px-3 py-1 rounded text-sm ${
-                      viewMode === "all" ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("pending")}
-                    className={`px-3 py-1 rounded text-sm ${
-                      viewMode === "pending" ? "bg-yellow-600 text-white" : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    Pending
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setViewMode("approved")}
-                    className={`px-3 py-1 rounded text-sm ${
-                      viewMode === "approved" ? "bg-green-600 text-white" : "bg-gray-200 text-gray-700"
-                    }`}
-                  >
-                    Applied
-                  </button>
-                  {permissions.can_edit && (
-                    <button
-                      type="button"
-                      onClick={handleAutoUpdate}
-                      className="bg-purple-600 text-white px-3 py-1 rounded text-sm hover:bg-purple-700"
-                    >
-                      Auto-Update
-                    </button>
-                  )}
+              <h2 className="text-lg font-semibold mb-4">Price Schedule Form</h2>
+              
+              {/* Date and Time Selection */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Schedule Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    required
+                  />
                 </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Schedule Time
+                  </label>
+                  <input
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                    className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* View Mode Tabs - Matching Deal Price Design */}
+              <div className="flex gap-2 mb-4">
+                <button
+                  type="button"
+                  onClick={() => setViewMode("all")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === "all" 
+                      ? "bg-blue-600 text-white shadow-md" 
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  All Prices
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("pending")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === "pending" 
+                      ? "bg-yellow-600 text-white shadow-md" 
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  Pending
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode("approved")}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    viewMode === "approved" 
+                      ? "bg-green-600 text-white shadow-md" 
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
+                  Applied
+                </button>
+                {permissions.can_edit && (
+                  <button
+                    type="button"
+                    onClick={handleAutoUpdate}
+                    className="bg-purple-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-purple-700 transition-colors shadow-md"
+                  >
+                    Auto-Update
+                  </button>
+                )}
               </div>
 
               <form onSubmit={handleSubmit}>
@@ -542,7 +576,7 @@ function SchedulePriceContent() {
                     {Object.entries(groupedProducts).map(([productId, group]) => (
                       <div key={productId} className="mb-4">
                         <h3 className="font-medium text-gray-800 mb-2">{group.product_name}</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="grid grid-cols-4 gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
                           {group.sub_products.map((subProduct) => (
                             <div 
                               key={subProduct.code_id} 
@@ -559,67 +593,20 @@ function SchedulePriceContent() {
                                 min="0"
                                 step="0.01"
                                 onChange={(e) => {
-                                  const currentDate = new Date().toISOString().split('T')[0];
-                                  const currentTime = new Date().toTimeString().slice(0, 5);
-                                  
                                   selectedCustomers.forEach(customerId => {
                                     handleChange(
                                       customerId,
                                       station.id, 
                                       subProduct.code_id, 
                                       subProduct.product_id,
-                                      currentDate,
-                                      currentTime,
+                                      scheduleDate,
+                                      scheduleTime,
                                       "price", 
                                       e.target.value
                                     );
                                   });
                                 }}
                                 className="w-full px-2 py-1 border rounded-lg mb-2 text-sm"
-                              />
-                              
-                              {/* Schedule Date */}
-                              <input
-                                type="date"
-                                onChange={(e) => {
-                                  const currentTime = new Date().toTimeString().slice(0, 5);
-                                  
-                                  selectedCustomers.forEach(customerId => {
-                                    handleChange(
-                                      customerId,
-                                      station.id, 
-                                      subProduct.code_id, 
-                                      subProduct.product_id,
-                                      e.target.value,
-                                      currentTime,
-                                      "date", 
-                                      e.target.value
-                                    );
-                                  });
-                                }}
-                                className="w-full px-2 py-1 border rounded-lg mb-2 text-sm"
-                              />
-                              
-                              {/* Schedule Time */}
-                              <input
-                                type="time"
-                                onChange={(e) => {
-                                  const currentDate = new Date().toISOString().split('T')[0];
-                                  
-                                  selectedCustomers.forEach(customerId => {
-                                    handleChange(
-                                      customerId,
-                                      station.id, 
-                                      subProduct.code_id, 
-                                      subProduct.product_id,
-                                      currentDate,
-                                      e.target.value,
-                                      "time", 
-                                      e.target.value
-                                    );
-                                  });
-                                }}
-                                className="w-full px-2 py-1 border rounded-lg text-sm"
                               />
                             </div>
                           ))}

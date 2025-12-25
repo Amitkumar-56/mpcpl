@@ -123,7 +123,7 @@ export async function POST(request) {
       dncn,
       payable,
       0, // payment default 0
-      status || "on_the_way",
+      status || "pending", // ✅ Changed default to "pending"
       quantityChanged ? "changed" : "normal"
     ];
 
@@ -132,30 +132,71 @@ export async function POST(request) {
     const stockResult = await executeQuery(stockQuery, stockValues);
     console.log("Stock database insert successful:", stockResult);
 
-    // Insert into filling_station_stocks table
-    const insertStockQuery = `
-      INSERT INTO filling_station_stocks (
+    // ✅ NEW: Only add to filling_station_stocks if status is "delivered"
+    // If status is "pending" or "on_the_way", stock will be added when status changes to "delivered"
+    const finalStatus = status || "pending";
+    
+    if (finalStatus === "delivered" || finalStatus === "3") {
+      // Check if stock record exists
+      const checkStockQuery = `
+        SELECT stock FROM filling_station_stocks 
+        WHERE fs_id = ? AND product = ?
+      `;
+      const existingStock = await executeQuery(checkStockQuery, [fs_id, product_id]);
+      
+      if (existingStock.length > 0) {
+        // Update existing stock
+        const updateStockQuery = `
+          UPDATE filling_station_stocks 
+          SET stock = stock + ?, 
+              msg = ?, 
+              remark = ?, 
+              created_at = NOW()
+          WHERE fs_id = ? AND product = ?
+        `;
+        await executeQuery(updateStockQuery, [
+          quantityInLtrNum,
+          `New purchase - Invoice: ${invoiceNumber}`,
+          `Tanker: ${tankerNumber || 'N/A'}`,
+          fs_id,
+          product_id
+        ]);
+      } else {
+        // Insert new stock record
+        const insertStockQuery = `
+          INSERT INTO filling_station_stocks (
+            fs_id,
+            product,
+            stock,
+            msg,
+            remark,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, NOW())
+        `;
+        await executeQuery(insertStockQuery, [
+          fs_id,
+          product_id,
+          quantityInLtrNum,
+          `New purchase - Invoice: ${invoiceNumber}`,
+          `Tanker: ${tankerNumber || 'N/A'}`
+        ]);
+      }
+
+      const stockValuesForFS = [
         fs_id,
-        product,
-        stock,
-        msg,
-        remark,
-        created_at
-      ) VALUES (?, ?, ?, ?, ?, NOW())
-    `;
+        product_id, // product_id directly as product
+        quantityInLtrNum, // UI se jo Quantity in Ltr aaya wahi stock mein jayega
+        `New purchase - Invoice: ${invoiceNumber}`,
+        `Tanker: ${tankerNumber || 'N/A'}`
+      ];
 
-    const stockValuesForFS = [
-      fs_id,
-      product_id, // product_id directly as product
-      quantityInLtrNum, // UI se jo Quantity in Ltr aaya wahi stock mein jayega
-      `New purchase - Invoice: ${invoiceNumber}`,
-      `Tanker: ${tankerNumber || 'N/A'}`
-    ];
+      console.log("Executing filling_station_stocks query with values:", stockValuesForFS);
 
-    console.log("Executing filling_station_stocks query with values:", stockValuesForFS);
-
-    const fsStockResult = await executeQuery(insertStockQuery, stockValuesForFS);
-    console.log("Filling station stocks insert successful:", fsStockResult);
+      const fsStockResult = await executeQuery(insertStockQuery, stockValuesForFS);
+      console.log("Filling station stocks insert successful:", fsStockResult);
+    } else {
+      console.log(`⚠️ Stock not added to filling_station_stocks yet (status: ${finalStatus}). Will be added when status changes to "delivered".`);
+    }
 
     // Get current user for audit log
     const currentUser = await getCurrentUser();

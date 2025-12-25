@@ -21,7 +21,8 @@ export default function EditStation() {
     email: '',
     gst_name: '',
     gst_number: '',
-    map_link: ''
+    map_link: '',
+    status: '1' // Default to enabled
   });
 
   useEffect(() => {
@@ -52,7 +53,8 @@ export default function EditStation() {
           email: data.station.email || '',
           gst_name: data.station.gst_name || '',
           gst_number: data.station.gst_number || '',
-          map_link: data.station.map_link || ''
+          map_link: data.station.map_link || '',
+          status: data.station.status !== undefined ? String(data.station.status) : '1'
         });
       } else {
         setError(data.error || 'No record found for the provided ID.');
@@ -84,7 +86,11 @@ export default function EditStation() {
       const response = await fetch('/api/edit-station', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, ...formData }),
+        body: JSON.stringify({ 
+          id, 
+          ...formData,
+          status: parseInt(formData.status) // Convert to integer
+        }),
       });
 
       const data = await response.json();
@@ -232,6 +238,25 @@ export default function EditStation() {
                     className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
                     placeholder="Google Maps Link"
                   />
+                </div>
+
+                {/* Station Status */}
+                <div className="md:col-span-2 space-y-2">
+                  <label className="block text-sm font-medium text-gray-700">Station Status</label>
+                  <select
+                    name="status"
+                    value={formData.status}
+                    onChange={handleChange}
+                    className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="1">Enable</option>
+                    <option value="0">Disable</option>
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {formData.status === '0' 
+                      ? '⚠️ Disabled: Staff/Incharge IDs will be disabled and customers cannot create requests for this station.'
+                      : '✅ Enabled: Staff/Incharge IDs are active and customers can create requests.'}
+                  </p>
                 </div>
 
                 <div className="md:col-span-2 flex justify-center space-x-4 pt-4">

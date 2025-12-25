@@ -808,9 +808,25 @@ function CustomersPage() {
                                         {/* Outstanding */}
                                         <div className="bg-white rounded-lg p-3 border border-gray-200">
                                           <div className="text-xs font-medium text-gray-500 mb-1">Outstanding</div>
-                                          <div className="text-sm font-bold text-red-600">
-                                            ₹{(c.balance || 0).toLocaleString('en-IN')}
-                                          </div>
+                                          {c.client_type === "3" ? (
+                                            // For day-limit customers: outstanding - total_day_amount
+                                            (() => {
+                                              const outstanding = parseFloat(c.balance || 0);
+                                              const totalRecharged = parseFloat(c.total_day_amount || 0);
+                                              const netOutstanding = outstanding - totalRecharged;
+                                              return (
+                                                <div className={`text-sm font-bold ${
+                                                  netOutstanding < 0 ? 'text-green-600' : 'text-red-600'
+                                                }`}>
+                                                  ₹{netOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                                </div>
+                                              );
+                                            })()
+                                          ) : (
+                                            <div className="text-sm font-bold text-red-600">
+                                              ₹{(c.balance || 0).toLocaleString('en-IN')}
+                                            </div>
+                                          )}
                                         </div>
 
                                         {/* Remaining Limit */}
@@ -1070,9 +1086,25 @@ function CustomersPage() {
                                   {/* Outstanding */}
                                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                                     <div className="text-xs font-medium text-gray-500 mb-1">Outstanding</div>
-                                    <div className="text-sm font-bold text-red-600">
-                                      ₹{(c.balance || 0).toLocaleString('en-IN')}
-                                    </div>
+                                    {c.client_type === "3" ? (
+                                      // For day-limit customers: outstanding - total_day_amount
+                                      (() => {
+                                        const outstanding = parseFloat(c.balance || 0);
+                                        const totalRecharged = parseFloat(c.total_day_amount || 0);
+                                        const netOutstanding = outstanding - totalRecharged;
+                                        return (
+                                          <div className={`text-sm font-bold ${
+                                            netOutstanding < 0 ? 'text-green-600' : 'text-red-600'
+                                          }`}>
+                                            ₹{netOutstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                          </div>
+                                        );
+                                      })()
+                                    ) : (
+                                      <div className="text-sm font-bold text-red-600">
+                                        ₹{(c.balance || 0).toLocaleString('en-IN')}
+                                      </div>
+                                    )}
                                   </div>
 
                                   {/* Remaining Limit */}

@@ -18,14 +18,19 @@ function OutstandingHistoryContent() {
 
   const fetchOutstandingInvoices = async () => {
     try {
-      setLoading(false); // No loading state
+      setLoading(true);
       const response = await fetch('/api/outstanding-history');
       
       if (!response.ok) {
-        throw new Error('Failed to fetch data');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to fetch data');
       }
 
       const result = await response.json();
+      
+      if (!result.success) {
+        throw new Error(result.error || 'Failed to fetch data');
+      }
       
       // Filter out invoices with payment = 0 and DNCN = 0
       let filtered = result.data || [];
@@ -59,8 +64,11 @@ function OutstandingHistoryContent() {
 
       setData(filtered);
     } catch (error) {
-      console.error('Error:', error);
+      console.error('Error fetching outstanding invoices:', error);
       setData([]);
+      // Don't show alert, just log the error
+    } finally {
+      setLoading(false);
     }
   };
 

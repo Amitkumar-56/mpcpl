@@ -32,6 +32,7 @@ export default function ActivityLogs({
   const [error, setError] = useState(null);
   const [total, setTotal] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const [availableActions, setAvailableActions] = useState([]);
   
   // Filters
   const [filters, setFilters] = useState({
@@ -100,9 +101,14 @@ export default function ActivityLogs({
       const result = await response.json();
       
       if (result.success) {
-        setLogs(result.data || []);
+        const logsData = result.data || [];
+        setLogs(logsData);
         setTotal(result.total || 0);
         setHasMore(result.hasMore || false);
+        
+        // Extract unique actions from logs
+        const uniqueActions = [...new Set(logsData.map(log => log.action).filter(Boolean))].sort();
+        setAvailableActions(uniqueActions);
       } else {
         setError(result.error || 'Failed to fetch activity logs');
       }
@@ -220,13 +226,23 @@ export default function ActivityLogs({
                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
               >
                 <option value="">All Actions</option>
-                <option value="create">Create</option>
-                <option value="add">Add</option>
-                <option value="edit">Edit</option>
-                <option value="delete">Delete</option>
-                <option value="approve">Approve</option>
-                <option value="reject">Reject</option>
-                <option value="update">Update</option>
+                {availableActions.length > 0 ? (
+                  availableActions.map(action => (
+                    <option key={action} value={action}>
+                      {action.charAt(0).toUpperCase() + action.slice(1)}
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="create">Create</option>
+                    <option value="add">Add</option>
+                    <option value="edit">Edit</option>
+                    <option value="delete">Delete</option>
+                    <option value="approve">Approve</option>
+                    <option value="reject">Reject</option>
+                    <option value="update">Update</option>
+                  </>
+                )}
               </select>
             </div>
             

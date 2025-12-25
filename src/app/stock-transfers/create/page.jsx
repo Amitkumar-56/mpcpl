@@ -14,6 +14,7 @@ function CreateStockTransferContent() {
     transfer_quantity: "",
     status: "1",
     product: "",
+    product_to: "", // For same depot transfer
     slip: null
   });
   const [stations, setStations] = useState([]);
@@ -95,6 +96,11 @@ function CreateStockTransferContent() {
       submitData.append('transfer_quantity', formData.transfer_quantity);
       submitData.append('status', formData.status);
       submitData.append('product', formData.product);
+      
+      // Add product_to for same depot transfer
+      if (formData.station_from === formData.station_to && formData.product_to) {
+        submitData.append('product_to', formData.product_to);
+      }
       
       if (formData.slip) {
         submitData.append('slip', formData.slip);
@@ -242,7 +248,7 @@ function CreateStockTransferContent() {
                 {/* Product */}
                 <div>
                   <label htmlFor="product" className="block text-sm font-medium text-gray-700 mb-2">
-                    Product *
+                    Product From *
                   </label>
                   <select
                     id="product"
@@ -259,6 +265,34 @@ function CreateStockTransferContent() {
                     ))}
                   </select>
                 </div>
+
+                {/* Product To - For same depot transfer (Industrial Oil 40 <-> 60) */}
+                {formData.station_from === formData.station_to && (
+                  <div>
+                    <label htmlFor="product_to" className="block text-sm font-medium text-gray-700 mb-2">
+                      Product To (Same Depot Transfer) *
+                    </label>
+                    <select
+                      id="product_to"
+                      name="product_to"
+                      value={formData.product_to || ''}
+                      onChange={handleInputChange}
+                      required={formData.station_from === formData.station_to}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    >
+                      <option value="">Select Product To</option>
+                      {/* Show only Industrial Oil 40 and 60 for same depot transfer */}
+                      {products.filter(p => p.id === 2 || p.id === 3).map(product => (
+                        <option key={product.id} value={product.id}>
+                          {product.pname}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Same depot transfer: Industrial Oil 40 ↔ Industrial Oil 60
+                    </p>
+                  </div>
+                )}
 
                 {/* Driver Name */}
                 <div>

@@ -62,6 +62,8 @@ function CustomerLogsContent() {
       case 'payment': return 'bg-blue-100 text-blue-800 border-blue-300';
       case 'created': return 'bg-purple-100 text-purple-800 border-purple-300';
       case 'updated': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+      case 'edit': return 'bg-orange-100 text-orange-800 border-orange-300';
+      case 'deal-price': return 'bg-indigo-100 text-indigo-800 border-indigo-300';
       default: return 'bg-gray-100 text-gray-800 border-gray-300';
     }
   };
@@ -72,6 +74,8 @@ function CustomerLogsContent() {
       case 'payment': return '💳';
       case 'created': return '➕';
       case 'updated': return '✏️';
+      case 'edit': return '✏️';
+      case 'deal-price': return '💲';
       default: return '📝';
     }
   };
@@ -82,6 +86,8 @@ function CustomerLogsContent() {
       case 'payment': return 'Payment';
       case 'created': return 'Created';
       case 'updated': return 'Updated';
+      case 'edit': return 'Edit';
+      case 'deal-price': return 'Deal Price Update';
       default: return actionType;
     }
   };
@@ -160,7 +166,7 @@ function CustomerLogsContent() {
         <div className="mb-6 bg-white p-4 rounded-lg shadow">
           <div className="flex flex-wrap gap-2">
             <span className="text-sm font-medium text-gray-700 mr-2">Filter:</span>
-            {['all', 'recharge', 'payment', 'created', 'updated'].map((filterType) => (
+            {['all', 'recharge', 'payment', 'created', 'updated', 'edit', 'deal-price'].map((filterType) => (
               <button
                 key={filterType}
                 onClick={() => setFilter(filterType)}

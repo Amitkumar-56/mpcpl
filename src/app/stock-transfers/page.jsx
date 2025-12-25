@@ -1,8 +1,9 @@
 'use client';
  
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import React from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Sidebar from "@/components/sidebar";
@@ -12,11 +13,25 @@ function StockTransfersContent() {
   const [transfers, setTransfers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [expandedRows, setExpandedRows] = useState(new Set());
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     fetchTransfers();
   }, []);
+
+  useEffect(() => {
+    // Handle query parameter id - if present, expand that row
+    const idParam = searchParams.get('id');
+    if (idParam && transfers.length > 0) {
+      const transferId = parseInt(idParam);
+      // Expand the row if it exists
+      if (transfers.some(t => t.id === transferId)) {
+        setExpandedRows(prev => new Set([...prev, transferId]));
+      }
+    }
+  }, [searchParams, transfers]);
 
   const fetchTransfers = async () => {
     try {
@@ -57,10 +72,23 @@ function StockTransfersContent() {
   };
 
   const formatDate = (dateString) => {
+    if (!dateString) return '-';
     return new Date(dateString).toLocaleDateString('en-US', {
       day: 'numeric',
       month: 'long',
       year: 'numeric'
+    });
+  };
+
+  const toggleRow = (transferId) => {
+    setExpandedRows(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(transferId)) {
+        newSet.delete(transferId);
+      } else {
+        newSet.add(transferId);
+      }
+      return newSet;
     });
   };
 
@@ -127,40 +155,84 @@ function StockTransfersContent() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created Date</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {transfers.length > 0 ? (
-                    transfers.map((transfer, index) => (
-                      <tr key={transfer.id} className="hover:bg-gray-50 transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.station_from_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.station_to_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.driver_name || transfer.driver_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.vehicle_no || transfer.vehicle_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{transfer.transfer_quantity}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.product_name}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(transfer.status)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{formatDate(transfer.created_at)}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <Link
-                            href={`/stock-transfers/${transfer.id}`}
-                            className="text-blue-600 hover:text-blue-900 transition-colors inline-flex items-center"
-                            title="View Details"
-                          >
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                              <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                            </svg>
-                          </Link>
-                        </td>
-                      </tr>
-                    ))
+                    transfers.map((transfer, index) => {
+                      // Ensure we get the correct ID field
+                      const transferId = transfer.id || transfer.ID || transfer.stock_transfer_id || 0;
+                      const isExpanded = expandedRows.has(transferId);
+                      return (
+                        <React.Fragment key={transferId}>
+                          <tr className="hover:bg-gray-50 transition-colors">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.station_from_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.station_to_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.driver_name || transfer.driver_id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.vehicle_no || transfer.vehicle_id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{transfer.transfer_quantity}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.product_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center space-x-2">
+                                {getStatusBadge(transfer.status)}
+                                <button
+                                  onClick={() => toggleRow(transferId)}
+                                  className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                  title={isExpanded ? "Hide Details" : "Show Details"}
+                                >
+                                  <svg 
+                                    className={`w-4 h-4 text-gray-600 transition-transform ${isExpanded ? 'rotate-45' : ''}`} 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    viewBox="0 0 24 24"
+                                  >
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr key={`${transferId}-expanded`} className="bg-gray-50">
+                              <td colSpan="8" className="px-6 py-4">
+                                <div className="grid grid-cols-2 gap-4 text-sm">
+                                  <div>
+                                    <span className="font-medium text-gray-700">Created Date:</span>
+                                    <span className="ml-2 text-gray-900">{formatDate(transfer.created_at)}</span>
+                                  </div>
+                                  <div>
+                                    <span className="font-medium text-gray-700">Action:</span>
+                                    <span className="ml-2">
+                                      <button
+                                        onClick={() => {
+                                          console.log('View Details clicked for transfer:', transfer, 'ID:', transferId);
+                                          // Update URL with query parameter
+                                          router.push(`/stock-transfers?id=${transferId}`, { scroll: false });
+                                          // Expand the row
+                                          setExpandedRows(prev => new Set([...prev, transferId]));
+                                        }}
+                                        className="text-blue-600 hover:text-blue-900 transition-colors inline-flex items-center"
+                                        title="View Details"
+                                      >
+                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                          <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                        </svg>
+                                        <span className="ml-1">View Details</span>
+                                      </button>
+                                    </span>
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })
                   ) : (
                     <tr>
-                      <td colSpan="10" className="px-6 py-12 text-center">
+                      <td colSpan="8" className="px-6 py-12 text-center">
                         <div className="text-gray-500">
                           <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />

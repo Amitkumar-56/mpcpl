@@ -43,10 +43,19 @@ export default function RechargeRequestPage() {
       setError("");
       
       console.log('Fetching customer data for ID:', customerId);
-      const response = await fetch(`/api/customers/recharge-request?id=${customerId}`);
+      
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+      
+      const response = await fetch(`/api/customers/recharge-request?id=${customerId}`, {
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
@@ -59,7 +68,11 @@ export default function RechargeRequestPage() {
       }
     } catch (err) {
       console.error("Fetch error:", err);
-      setError(err.message || "Network error occurred");
+      if (err.name === 'AbortError') {
+        setError("Request timeout. Please check your connection and try again.");
+      } else {
+        setError(err.message || "Network error occurred");
+      }
     } finally {
       setPageLoading(false);
     }
