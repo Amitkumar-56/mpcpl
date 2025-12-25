@@ -27,6 +27,11 @@ function ItemsListContent() {
   const [error, setError] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
 
   useEffect(() => {
     if (!authLoading) {
@@ -40,31 +45,69 @@ function ItemsListContent() {
 
   const checkPermissions = async () => {
     if (!user || !user.id) return;
-    
-    // Check cache first
-    const cacheKey = `perms_${user.id}_items`;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchItems();
+      return;
+    }
+
+    // Check cached permissions from session/user object first
+    if (user.permissions && user.permissions['Items']) {
+      const itemPerms = user.permissions['Items'];
+      if (itemPerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: itemPerms.can_view,
+          can_edit: itemPerms.can_edit,
+          can_delete: itemPerms.can_delete
+        });
+        fetchItems();
+        return;
+      }
+    }
+
+    // Check cache storage
+    const cacheKey = `perms_${user.id}_Items`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const cachedPerms = JSON.parse(cached);
       if (cachedPerms.can_view) {
         setHasPermission(true);
+        setPermissions(cachedPerms);
         fetchItems();
         return;
       }
     }
     
     try {
-      const response = await fetch(
-        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('items')}&action=can_view`
-      );
-      const data = await response.json();
-      
-      // Cache permission
-      sessionStorage.setItem(cacheKey, JSON.stringify({ can_view: data.allowed }));
+      const moduleName = 'Items';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions for quick reuse
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
       
-      if (data.allowed) {
+      if (perms.can_view) {
         setHasPermission(true);
+        setPermissions(perms);
         fetchItems();
       } else {
         setHasPermission(false);
@@ -179,15 +222,17 @@ function ItemsListContent() {
         )}
 
         {/* Floating Add Button */}
-        <Link
-          href="/add-items"
-          className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200 text-sm sm:text-base"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="hidden sm:inline">Add Items</span>
-        </Link>
+        {permissions.can_edit && (
+          <Link
+            href="/add-items"
+            className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200 text-sm sm:text-base"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Add Items</span>
+          </Link>
+        )}
 
         {/* Items List Section */}
         <div className="py-4 sm:py-6">
@@ -230,40 +275,49 @@ function ItemsListContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-3">
-                            <Link
-                              href={`/edit-item?id=${item.id}`}
-                              className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
-                              title="Edit"
-                            >
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
-                            </Link>
-                            <span className="text-gray-300">|</span>
-                            <button
-                              onClick={() => handleDelete(item.id)}
-                              disabled={deleteLoading === item.id}
-                              className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
-                              title="Delete"
-                            >
-                              {deleteLoading === item.id ? (
-                                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                              ) : (
+                            {permissions.can_edit && (
+                              <Link
+                                href={`/edit-item?id=${item.id}`}
+                                className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
+                                title="Edit"
+                              >
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                                 </svg>
-                              )}
-                            </button>
+                              </Link>
+                            )}
+                            {permissions.can_edit && permissions.can_delete && (
+                              <span className="text-gray-300">|</span>
+                            )}
+                            {permissions.can_delete && (
+                              <button
+                                onClick={() => handleDelete(item.id)}
+                                disabled={deleteLoading === item.id}
+                                className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
+                                title="Delete"
+                              >
+                                {deleteLoading === item.id ? (
+                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                                ) : (
+                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                  </svg>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
                     ))
                   ) : (
-                    <tr>
-                      <td colSpan="4" className="px-6 py-8 text-center text-sm text-gray-500">
-                        No items found. <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link>
-                      </td>
-                    </tr>
+                <tr>
+                  <td colSpan="4" className="px-6 py-8 text-center text-sm text-gray-500">
+                    No items found.
+                    {permissions.can_edit && (
+                      <> <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link></>
+                    )}
+                  </td>
+                </tr>
                   )}
                 </tbody>
               </table>
@@ -288,37 +342,46 @@ function ItemsListContent() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-3 ml-4">
-                        <Link
-                          href={`/edit-item?id=${item.id}`}
-                          className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
-                          title="Edit"
-                        >
-                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                          </svg>
-                        </Link>
-                        <span className="text-gray-300">|</span>
-                        <button
-                          onClick={() => handleDelete(item.id)}
-                          disabled={deleteLoading === item.id}
-                          className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
-                          title="Delete"
-                        >
-                          {deleteLoading === item.id ? (
-                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                          ) : (
+                        {permissions.can_edit && (
+                          <Link
+                            href={`/edit-item?id=${item.id}`}
+                            className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
+                            title="Edit"
+                          >
                             <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                             </svg>
-                          )}
-                        </button>
+                          </Link>
+                        )}
+                        {permissions.can_edit && permissions.can_delete && (
+                          <span className="text-gray-300">|</span>
+                        )}
+                        {permissions.can_delete && (
+                          <button
+                            onClick={() => handleDelete(item.id)}
+                            disabled={deleteLoading === item.id}
+                            className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
+                            title="Delete"
+                          >
+                            {deleteLoading === item.id ? (
+                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
+                            ) : (
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
                 ))
               ) : (
                 <div className="text-center py-8 text-sm text-gray-500">
-                  No items found. <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link>
+                  No items found.
+                  {permissions.can_edit && (
+                    <> <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link></>
+                  )}
                 </div>
               )}
             </div>

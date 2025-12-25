@@ -26,12 +26,14 @@ export async function GET(request) {
     let query = `
       SELECT fr.*, 
              p.pname AS product_name, 
+             pc.pcode AS product_code,
              fs.station_name,
              c.name AS customer_name,
              fl_cancelled.cancelled_by_name,
              fl_cancelled.cancelled_date
       FROM filling_requests fr
-      LEFT JOIN products p ON fr.product = p.id
+      LEFT JOIN products p ON pc.product_id = p.id
+      LEFT JOIN product_codes pc ON fr.sub_product_id = pc.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
       LEFT JOIN (

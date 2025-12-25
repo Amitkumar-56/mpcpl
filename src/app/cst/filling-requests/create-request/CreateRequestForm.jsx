@@ -34,6 +34,8 @@ export default function CreateRequestForm() {
   const [showFullTankMessage, setShowFullTankMessage] = useState(false)
   const [maxQuantity, setMaxQuantity] = useState(0)
   const [isCustomerDisabled, setIsCustomerDisabled] = useState(false)
+  const [productCodes, setProductCodes] = useState([])
+  const [selectedSubProductId, setSelectedSubProductId] = useState('')
 
   // Product configuration based on product_id
   const productConfig = {
@@ -141,18 +143,8 @@ export default function CreateRequestForm() {
             customer_id: customerId
           });
 
-          // Get first product_code for the selected product
-          const productCodeResponse = await fetch(`/api/cst/product-codes?product_id=${selectedProduct.product_id || selectedProduct.id}`);
-          let subProductId = null;
-          if (productCodeResponse.ok) {
-            const productCodeData = await productCodeResponse.json();
-            if (productCodeData.success && productCodeData.codes && productCodeData.codes.length > 0) {
-              subProductId = productCodeData.codes[0].id;
-            }
-          }
-          
           const response = await fetch(
-            `/api/cst/deal-prices?customer_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${subProductId || ''}`
+            `/api/cst/deal-price?customer_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
           );
           const data = await response.json();
           
@@ -178,7 +170,34 @@ export default function CreateRequestForm() {
     };
 
     fetchPrice();
-  }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct]);
+  }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct, selectedSubProductId]);
+
+  useEffect(() => {
+    const pid = formData.product_id;
+    if (!pid) {
+      setProductCodes([]);
+      setSelectedSubProductId('');
+      return;
+    }
+    (async () => {
+      try {
+        const res = await fetch(`/api/cst/product-codes?product_id=${pid}`);
+        const json = await res.json();
+        if (json.success) {
+          const codes = json.codes || [];
+          setProductCodes(codes);
+          const first = codes[0]?.id ? String(codes[0].id) : '';
+          setSelectedSubProductId(first);
+        } else {
+          setProductCodes([]);
+          setSelectedSubProductId('');
+        }
+      } catch (e) {
+        setProductCodes([]);
+        setSelectedSubProductId('');
+      }
+    })();
+  }, [formData.product_id]);
 
   // Barrel calculation - 200 liters per barrel
   useEffect(() => {
@@ -361,9 +380,14 @@ export default function CreateRequestForm() {
       }
     }
 
+    let nextValue = value;
+    if (name === 'licence_plate') {
+      nextValue = value.toUpperCase().replace(/\s+/g, '');
+    }
+
     setFormData(prev => ({
       ...prev,
-      [name]: value,
+      [name]: nextValue,
       qty: qty,
       aty: aty
     }))
@@ -377,7 +401,7 @@ export default function CreateRequestForm() {
     }
 
     if (name === 'licence_plate') {
-      fetchVehicles(value)
+      fetchVehicles(nextValue)
     }
 
     if (name === 'aty' || name === 'qty') {
@@ -479,7 +503,7 @@ export default function CreateRequestForm() {
 
       // Prepare data for backend
       const requestData = {
-        product_id: formData.product_id,
+        product_id: selectedSubProductId || formData.product_id,
         station_id: formData.station_id,
         licence_plate: formData.licence_plate,
         phone: formData.phone,
@@ -495,7 +519,7 @@ export default function CreateRequestForm() {
       });
 
       // Create new request
-      const response = await fetch('/api/cst/filling-requests/create-requests', {
+      const response = await fetch('/api/cst/create-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -815,7 +839,7 @@ export default function CreateRequestForm() {
                               onClick={() => {
                                 setFormData(prev => ({
                                   ...prev,
-                                  licence_plate: vehicle.licence_plate || vehicle.vehicle_number,
+                                  licence_plate: (vehicle.licence_plate || vehicle.vehicle_number || '').toUpperCase().replace(/\s+/g, ''),
                                   phone: vehicle.phone || vehicle.driver_number || ''
                                 }))
                                 setVehicles([])
@@ -901,6 +925,38 @@ export default function CreateRequestForm() {
                           </svg>
                           {errors.product_id}
                         </p>
+                      )}
+                      {productCodes.length > 0 && (
+                        <div className="mt-4">
+                          <label htmlFor="sub_product_id" className="block text-sm font-semibold text-gray-700 mb-2">
+                            Select Product Code
+                          </label>
+                          <div className="relative">
+                            <select
+                              id="sub_product_id"
+                              name="sub_product_id"
+                              value={selectedSubProductId}
+                              onChange={(e) => setSelectedSubProductId(e.target.value)}
+                              className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white border-gray-300 hover:border-gray-400"
+                            >
+                              {productCodes.map(code => (
+                                <option key={code.id} value={code.id}>
+                                  {code.pcode} — {code.product_name}
+                                </option>
+                              ))}
+                            </select>
+                            <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              </svg>
+                            </div>
+                          </div>
+                          {selectedSubProductId && (
+                            <div className="mt-2 text-sm text-gray-600">
+                              Product: {productCodes.find(c => String(c.id) === String(selectedSubProductId))?.product_name || 'N/A'}
+                            </div>
+                          )}
+                        </div>
                       )}
                     </div>
 

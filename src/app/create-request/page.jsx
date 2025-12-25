@@ -5,9 +5,13 @@ import { useEffect, useState } from 'react';
 import Footer from '../../components/Footer';
 import Header from '../../components/Header';
 import Sidebar from '../../components/sidebar';
+import { useSession } from '@/context/SessionContext';
 
 export default function CreateRequestPage() {
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_delete: false });
 
   const [customers, setCustomers] = useState([]);
   const [productCodes, setProductCodes] = useState([]);
@@ -40,6 +44,55 @@ export default function CreateRequestPage() {
     3: { name: "Industrial Oil 60", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
     4: { name: "DEF Lose", type: "liter", min: 1, maxQuantity: 10000 },
     5: { name: "DEF Bucket", type: "bucket", bucketSize: 20, min: 1, maxQuantity: 100 },
+  };
+
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      return;
+    }
+    if (user.permissions && user.permissions['Filling Requests']) {
+      const p = user.permissions['Filling Requests'];
+      setPermissions({ can_view: !!p.can_view, can_edit: !!p.can_edit, can_delete: !!p.can_delete });
+      setHasPermission(!!p.can_edit);
+      return;
+    }
+    const cacheKey = `perms_${user.id}_Filling Requests`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const c = JSON.parse(cached);
+      setPermissions(c);
+      setHasPermission(!!c.can_edit);
+      return;
+    }
+    try {
+      const moduleName = 'Filling Requests';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+      const [viewData, editData, deleteData] = await Promise.all([viewRes.json(), editRes.json(), deleteRes.json()]);
+      const perms = { can_view: viewData.allowed, can_edit: editData.allowed, can_delete: deleteData.allowed };
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+      setPermissions(perms);
+      setHasPermission(!!perms.can_edit);
+    } catch {
+      setHasPermission(false);
+    }
   };
 
   useEffect(() => {
@@ -76,6 +129,40 @@ export default function CreateRequestPage() {
     }
     fetchData();
   }, []);
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div>Checking permissions...</div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+              <div className="text-red-500 text-4xl mb-2">🚫</div>
+              <div>You do not have permission to create filling requests.</div>
+              <p className="text-sm text-gray-500 mt-2">Edit permission is required.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   // Barrel calculation - 200 liters per barrel
   useEffect(() => {
@@ -255,6 +342,10 @@ export default function CreateRequestPage() {
 
   const handleFinalSubmit = async () => {
     try {
+      if (!permissions.can_edit) {
+        alert('You do not have permission to create filling requests');
+        return;
+      }
       setSubmitting(true);
       setShowConfirmation(false);
 

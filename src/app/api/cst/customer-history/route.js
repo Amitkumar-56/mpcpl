@@ -60,7 +60,7 @@ export async function GET(request) {
     let customerBalanceData;
     try {
       customerBalanceData = await executeQuery(
-        'SELECT balance, amtlimit, day_limit, day_amount, total_day_amount FROM customer_balances WHERE com_id = ? AND is_active = 1',
+        'SELECT balance, amtlimit, cst_limit, day_limit, day_amount, total_day_amount FROM customer_balances WHERE com_id = ? AND is_active = 1',
         [customerId]
       );
     } catch (error) {
@@ -70,6 +70,7 @@ export async function GET(request) {
 
     let currentBalance = 0;
     let amtLimit = 0;
+    let totalLimit = 0;
     let dayLimit = 0;
     let dayAmount = 0;
     let totalDayAmount = 0;
@@ -78,6 +79,7 @@ export async function GET(request) {
       const balanceInfo = customerBalanceData[0];
       currentBalance = balanceInfo.balance || 0;
       amtLimit = balanceInfo.amtlimit || 0;
+      totalLimit = balanceInfo.cst_limit || 0;
       dayLimit = balanceInfo.day_limit || 0;
       dayAmount = balanceInfo.day_amount || 0;
       totalDayAmount = balanceInfo.total_day_amount || 0;
@@ -218,8 +220,8 @@ export async function GET(request) {
     const yesterdayOutstanding = parseFloat(yesterdayOutstandingResult[0]?.total) || 0;
 
     // 7. Check for low balance notifications
-    const lowBalanceThreshold = amtLimit * 0.2; // 20% of limit
-    const isLowBalance = amtLimit > 0 && amtLimit < lowBalanceThreshold;
+    const lowBalanceThreshold = (totalLimit || 0) * 0.2;
+    const isLowBalance = (totalLimit || 0) > 0 && (amtLimit || 0) <= lowBalanceThreshold;
     const balanceNotification = isLowBalance 
       ? "Your balance is low. Please recharge on time to continue services."
       : null;
@@ -269,6 +271,7 @@ export async function GET(request) {
       products: products,
       balance: currentBalance,
       amtLimit: amtLimit,
+      totalLimit: totalLimit,
       openingBalance: openingBalance,
       customer: {
         name: customer.name,

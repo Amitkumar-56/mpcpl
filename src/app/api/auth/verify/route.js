@@ -102,22 +102,31 @@ export async function GET(request) {
     
     // ✅ Merge permissions: employee-specific override role-based for same module
     const permissionMap = new Map();
+    const toBool = (v) => {
+      if (v === true) return true;
+      if (v === 1) return true;
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        return s === '1' || s === 'true' || s === 'yes' || s === 'enable';
+      }
+      return false;
+    };
     
     // First, add all role-based permissions
     roleBasedPermissions.forEach((perm) => {
       permissionMap.set(perm.module_name, {
-        can_view: perm.can_view === 1,
-        can_edit: perm.can_edit === 1,
-        can_delete: perm.can_delete === 1
+        can_view: toBool(perm.can_view),
+        can_edit: toBool(perm.can_edit),
+        can_delete: toBool(perm.can_delete)
       });
     });
     
     // Then, override with employee-specific permissions (they take priority)
     employeePermissions.forEach((perm) => {
       permissionMap.set(perm.module_name, {
-        can_view: perm.can_view === 1,
-        can_edit: perm.can_edit === 1,
-        can_delete: perm.can_delete === 1
+        can_view: toBool(perm.can_view),
+        can_edit: toBool(perm.can_edit),
+        can_delete: toBool(perm.can_delete)
       });
     });
     

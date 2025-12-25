@@ -16,6 +16,16 @@ export async function GET(req) {
     if (!allowedActions.includes(action)) {
       return NextResponse.json({ error: "Invalid action parameter" }, { status: 400 });
     }
+    
+    const toBool = (v) => {
+      if (v === true) return true;
+      if (v === 1) return true;
+      if (typeof v === 'string') {
+        const s = v.trim().toLowerCase();
+        return s === '1' || s === 'true' || s === 'yes' || s === 'enable';
+      }
+      return false;
+    };
 
     // Get user's role
     const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
@@ -71,7 +81,7 @@ export async function GET(req) {
       });
     }
 
-    const allowed = result.length > 0 && result[0].permission === 1;
+    const allowed = result.length > 0 && toBool(result[0].permission);
     
     if (!allowed && result.length > 0) {
       console.log(`❌ Permission denied: ${action} is set to 0 for ${module_name}`);

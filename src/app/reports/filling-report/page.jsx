@@ -54,6 +54,12 @@ function ReportHistoryContent() {
     totalInvoice: 0,
     totalRecharge: 0
   });
+  const [invoiceSearch, setInvoiceSearch] = useState('');
+  const displayRecords = React.useMemo(() => {
+    const q = invoiceSearch.trim().toLowerCase();
+    if (!q) return data.records;
+    return data.records.filter(r => (r.invoice_number || '').toLowerCase().includes(q));
+  }, [invoiceSearch, data.records]);
 
   // Get employee profile
   useEffect(() => {
@@ -273,11 +279,7 @@ function ReportHistoryContent() {
           return newSet;
         });
 
-        // Auto-invoice when checked
-        if (isChecked) {
-          // Automatically invoice the record
-          await handleInvoiceRecord(recordId, true);
-        }
+        
 
         // Show success message
         if (isChecked) {
@@ -386,7 +388,7 @@ function ReportHistoryContent() {
     }
 
     // Process all records
-    const promises = data.records.map(record => {
+    const promises = displayRecords.map(record => {
       if (isChecked && !selectedRecords.has(record.id)) {
         return handleCheckRecord(record.id, true);
       } else if (!isChecked && selectedRecords.has(record.id)) {
@@ -411,7 +413,7 @@ function ReportHistoryContent() {
     }
 
     // Process all records
-    const promises = data.records.map(record => {
+    const promises = displayRecords.map(record => {
       if (isInvoiced && !invoicedRecords.has(record.id)) {
         return handleInvoiceRecord(record.id, true);
       } else if (!isInvoiced && invoicedRecords.has(record.id)) {
@@ -539,7 +541,8 @@ function ReportHistoryContent() {
   const InvoiceButton = ({ record }) => {
     const isInvoiced = record.is_invoiced || invoicedRecords.has(record.id);
     const isLoading = invoicingRecords.has(record.id);
-    const isDisabled = !employeeProfile || isLoading || record.is_invoiced; // Disable if already invoiced
+    const isChecked = record.is_checked || selectedRecords.has(record.id);
+    const isDisabled = !employeeProfile || isLoading || record.is_invoiced || !isChecked;
     
     return (
       <div className="flex flex-col items-center space-y-1">
@@ -603,13 +606,14 @@ function ReportHistoryContent() {
 
   // Select All Check Button Component
   const SelectAllCheckButton = () => {
-    const allChecked = selectedRecords.size === data.records.length && data.records.length > 0;
-    const someChecked = selectedRecords.size > 0 && selectedRecords.size < data.records.length;
+    const selectedInView = displayRecords.filter(r => selectedRecords.has(r.id)).length;
+    const allChecked = selectedInView === displayRecords.length && displayRecords.length > 0;
+    const someChecked = selectedInView > 0 && selectedInView < displayRecords.length;
     
     return (
       <button
         onClick={() => handleSelectAll(!allChecked)}
-        disabled={!employeeProfile || data.records.length === 0}
+        disabled={!employeeProfile || displayRecords.length === 0}
         className={`
           px-3 sm:px-4 lg:px-6 py-2 sm:py-3 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 transform hover:scale-105
           ${allChecked
@@ -618,7 +622,7 @@ function ReportHistoryContent() {
             ? 'bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white shadow-lg'
             : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md'
           }
-          ${!employeeProfile || data.records.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+          ${!employeeProfile || displayRecords.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
           flex items-center justify-center space-x-2 sm:space-x-3 w-full sm:w-auto
         `}
       >
@@ -627,23 +631,23 @@ function ReportHistoryContent() {
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
-            <span className="hidden sm:inline">Uncheck All ({selectedRecords.size})</span>
-            <span className="sm:hidden">Uncheck ({selectedRecords.size})</span>
+            <span className="hidden sm:inline">Uncheck All ({selectedInView})</span>
+            <span className="sm:hidden">Uncheck ({selectedInView})</span>
           </>
         ) : someChecked ? (
           <>
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            <span className="hidden sm:inline">Check All ({selectedRecords.size} of {data.records.length})</span>
-            <span className="sm:hidden">Check ({selectedRecords.size}/{data.records.length})</span>
+            <span className="hidden sm:inline">Check All ({selectedInView} of {displayRecords.length})</span>
+            <span className="sm:hidden">Check ({selectedInView}/{displayRecords.length})</span>
           </>
         ) : (
           <>
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
             </svg>
-            <span className="hidden sm:inline">Check All ({data.records.length})</span>
+            <span className="hidden sm:inline">Check All ({displayRecords.length})</span>
             <span className="sm:hidden">Check All</span>
           </>
         )}
@@ -653,13 +657,14 @@ function ReportHistoryContent() {
 
   // Select All Invoice Button Component
   const SelectAllInvoiceButton = () => {
-    const allInvoiced = invoicedRecords.size === data.records.length && data.records.length > 0;
-    const someInvoiced = invoicedRecords.size > 0 && invoicedRecords.size < data.records.length;
+    const invoicedInView = displayRecords.filter(r => invoicedRecords.has(r.id)).length;
+    const allInvoiced = invoicedInView === displayRecords.length && displayRecords.length > 0;
+    const someInvoiced = invoicedInView > 0 && invoicedInView < displayRecords.length;
     
     return (
       <button
         onClick={() => handleInvoiceAll(!allInvoiced)}
-        disabled={!employeeProfile || data.records.length === 0}
+        disabled={!employeeProfile || displayRecords.length === 0}
         className={`
           px-3 sm:px-4 lg:px-6 py-2 sm:py-3 rounded-lg font-semibold text-xs sm:text-sm transition-all duration-300 transform hover:scale-105
           ${allInvoiced
@@ -668,7 +673,7 @@ function ReportHistoryContent() {
             ? 'bg-gradient-to-r from-yellow-500 to-orange-600 hover:from-yellow-600 hover:to-orange-700 text-white shadow-lg'
             : 'bg-gradient-to-r from-orange-500 to-red-600 hover:from-orange-600 hover:to-red-700 text-white shadow-md'
           }
-          ${!employeeProfile || data.records.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
+          ${!employeeProfile || displayRecords.length === 0 ? 'opacity-50 cursor-not-allowed' : 'hover:shadow-xl'}
           flex items-center justify-center space-x-2 sm:space-x-3 w-full sm:w-auto
         `}
       >
@@ -677,23 +682,23 @@ function ReportHistoryContent() {
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
-            <span className="hidden sm:inline">Uninvoice All ({invoicedRecords.size})</span>
-            <span className="sm:hidden">Uninvoice ({invoicedRecords.size})</span>
+            <span className="hidden sm:inline">Uninvoice All ({invoicedInView})</span>
+            <span className="sm:hidden">Uninvoice ({invoicedInView})</span>
           </>
         ) : someInvoiced ? (
           <>
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
             </svg>
-            <span className="hidden sm:inline">Invoice All ({invoicedRecords.size} of {data.records.length})</span>
-            <span className="sm:hidden">Invoice ({invoicedRecords.size}/{data.records.length})</span>
+            <span className="hidden sm:inline">Invoice All ({invoicedInView} of {displayRecords.length})</span>
+            <span className="sm:hidden">Invoice ({invoicedInView}/{displayRecords.length})</span>
           </>
         ) : (
           <>
             <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <span className="hidden sm:inline">Invoice All ({data.records.length})</span>
+            <span className="hidden sm:inline">Invoice All ({displayRecords.length})</span>
             <span className="sm:hidden">Invoice All</span>
           </>
         )}
@@ -951,6 +956,43 @@ function ReportHistoryContent() {
           </div>
 
 
+          <div className="bg-white rounded-lg shadow-sm p-4 mb-4 sm:mb-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {(() => {
+                  const selectedInView = displayRecords.filter(r => selectedRecords.has(r.id)).length;
+                  const invoicedInView = displayRecords.filter(r => invoicedRecords.has(r.id) || r.is_invoiced).length;
+                  const uncheckedInView = Math.max(displayRecords.length - selectedInView, 0);
+                  const uninvoicedInView = Math.max(displayRecords.length - invoicedInView, 0);
+                  return (
+                    <>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700">
+                        Checked: {selectedInView}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-700">
+                        Unchecked: {uncheckedInView}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-100 text-purple-700">
+                        Invoiced: {invoicedInView}
+                      </span>
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-orange-100 text-orange-700">
+                        Uninvoiced: {uninvoicedInView}
+                      </span>
+                    </>
+                  );
+                })()}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={invoiceSearch}
+                  onChange={(e) => setInvoiceSearch(e.target.value)}
+                  placeholder="Invoice No. search"
+                  className="w-56 p-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Table */}
           <div className="bg-white rounded-lg shadow-md overflow-hidden">
             {/* Desktop Table View */}
@@ -976,8 +1018,8 @@ function ReportHistoryContent() {
                         </div>
                       </td>
                     </tr>
-                  ) : data.records.length > 0 ? (
-                    data.records.map((record, index) => (
+                  ) : displayRecords.length > 0 ? (
+                    displayRecords.map((record, index) => (
                       <React.Fragment key={record.id}>
                         <tr 
                           className={`
@@ -1057,6 +1099,16 @@ function ReportHistoryContent() {
                                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                                   <div className="text-xs font-medium text-gray-500 mb-1">Amount</div>
                                   <div className="text-sm text-gray-900 font-semibold">₹{record.amount || '0.00'}</div>
+                                </div>
+
+                                <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                  <div className="text-xs font-medium text-gray-500 mb-1">Invoice No</div>
+                                  <div className={`text-sm font-semibold ${record.is_invoiced ? 'text-purple-700' : 'text-gray-900'}`}>
+                                    {record.invoice_number || '-'}
+                                  </div>
+                                  <div className={`text-xs ${record.is_invoiced ? 'text-green-600' : 'text-orange-600'}`}>
+                                    {record.is_invoiced ? 'Processed' : 'Pending'}
+                                  </div>
                                 </div>
 
                                 {/* Created at */}
@@ -1248,8 +1300,8 @@ function ReportHistoryContent() {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                   <p className="mt-4 text-gray-600 text-sm">Loading...</p>
                 </div>
-              ) : data.records.length > 0 ? (
-                data.records.map((record, index) => (
+              ) : displayRecords.length > 0 ? (
+                displayRecords.map((record, index) => (
                   <div
                     key={`${record.id}-mobile`}
                     className={`bg-white border rounded-lg p-4 shadow-sm ${

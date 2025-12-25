@@ -6,24 +6,24 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
 import {
-  FaBars,
-  FaBox,
-  FaBuilding,
-  FaClipboard,
-  FaCog,
-  FaExchangeAlt,
-  FaFileAlt,
-  FaFileInvoice,
-  FaHistory,
-  FaHome,
-  FaMoneyBill,
-  FaSignOutAlt,
-  FaStickyNote,
-  FaTimes,
-  FaTruck,
-  FaTruckMoving,
-  FaUsers,
-  FaUserTie,
+    FaBars,
+    FaBox,
+    FaBuilding,
+    FaClipboard,
+    FaCog,
+    FaExchangeAlt,
+    FaFileAlt,
+    FaFileInvoice,
+    FaHistory,
+    FaHome,
+    FaMoneyBill,
+    FaSignOutAlt,
+    FaStickyNote,
+    FaTimes,
+    FaTruck,
+    FaTruckMoving,
+    FaUsers,
+    FaUserTie,
 } from "react-icons/fa";
 
 export default function Sidebar({ onClose }) {
@@ -32,6 +32,15 @@ export default function Sidebar({ onClose }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+
+  const roleNames = {
+    1: 'Staff',
+    2: 'Incharge',
+    3: 'Team Leader',
+    4: 'Accountant',
+    5: 'Admin',
+    6: 'Driver'
+  };
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -112,6 +121,28 @@ export default function Sidebar({ onClose }) {
     agent_management: "Agent Management", // ✅ FIX: Added missing mapping
   }), []);
 
+  const permissionSynonyms = useMemo(() => ({
+    "Filling Requests": ["Purchase Request", "Purchese Request", "Filling Request"],
+    "Items & Products": ["Products", "Items"],
+    "Loading Station": ["Loading Stations", "Stations"],
+    "Stock Transfer": ["Stock Transfers"],
+    "Customer": ["Customers"],
+    "Vehicle": ["Vehicles"],
+    "Voucher": ["Vouchers"],
+    "NB Accounts": ["NB Balance", "Outstanding", "NB Account"],
+    "Agent Management": ["Agents", "Agent"],
+    "Stock History": ["Stock Histories"],
+    "Outstanding History": ["Outstanding Histories"],
+    "Deepo History": ["Depot History"],
+    "Tanker History": ["Tankers History"],
+    "Reports": ["Report"],
+    "Employees": ["Employee"],
+    "Suppliers": ["Supplier"],
+    "Transporters": ["Transporter"],
+    "LR Management": ["LR", "LR List"],
+    "Loading History": ["Loading-Unloading History", "Unloading History"]
+  }), []);
+
   // ✅ FIX: Enhanced permission filtering - only show items with can_view permission
   const allowedMenu = useMemo(() => {
     if (!user) return [];
@@ -146,7 +177,16 @@ export default function Sidebar({ onClose }) {
       }
       
       // Check if user has permission for this module
-      const modulePermission = user.permissions[backendModuleName];
+      let modulePermission = user.permissions[backendModuleName];
+      if (!modulePermission) {
+        const syns = permissionSynonyms[backendModuleName] || [];
+        for (const alt of syns) {
+          if (user.permissions[alt]) {
+            modulePermission = user.permissions[alt];
+            break;
+          }
+        }
+      }
       
       // If no permission record exists, hide the item
       if (!modulePermission || typeof modulePermission !== 'object') {
@@ -159,7 +199,7 @@ export default function Sidebar({ onClose }) {
     });
     
     return filtered;
-  }, [user, menuItems, moduleMapping]);
+  }, [user, menuItems, moduleMapping, permissionSynonyms]);
 
   // Improved navigation handler
   const handleNavigation = (path) => {
@@ -217,7 +257,7 @@ export default function Sidebar({ onClose }) {
               <p className="text-xs text-gray-600 truncate">
                 {Number(user?.role) === 5 
                   ? 'Admin' 
-                  : (user?.role_name || 'Employee')}
+                  : (user?.role_name || roleNames[Number(user?.role)] || 'Unknown')}
               </p>
               {Number(user?.role) === 5 && (
                 <p className="text-xs text-blue-600 font-semibold mt-0.5">

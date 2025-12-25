@@ -1,5 +1,6 @@
 'use client';
 
+import { useSession } from '@/context/SessionContext';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Footer from '../../components/Footer';
@@ -10,6 +11,7 @@ export default function FillingDetailsAdmin() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
+  const { user, loading: authLoading } = useSession();
 
   const [requestData, setRequestData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -33,12 +35,129 @@ export default function FillingDetailsAdmin() {
   const [cancelRemarks, setCancelRemarks] = useState('');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState('');
+  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_delete: false });
+  const [hasPermission, setHasPermission] = useState(false);
+  const [imageModalSrc, setImageModalSrc] = useState(null);
+  const [cropModal, setCropModal] = useState({ open: false, src: null, docKey: null });
 
   useEffect(() => {
     if (id) fetchRequestDetails();
   }, [id]);
 
-  const fetchRequestDetails = async () => {
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      return;
+    }
+    if (user.permissions && user.permissions['Filling Requests']) {
+      const p = user.permissions['Filling Requests'];
+      setPermissions({ can_view: !!p.can_view, can_edit: !!p.can_edit, can_delete: !!p.can_delete });
+      setHasPermission(!!p.can_edit);
+      return;
+    }
+    const cacheKey = `perms_${user.id}_Filling Requests`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const c = JSON.parse(cached);
+      setPermissions(c);
+      setHasPermission(!!c.can_edit);
+      return;
+    }
+    try {
+      const moduleName = 'Filling Requests';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+      const [viewData, editData, deleteData] = await Promise.all([viewRes.json(), editRes.json(), deleteRes.json()]);
+      const perms = { can_view: viewData.allowed, can_edit: editData.allowed, can_delete: deleteData.allowed };
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+      setPermissions(perms);
+      setHasPermission(!!perms.can_edit);
+    } catch {
+      setHasPermission(false);
+    }
+  };
+
+  const openImageModal = (src) => setImageModalSrc(src);
+  const closeImageModal = () => setImageModalSrc(null);
+  const openCrop = (docKey) => {
+    const src = uploadedFiles[docKey];
+    if (src) setCropModal({ open: true, src, docKey });
+  };
+  const closeCrop = () => setCropModal({ open: false, src: null, docKey: null });
+  const applyCenterCrop = async () => {
+    if (!cropModal.src || !cropModal.docKey) return;
+    const img = new Image();
+    img.src = cropModal.src;
+    await new Promise((resolve) => { img.onload = resolve; });
+    const size = Math.min(img.naturalWidth, img.naturalHeight);
+    const sx = (img.naturalWidth - size) / 2;
+    const sy = (img.naturalHeight - size) / 2;
+    const canvas = document.createElement('canvas');
+    canvas.width = size;
+    canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const file = new File([blob], (formData[cropModal.docKey]?.name || `${cropModal.docKey}.png`), { type: blob.type || 'image/png' });
+      setFormData(prev => ({ ...prev, [cropModal.docKey]: file }));
+      const url = URL.createObjectURL(blob);
+      setUploadedFiles(prev => ({ ...prev, [cropModal.docKey]: url }));
+      closeCrop();
+    }, 'image/png', 0.92);
+  };
+
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div>Checking permissions...</div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+            <div className="bg-white rounded-lg shadow p-6 text-center">
+              <div className="text-red-500 text-4xl mb-2">🚫</div>
+              <div>You do not have permission to access Filling Details Admin.</div>
+              <p className="text-sm text-gray-500 mt-2">Edit permission is required for Filling Requests module.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
+  async function fetchRequestDetails() {
     try {
       setLoading(true);
       setError('');
@@ -79,7 +198,7 @@ export default function FillingDetailsAdmin() {
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;

@@ -1,6 +1,7 @@
 // src/app/reports/invoiced-records/page.jsx
 'use client';
 
+import ExportButton from '@/components/ExportButton';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -129,6 +130,28 @@ function InvoicedRecordsContent() {
               <h1 className="text-2xl font-bold text-gray-900">
                 Invoiced Records ({summary.totalRecords})
               </h1>
+            </div>
+            <div className="flex items-center gap-2">
+              <ExportButton
+                data={records}
+                fileName="invoiced_records"
+                columns={[
+                  { header: 'Request Id', key: 'rid' },
+                  { header: 'Product', key: 'product_name' },
+                  { header: 'Station', key: 'station_name' },
+                  { header: 'Vehicle', key: 'vehicle_number' },
+                  { header: 'Client', key: 'client_name' },
+                  { header: 'Driver', key: 'driver_number' },
+                  { header: 'Actual Qty', key: 'aqty' },
+                  { header: 'Amount', key: 'amount' },
+                  { header: 'Created At', key: 'created' },
+                  { header: 'Completed', key: 'completed_date' },
+                  { header: 'Status', key: 'status' },
+                  { header: 'Invoiced By', key: 'invoiced_by_name' },
+                  { header: 'Invoiced At', key: 'invoiced_at' },
+                  { header: 'Invoice No', key: 'invoice_number' },
+                ]}
+              />
             </div>
           </div>
         </div>

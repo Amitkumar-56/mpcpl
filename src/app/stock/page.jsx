@@ -11,7 +11,7 @@ import { useEffect, useMemo, useState } from "react";
 import { BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTrash } from "react-icons/bs";
 
 // A sub-component for data rendering inside Suspense
-function StockTable({ stockRequests }) {
+function StockTable({ stockRequests, permissions = { can_view: true, can_edit: true, can_delete: true } }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [filterText, setFilterText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -608,7 +608,7 @@ export default function StockRequest() {
                 </div>
               )}
               
-              <StockTable stockRequests={stockRequests} />
+              <StockTable stockRequests={stockRequests} permissions={permissions} />
             </div>
           </main>
           <Footer />

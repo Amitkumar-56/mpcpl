@@ -30,12 +30,14 @@ export async function GET(request) {
         p.pname AS product_name, 
         fs.station_name, 
         c.name AS client_name,
-        fh.amount
+        fh.amount,
+        ep.name as checked_by_name
       FROM filling_requests fr
       LEFT JOIN products p ON fr.product = p.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
       LEFT JOIN filling_history fh ON fh.rid = fr.rid
+      LEFT JOIN employee_profile ep ON fr.checked_by = ep.id
       WHERE fr.id IN (${placeholders}) AND fr.status = 'Completed'
       ORDER BY fr.created DESC
     `;

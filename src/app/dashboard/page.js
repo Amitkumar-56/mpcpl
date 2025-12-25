@@ -52,6 +52,8 @@ export default function DashboardPage() {
   const { user: sessionUser, logout, checkAuth } = useSession();
   const router = useRouter();
   const [activePage, setActivePage] = useState("Dashboard");
+  const [stockPermissions, setStockPermissions] = useState({ can_view: false, can_edit: false, can_delete: false });
+  const [hasStockView, setHasStockView] = useState(false);
   const [stats, setStats] = useState({
     vendorYesterdayOutstanding: 0,
     vendorTodayOutstanding: 0,
@@ -167,6 +169,48 @@ export default function DashboardPage() {
     await fetchDashboardData();
     setRefreshing(false);
   };
+  
+  useEffect(() => {
+    if (!sessionUser) return;
+    const checkPermissions = async () => {
+      if (Number(sessionUser.role) === 5) {
+        setHasStockView(true);
+        setStockPermissions({ can_view: true, can_edit: true, can_delete: true });
+        return;
+      }
+      if (sessionUser.permissions && sessionUser.permissions['Stock']) {
+        const p = sessionUser.permissions['Stock'];
+        setStockPermissions({ can_view: !!p.can_view, can_edit: !!p.can_edit, can_delete: !!p.can_delete });
+        setHasStockView(!!p.can_view);
+        return;
+      }
+      const cacheKey = `perms_${sessionUser.id}_Stock`;
+      const cached = sessionStorage.getItem(cacheKey);
+      if (cached) {
+        const c = JSON.parse(cached);
+        setStockPermissions(c);
+        setHasStockView(!!c.can_view);
+        return;
+      }
+      try {
+        const moduleName = 'Stock';
+        const [viewRes, editRes, deleteRes] = await Promise.all([
+          fetch(`/api/check-permissions?employee_id=${sessionUser.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+          fetch(`/api/check-permissions?employee_id=${sessionUser.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+          fetch(`/api/check-permissions?employee_id=${sessionUser.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        ]);
+        const [viewData, editData, deleteData] = await Promise.all([viewRes.json(), editRes.json(), deleteRes.json()]);
+        const perms = { can_view: viewData.allowed, can_edit: editData.allowed, can_delete: deleteData.allowed };
+        sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+        sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+        setStockPermissions(perms);
+        setHasStockView(!!perms.can_view);
+      } catch {
+        setHasStockView(false);
+      }
+    };
+    checkPermissions();
+  }, [sessionUser]);
 
   // Navigation handlers
   const handleViewStockHistory = () => {
@@ -550,10 +594,11 @@ export default function DashboardPage() {
                   showDetails={false}
                 />
               </a>
-            </div>
           </div>
+        </div>
 
-          {/* Stock Group */}
+        {/* Stock Group */}
+        {hasStockView && (
           <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Stock Management</h2>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
@@ -583,6 +628,7 @@ export default function DashboardPage() {
               </a>
             </div>
           </div>
+        )}
 
           {/* Quick Stats */}
           <div className="mb-6">

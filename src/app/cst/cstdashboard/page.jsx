@@ -8,20 +8,20 @@ import Footer from "@/components/Footer";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-    BiBell,
-    BiCheckDouble,
-    BiHistory,
-    BiMessageRounded,
-    BiMinus,
-    BiReceipt,
-    BiRefresh,
-    BiSend,
-    BiTime,
-    BiUser,
-    BiWallet,
-    BiWifi,
-    BiWifiOff,
-    BiX
+  BiBell,
+  BiCheckDouble,
+  BiHistory,
+  BiMessageRounded,
+  BiMinus,
+  BiReceipt,
+  BiRefresh,
+  BiSend,
+  BiTime,
+  BiUser,
+  BiWallet,
+  BiWifi,
+  BiWifiOff,
+  BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -50,6 +50,8 @@ export default function CustomerDashboardPage() {
   const [outstandingToday, setOutstandingToday] = useState(0);
   const [outstandingYesterday, setOutstandingYesterday] = useState(0);
   const [outstandingTotal, setOutstandingTotal] = useState(0);
+  const [lowBalanceMsg, setLowBalanceMsg] = useState(null);
+  const [paymentOverdueMsg, setPaymentOverdueMsg] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Load user data
@@ -132,6 +134,10 @@ export default function CustomerDashboardPage() {
             setOutstandingToday(data.outstandings.today || 0);
             setOutstandingYesterday(data.outstandings.yesterday || 0);
             setOutstandingTotal(data.outstandings.total || (data.outstandings.yesterday + data.outstandings.today) || 0);
+            if (data.notifications) {
+              setLowBalanceMsg(data.notifications.balanceNotification || null);
+              setPaymentOverdueMsg(data.notifications.paymentNotification || null);
+            }
           }
         }
       } catch (e) {
@@ -153,7 +159,7 @@ export default function CustomerDashboardPage() {
       const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
       const newSocket = io(socketUrl, {
         path: '/api/socket',
-        transports: ['websocket'],
+        transports: ['websocket', 'polling'],
         reconnection: true,
         reconnectionAttempts: 5,
         reconnectionDelay: 1000,

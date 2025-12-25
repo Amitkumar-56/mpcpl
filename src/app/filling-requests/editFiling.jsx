@@ -1,8 +1,8 @@
 "use client";
 
+import { useSession } from "@/context/SessionContext";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useSession } from "@/context/SessionContext";
 import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
@@ -270,10 +270,16 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
     Completed: "bg-green-100 text-green-800",
     Cancelled: "bg-red-100 text-red-800",
   }[request.status] || "bg-gray-100 text-gray-800";
+  const rowBgClass = {
+    Pending: "",
+    Processing: "bg-blue-50",
+    Completed: "bg-green-50",
+    Cancelled: "bg-red-50",
+  }[request.status] || "";
 
   return (
     <>
-      <tr className="hover:bg-gray-50 transition-colors border-b">
+      <tr className={`transition-colors border-b ${rowBgClass}`}>
         <td className="py-3 px-4 text-center text-sm">{index + 1}</td>
         <td className="py-3 px-4 font-mono text-sm font-semibold text-blue-600">{request.rid}</td>
         <td className="py-3 px-4 text-sm">{request.product_name || "N/A"}</td>
@@ -423,12 +429,18 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
     Completed: "bg-green-100 text-green-800",
     Cancelled: "bg-red-100 text-red-800",
   }[request.status] || "bg-gray-100 text-gray-800";
+  const statusBorderClass = {
+    Pending: "border-l-4 border-yellow-500",
+    Processing: "border-l-4 border-blue-500",
+    Completed: "border-l-4 border-green-600",
+    Cancelled: "border-l-4 border-red-500",
+  }[request.status] || "border-l-4 border-gray-300";
 
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
 
   return (
-    <div className="border rounded-xl p-4 mb-4 bg-white shadow-md hover:shadow-lg transition-all">
+    <div className={`border rounded-xl p-4 mb-4 bg-white shadow-md hover:shadow-lg transition-all ${statusBorderClass}`}>
       <div className="flex justify-between items-start mb-3">
         <div className="flex items-center">
           <div className="mr-3 text-sm text-gray-500">#{index + 1}</div>
@@ -1334,15 +1346,17 @@ export default function FillingRequests() {
 
           {expandedRequest && <ExpandedDetails request={expandedRequest} onClose={closeExpanded} />}
 
-          <a
-            href="/create-request"
-            className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center"
-          >
-            <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-            </svg>
-            Create Request
-          </a>
+          {permissions.can_edit && (
+            <a
+              href="/create-request"
+              className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center"
+            >
+              <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+              </svg>
+              Create Request
+            </a>
+          )}
         </main>
         <Footer />
       </div>

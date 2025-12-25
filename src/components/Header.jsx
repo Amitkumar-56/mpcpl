@@ -126,6 +126,15 @@ export default function Header({ onMenuToggle }) {
   // Don't show header if no user
   if (!user) return null;
 
+  const roleNames = {
+    1: 'Staff',
+    2: 'Incharge',
+    3: 'Team Leader',
+    4: 'Accountant',
+    5: 'Admin',
+    6: 'Driver'
+  };
+
   const acceptChat = (customerId) => {
     if (!empSocket || !empSocket.connected) return;
     empSocket.emit('employee_accept_chat', {
@@ -220,7 +229,7 @@ export default function Header({ onMenuToggle }) {
               <div className="text-right hidden sm:block">
                 <p className="text-sm font-medium text-gray-900">{user.name || 'User'}</p>
                 <p className="text-xs text-gray-500">
-                  {user.emp_code || user.emp_id || (user.role === 5 ? 'Admin' : user.role === 4 ? 'Accountant' : user.role === 3 ? 'Team Leader' : user.role === 2 ? 'Incharge' : 'Employee')}
+                  {user.emp_code || user.emp_id || roleNames[user.role] || 'Unknown'}
                 </p>
                 {user.role === 5 && (
                   <p className="text-xs text-blue-600 font-semibold mt-0.5">Administrator</p>

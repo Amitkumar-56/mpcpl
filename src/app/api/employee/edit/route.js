@@ -4,6 +4,7 @@ import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import crypto from 'crypto';
 import fs from 'fs';
+import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import path from 'path';
 
@@ -77,9 +78,6 @@ export async function GET(request) {
 // PUT - Update employee
 export async function PUT(request) {
   try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    
     let updateData = {};
     
     // Check if request is FormData or JSON
@@ -101,6 +99,12 @@ export async function PUT(request) {
       updateData = body;
     }
 
+    const { searchParams } = new URL(request.url);
+    let id = searchParams.get('id');
+    if (!id && updateData && updateData.id) {
+      id = String(updateData.id);
+    }
+
     if (!id) {
       return NextResponse.json(
         { success: false, error: 'Employee ID is required' },
@@ -109,11 +113,10 @@ export async function PUT(request) {
     }
 
     // Get user info for audit log
-    const currentUser = await getCurrentUser();
     let userId = null;
     let userName = 'System';
     try {
-      const cookieStore = await cookies();
+      const cookieStore = cookies();
       const token = cookieStore.get('token')?.value;
       if (token) {
         const decoded = verifyToken(token);
@@ -148,6 +151,11 @@ export async function PUT(request) {
     const updateFields = [];
     const updateValues = [];
     const changes = {};
+
+    // Ensure id is not treated as a column
+    if (updateData.id !== undefined) {
+      delete updateData.id;
+    }
 
     // Handle password separately (hash it)
     if (updateData.password !== undefined && updateData.password !== null && updateData.password !== '') {
@@ -373,3 +381,6 @@ export async function PUT(request) {
   }
 }
 
+export async function POST(request) {
+  return PUT(request);
+}

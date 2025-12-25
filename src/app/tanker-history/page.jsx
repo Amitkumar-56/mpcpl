@@ -488,12 +488,14 @@ function TankerHistoryContent() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                         <div className="flex flex-wrap gap-1">
-                          <Link
-                            href={`/edit-tanker-list?id=${tanker.id}`}
-                            className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                          >
-                            Edit
-                          </Link>
+                          {permissions.can_edit && (
+                            <Link
+                              href={`/edit-tanker-list?id=${tanker.id}`}
+                              className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                            >
+                              Edit
+                            </Link>
+                          )}
                           <Link
                             href={`/tanker-view?id=${tanker.id}`}
                             className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
@@ -509,12 +511,14 @@ function TankerHistoryContent() {
                           </Link>
 
                           {tanker.status !== 'approved' ? (
-                            <button
-                              onClick={() => handleApprove(tanker.id)}
-                              className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                            >
-                              Approve
-                            </button>
+                            permissions.can_edit && (
+                              <button
+                                onClick={() => handleApprove(tanker.id)}
+                                className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                              >
+                                Approve
+                              </button>
+                            )
                           ) : (
                             <>
                               <button
@@ -527,12 +531,14 @@ function TankerHistoryContent() {
                                 </svg>
                                 PDF
                               </button>
-                              <Link
-                                href={`/tanker-new-list?id=${tanker.id}`}
-                                className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                              >
-                                New
-                              </Link>
+                              {permissions.can_edit && (
+                                <Link
+                                  href={`/tanker-new-list?id=${tanker.id}`}
+                                  className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                >
+                                  New
+                                </Link>
+                              )}
                             </>
                           )}
                         </div>
