@@ -1,0 +1,50 @@
+{
+  "name": "MPCL Management System",
+  "short_name": "MPCL",
+  "description": "MPCL Management System - Complete business management solution",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7c3aed",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "screenshots": [],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Go to dashboard",
+      "url": "/dashboard",
+      "icons": [{ "src": "/favicon.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Customers",
+      "short_name": "Customers",
+      "description": "Manage customers",
+      "url": "/customers",
+      "icons": [{ "src": "/favicon.png", "sizes": "96x96" }]
+    },
+    {
+      "name": "Stock",
+      "short_name": "Stock",
+      "description": "View stock",
+      "url": "/stock",
+      "icons": [{ "src": "/favicon.png", "sizes": "96x96" }]
+    }
+  ]
+}
+
