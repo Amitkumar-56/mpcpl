@@ -87,7 +87,7 @@ export default function RechargeRequestPage() {
 
     const paymentAmount = parseFloat(amount) || 0;
     const dayWiseBreakdown = customerData.pending?.day_wise_breakdown || [];
-    const totalPendingAmount = customerData.pending.total_amount;
+    const totalPendingAmount = customerData.pending?.total_amount || 0;
 
     // Calculate how many days can be paid
     let daysCleared = 0;
@@ -129,8 +129,11 @@ export default function RechargeRequestPage() {
     const remainingChange = remainingAmount;
     
     // Balance से MINUS, Total Day Amount में ADD
-    const newBalance = (customerData.balance.current_balance || 0) - paymentAmount;
-    const newTotalDayAmount = (customerData.balance.total_day_amount || 0) + paymentAmount;
+    // ✅ FIX: Add null check for balance object
+    const currentBalance = customerData?.balance?.current_balance || 0;
+    const totalDayAmount = customerData?.balance?.total_day_amount || 0;
+    const newBalance = currentBalance - paymentAmount;
+    const newTotalDayAmount = totalDayAmount + paymentAmount;
     
     // DAY LIMIT NO CHANGE
     const newDayLimit = customerData.customer.day_limit || 0;
@@ -460,10 +463,10 @@ export default function RechargeRequestPage() {
                   <div className="mb-3 p-3 bg-gray-50 rounded-lg">
                     <p className="text-sm font-semibold text-gray-700">💰 Balance Update</p>
                     <p className="text-xs text-gray-600">
-                      Balance: {formatCurrency(customerData.balance.current_balance)} → {formatCurrency(paymentBreakdown.newBalance)}
+                      Balance: {formatCurrency(customerData?.balance?.current_balance || 0)} → {formatCurrency(paymentBreakdown.newBalance)}
                     </p>
                     <p className="text-xs text-gray-600">
-                      Total Day Amount: {formatCurrency(customerData.balance.total_day_amount)} → {formatCurrency(paymentBreakdown.newTotalDayAmount)}
+                      Total Day Amount: {formatCurrency(customerData?.balance?.total_day_amount || 0)} → {formatCurrency(paymentBreakdown.newTotalDayAmount)}
                     </p>
                   </div>
                   
