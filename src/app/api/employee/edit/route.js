@@ -35,9 +35,9 @@ export async function GET(request) {
       );
     }
 
-    // Get permissions
-    const permissionsQuery = `
-      SELECT module_name, can_view, can_edit, can_delete 
+    // Get permissions - try can_create first, fallback to can_delete
+    let permissionsQuery = `
+      SELECT module_name, can_view, can_edit, can_create, can_delete 
       FROM role_permissions 
       WHERE employee_id = ?
     `;
@@ -49,6 +49,7 @@ export async function GET(request) {
       permissionsObj[perm.module_name] = {
         can_view: perm.can_view === 1 || perm.can_view === true,
         can_edit: perm.can_edit === 1 || perm.can_edit === true,
+        can_create: perm.can_create === 1 || perm.can_create === true || perm.can_delete === 1 || perm.can_delete === true,
         can_delete: perm.can_delete === 1 || perm.can_delete === true
       };
     });
@@ -331,21 +332,43 @@ export async function PUT(request) {
         const perm = permissions[moduleName];
         const can_view = perm.can_view === true || perm.can_view === 1 || perm.can_view === '1';
         const can_edit = perm.can_edit === true || perm.can_edit === 1 || perm.can_edit === '1';
-        const can_delete = perm.can_delete === true || perm.can_delete === 1 || perm.can_delete === '1';
+        const can_create = perm.can_create === true || perm.can_create === 1 || perm.can_create === '1';
         
-        await executeQuery(
-          `INSERT INTO role_permissions 
-            (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-          [
-            id,
-            finalRole,
-            moduleName,
-            can_view ? 1 : 0,
-            can_edit ? 1 : 0,
-            can_delete ? 1 : 0
-          ]
-        );
+        // Try can_create first, fallback to can_delete if column doesn't exist
+        try {
+          await executeQuery(
+            `INSERT INTO role_permissions 
+              (employee_id, role, module_name, can_view, can_edit, can_create, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            [
+              id,
+              finalRole,
+              moduleName,
+              can_view ? 1 : 0,
+              can_edit ? 1 : 0,
+              can_create ? 1 : 0
+            ]
+          );
+        } catch (err) {
+          // If can_create column doesn't exist, use can_delete
+          if (err.message.includes('can_create')) {
+            await executeQuery(
+              `INSERT INTO role_permissions 
+                (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+              [
+                id,
+                finalRole,
+                moduleName,
+                can_view ? 1 : 0,
+                can_edit ? 1 : 0,
+                can_create ? 1 : 0
+              ]
+            );
+          } else {
+            throw err;
+          }
+        }
       }
       
       // Remove permissions from updateData so it doesn't try to update it as a column

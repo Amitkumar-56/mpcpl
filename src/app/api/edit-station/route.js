@@ -74,13 +74,15 @@ export async function PUT(request) {
 
     // ✅ NEW: When station is disabled, disable all staff/incharge IDs for this station
     // When station is enabled, enable all staff/incharge IDs for this station
+    // Note: fs_id is stored as comma-separated string like "1,2,3"
     if (stationStatus === 0) {
       // Disable all employees assigned to this station
+      // Use FIND_IN_SET to check if station ID is in the comma-separated fs_id string
       await executeQuery(
         `UPDATE employee_profile 
          SET status = 0 
-         WHERE station_id = ? AND status = 1`,
-        [id]
+         WHERE (FIND_IN_SET(?, fs_id) > 0 OR fs_id = ?) AND status = 1`,
+        [id, id]
       );
       console.log(`✅ Disabled all staff/incharge IDs for station ${id}`);
     } else if (stationStatus === 1) {
@@ -88,8 +90,8 @@ export async function PUT(request) {
       await executeQuery(
         `UPDATE employee_profile 
          SET status = 1 
-         WHERE station_id = ? AND status = 0`,
-        [id]
+         WHERE (FIND_IN_SET(?, fs_id) > 0 OR fs_id = ?) AND status = 0`,
+        [id, id]
       );
       console.log(`✅ Enabled all staff/incharge IDs for station ${id}`);
     }

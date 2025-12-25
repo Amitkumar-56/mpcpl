@@ -172,25 +172,6 @@ function LoadingUnloadingContent() {
     }
   };
 
-  const handleDelete = async (shipmentId) => {
-    if (!confirm('Are you sure you want to delete this record?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/shipments/${shipmentId}`, {
-        method: 'DELETE',
-      });
-
-      if (response.ok) {
-        fetchData(); // Refresh data
-      } else {
-        alert('Failed to delete record');
-      }
-    } catch (err) {
-      console.error('Error deleting record:', err);
-    }
-  };
 
   // Show error state
   if (error) {
@@ -278,7 +259,7 @@ function LoadingUnloadingContent() {
           </div>
         </div>
           
-        {permissions?.can_edit === 1 && (
+        {permissions?.can_create === 1 && (
           <Link
             href="/loading-unloading-history/create-loading-unloading"
             className="fixed bottom-20 right-6 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 z-40"

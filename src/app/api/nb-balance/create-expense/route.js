@@ -1,5 +1,8 @@
 import { executeTransaction } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function POST(req) {
   try {
@@ -65,6 +68,55 @@ export async function POST(req) {
 
       return { expenseId };
     });
+
+    // Create Audit Log
+    try {
+      let userId = null;
+      let userName = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const users = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || null;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+
+      await createAuditLog({
+        page: 'NB Accounts',
+        uniqueCode: result.expenseId?.toString() || 'N/A',
+        section: 'Cash Management',
+        userId: userId,
+        userName: userName,
+        action: 'create',
+        remarks: `Expense created: ${title} - ₹${amountNum} paid to ${paid_to}`,
+        oldValue: null,
+        newValue: {
+          expense_id: result.expenseId,
+          title: title,
+          paid_to: paid_to,
+          reason: reason,
+          amount: amountNum,
+          payment_date: payment_date,
+          details: details
+        },
+        recordType: 'expense',
+        recordId: result.expenseId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json(
       { 

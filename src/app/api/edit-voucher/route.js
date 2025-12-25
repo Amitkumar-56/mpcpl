@@ -1,5 +1,7 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -54,6 +56,13 @@ export async function PUT(request) {
       return NextResponse.json({ success: false, error: 'Voucher ID required' }, { status: 400 });
     }
 
+    // Get old values for audit log
+    const oldVoucher = await executeQuery(
+      `SELECT total_expense, advance, remaining_amount FROM vouchers WHERE voucher_id = ?`,
+      [voucher_id]
+    );
+    const oldValues = oldVoucher.length > 0 ? oldVoucher[0] : { total_expense: 0, advance: 0, remaining_amount: 0 };
+
     // Calculate remaining amount: remaining = advance - total_expense
     const remaining = parseFloat(advance || 0) - parseFloat(total_expense || 0);
 
@@ -64,6 +73,46 @@ export async function PUT(request) {
       WHERE voucher_id = ?
     `;
     await executeQuery(updateQuery, [total_expense, advance, remaining, voucher_id]);
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || null;
+      userName = currentUser?.userName || null;
+      
+      if (!userName && userId) {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucher_id.toString(),
+        section: 'Edit Voucher',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Voucher updated: Total expense: ₹${oldValues.total_expense} → ₹${total_expense}, Advance: ₹${oldValues.advance} → ₹${advance}`,
+        oldValue: oldValues,
+        newValue: { total_expense, advance, remaining_amount: remaining },
+        recordType: 'voucher',
+        recordId: parseInt(voucher_id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

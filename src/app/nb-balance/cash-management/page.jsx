@@ -6,6 +6,7 @@ import Sidebar from "components/sidebar";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useSession } from '@/context/SessionContext';
 
 // Format amount to Indian Rupee
 function formatIndianRupee(amount) {
@@ -28,9 +29,11 @@ function LoadingSpinner() {
 
 // Main content component wrapped in Suspense
 function CashManagementContent() {
+  const { user } = useSession();
   const [cashData, setCashData] = useState([]);
   const [totalCash, setTotalCash] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [permissions, setPermissions] = useState({ can_create: false });
   const [filters, setFilters] = useState({
     search: '',
     dateFrom: '',
@@ -79,10 +82,58 @@ function CashManagementContent() {
     }
   }, [filters, pagination.currentPage, pagination.limit]);
 
-  // Initial load
+  // Check permissions and fetch data
   useEffect(() => {
-    fetchCashData();
-  }, [fetchCashData]);
+    if (user) {
+      checkPermissions();
+    }
+  }, [user]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      fetchCashData();
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setPermissions({ can_create: true });
+      fetchCashData();
+      return;
+    }
+
+    // Check cached permissions
+    if (user.permissions && user.permissions['NB Accounts']) {
+      const nbPerms = user.permissions['NB Accounts'];
+      setPermissions({ can_create: nbPerms.can_create || false });
+      fetchCashData();
+      return;
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_NB Accounts`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      setPermissions({ can_create: cachedPerms.can_create || false });
+      fetchCashData();
+      return;
+    }
+
+    try {
+      const moduleName = 'NB Accounts';
+      const createRes = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
+      );
+      const createData = await createRes.json();
+      setPermissions({ can_create: createData.allowed || false });
+      fetchCashData();
+    } catch (error) {
+      console.error('Error checking permissions:', error);
+      setPermissions({ can_create: false });
+      fetchCashData();
+    }
+  };
 
   // Handle filter changes with debounce
   const handleFilterChange = (key, value) => {
@@ -121,27 +172,6 @@ function CashManagementContent() {
     }
   };
 
-  // Delete expense
-  const deleteExpense = async (id) => {
-    if (!confirm('Are you sure you want to delete this expense?')) return;
-
-    try {
-      const response = await fetch(`/api/nb-balance/cash-management/${id}`, {
-        method: 'DELETE'
-      });
-      const result = await response.json();
-
-      if (result.success) {
-        alert('Expense deleted successfully');
-        fetchCashData(); // Refresh data
-      } else {
-        alert(`Failed to delete expense: ${result.error}`);
-      }
-    } catch (error) {
-      console.error('Error deleting expense:', error);
-      alert('Failed to delete expense');
-    }
-  };
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -205,12 +235,14 @@ function CashManagementContent() {
                   >
                     Clear Filters
                   </button>
-                  <Link 
-                    href="/nb-balance/create-expense"
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                  >
-                    Create Expense
-                  </Link>
+                  {permissions.can_create && (
+                    <Link 
+                      href="/nb-balance/create-expense"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                    >
+                      Create Expense
+                    </Link>
+                  )}
                 </div>
               </div>
 
@@ -316,12 +348,6 @@ function CashManagementContent() {
                                   >
                                     Edit
                                   </button>
-                                  <button
-                                    onClick={() => deleteExpense(expense.id)}
-                                    className="text-red-600 hover:text-red-900 transition-colors"
-                                  >
-                                    Delete
-                                  </button>
                                 </div>
                               </td>
                             </tr>
@@ -381,12 +407,6 @@ function CashManagementContent() {
                               className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm hover:bg-blue-700 transition-colors"
                             >
                               Edit
-                            </button>
-                            <button
-                              onClick={() => deleteExpense(expense.id)}
-                              className="flex-1 bg-red-600 text-white py-2 px-3 rounded-lg text-sm hover:bg-red-700 transition-colors"
-                            >
-                              Delete
                             </button>
                           </div>
                         </div>

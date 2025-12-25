@@ -25,7 +25,6 @@ function ItemsListContent() {
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [deleteLoading, setDeleteLoading] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({
     can_view: false,
@@ -139,32 +138,6 @@ function ItemsListContent() {
     }
   };
 
-  const handleDelete = async (itemId) => {
-    if (!confirm('Are you sure you want to delete this item?')) {
-      return;
-    }
-
-    try {
-      setDeleteLoading(itemId);
-      const response = await fetch(`/api/items?id=${itemId}`, {
-        method: 'DELETE'
-      });
-
-      const result = await response.json();
-
-      if (result.success) {
-        // Refresh the items list
-        fetchItems();
-        alert('Item deleted successfully!');
-      } else {
-        setError(result.error);
-      }
-    } catch (error) {
-      setError('Failed to delete item');
-    } finally {
-      setDeleteLoading(null);
-    }
-  };
 
   const handlePageChange = (page) => {
     router.push(`/items?page=${page}`);
@@ -213,29 +186,30 @@ function ItemsListContent() {
           <div className="flex-1 flex flex-col overflow-hidden">
             <Header />
       
-      <main className="max-w-7xl mx-auto py-4 sm:py-6 px-3 sm:px-4 lg:px-8">
-        {/* Error Message */}
-        {error && (
-          <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
-            <div className="text-sm sm:text-base text-red-700">{error}</div>
-          </div>
-        )}
+      <main className="flex-1 overflow-y-auto">
+        <div className="max-w-7xl mx-auto py-4 sm:py-6 px-3 sm:px-4 lg:px-8">
+          {/* Error Message */}
+          {error && (
+            <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
+              <div className="text-sm sm:text-base text-red-700">{error}</div>
+            </div>
+          )}
 
-        {/* Floating Add Button */}
-        {permissions.can_edit && (
-          <Link
-            href="/add-items"
-            className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200 text-sm sm:text-base"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-            </svg>
-            <span className="hidden sm:inline">Add Items</span>
-          </Link>
-        )}
+          {/* Floating Add Button */}
+          {permissions.can_edit && (
+            <Link
+              href="/add-items"
+              className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200 text-sm sm:text-base"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="hidden sm:inline">Add Items</span>
+            </Link>
+          )}
 
-        {/* Items List Section */}
-        <div className="py-4 sm:py-6">
+          {/* Items List Section */}
+          <div className="py-4 sm:py-6">
           <div className="bg-white shadow-sm rounded-lg overflow-hidden">
             <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">Items List</h2>
@@ -286,25 +260,6 @@ function ItemsListContent() {
                                 </svg>
                               </Link>
                             )}
-                            {permissions.can_edit && permissions.can_delete && (
-                              <span className="text-gray-300">|</span>
-                            )}
-                            {permissions.can_delete && (
-                              <button
-                                onClick={() => handleDelete(item.id)}
-                                disabled={deleteLoading === item.id}
-                                className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
-                                title="Delete"
-                              >
-                                {deleteLoading === item.id ? (
-                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                                ) : (
-                                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                              </button>
-                            )}
                           </div>
                         </td>
                       </tr>
@@ -324,66 +279,49 @@ function ItemsListContent() {
             </div>
             
             {/* Mobile Cards View */}
-            <div className="lg:hidden p-4 space-y-3">
-              {items.length > 0 ? (
-                items.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-3"
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="text-xs text-gray-500 mb-1">
-                          S.No: {(pagination.currentPage - 1) * pagination.limit + index + 1}
+            <div className="lg:hidden p-4">
+              <div className="space-y-3">
+                {items.length > 0 ? (
+                  items.map((item, index) => (
+                    <div
+                      key={item.id}
+                      className="bg-gray-50 rounded-lg border border-gray-200 p-4"
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-xs text-gray-500 mb-1">
+                            S.No: {(pagination.currentPage - 1) * pagination.limit + index + 1}
+                          </div>
+                          <div className="font-semibold text-base text-gray-900 truncate">{item.item_name}</div>
+                          <div className="text-lg font-bold text-purple-600 mt-1">
+                            {formatPrice(item.price)}
+                          </div>
                         </div>
-                        <div className="font-semibold text-base text-gray-900">{item.item_name}</div>
-                        <div className="text-lg font-bold text-purple-600 mt-1">
-                          {formatPrice(item.price)}
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-3 ml-4">
-                        {permissions.can_edit && (
-                          <Link
-                            href={`/edit-item?id=${item.id}`}
-                            className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
-                            title="Edit"
-                          >
-                            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                            </svg>
-                          </Link>
-                        )}
-                        {permissions.can_edit && permissions.can_delete && (
-                          <span className="text-gray-300">|</span>
-                        )}
-                        {permissions.can_delete && (
-                          <button
-                            onClick={() => handleDelete(item.id)}
-                            disabled={deleteLoading === item.id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50 transition-colors duration-200"
-                            title="Delete"
-                          >
-                            {deleteLoading === item.id ? (
-                              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-red-600"></div>
-                            ) : (
+                        <div className="flex items-center space-x-3 ml-4 flex-shrink-0">
+                          {permissions.can_edit && (
+                            <Link
+                              href={`/edit-item?id=${item.id}`}
+                              className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
+                              title="Edit"
+                            >
                               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                               </svg>
-                            )}
-                          </button>
-                        )}
+                            </Link>
+                          )}
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="text-center py-8 text-sm text-gray-500">
+                    No items found.
+                    {permissions.can_edit && (
+                      <> <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link></>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="text-center py-8 text-sm text-gray-500">
-                  No items found.
-                  {permissions.can_edit && (
-                    <> <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link></>
-                  )}
-                </div>
-              )}
+                )}
+              </div>
             </div>
           </div>
 
@@ -444,11 +382,12 @@ function ItemsListContent() {
               </div>
             </nav>
           )}
+          </div>
         </div>
       </main>
-     <Footer />
-         </div>
-       </div>
+      <Footer />
+    </div>
+  </div>
   );
 }
 

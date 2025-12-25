@@ -106,6 +106,20 @@ export async function PATCH(request) {
       }
     }
 
+    // Get admin user name for audit log
+    let adminName = null;
+    try {
+      const adminResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [decoded.userId]
+      );
+      if (adminResult.length > 0) {
+        adminName = adminResult[0].name;
+      }
+    } catch (nameError) {
+      console.error('Error getting admin name:', nameError);
+    }
+
     // Create audit log for status change
     try {
       const { createAuditLog } = await import('@/lib/auditLog');
@@ -114,11 +128,11 @@ export async function PATCH(request) {
         uniqueCode: customerId.toString(),
         section: 'Customer Management',
         userId: decoded.userId,
-        userName: 'Admin',
+        userName: adminName || 'Admin',
         action: status ? 'approve' : 'reject',
-        remarks: status ? 'Customer enabled' : 'Customer disabled',
-        oldValue: { status: customer[0].status },
-        newValue: { status: status ? 1 : 0 },
+        remarks: status ? `Customer enabled by ${adminName || 'Admin'}` : `Customer disabled by ${adminName || 'Admin'}`,
+        oldValue: { status: customer[0].status, name: customer[0].name },
+        newValue: { status: status ? 1 : 0, name: customer[0].name },
         recordType: 'customer',
         recordId: customerId
       });

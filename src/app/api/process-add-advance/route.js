@@ -1,6 +1,8 @@
 // src/app/api/process-add-advance/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -26,6 +28,46 @@ export async function POST(request) {
       VALUES (?, ?, ?, 'advance', NOW())
     `;
     await executeQuery(historySql, [voucher_id, user_id ? parseInt(user_id) : null, advance_amount]);
+
+    // Get current user for audit log
+    let userId = user_id ? parseInt(user_id) : null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || userId;
+      userName = currentUser?.userName || null;
+      
+      if (!userName && userId) {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucher_id.toString(),
+        section: 'Add Advance',
+        userId: userId,
+        userName: userName,
+        action: 'update',
+        remarks: `Advance added: ₹${advance_amount}. New advance: ₹${newAdvance}, Remaining: ₹${newRemaining}`,
+        oldValue: { advance: current.advance, remaining_amount: current.advance - current.total_expense },
+        newValue: { advance: newAdvance, remaining_amount: newRemaining },
+        recordType: 'voucher',
+        recordId: parseInt(voucher_id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json({ success: true, message: 'Advance added successfully', advance: newAdvance, remaining_amount: newRemaining });
   } catch (error) {

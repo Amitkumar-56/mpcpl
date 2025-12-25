@@ -194,6 +194,33 @@ export async function POST(request) {
 
       const fsStockResult = await executeQuery(insertStockQuery, stockValuesForFS);
       console.log("Filling station stocks insert successful:", fsStockResult);
+
+      // Insert into filling_history with Inward trans_type
+      try {
+        const currentUser = await getCurrentUser();
+        const userId = currentUser?.userId || null;
+        
+        // Get old stock before update
+        const oldStock = existingStock.length > 0 ? parseFloat(existingStock[0].stock) || 0 : 0;
+        const newStock = oldStock + quantityInLtrNum;
+        
+        await executeQuery(
+          `INSERT INTO filling_history 
+           (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
+           VALUES (?, ?, ?, 'Inward', ?, ?, NOW(), ?, NOW())`,
+          [
+            fs_id,
+            product_id,
+            quantityInLtrNum, // Positive quantity for Inward
+            oldStock, // Current stock before addition
+            newStock, // Available stock after addition
+            userId || null
+          ]
+        );
+        console.log('✅ Filling history entry created for stock purchase:', { oldStock, newStock, quantity: quantityInLtrNum });
+      } catch (historyError) {
+        console.log('⚠️ filling_history insert failed:', historyError);
+      }
     } else {
       console.log(`⚠️ Stock not added to filling_station_stocks yet (status: ${finalStatus}). Will be added when status changes to "delivered".`);
     }
@@ -201,7 +228,22 @@ export async function POST(request) {
     // Get current user for audit log
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
-    const userName = currentUser?.userName || 'System';
+    let userName = currentUser?.userName || null;
+    
+    // If no userName, try to fetch from database
+    if (!userName && userId) {
+      try {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0 && users[0].name) {
+          userName = users[0].name;
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    }
 
     // Create audit log
     await createAuditLog({

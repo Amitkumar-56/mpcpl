@@ -1,5 +1,8 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 // GET endpoint for fetching form data
 export async function GET(request) {
@@ -190,6 +193,72 @@ export async function POST(request) {
       const raw = (vehicle_no || '').toString();
       last4 = raw.slice(-4).padStart(4, '0');
     }
+    // Create Audit Log
+    try {
+      let userId = null;
+      let userName = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const users = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || null;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+      
+      // If still no name, try to get from user_id in formData
+      if (!userName && user_id) {
+        try {
+          const users = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [user_id]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+            userId = user_id;
+          }
+        } catch (err) {
+          console.error('Error fetching employee name from user_id:', err);
+        }
+      }
+
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucherCodeToStore,
+        section: 'Voucher Management',
+        userId: userId,
+        userName: userName,
+        action: 'create',
+        remarks: `Voucher created: ${voucherCodeToStore} for vehicle ${vehicle_no}, employee ${employee_id}`,
+        oldValue: null,
+        newValue: {
+          voucher_id: voucherId,
+          voucher_no: voucherCodeToStore,
+          vehicle_no: vehicle_no,
+          employee_id: employee_id,
+          station_id: station_id,
+          advance: advance,
+          total_expense: total_expense,
+          exp_date: exp_date
+        },
+        recordType: 'voucher',
+        recordId: voucherId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
+
     // Return the stored voucher_no (formatted code) in response for UI
     console.log('✅ Voucher created successfully:', { voucherId, voucher_no: voucherCodeToStore });
     return NextResponse.json({

@@ -16,7 +16,8 @@ const Icons = ({
   onCall,
   onShare,
   onPdf,
-  permissions = { can_view: true, can_edit: true, can_delete: true }
+  onShowDetails,
+  permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }
 }) => {
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
@@ -61,6 +62,17 @@ const Icons = ({
         </svg>
       </button>
 
+      {/* Details Icon - Show Created By and Completed By */}
+      <button
+        onClick={() => onShowDetails(request)}
+        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+        title="Show Created/Completed By"
+      >
+        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      </button>
+
       {/* Call Icon */}
       <button
         onClick={() => onCall(request.station_phone, request.loading_station)}
@@ -93,8 +105,8 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* PDF Icon */}
-      {request.status === "Completed" && (
+      {/* PDF Icon - Only for Admin */}
+      {request.status === "Completed" && permissions.isAdmin && (
         <button
           onClick={() => onPdf(request.id)}
           className="p-1.5 text-red-600 hover:bg-red-50 rounded-full transition-colors"
@@ -262,7 +274,7 @@ const ExpandedDetails = ({ request, onClose }) => {
 };
 
 // Request Row Component
-const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, permissions = { can_view: true, can_edit: true, can_delete: true } }) => {
+const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false } }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -354,8 +366,8 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                   )}
                 </div>
 
-                {/* Created By */}
-                {request.created_by_name && request.created_by_name.toUpperCase() !== 'SWIFT' && (
+                {/* Created By - Always show if exists */}
+                {request.created_by_name && (
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
                   <div className="text-sm text-gray-900">
@@ -409,7 +421,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} permissions={permissions} />
+                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} />
                 </div>
               </div>
             </div>
@@ -421,7 +433,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
 };
 
 // Mobile Request Card Component
-const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, permissions = { can_view: true, can_edit: true, can_delete: true } }) => {
+const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false } }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -587,7 +599,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </svg>
             )}
           </button>
-          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} permissions={permissions} />
+          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} />
         </div>
       </div>
       
@@ -627,8 +639,8 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               )}
             </div>
 
-            {/* Created By */}
-            {request.created_by_name && request.created_by_name.toUpperCase() !== 'SWIFT' && (
+            {/* Created By - Always show if exists */}
+            {request.created_by_name && (
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
               <div className="text-sm text-gray-900">{request.created_by_name}</div>
@@ -676,7 +688,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Actions */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} permissions={permissions} />
+              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} />
             </div>
           </div>
         </div>
@@ -776,7 +788,7 @@ export default function FillingRequests() {
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
-    can_delete: false
+    can_create: false
   });
   const [pagination, setPagination] = useState({
     page: 1,
@@ -806,7 +818,7 @@ export default function FillingRequests() {
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       return;
     }
 
@@ -818,7 +830,7 @@ export default function FillingRequests() {
         setPermissions({
           can_view: fillingPerms.can_view,
           can_edit: fillingPerms.can_edit,
-          can_delete: fillingPerms.can_delete
+          can_create: fillingPerms.can_create || fillingPerms.can_edit || false
         });
         return;
       }
@@ -838,22 +850,22 @@ export default function FillingRequests() {
 
     try {
       const moduleName = 'Filling Requests';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
 
-      const [viewData, editData, deleteData] = await Promise.all([
+      const [viewData, editData, createData] = await Promise.all([
         viewRes.json(),
         editRes.json(),
-        deleteRes.json()
+        createRes.json()
       ]);
 
       const perms = {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed
+        can_create: createData.allowed || false
       };
 
       // Cache permissions
@@ -1127,6 +1139,16 @@ export default function FillingRequests() {
     router.push(`/filling-requests/pdf-modal?id=${requestId}`);
   }, [requests, router]);
 
+  const [detailsModal, setDetailsModal] = useState(null);
+
+  const handleShowDetails = useCallback((request) => {
+    setDetailsModal(request);
+  }, []);
+
+  const closeDetailsModal = useCallback(() => {
+    setDetailsModal(null);
+  }, []);
+
   const closeExpanded = useCallback(() => {
     setExpandedRequest(null);
   }, []);
@@ -1144,9 +1166,10 @@ export default function FillingRequests() {
         onCall={handleCall}
         onShare={handleShare}
         onPdf={handlePdf}
-        permissions={permissions}
+        onShowDetails={handleShowDetails}
+        permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, permissions]);
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user]);
 
   const mobileRequestItems = useMemo(() =>
     requests.map((request, index) => (
@@ -1160,9 +1183,10 @@ export default function FillingRequests() {
         onCall={handleCall}
         onShare={handleShare}
         onPdf={handlePdf}
-        permissions={permissions}
+        onShowDetails={handleShowDetails}
+        permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, permissions]);
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user]);
 
   if (!user || authLoading) return <QuickLoading />;
 
@@ -1346,7 +1370,69 @@ export default function FillingRequests() {
 
           {expandedRequest && <ExpandedDetails request={expandedRequest} onClose={closeExpanded} />}
 
-          {permissions.can_edit && (
+          {/* Details Modal - Created By and Completed By */}
+          {detailsModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" onClick={closeDetailsModal}>
+              <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-semibold text-gray-900">Request Details</h3>
+                  <button
+                    onClick={closeDetailsModal}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {/* Created By */}
+                  <div className="border-b pb-3">
+                    <div className="text-sm font-medium text-gray-500 mb-1">Created By</div>
+                    <div className="text-base text-gray-900 font-semibold">
+                      {detailsModal.created_by_name || 'N/A'}
+                    </div>
+                    {(detailsModal.created_date || detailsModal.created) && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {new Date(detailsModal.created_date || detailsModal.created).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  {/* Completed By */}
+                  {detailsModal.status === "Completed" && (
+                    <div>
+                      <div className="text-sm font-medium text-gray-500 mb-1">Completed By</div>
+                      <div className="text-base text-gray-900 font-semibold">
+                        {detailsModal.completed_by_name || 'N/A'}
+                      </div>
+                      {detailsModal.completed_date && detailsModal.completed_date !== "0000-00-00 00:00:00" && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(detailsModal.completed_date).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Create Button - Only show if user has can_create permission */}
+          {permissions.can_create && (
             <a
               href="/create-request"
               className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center"

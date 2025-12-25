@@ -23,7 +23,7 @@ export async function GET(request) {
         fs.station_name,
         t.name AS transporter_name
       FROM stock s
-      LEFT JOIN supplier sup ON s.supplier_id = sup.id
+      LEFT JOIN suppliers sup ON s.supplier_id = sup.id
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN filling_stations fs ON s.fs_id = fs.id
       LEFT JOIN transporters t ON s.transporter_id = t.id

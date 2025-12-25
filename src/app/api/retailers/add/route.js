@@ -2,6 +2,8 @@
 import pool from "@/lib/db";
 import { writeFile } from "fs/promises";
 import path from "path";
+import { createAuditLog } from "@/lib/auditLog";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function POST(req) {
   try {
@@ -74,6 +76,54 @@ export async function POST(req) {
          VALUES (?, ?, ?, ?)`,
         [retailerId, module, perms.can_view ? 1 : 0, perms.can_edit ? 1 : 0]
       );
+    }
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || null;
+      userName = currentUser?.userName || null;
+      
+      if (!userName && userId) {
+        const [users] = await pool.query(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Retailers',
+        uniqueCode: retailerId.toString(),
+        section: 'Retailer Management',
+        userId: userId,
+        userName: userName,
+        action: 'create',
+        remarks: `New retailer created: ${retailer_name} (Type: ${retailer_type}, Credit Limit: ₹${credit_limit})`,
+        oldValue: null,
+        newValue: {
+          retailer_id: retailerId,
+          retailer_name,
+          role,
+          phone,
+          email,
+          retailer_type,
+          credit_limit
+        },
+        recordType: 'retailer',
+        recordId: retailerId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
     }
 
     return new Response(

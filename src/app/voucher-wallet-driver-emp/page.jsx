@@ -337,7 +337,7 @@ function VoucherWalletDriverEmpContent() {
               )}
 
               {/* Floating Add Button */}
-              {permissions?.can_edit == 1 && (
+              {permissions?.can_create == 1 && (
                 <Link href="/create-voucher" className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg transition-colors z-50 flex items-center space-x-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

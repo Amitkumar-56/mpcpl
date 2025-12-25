@@ -507,7 +507,7 @@ export async function PATCH(request) {
       message += result.isOverdue ? ' ⚠️ Status: Overdue' : ' ✅ Status: Active';
     }
 
-    // Create audit log entry for payment
+    // Create audit log entry for recharge
     try {
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS customer_audit_log (
@@ -524,26 +524,37 @@ export async function PATCH(request) {
         )
       `);
       
-      // Fetch employee name from employee_profile
-      let employeeName = 'System';
+      // Get user info from cookies
+      let userId = null;
+      let userName = 'System';
       try {
-        const employeeResult = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
-          [1]
-        );
-        if (employeeResult.length > 0) {
-          employeeName = employeeResult[0].name;
+        const { cookies } = await import('next/headers');
+        const { verifyToken } = await import('@/lib/auth');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const employeeResult = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (employeeResult.length > 0) {
+              userName = employeeResult[0].name || 'Unknown';
+            }
+          }
         }
-      } catch (empError) {
-        console.error('Error fetching employee name:', empError);
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
       }
       
       await executeQuery(
         `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-        [customerId, 'payment', 1, employeeName, `Payment processed - ${result.invoicesPaid} invoice(s) paid, ${result.daysCleared} day(s) cleared`, result.totalPaidAmount]
+        [customerId, 'recharge', userId, userName, `Recharge: ₹${rechargeAmount}`, parseFloat(rechargeAmount)]
       );
     } catch (auditError) {
-      console.error('Error creating audit log:', auditError);
+      console.error('Error creating audit log for recharge:', auditError);
       // Don't fail the main operation
     }
 

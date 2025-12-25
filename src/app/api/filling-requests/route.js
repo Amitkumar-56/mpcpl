@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -54,6 +56,11 @@ export async function GET(request) {
           fl.created_by,
           fl.created_date,
           COALESCE(
+            CASE 
+              WHEN (SELECT ep.role FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1) = 5 
+              THEN 'Admin'
+              ELSE NULL
+            END,
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
             'System'
@@ -355,6 +362,76 @@ export async function POST(request) {
     );
 
     if (result.affectedRows > 0) {
+      // Create filling_logs entry with created_by
+      try {
+        // Get user info from cookies
+        let userId = null;
+        let userName = 'Admin';
+        try {
+          const cookieStore = await cookies();
+          const token = cookieStore.get('token')?.value;
+          if (token) {
+            const decoded = verifyToken(token);
+            if (decoded) {
+              userId = decoded.userId || decoded.id;
+              const userResult = await executeQuery(
+                'SELECT name FROM employee_profile WHERE id = ?',
+                [userId]
+              );
+              if (userResult.length > 0) {
+                userName = userResult[0].name || 'Admin';
+              } else {
+                // Check if it's admin role
+                if (decoded.role === 5) {
+                  userName = 'Admin';
+                }
+              }
+            }
+          }
+        } catch (authError) {
+          console.error('Error getting user for filling_logs:', authError);
+        }
+
+        // Insert into filling_logs with created_by
+        await executeQuery(
+          `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`,
+          [nextRID, userId || 1, currentDate]
+        );
+        console.log('✅ Filling logs entry created with created_by:', userId, userName);
+      } catch (logError) {
+        console.error('⚠️ Error creating filling logs:', logError);
+        // Don't fail the request if log creation fails
+      }
+
+      // Create Audit Log
+      try {
+        const { createAuditLog } = await import('@/lib/auditLog');
+        await createAuditLog({
+          page: 'Filling Requests',
+          uniqueCode: nextRID,
+          section: 'Request Management',
+          userId: userId,
+          userName: userName,
+          action: 'create',
+          remarks: `Filling request created: ${nextRID} for customer ${customer}, product ${productName}, quantity ${qty}L`,
+          oldValue: null,
+          newValue: {
+            rid: nextRID,
+            customer_id: customer,
+            station_id: station_id,
+            product: productName,
+            quantity: qty,
+            vehicle_number: vehicle_no,
+            driver_number: driver_no,
+            status: 'Pending'
+          },
+          recordType: 'filling_request',
+          recordId: result.insertId
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
       return NextResponse.json({ 
         success: true, 
         message: "Request created successfully",

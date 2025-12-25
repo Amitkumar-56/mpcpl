@@ -68,6 +68,38 @@ export async function createAuditLog({
     const actionDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const actionTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
 
+    // Try to get employee name if userName is 'System' or empty
+    let finalUserName = userName;
+    if ((!finalUserName || finalUserName === 'System') && userId) {
+      try {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0 && users[0].name) {
+          finalUserName = users[0].name;
+        }
+      } catch (err) {
+        console.error('Error fetching employee name for audit log:', err);
+      }
+    }
+    
+    // If still no name, try to get from newValue (for shared/created records)
+    if ((!finalUserName || finalUserName === 'System') && newValue) {
+      try {
+        const newValueObj = typeof newValue === 'string' ? JSON.parse(newValue) : newValue;
+        if (newValueObj.created_by_name) {
+          finalUserName = newValueObj.created_by_name;
+        } else if (newValueObj.user_name) {
+          finalUserName = newValueObj.user_name;
+        } else if (newValueObj.edited_by_name) {
+          finalUserName = newValueObj.edited_by_name;
+        }
+      } catch (err) {
+        // Ignore parse errors
+      }
+    }
+
     // Convert oldValue and newValue to JSON strings if they are objects
     const oldValueJson = oldValue ? (typeof oldValue === 'string' ? oldValue : JSON.stringify(oldValue)) : null;
     const newValueJson = newValue ? (typeof newValue === 'string' ? newValue : JSON.stringify(newValue)) : null;
@@ -84,7 +116,7 @@ export async function createAuditLog({
         uniqueCode || 'N/A',
         section || 'General',
         userId || null,
-        userName || 'System',
+        finalUserName || 'Unknown User',
         action || 'unknown',
         remarks || '',
         oldValueJson,

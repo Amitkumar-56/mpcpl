@@ -273,32 +273,6 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                         >
                           <BsPencil size={16} />
                         </Link>
-                        <button
-                          onClick={async () => {
-                            if (confirm('Are you sure you want to delete this stock request? This action cannot be undone.')) {
-                              try {
-                                const response = await fetch(`/api/stock/edit?id=${request.id}`, {
-                                  method: 'DELETE',
-                                });
-                                const data = await response.json();
-                                if (data.success) {
-                                  alert('Stock deleted successfully!');
-                                  window.location.reload();
-                                } else {
-                                  alert('Error deleting stock: ' + (data.error || 'Unknown error'));
-                                }
-                              } catch (error) {
-                                console.error('Error deleting stock:', error);
-                                alert('Error deleting stock: ' + error.message);
-                              }
-                            }
-                          }}
-                          className="text-red-600 hover:text-red-800 transition-colors"
-                          title="Delete"
-                          disabled={!permissions.can_delete}
-                        >
-                          <BsTrash size={16} />
-                        </button>
                       </div>
                     </td>
                   </tr>

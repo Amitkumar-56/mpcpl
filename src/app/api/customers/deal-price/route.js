@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
 
 export async function POST(req) {
   try {
@@ -9,6 +11,32 @@ export async function POST(req) {
     if (!priceUpdates || !priceUpdates.length) {
       return NextResponse.json({ success: false, message: "No price updates provided" }, { status: 400 });
     }
+
+    // Get user info for audit log
+    let userId = null;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const userResult = await executeQuery(
+            'SELECT name FROM employee_profile WHERE id = ?',
+            [userId]
+          );
+          if (userResult.length > 0) {
+            userName = userResult[0].name || 'Unknown';
+          }
+        }
+      }
+    } catch (authError) {
+      console.error('Error getting user for audit log:', authError);
+    }
+
+    // Get customer ID from first update
+    const customerId = priceUpdates[0]?.data?.com_id;
 
     let inserted = 0;
     let updated = 0;
@@ -35,6 +63,33 @@ export async function POST(req) {
           [price, Schedule_Date, Schedule_Time, com_id, station_id, product_id, sub_product_id]
         );
         if (result.affectedRows > 0) updated++;
+      }
+    }
+
+    // Create audit log entry for deal-price update
+    if (customerId) {
+      try {
+        await executeQuery(`
+          CREATE TABLE IF NOT EXISTS customer_audit_log (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            customer_id INT NOT NULL,
+            action_type VARCHAR(50) NOT NULL,
+            user_id INT,
+            user_name VARCHAR(255),
+            remarks TEXT,
+            amount DECIMAL(10,2),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            INDEX idx_customer_id (customer_id),
+            INDEX idx_created_at (created_at)
+          )
+        `);
+        
+        await executeQuery(
+          `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
+          [customerId, 'deal-price', userId, userName, `Deal price updated: ${inserted} inserted, ${updated} updated`]
+        );
+      } catch (auditError) {
+        console.error('Error creating audit log for deal-price:', auditError);
       }
     }
 

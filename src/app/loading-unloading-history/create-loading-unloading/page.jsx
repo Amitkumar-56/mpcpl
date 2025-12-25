@@ -64,9 +64,16 @@ function CreateLoadingUnloadingContent() {
   const checkPermissions = async () => {
     if (!user || !user.id) return;
     
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      fetchDropdownData();
+      return;
+    }
+    
     try {
       const response = await fetch(
-        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('history')}&action=can_edit`
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('Loading History')}&action=can_create`
       );
       const data = await response.json();
       

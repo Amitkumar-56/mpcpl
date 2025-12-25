@@ -2,6 +2,7 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { useSession } from '@/context/SessionContext';
 
 // Loading Component
 function LoadingFallback() {
@@ -19,7 +20,10 @@ function LoadingFallback() {
 function CreateLRContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useSession();
   const id = searchParams.get('id');
+  const [hasPermission, setHasPermission] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
   
   const [formData, setFormData] = useState({
     lr_id: '',
@@ -51,9 +55,81 @@ function CreateLRContent() {
   const [loading, setLoading] = useState(false);
   const [newLr, setNewLr] = useState('');
 
+  // Check permissions
   useEffect(() => {
-    fetchLRData();
-  }, [id]);
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setCheckingPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setCheckingPermission(false);
+      fetchLRData();
+      return;
+    }
+
+    // Check cached permissions
+    if (user.permissions && user.permissions['LR Management']) {
+      const lrPerms = user.permissions['LR Management'];
+      if (lrPerms.can_create) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        fetchLRData();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_LR Management`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_create) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        fetchLRData();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'LR Management';
+      const createRes = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
+      );
+      const createData = await createRes.json();
+      
+      if (createData.allowed) {
+        setHasPermission(true);
+        fetchLRData();
+      } else {
+        setHasPermission(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+    } finally {
+      setCheckingPermission(false);
+    }
+  };
+
+  useEffect(() => {
+    if (hasPermission && !checkingPermission) {
+      fetchLRData();
+    }
+  }, [id, hasPermission, checkingPermission]);
 
   const fetchLRData = async () => {
     try {
@@ -81,6 +157,35 @@ function CreateLRContent() {
       [name]: value
     }));
   };
+
+  if (checkingPermission || authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Checking permissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
+          <div className="text-red-500 text-6xl mb-4">🚫</div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">You don't have permission to create LR records.</p>
+          <button
+            onClick={() => router.push('/lr-list')}
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

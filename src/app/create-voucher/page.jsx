@@ -32,14 +32,78 @@ function CreateVoucherContent() {
   const [error, setError] = useState('');
   const [dataLoaded, setDataLoaded] = useState(false);
 
-  // Redirect if not authenticated
+  const [hasPermission, setHasPermission] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
+
+  // Check permissions
   useEffect(() => {
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
-    fetchFormData();
-  }, [isAuthenticated, router]);
+    if (user) {
+      checkPermissions();
+    }
+  }, [isAuthenticated, user, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setCheckingPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setCheckingPermission(false);
+      fetchFormData();
+      return;
+    }
+
+    // Check cached permissions
+    if (user.permissions && user.permissions['Vouchers']) {
+      const voucherPerms = user.permissions['Vouchers'];
+      if (voucherPerms.can_create) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        fetchFormData();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Vouchers`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_create) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        fetchFormData();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Vouchers';
+      const createRes = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
+      );
+      const createData = await createRes.json();
+      
+      if (createData.allowed) {
+        setHasPermission(true);
+        fetchFormData();
+      } else {
+        setHasPermission(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+    } finally {
+      setCheckingPermission(false);
+    }
+  };
 
   const fetchFormData = async () => {
     try {

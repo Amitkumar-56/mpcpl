@@ -19,6 +19,7 @@ export default function RoleAccessControl() {
     'Accountant',
     'Admin',
     'Driver',
+    'Hard Operation',
   ];
 
   // All available modules (matching database module names)
@@ -146,7 +147,8 @@ export default function RoleAccessControl() {
           3: 'Team Leader',
           4: 'Accountant',
           5: 'Admin',
-          6: 'Driver'
+          6: 'Driver',
+          7: 'Hard Operation'
         };
 
         const updatedSettings = { ...roleWiseSettings };

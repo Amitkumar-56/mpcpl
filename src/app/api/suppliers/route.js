@@ -65,6 +65,51 @@ export async function POST(request) {
       [result.insertId]
     );
 
+    // Create Audit Log
+    try {
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const { createAuditLog } = await import('@/lib/auditLog');
+      
+      let userId = null;
+      let userName = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const [users] = await connection.execute(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || null;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+
+      await createAuditLog({
+        page: 'Suppliers',
+        uniqueCode: result.insertId.toString(),
+        section: 'Supplier Management',
+        userId: userId,
+        userName: userName,
+        action: 'create',
+        remarks: `Supplier created: ${name}`,
+        oldValue: null,
+        newValue: newSupplier[0],
+        recordType: 'supplier',
+        recordId: result.insertId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
+
     return NextResponse.json(newSupplier[0], { status: 201 });
   } catch (error) {
     return NextResponse.json(
@@ -175,6 +220,51 @@ export async function PUT(request) {
       'SELECT id, name, phone, address, postbox, email, picture, gstin, pan, supplier_type, status, created_at FROM suppliers WHERE id = ?',
       [id]
     );
+
+    // Create Audit Log
+    try {
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const { createAuditLog } = await import('@/lib/auditLog');
+      
+      let userId = null;
+      let userName = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const [users] = await connection.execute(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || null;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+
+      await createAuditLog({
+        page: 'Suppliers',
+        uniqueCode: id.toString(),
+        section: 'Supplier Management',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Supplier updated: ${oldSupplier.name}`,
+        oldValue: oldSupplier,
+        newValue: updatedSupplier[0],
+        recordType: 'supplier',
+        recordId: parseInt(id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

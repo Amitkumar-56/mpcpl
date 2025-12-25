@@ -3,6 +3,7 @@ import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET(request) {
   try {
@@ -74,6 +75,25 @@ export async function GET(request) {
       `, [voucher_id, actionType, current_user.id, current_user.name, remarks]);
     } catch (logError) {
       console.error('Error logging action:', logError);
+    }
+
+    // Create comprehensive audit log
+    try {
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucher_id.toString(),
+        section: 'Voucher Status',
+        userId: current_user.id,
+        userName: current_user.name,
+        action: actionType,
+        remarks: remarks,
+        oldValue: { status: status == 1 ? 0 : 1 },
+        newValue: { status: status == 1 ? 1 : 2 },
+        recordType: 'voucher',
+        recordId: parseInt(voucher_id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
     }
 
     return NextResponse.json({ 

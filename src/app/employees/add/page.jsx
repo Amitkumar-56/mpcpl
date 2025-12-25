@@ -35,32 +35,32 @@ export default function CreateUserPage() {
   });
 
   const [permissions, setPermissions] = useState({
-    Dashboard: { can_view: false, can_edit: false, can_delete: false },
-    Customers: { can_view: false, can_edit: false, can_delete: false },
-    "Filling Requests": { can_view: false, can_edit: false, can_delete: false },
-    Stock: { can_view: false, can_edit: false, can_delete: false },
-    "Loading Station": { can_view: false, can_edit: false, can_delete: false },
-    "Schedule Prices": { can_view: false, can_edit: false, can_delete: false },
-    Products: { can_view: false, can_edit: false, can_delete: false },
-    Employees: { can_view: false, can_edit: false, can_delete: false },
-    Suppliers: { can_view: false, can_edit: false, can_delete: false },
-    Transporters: { can_view: false, can_edit: false, can_delete: false },
-    "NB Accounts": { can_view: false, can_edit: false, can_delete: false },
-    "NB Expenses": { can_view: false, can_edit: false, can_delete: false },
-    "NB Stock": { can_view: false, can_edit: false, can_delete: false },
-    "Stock Transfer": { can_view: false, can_edit: false, can_delete: false },
-    Reports: { can_view: false, can_edit: false, can_delete: false },
-    Retailers: { can_view: false, can_edit: false, can_delete: false },
-    "Agent Management": { can_view: false, can_edit: false, can_delete: false },
-    Users: { can_view: false, can_edit: false, can_delete: false },
-    Vehicles: { can_view: false, can_edit: false, can_delete: false },
-    "LR Management": { can_view: false, can_edit: false, can_delete: false },
-    "Loading History": { can_view: false, can_edit: false, can_delete: false },
-    "Tanker History": { can_view: false, can_edit: false, can_delete: false },
-    "Deepo History": { can_view: false, can_edit: false, can_delete: false },
-    Vouchers: { can_view: false, can_edit: false, can_delete: false },
-    Remarks: { can_view: false, can_edit: false, can_delete: false },
-    Items: { can_view: false, can_edit: false, can_delete: false },
+    Dashboard: { can_view: false, can_edit: false, can_create: false },
+    Customers: { can_view: false, can_edit: false, can_create: false },
+    "Filling Requests": { can_view: false, can_edit: false, can_create: false },
+    Stock: { can_view: false, can_edit: false, can_create: false },
+    "Loading Station": { can_view: false, can_edit: false, can_create: false },
+    "Schedule Prices": { can_view: false, can_edit: false, can_create: false },
+    Products: { can_view: false, can_edit: false, can_create: false },
+    Employees: { can_view: false, can_edit: false, can_create: false },
+    Suppliers: { can_view: false, can_edit: false, can_create: false },
+    Transporters: { can_view: false, can_edit: false, can_create: false },
+    "NB Accounts": { can_view: false, can_edit: false, can_create: false },
+    "NB Expenses": { can_view: false, can_edit: false, can_create: false },
+    "NB Stock": { can_view: false, can_edit: false, can_create: false },
+    "Stock Transfer": { can_view: false, can_edit: false, can_create: false },
+    Reports: { can_view: false, can_edit: false, can_create: false },
+    Retailers: { can_view: false, can_edit: false, can_create: false },
+    "Agent Management": { can_view: false, can_edit: false, can_create: false },
+    Users: { can_view: false, can_edit: false, can_create: false },
+    Vehicles: { can_view: false, can_edit: false, can_create: false },
+    "LR Management": { can_view: false, can_edit: false, can_create: false },
+    "Loading History": { can_view: false, can_edit: false, can_create: false },
+    "Tanker History": { can_view: false, can_edit: false, can_create: false },
+    "Deepo History": { can_view: false, can_edit: false, can_create: false },
+    Vouchers: { can_view: false, can_edit: false, can_create: false },
+    Remarks: { can_view: false, can_edit: false, can_create: false },
+    Items: { can_view: false, can_edit: false, can_create: false },
   });
 
   const modules = Object.keys(permissions);
@@ -208,7 +208,7 @@ export default function CreateUserPage() {
           formattedPermissions[module] = {
             can_view: permissions[module]?.can_view || false,
             can_edit: permissions[module]?.can_edit || false,
-            can_delete: permissions[module]?.can_delete || false
+            can_create: permissions[module]?.can_create || false
           };
         });
         form.append('permissions', JSON.stringify(formattedPermissions));
@@ -335,6 +335,7 @@ export default function CreateUserPage() {
                   <option value="4">Accountant</option>
                   <option value="5">Admin</option>
                   <option value="6">Driver</option>
+                  <option value="7">Hard Operation</option>
                 </select>
                 <input type="number" name="salary" placeholder="Salary" value={formData.salary} onChange={handleChange} className="border rounded p-2" />
                 <input type="text" name="phone" placeholder="Phone" value={formData.phone} onChange={handleChange} className="border rounded p-2" />
@@ -441,7 +442,7 @@ export default function CreateUserPage() {
                     <th className="p-2 border">Module</th>
                     <th className="p-2 border">View</th>
                     <th className="p-2 border">Edit</th>
-                    <th className="p-2 border">Delete</th>
+                    <th className="p-2 border">Create</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -467,8 +468,8 @@ export default function CreateUserPage() {
                       <td className="p-2 border text-center">
                         <input 
                           type="checkbox" 
-                          checked={permissions[mod].can_delete} 
-                          onChange={() => handlePermissionChange(mod, "can_delete")} 
+                          checked={permissions[mod].can_create} 
+                          onChange={() => handlePermissionChange(mod, "can_create")} 
                           className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                         />
                       </td>

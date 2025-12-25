@@ -5,9 +5,13 @@ import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useSession } from '@/context/SessionContext';
 
 export default function AddCustomer() {
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
+  const [hasPermission, setHasPermission] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
   const [products, setProducts] = useState([]);
   const [stations, setStations] = useState([]);
   const [clientType, setClientType] = useState("1"); // 1: Prepaid, 2: Postpaid, 3: Day Limit
@@ -28,10 +32,121 @@ export default function AddCustomer() {
     }));
   };
 
+  // Check permissions
   useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login');
+        return;
+      }
+      checkPermissions();
+    }
+  }, [user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setCheckingPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setCheckingPermission(false);
+      fetchData();
+      return;
+    }
+
+    // Check cached permissions
+    if (user.permissions && user.permissions['Customer']) {
+      const customerPerms = user.permissions['Customer'];
+      if (customerPerms.can_create) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        fetchData();
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Customer`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_create) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        fetchData();
+        return;
+      }
+    }
+
+    try {
+      const moduleName = 'Customer';
+      const createRes = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
+      );
+      const createData = await createRes.json();
+      
+      if (createData.allowed) {
+        setHasPermission(true);
+        fetchData();
+      } else {
+        setHasPermission(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+    } finally {
+      setCheckingPermission(false);
+    }
+  };
+
+  const fetchData = () => {
     fetch("/api/products").then((res) => res.json()).then(setProducts);
     fetch("/api/stations").then((res) => res.json()).then(setStations);
-  }, []);
+  };
+
+  if (checkingPermission || authLoading) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex flex-col flex-1 w-full">
+          <Header />
+          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Checking permissions...</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex flex-col flex-1 w-full">
+          <Header />
+          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-6">You don't have permission to create customers.</p>
+              <button
+                onClick={() => router.push('/customers')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();

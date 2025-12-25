@@ -10,7 +10,22 @@ export async function POST(request) {
     // Get user info for audit log
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
-    const userName = currentUser?.userName || 'System';
+    let userName = currentUser?.userName || null;
+    
+    // If no userName, try to fetch from database
+    if (!userName && userId) {
+      try {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0 && users[0].name) {
+          userName = users[0].name;
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    }
     
     // If agent_id is provided, get agent name
     let agentName = null;
@@ -109,32 +124,27 @@ export async function POST(request) {
     
     // Also insert into filling_history for inward transaction (both plus and minus)
     try {
-      // Get current stock after update
-      const currentStockResult = await executeQuery(
-        `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
-        [station_id, product_id]
-      );
-      const currentStock = currentStockResult.length > 0 ? parseFloat(currentStockResult[0].stock) || 0 : 0;
+      // Get old stock before update
+      const oldStock = existingRecord.length > 0 ? parseFloat(existingRecord[0].stock) || 0 : 0;
+      const newStock = isMinus ? Math.max(0, oldStock - absQuantity) : oldStock + absQuantity;
       
       const fillingHistoryQuery = `
         INSERT INTO filling_history 
         (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, agent_id, created_at) 
-        VALUES (?, ?, ?, 'Inward', 
-          ?, ?, NOW(), ?, ?, NOW())
+        VALUES (?, ?, ?, 'Inward', ?, ?, NOW(), ?, ?, NOW())
       `;
       await executeQuery(fillingHistoryQuery, [
         station_id,
         product_id,
-        isMinus ? -absQuantity : absQuantity, // Negative for minus
-        station_id,
-        product_id,
-        currentStock,
-        currentStock,
+        isMinus ? -absQuantity : absQuantity, // Negative for minus, positive for add
+        oldStock, // Current stock before change
+        newStock, // Available stock after change
         userId || null,
         agent_id || null
       ]);
+      console.log('✅ Filling history entry created:', { oldStock, newStock, quantity: isMinus ? -absQuantity : absQuantity });
     } catch (fillingError) {
-      console.log('filling_history insert failed, skipping...', fillingError);
+      console.log('⚠️ filling_history insert failed, skipping...', fillingError);
     }
 
     // Get stock ID and old value for audit log

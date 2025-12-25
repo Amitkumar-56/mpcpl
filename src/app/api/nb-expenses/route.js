@@ -11,14 +11,24 @@ export async function GET(request) {
     const employee_id = searchParams.get('employee_id') || '1'; // Default employee
     const module_name = 'nb_expenses';
     
-    // Check permissions
-    const permissionQuery = `
-      SELECT can_view, can_edit, can_delete 
+    // Check permissions - try can_create first, fallback to can_delete
+    let permissionQuery = `
+      SELECT can_view, can_edit, can_create, can_delete 
       FROM role_permissions 
       WHERE module_name = ? AND role = ? AND employee_id = ?
     `;
     
-    const permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+    let permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+    
+    // If can_create column doesn't exist, try without it
+    if (permissions.length === 0) {
+      permissionQuery = `
+        SELECT can_view, can_edit, can_delete 
+        FROM role_permissions 
+        WHERE module_name = ? AND role = ? AND employee_id = ?
+      `;
+      permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+    }
     
     if (permissions.length === 0 || permissions[0].can_view !== 1) {
       return NextResponse.json(
@@ -40,9 +50,15 @@ export async function GET(request) {
     
     const expenses = await executeQuery(expensesQuery, queryParams);
     
+    const permData = permissions[0];
     return NextResponse.json({
       expenses,
-      permissions: permissions[0]
+      permissions: {
+        can_view: permData.can_view === 1,
+        can_edit: permData.can_edit === 1,
+        can_create: permData.can_create === 1 || false,
+        can_delete: permData.can_delete === 1 || false
+      }
     });
     
   } catch (error) {

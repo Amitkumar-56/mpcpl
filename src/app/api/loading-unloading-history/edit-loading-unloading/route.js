@@ -2,6 +2,8 @@ import { executeQuery } from '@/lib/db';
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import path from 'path';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -148,9 +150,64 @@ export async function POST(request) {
       shipment_id
     ];
 
+    // Get old values for audit log
+    const oldShipment = await executeQuery(
+      `SELECT * FROM shipment_records WHERE shipment_id = ?`,
+      [shipment_id]
+    );
+    const oldValues = oldShipment.length > 0 ? oldShipment[0] : null;
+
     const result = await executeQuery(updateQuery, values);
 
     if (result.affectedRows > 0) {
+      // Get current user for audit log
+      let userId = null;
+      let userName = null;
+      try {
+        const currentUser = await getCurrentUser();
+        userId = currentUser?.userId || null;
+        userName = currentUser?.userName || null;
+        
+        if (!userName && userId) {
+          const users = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      } catch (userError) {
+        console.error('Error getting user info:', userError);
+      }
+
+      // Create audit log
+      try {
+        await createAuditLog({
+          page: 'Loading History',
+          uniqueCode: shipment_id.toString(),
+          section: 'Edit Loading/Unloading',
+          userId: userId,
+          userName: userName,
+          action: 'edit',
+          remarks: `Shipment record updated: Tanker ${tanker}, Driver ${driver}`,
+          oldValue: oldValues,
+          newValue: {
+            shipment_id,
+            tanker,
+            driver,
+            dispatch,
+            driver_mobile,
+            consignee,
+            pdf_path
+          },
+          recordType: 'loading_unloading',
+          recordId: shipment_id
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Shipment updated successfully',

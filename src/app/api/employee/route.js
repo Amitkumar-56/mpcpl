@@ -156,20 +156,42 @@ export async function POST(req) {
 
       // Insert new permissions
       for (let moduleName in permissionsObj) {
-        const { can_view, can_edit, can_delete } = permissionsObj[moduleName];
-        await conn.execute(
-          `INSERT INTO role_permissions 
-            (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-          [
-            employeeId, 
-            role,
-            moduleName, 
-            can_view ? 1 : 0, 
-            can_edit ? 1 : 0, 
-            can_delete ? 1 : 0
-          ]
-        );
+        const { can_view, can_edit, can_create } = permissionsObj[moduleName];
+        // Check if can_create column exists, if not use can_delete as fallback
+        try {
+          await conn.execute(
+            `INSERT INTO role_permissions 
+              (employee_id, role, module_name, can_view, can_edit, can_create, created_at)
+             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+            [
+              employeeId, 
+              role,
+              moduleName, 
+              can_view ? 1 : 0, 
+              can_edit ? 1 : 0, 
+              can_create ? 1 : 0
+            ]
+          );
+        } catch (err) {
+          // If can_create column doesn't exist, try with can_delete
+          if (err.message.includes('can_create')) {
+            await conn.execute(
+              `INSERT INTO role_permissions 
+                (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
+               VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+              [
+                employeeId, 
+                role,
+                moduleName, 
+                can_view ? 1 : 0, 
+                can_edit ? 1 : 0, 
+                can_create ? 1 : 0
+              ]
+            );
+          } else {
+            throw err;
+          }
+        }
       }
     }
 

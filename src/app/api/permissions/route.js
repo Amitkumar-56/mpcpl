@@ -23,7 +23,7 @@ export async function GET(request) {
 
     // Try to fetch permissions scoped to employee first
     let perms = await executeQuery(
-      `SELECT module_name, can_view, can_edit, can_delete FROM role_permissions WHERE employee_id = ? AND module_name = ?`,
+      `SELECT module_name, can_view, can_edit, can_create, can_delete FROM role_permissions WHERE employee_id = ? AND module_name = ?`,
       [userId, moduleName]
     );
 
@@ -34,7 +34,7 @@ export async function GET(request) {
       const role = users && users.length ? users[0].role : null;
       if (role !== null) {
         perms = await executeQuery(
-          `SELECT module_name, can_view, can_edit, can_delete FROM role_permissions WHERE role = ? AND (employee_id IS NULL OR employee_id = 0) AND module_name = ?`,
+          `SELECT module_name, can_view, can_edit, can_create, can_delete FROM role_permissions WHERE role = ? AND (employee_id IS NULL OR employee_id = 0) AND module_name = ?`,
           [role, moduleName]
         );
       }
@@ -42,11 +42,16 @@ export async function GET(request) {
 
     if (!perms || perms.length === 0) {
       // No explicit permissions found -> default to false
-      return NextResponse.json({ can_view: false, can_edit: false, can_delete: false });
+      return NextResponse.json({ can_view: false, can_edit: false, can_create: false });
     }
 
     const p = perms[0];
-    return NextResponse.json({ can_view: p.can_view === 1, can_edit: p.can_edit === 1, can_delete: p.can_delete === 1 });
+    return NextResponse.json({ 
+      can_view: p.can_view === 1, 
+      can_edit: p.can_edit === 1, 
+      can_create: p.can_create === 1 || false,
+      can_delete: p.can_delete === 1 || false
+    });
   } catch (err) {
     console.error('Permissions API error:', err);
     return NextResponse.json({ error: err.message }, { status: 500 });

@@ -11,7 +11,7 @@ export default function CreateRequestPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
   const [hasPermission, setHasPermission] = useState(false);
-  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_delete: false });
+  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
 
   const [customers, setCustomers] = useState([]);
   const [productCodes, setProductCodes] = useState([]);
@@ -60,13 +60,17 @@ export default function CreateRequestPage() {
     if (!user || !user.id) return;
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       return;
     }
     if (user.permissions && user.permissions['Filling Requests']) {
       const p = user.permissions['Filling Requests'];
-      setPermissions({ can_view: !!p.can_view, can_edit: !!p.can_edit, can_delete: !!p.can_delete });
-      setHasPermission(!!p.can_edit);
+      setPermissions({ 
+        can_view: !!p.can_view, 
+        can_edit: !!p.can_edit, 
+        can_create: !!p.can_create || !!p.can_edit || false 
+      });
+      setHasPermission(!!p.can_create);
       return;
     }
     const cacheKey = `perms_${user.id}_Filling Requests`;
@@ -74,22 +78,26 @@ export default function CreateRequestPage() {
     if (cached) {
       const c = JSON.parse(cached);
       setPermissions(c);
-      setHasPermission(!!c.can_edit);
+      setHasPermission(!!c.can_create);
       return;
     }
     try {
       const moduleName = 'Filling Requests';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
-      const [viewData, editData, deleteData] = await Promise.all([viewRes.json(), editRes.json(), deleteRes.json()]);
-      const perms = { can_view: viewData.allowed, can_edit: editData.allowed, can_delete: deleteData.allowed };
+      const [viewData, editData, createData] = await Promise.all([viewRes.json(), editRes.json(), createRes.json()]);
+      const perms = { 
+        can_view: viewData.allowed, 
+        can_edit: editData.allowed, 
+        can_create: createData.allowed || false 
+      };
       sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
       setPermissions(perms);
-      setHasPermission(!!perms.can_edit);
+      setHasPermission(!!perms.can_create);
     } catch {
       setHasPermission(false);
     }
@@ -205,7 +213,7 @@ export default function CreateRequestPage() {
             <div className="bg-white rounded-lg shadow p-6 text-center">
               <div className="text-red-500 text-4xl mb-2">🚫</div>
               <div>You do not have permission to create filling requests.</div>
-              <p className="text-sm text-gray-500 mt-2">Edit permission is required.</p>
+              <p className="text-sm text-gray-500 mt-2">Create permission is required.</p>
             </div>
           </main>
           <Footer />

@@ -68,7 +68,22 @@ export async function PUT(request) {
     // Get user info for audit log
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
-    const userName = currentUser?.userName || 'System';
+    let userName = currentUser?.userName || null;
+    
+    // If no userName, try to fetch from database
+    if (!userName && userId) {
+      try {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0 && users[0].name) {
+          userName = users[0].name;
+        }
+      } catch (err) {
+        console.error('Error fetching employee name:', err);
+      }
+    }
 
     // Get old stock data
     const oldStockQuery = `SELECT * FROM stock WHERE id = ?`;
@@ -140,6 +155,9 @@ export async function PUT(request) {
         
         // Insert into filling_history
         try {
+          const oldStockValue = currentStock; // Stock before addition
+          const newStockValue = currentStock + quantity; // Stock after addition
+          
           await executeQuery(
             `INSERT INTO filling_history 
              (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
@@ -147,14 +165,15 @@ export async function PUT(request) {
             [
               oldStock.fs_id,
               oldStock.product_id,
-              quantity,
-              currentStock,
-              currentStock + quantity,
+              quantity, // Positive quantity for Inward
+              oldStockValue, // Current stock before change
+              newStockValue, // Available stock after change
               userId || null
             ]
           );
+          console.log('✅ Filling history entry created:', { oldStock: oldStockValue, newStock: newStockValue, quantity });
         } catch (historyError) {
-          console.log('filling_history insert failed:', historyError);
+          console.log('⚠️ filling_history insert failed:', historyError);
         }
         
         console.log(`✅ Stock added: ${quantity} Ltr (Status: ${oldStatus} -> delivered)`);
@@ -169,6 +188,9 @@ export async function PUT(request) {
           
           // Insert into filling_history
           try {
+            const oldStockValue = currentStock; // Stock before deduction
+            const newStockValue = newStock; // Stock after deduction
+            
             await executeQuery(
               `INSERT INTO filling_history 
                (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
@@ -176,14 +198,15 @@ export async function PUT(request) {
               [
                 oldStock.fs_id,
                 oldStock.product_id,
-                -quantity,
-                currentStock,
-                newStock,
+                -quantity, // Negative quantity for Outward
+                oldStockValue, // Current stock before change
+                newStockValue, // Available stock after change
                 userId || null
               ]
             );
+            console.log('✅ Filling history entry created (Outward):', { oldStock: oldStockValue, newStock: newStockValue, quantity: -quantity });
           } catch (historyError) {
-            console.log('filling_history insert failed:', historyError);
+            console.log('⚠️ filling_history insert failed:', historyError);
           }
           
           console.log(`✅ Stock decreased: ${quantity} Ltr (Status: delivered -> ${newStatus})`);

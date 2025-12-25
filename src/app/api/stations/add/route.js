@@ -1,5 +1,7 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -67,6 +69,56 @@ export async function POST(request) {
       phone,
       manager
     ]);
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || null;
+      userName = currentUser?.userName || null;
+      
+      if (!userName && userId) {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Loading Stations',
+        uniqueCode: result.insertId.toString(),
+        section: 'Station Management',
+        userId: userId,
+        userName: userName,
+        action: 'create',
+        remarks: `New loading station created: ${station_name} (Manager: ${manager})`,
+        oldValue: null,
+        newValue: {
+          station_id: result.insertId,
+          station_name,
+          address,
+          manager,
+          phone,
+          email,
+          gst_name,
+          gst_number,
+          map_link: processedMapLink
+        },
+        recordType: 'station',
+        recordId: result.insertId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json({
       success: true,

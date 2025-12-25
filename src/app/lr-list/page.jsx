@@ -108,7 +108,7 @@ function LRManagementContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {permissions.can_edit === 1 && (
+      {permissions.can_create === 1 && (
         <Link 
           href="/create-lr"
           className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg transition duration-200 z-50 flex items-center space-x-2 text-sm sm:text-base"

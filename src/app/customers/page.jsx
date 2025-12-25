@@ -15,8 +15,7 @@ import {
   BiPlus,
   BiRupee,
   BiSearch,
-  BiShow,
-  BiTrash
+  BiShow
 } from "react-icons/bi";
 import { FaToggleOff, FaToggleOn } from "react-icons/fa";
 
@@ -53,7 +52,7 @@ function CustomersPage() {
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       fetchData();
       return;
     }
@@ -66,7 +65,7 @@ function CustomersPage() {
         setPermissions({
           can_view: customerPerms.can_view,
           can_edit: customerPerms.can_edit,
-          can_delete: customerPerms.can_delete
+          can_create: customerPerms.can_create || false
         });
         fetchData();
         return;
@@ -88,22 +87,22 @@ function CustomersPage() {
 
     try {
       const moduleName = 'Customer';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
 
-      const [viewData, editData, deleteData] = await Promise.all([
+      const [viewData, editData, createData] = await Promise.all([
         viewRes.json(),
         editRes.json(),
-        deleteRes.json()
+        createRes.json()
       ]);
 
       const perms = {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed
+        can_create: createData.allowed || false
       };
 
       // Cache permissions
@@ -243,31 +242,6 @@ function CustomersPage() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this customer?")) return;
-    try {
-      const res = await fetch("/api/customers/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      
-      if (!res.ok) {
-        throw new Error('Failed to delete customer');
-      }
-      
-      const data = await res.text();
-      if (data === "success") {
-        setCustomers(customers.filter((c) => c.id !== id));
-        alert("Customer deleted successfully");
-      } else {
-        alert("Error deleting customer");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Something went wrong");
-    }
-  };
 
   const handleStatusToggle = async (customerId, currentStatus) => {
     if (!isAdmin) {
@@ -411,15 +385,7 @@ function CustomersPage() {
       color: 'bg-teal-500 hover:bg-teal-600',
       show: permissions.can_edit
     },
-    {
-      key: 'delete',
-      icon: BiTrash,
-      label: 'Delete',
-      onClick: (id) => handleDelete(id),
-      color: 'bg-red-500 hover:bg-red-600',
-      show: permissions.can_delete
-    }
-  ], [permissions, handleDelete]);
+  ], [permissions]);
 
   // Reset to first page when search or filter changes
   useEffect(() => {
@@ -583,7 +549,7 @@ function CustomersPage() {
                   <BiSearch className="text-lg" />
                   <span>Activity Logs</span>
                 </Link>
-                {permissions.can_edit && (
+                {permissions.can_create && (
                   <Link
                     href="/customers/add"
                     className="bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-6 py-3 rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 flex items-center space-x-2 font-semibold text-sm lg:text-base whitespace-nowrap transform hover:scale-105"

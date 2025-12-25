@@ -112,30 +112,6 @@ function ExpensesContent() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this expense?')) return;
-
-    try {
-      setDeletingId(id);
-      setError('');
-      
-      const response = await fetch(`/api/nb-expenses?id=${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete expense');
-      }
-
-      setExpenses(prev => prev.filter(expense => expense.id !== id));
-    } catch (err) {
-      setError(err.message);
-      await fetchExpenses();
-    } finally {
-      setDeletingId(null);
-    }
-  };
 
   const loadMore = async () => {
     if (!pagination.hasMore) return;
@@ -376,17 +352,6 @@ function ExpensesContent() {
                                 Edit
                               </Link>
                             )}
-                            {permissions.can_delete && (
-                              <button
-                                onClick={() => handleDelete(expense.id)}
-                                disabled={deletingId === expense.id}
-                                className={`text-red-600 hover:text-red-900 ${
-                                  deletingId === expense.id ? 'opacity-50 cursor-not-allowed' : ''
-                                }`}
-                              >
-                                {deletingId === expense.id ? 'Deleting...' : 'Delete'}
-                              </button>
-                            )}
                           </td>
                         </tr>
                       ))}
@@ -444,17 +409,6 @@ function ExpensesContent() {
                           Edit
                         </Link>
                       )}
-                      {permissions.can_delete && (
-                        <button
-                          onClick={() => handleDelete(expense.id)}
-                          disabled={deletingId === expense.id}
-                          className={`text-red-600 hover:text-red-900 px-3 py-1 text-sm border border-red-600 rounded ${
-                            deletingId === expense.id ? 'opacity-50 cursor-not-allowed' : ''
-                          }`}
-                        >
-                          {deletingId === expense.id ? 'Deleting...' : 'Delete'}
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
@@ -480,7 +434,7 @@ function ExpensesContent() {
           )}
 
           {/* Add Expense FAB */}
-          {permissions.can_edit && (
+          {permissions.can_create && (
             <Link
               href="/create-expense"
               className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white rounded-full px-6 py-3 shadow-lg flex items-center space-x-2 z-50 transition-colors"

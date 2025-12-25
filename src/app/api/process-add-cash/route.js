@@ -1,6 +1,8 @@
 // src/app/api/process-add-cash/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -36,6 +38,46 @@ export async function POST(request) {
       UPDATE vouchers SET total_expense = ?, remaining_amount = ?, updated_at = NOW() WHERE voucher_id = ?
     `;
     await executeQuery(updateVoucherSql, [newTotal, newRemaining, voucher_id]);
+
+    // Get current user for audit log
+    let userId = user_id ? parseInt(user_id) : null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || userId;
+      userName = currentUser?.userName || null;
+      
+      if (!userName && userId) {
+        const users = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucher_id.toString(),
+        section: 'Add Cash Expense',
+        userId: userId,
+        userName: userName,
+        action: 'update',
+        remarks: `Cash expense added: ${item_details} - ₹${amount}. New total: ₹${newTotal}, Remaining: ₹${newRemaining}`,
+        oldValue: { total_expense: current.total_expense, remaining_amount: current.advance - current.total_expense },
+        newValue: { total_expense: newTotal, remaining_amount: newRemaining },
+        recordType: 'voucher',
+        recordId: parseInt(voucher_id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json({ success: true, message: 'Cash added successfully', total_expense: newTotal, remaining_amount: newRemaining });
   } catch (error) {

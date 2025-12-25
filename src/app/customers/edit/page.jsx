@@ -528,28 +528,6 @@ function EditCustomerContent() {
               </div>
               
               <div className="space-y-5">
-                {/* Customer Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Customer Type</label>
-                  <select
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white text-gray-900 cursor-pointer hover:border-purple-400"
-                    value={form.customer_type && form.customer_type === '0' ? '0' : '1'}
-                    onChange={(e) => {
-                      const newStatus = e.target.value;
-                      updateForm("customer_type", newStatus);
-                      updateForm("status", newStatus);
-                      handleStatusChange(newStatus);
-                    }}
-                    style={{ opacity: 1, cursor: 'pointer' }}
-                  >
-                    <option value="1">Enable</option>
-                    <option value="0">Disable</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Default is Enable. Click dropdown to change to Disable if needed.
-                  </p>
-                </div>
-
                 {/* Billing Type */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Billing Type</label>

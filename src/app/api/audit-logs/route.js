@@ -172,9 +172,19 @@ export async function GET(request) {
         };
       }
       
+      // Try to get employee name if user_name is 'System' or empty
+      let displayUserName = log.user_display_name || log.user_name;
+      if ((!displayUserName || displayUserName === 'System') && log.user_id) {
+        // Already joined with employee_profile, so user_display_name should have the name
+        // But if it's still System, try to get from newValue
+        if (newValue && (newValue.created_by_name || newValue.user_name || newValue.edited_by_name)) {
+          displayUserName = newValue.created_by_name || newValue.user_name || newValue.edited_by_name;
+        }
+      }
+      
       return {
         ...log,
-        user_name: log.user_display_name || log.user_name || 'System',
+        user_name: displayUserName || 'Unknown User',
         old_value: oldValue,
         new_value: newValue,
         creator_info: creatorInfo

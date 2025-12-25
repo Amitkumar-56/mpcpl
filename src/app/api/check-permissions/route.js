@@ -12,7 +12,7 @@ export async function GET(req) {
   }
 
   try {
-    const allowedActions = ["can_view", "can_edit", "can_delete"];
+    const allowedActions = ["can_view", "can_edit", "can_delete", "can_create"];
     if (!allowedActions.includes(action)) {
       return NextResponse.json({ error: "Invalid action parameter" }, { status: 400 });
     }

@@ -29,7 +29,8 @@ export default function EmployeeHistory() {
     3: "Team Leader",
     4: "Accountant",
     5: "Admin",
-    6: "Driver"
+    6: "Driver",
+    7: "Hard Operation"
   };
 
   // ✅ FIXED: Check permissions first
@@ -53,7 +54,7 @@ export default function EmployeeHistory() {
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       fetchEmployees();
       return;
     }
@@ -92,7 +93,7 @@ export default function EmployeeHistory() {
         setPermissions({
           can_view: data.can_view,
           can_edit: data.can_edit,
-          can_delete: data.can_delete
+          can_create: data.can_create || false
         });
         fetchEmployees();
       } else {
@@ -123,33 +124,6 @@ export default function EmployeeHistory() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!permissions.can_delete && !isAdmin) {
-      alert('You do not have permission to delete employees.');
-      return;
-    }
-    
-    if (!confirm('Are you sure you want to delete this employee?\nThis action cannot be undone.')) {
-      return;
-    }
-    
-    try {
-      const res = await fetch(`/api/employee?id=${id}`, { 
-        method: 'DELETE' 
-      });
-      
-      if (!res.ok) {
-        throw new Error('Failed to delete employee');
-      }
-      
-      const result = await res.json();
-      alert(result.message || 'Employee deleted successfully');
-      fetchEmployees(); // Refresh the list
-    } catch (err) {
-      console.error('Delete error:', err);
-      alert('Failed to delete employee. Please try again.');
-    }
-  };
 
   const handleStatusToggle = async (employeeId, currentStatus) => {
     // Check permission
@@ -583,16 +557,6 @@ export default function EmployeeHistory() {
                                 </button>
                               )}
                               
-                              {/* Delete Button */}
-                              {permissions.can_delete && (
-                                <button
-                                  onClick={() => handleDelete(emp.id)}
-                                  className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-                                  title="Delete Employee"
-                                >
-                                  <FaTrash className="w-4 h-4" />
-                                </button>
-                              )}
                               
                               {/* No Actions Message */}
                               {!permissions.can_view && !permissions.can_edit && !permissions.can_delete && (

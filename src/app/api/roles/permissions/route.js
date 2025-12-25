@@ -137,7 +137,8 @@ export async function POST(request) {
       'Team Leader': 3,
       'Accountant': 4,
       'Admin': 5,
-      'Driver': 6
+      'Driver': 6,
+      'Hard Operation': 7
     };
 
     const roleNumber = roleMap[role];

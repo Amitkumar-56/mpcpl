@@ -63,11 +63,61 @@ export async function POST(request) {
     ];
 
     const result = await executeQuery(query, values);
+    const recordId = result.insertId;
+
+    // Create Audit Log
+    try {
+      let userId = null;
+      let userName = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const users = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || null;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+
+      await createAuditLog({
+        page: 'Loading History',
+        uniqueCode: recordId.toString(),
+        section: 'Loading/Unloading Management',
+        userId: userId,
+        userName: userName,
+        action: 'create',
+        remarks: `Loading/Unloading record created for tanker ${tanker}, driver ${driver}`,
+        oldValue: null,
+        newValue: {
+          record_id: recordId,
+          tanker: tanker,
+          driver: driver,
+          dispatch: dispatch,
+          consignee: consignee,
+          net_weight_loading: net_weight_loading,
+          net_weight_unloading: net_weight_unloading
+        },
+        recordType: 'loading_unloading',
+        recordId: recordId
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
 
     return NextResponse.json({
       success: true,
       message: '✅ Shipment record saved successfully',
-      id: result.insertId
+      id: recordId
     });
 
   } catch (error) {

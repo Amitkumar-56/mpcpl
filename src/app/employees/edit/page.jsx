@@ -277,6 +277,7 @@ function EditEmployeeContent() {
                 <option value="4">Accountant</option>
                 <option value="5">Admin</option>
                 <option value="6">Driver</option>
+                <option value="7">Hard Operation</option>
               </select>
             </div>
           )}

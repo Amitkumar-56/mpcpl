@@ -35,7 +35,7 @@ export default function FillingDetailsAdmin() {
   const [cancelRemarks, setCancelRemarks] = useState('');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState('');
-  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_delete: false });
+  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
   const [hasPermission, setHasPermission] = useState(false);
   const [imageModalSrc, setImageModalSrc] = useState(null);
   const [cropModal, setCropModal] = useState({ open: false, src: null, docKey: null });
@@ -58,12 +58,16 @@ export default function FillingDetailsAdmin() {
     if (!user || !user.id) return;
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       return;
     }
     if (user.permissions && user.permissions['Filling Requests']) {
       const p = user.permissions['Filling Requests'];
-      setPermissions({ can_view: !!p.can_view, can_edit: !!p.can_edit, can_delete: !!p.can_delete });
+      setPermissions({ 
+        can_view: !!p.can_view, 
+        can_edit: !!p.can_edit, 
+        can_create: !!p.can_create || !!p.can_edit || false 
+      });
       setHasPermission(!!p.can_edit);
       return;
     }
@@ -77,13 +81,17 @@ export default function FillingDetailsAdmin() {
     }
     try {
       const moduleName = 'Filling Requests';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
-      const [viewData, editData, deleteData] = await Promise.all([viewRes.json(), editRes.json(), deleteRes.json()]);
-      const perms = { can_view: viewData.allowed, can_edit: editData.allowed, can_delete: deleteData.allowed };
+      const [viewData, editData, createData] = await Promise.all([viewRes.json(), editRes.json(), createRes.json()]);
+      const perms = { 
+        can_view: viewData.allowed, 
+        can_edit: editData.allowed, 
+        can_create: createData.allowed || false 
+      };
       sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
       setPermissions(perms);
