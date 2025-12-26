@@ -230,9 +230,15 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                   key={item.name}
                   href={item.path}
                   prefetch={false}
-                  onClick={() => {
-                    // Close mobile menu
+                  onClick={(e) => {
+                    // Close mobile menu on mobile devices
                     setIsOpen(false);
+                    
+                    // If clicking on the same page, prevent navigation
+                    if (item.path === pathname) {
+                      e.preventDefault();
+                    }
+                    // For different pages, let Next.js Link handle client-side navigation automatically
                   }}
                   className={`flex items-center w-full p-3 mb-2 rounded transition-colors cursor-pointer relative ${
                     isActive

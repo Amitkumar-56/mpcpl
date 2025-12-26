@@ -80,26 +80,32 @@ export async function PUT(request) {
           console.log('✅ [Stock Edit] Got user from getCurrentUser:', { userId, userName });
         }
       } catch (getUserError) {
-        console.warn('⚠️ [Stock Edit] getCurrentUser failed, trying token:', getUserError.message);
+        // Silently continue to token fallback - don't log warning for normal auth flow
+        // Only log if it's an unexpected error (not authentication related)
+        if (!getUserError.message || (!getUserError.message.includes('Unauthorized') && !getUserError.message.includes('token'))) {
+          console.warn('⚠️ [Stock Edit] getCurrentUser failed, trying token:', getUserError.message);
+        }
       }
       
       // Fallback: try to get user ID from token if getCurrentUser didn't work
       if (!userId) {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('token')?.value;
-        
-        console.log('🔍 [Stock Edit] Token exists:', !!token);
-        
-        if (token) {
-          const decoded = verifyToken(token);
-          if (decoded) {
-            userId = decoded.userId || decoded.id;
-            console.log('🔍 [Stock Edit] Decoded userId from token:', userId);
-          } else {
-            console.warn('⚠️ [Stock Edit] Token verification failed');
+        try {
+          const cookieStore = await cookies();
+          const token = cookieStore.get('token')?.value;
+          
+          if (token) {
+            try {
+              const decoded = verifyToken(token);
+              if (decoded) {
+                userId = decoded.userId || decoded.id;
+                console.log('✅ [Stock Edit] Got userId from token:', userId);
+              }
+            } catch (verifyError) {
+              // Token invalid - don't log as it's a normal auth check
+            }
           }
-        } else {
-          console.warn('⚠️ [Stock Edit] No token found in cookies');
+        } catch (cookieError) {
+          // Cookie access error - don't log warning
         }
       }
       
@@ -146,11 +152,9 @@ export async function PUT(request) {
           }
         }
       } else {
-        console.warn('⚠️ [Stock Edit] No userId found, trying getCurrentUser fallback');
-        // Fallback: Try getCurrentUser if token method failed
+        // Fallback: Try getCurrentUser if token method failed (silently)
         try {
           const currentUser = await getCurrentUser();
-          console.log('🔍 [Stock Edit] getCurrentUser fallback result:', currentUser);
           if (currentUser && currentUser.userId) {
             userId = currentUser.userId;
             if (currentUser.userName) {
@@ -168,7 +172,7 @@ export async function PUT(request) {
             }
           }
         } catch (userError) {
-          console.error('❌ [Stock Edit] Error in getCurrentUser fallback:', userError);
+          // Silent fallback - don't log warnings for normal auth failures
         }
       }
       
@@ -197,10 +201,11 @@ export async function PUT(request) {
     if (!userName) {
       if (userId) {
         userName = `Employee ID: ${userId}`;
-        console.warn(`⚠️ [Stock Edit] Could not fetch name, using: ${userName}`);
+        // Only log if this is unexpected (we should have userName by now)
       } else {
         userName = 'Unknown User';
-        console.error(`❌ [Stock Edit] No userId and no userName, using: ${userName}`);
+        // Only log error if userId is completely missing (shouldn't happen)
+        console.error(`❌ [Stock Edit] No userId found - authentication may have failed`);
       }
     }
     

@@ -271,10 +271,18 @@ export function SessionProvider({ children }) {
   }, [pathname]);
 
   // ✅ Optimized useEffect - only run on mount and pathname change
+  // Skip auth check if user is already set and we're just navigating
   useEffect(() => {
-    // Only check auth on initial load or when pathname changes significantly
-    checkAuth();
-  }, [pathname]); // Only depend on pathname to prevent excessive checks
+    // Only check auth on initial load (when user is null) or when explicitly needed
+    // Don't check on every pathname change to prevent refresh feeling during navigation
+    if (!user) {
+      // User not set yet - initial load or logout
+      checkAuth();
+    } else {
+      // User is set - just update loading state to false for smooth navigation
+      setLoading(false);
+    }
+  }, [pathname, user, checkAuth]); // Include checkAuth in deps but it won't cause issues due to useCallback
 
   // ✅ Separate useEffect for redirection logic with loop prevention
   useEffect(() => {

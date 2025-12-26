@@ -24,7 +24,7 @@ export async function GET(request) {
         console.log('✅ [NB Expenses] User authenticated via getCurrentUser:', { userId, userRole });
       }
     } catch (getUserError) {
-      console.warn('⚠️ [NB Expenses] getCurrentUser failed, trying token fallback:', getUserError.message);
+      // Silent error - don't log warnings for normal auth failures
     }
     
     // Second attempt: Try token-based authentication if getCurrentUser failed
@@ -50,41 +50,27 @@ export async function GET(request) {
                     console.log('✅ [NB Expenses] User role fetched:', userRole);
                   }
                 } catch (roleError) {
-                  console.warn('⚠️ [NB Expenses] Failed to fetch role:', roleError.message);
+                  // Silent error - don't log warnings for normal failures
                 }
               }
-            } else {
-              console.warn('⚠️ [NB Expenses] Token verification failed - token invalid');
             }
+            // Don't log warnings for invalid tokens - it's a normal auth check
           } catch (verifyError) {
-            console.warn('⚠️ [NB Expenses] Token verification error:', verifyError.message);
-            // Try to continue anyway if token exists
+            // Silent error - don't log warnings for normal auth failures
           }
-        } else {
-          console.warn('⚠️ [NB Expenses] No token found in cookies');
         }
+        // Don't log warnings if no token - it's a normal auth check
       } catch (tokenError) {
-        console.error('❌ [NB Expenses] Token fallback failed:', tokenError.message);
+        // Only log if it's an unexpected error
+        if (tokenError.message && !tokenError.message.includes('cookies')) {
+          console.error('❌ [NB Expenses] Token fallback failed:', tokenError.message);
+        }
       }
     }
 
-    // Final check - if still no userId, check if there's any session at all
+    // Final check - if still no userId, return unauthorized
     if (!userId) {
-      try {
-        // Last resort: Check if there's any valid session from request headers
-        const cookieStore = await cookies();
-        const allCookies = cookieStore.getAll();
-        console.log('🔍 [NB Expenses] Available cookies:', allCookies.map(c => c.name));
-        
-        // If we have any cookies but no userId, might be a session issue
-        if (allCookies.length > 0) {
-          console.warn('⚠️ [NB Expenses] Cookies exist but userId not found - possible session issue');
-        }
-      } catch (cookieError) {
-        console.warn('⚠️ [NB Expenses] Error reading cookies:', cookieError.message);
-      }
-      
-      console.error('❌ [NB Expenses] No userId found after all attempts');
+      // Don't log - normal for unauthenticated requests (browser refresh, expired session, etc.)
       return NextResponse.json(
         { error: "Unauthorized. Please login again." },
         { status: 401 }

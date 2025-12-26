@@ -9,19 +9,16 @@ export async function GET(request) {
     const cookieStore = await cookies();
     let token = cookieStore.get('token')?.value;
     
-    console.log('🔐 Verify API called, token exists:', !!token);
-    
     // Fallback: read Authorization header if cookie is missing
     if (!token && request && typeof request.headers?.get === 'function') {
       const authHeader = request.headers.get('authorization');
       if (authHeader) {
         token = authHeader.startsWith('Bearer ') ? authHeader.substring(7) : authHeader;
-        console.log('🔐 Verify API used Authorization header token:', !!token);
       }
     }
 
+    // Don't log missing token - it's a normal auth check (e.g., from SessionContext)
     if (!token) {
-      console.log('❌ No token found in cookies or Authorization header');
       return NextResponse.json({ 
         authenticated: false,
         error: 'Not authenticated' 
@@ -30,14 +27,12 @@ export async function GET(request) {
 
     const decoded = verifyToken(token);
     if (!decoded) {
-      console.log('❌ Token verification failed');
+      // Don't log invalid token - it's a normal auth check (expired/invalid tokens are common)
       return NextResponse.json({ 
         authenticated: false,
         error: 'Invalid token' 
       });
     }
-
-    console.log('✅ Token verified, user ID:', decoded.userId);
 
     // First check if user exists (without status filter to detect disabled accounts)
     const userCheck = await executeQuery(
@@ -55,7 +50,7 @@ export async function GET(request) {
 
     // Check if user is disabled
     if (userCheck[0].status === 0 || userCheck[0].status === null || userCheck[0].status === undefined) {
-      console.log('❌ User account is disabled');
+      // Don't log disabled account - normal auth check
       return NextResponse.json({ 
         authenticated: false,
         error: 'Your account has been deactivated by admin. Please contact administrator.' 
@@ -70,10 +65,8 @@ export async function GET(request) {
       [decoded.userId]
     );
 
-    console.log('📊 Users found:', users.length);
-
     if (users.length === 0) {
-      console.log('❌ User not found or inactive');
+      // Don't log inactive account - normal auth check
       return NextResponse.json({ 
         authenticated: false,
         error: 'Account is inactive' 
@@ -81,7 +74,8 @@ export async function GET(request) {
     }
 
     const user = users[0];
-    console.log('✅ User authenticated:', user.name, user.role);
+    // Only log successful authentication in debug mode (optional)
+    // console.log('✅ User authenticated:', user.name, user.role);
 
     // ✅ FIX: Fetch BOTH employee-specific AND role-based permissions, then merge
     // Employee-specific permissions take priority
@@ -138,25 +132,14 @@ export async function GET(request) {
       can_delete: perms.can_delete ? 1 : 0
     }));
 
-    console.log('🔑 Permissions found:', finalPermissions.length);
-    console.log('🔑 Employee-specific permissions:', employeePermissions.length);
-    console.log('🔑 Role-based permissions:', roleBasedPermissions.length);
-    console.log('🔑 Permission source:', employeePermissions.length > 0 ? 'employee_id + role' : 'role only');
-    console.log('🔑 Raw permissions:', finalPermissions.map(p => ({
-      module: p.module_name,
-      can_view: p.can_view,
-      can_edit: p.can_edit,
-      can_delete: p.can_delete
-    })));
-
     // ✅ Convert merged permissions to object format
     const userPermissions = {};
     permissionMap.forEach((perms, module_name) => {
       userPermissions[module_name] = perms;
     });
     
-    console.log('🔑 Processed permissions object:', Object.keys(userPermissions));
-    console.log('🔑 Full permissions:', userPermissions);
+    // Reduced logging - only log if needed for debugging
+    // console.log('🔑 Permissions loaded:', Object.keys(userPermissions).length, 'modules');
 
     // ✅ FIX: Return complete employee_profile data
     return NextResponse.json({ 
