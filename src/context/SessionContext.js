@@ -270,10 +270,11 @@ export function SessionProvider({ children }) {
     }
   }, [pathname]);
 
-  // ✅ Optimized useEffect with proper dependencies
+  // ✅ Optimized useEffect - only run on mount and pathname change
   useEffect(() => {
+    // Only check auth on initial load or when pathname changes significantly
     checkAuth();
-  }, [checkAuth]); // ✅ Only depend on checkAuth function
+  }, [pathname]); // Only depend on pathname to prevent excessive checks
 
   // ✅ Separate useEffect for redirection logic with loop prevention
   useEffect(() => {
@@ -370,6 +371,7 @@ export function SessionProvider({ children }) {
 
     // ✅ Employee routes के लिए normal logic
     if (user) {
+      // Only redirect from login page to dashboard if user is logged in
       if (pathname === '/login') {
         // If user is logged in and on login page, redirect to dashboard (only once)
         if (!redirectingRef.current && lastPathnameRef.current === pathname) {
@@ -378,9 +380,17 @@ export function SessionProvider({ children }) {
           router.push('/dashboard');
         }
       }
+      // Don't redirect if user is logged in and on any other valid page
     } else {
-      if (pathname !== '/login' && !pathname.startsWith('/cst/') && !pathname.startsWith('/agent/') && !pathname.startsWith('/supplier/')) {
-        // No user and not on login page, redirect to login (only once)
+      // Only redirect to login if no user AND not on public pages
+      const publicPages = ['/login', '/', '/register'];
+      const isPublicPage = publicPages.includes(pathname) || 
+                          pathname.startsWith('/cst/') || 
+                          pathname.startsWith('/agent/') || 
+                          pathname.startsWith('/supplier/');
+      
+      if (!isPublicPage) {
+        // No user and not on public page, redirect to login (only once)
         if (!redirectingRef.current && lastPathnameRef.current === pathname) {
           redirectingRef.current = true;
           lastPathnameRef.current = '/login';

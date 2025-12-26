@@ -134,28 +134,28 @@ export async function GET(request) {
         });
       }
 
-      // ✅ 5. TOTAL CLIENTS
-      console.log('🔄 Counting total clients...');
+      // ✅ 5. TOTAL CLIENTS - Count from customers table (not filling_history)
+      console.log('🔄 Counting total clients from customers table...');
       const totalClientsQuery = `
-        SELECT COUNT(DISTINCT cl_id) as count 
-        FROM filling_history 
-        WHERE cl_id IS NOT NULL
+        SELECT COUNT(*) as count 
+        FROM customers 
+        WHERE roleid IN (1, 3)
       `;
       const totalClientsResult = await executeQuery(totalClientsQuery);
       totalClients = parseInt(totalClientsResult[0]?.count) || 0;
-      console.log('✅ Total Clients:', totalClients);
+      console.log('✅ Total Clients (from customers table):', totalClients);
 
-      // ✅ 6. TOTAL TRANSACTIONS
-      console.log('🔄 Counting total transactions...');
+      // ✅ 6. TOTAL TRANSACTIONS - Count from filling_requests table
+      console.log('🔄 Counting total transactions from filling_requests...');
       const totalTransactionsQuery = `
         SELECT COUNT(*) as count 
-        FROM filling_history 
-        WHERE new_amount > 0
-          AND cl_id IS NOT NULL
+        FROM filling_requests 
+        WHERE cid IS NOT NULL
+          AND status = 'Completed'
       `;
       const totalTransactionsResult = await executeQuery(totalTransactionsQuery);
       totalTransactions = parseInt(totalTransactionsResult[0]?.count) || 0;
-      console.log('✅ Total Transactions:', totalTransactions);
+      console.log('✅ Total Transactions (from filling_requests):', totalTransactions);
 
     } catch (error) {
       console.error('❌ Database query error:', error);
@@ -226,33 +226,71 @@ export async function GET(request) {
     let pendingPayments = 0;
     let clearedPayments = 0;
     try {
-      if (totalTransactions > 0) {
-        const paymentStatusQuery = `
-          SELECT 
-            SUM(CASE WHEN (status != 'Completed' OR payment_status IN (0, 2)) THEN 1 ELSE 0 END) as pending,
-            SUM(CASE WHEN status = 'Completed' AND payment_status = 1 THEN 1 ELSE 0 END) as completed
-          FROM filling_requests 
-          WHERE status = 'Completed'
-            AND cid IS NOT NULL
-        `;
-        const paymentStatusResult = await executeQuery(paymentStatusQuery);
-        const payData = paymentStatusResult[0];
-        
-        pendingPayments = parseInt(payData?.pending) || 0;
-        clearedPayments = parseInt(payData?.completed) || 0;
-      }
+      // Count pending payments (Completed but not paid - payment_status 0 or 2 or NULL)
+      const pendingQuery = `
+        SELECT COUNT(*) as count 
+        FROM filling_requests 
+        WHERE status = 'Completed'
+          AND cid IS NOT NULL
+          AND (payment_status IS NULL OR payment_status IN (0, 2))
+      `;
+      const pendingResult = await executeQuery(pendingQuery);
+      pendingPayments = parseInt(pendingResult[0]?.count) || 0;
+      
+      // Count cleared payments (Completed and paid - payment_status = 1)
+      const clearedQuery = `
+        SELECT COUNT(*) as count 
+        FROM filling_requests 
+        WHERE status = 'Completed'
+          AND cid IS NOT NULL
+          AND payment_status = 1
+      `;
+      const clearedResult = await executeQuery(clearedQuery);
+      clearedPayments = parseInt(clearedResult[0]?.count) || 0;
+      
       console.log('✅ Payment Status:', { 
         pending: pendingPayments, 
         cleared: clearedPayments 
       });
     } catch (paymentError) {
       console.log('Payment status error:', paymentError);
+      // Try alternative query if payment_status column doesn't exist
+      try {
+        const altPendingQuery = `
+          SELECT COUNT(*) as count 
+          FROM filling_requests 
+          WHERE status = 'Completed'
+            AND cid IS NOT NULL
+        `;
+        const altPendingResult = await executeQuery(altPendingQuery);
+        pendingPayments = parseInt(altPendingResult[0]?.count) || 0;
+        clearedPayments = 0;
+      } catch (altError) {
+        console.log('Alternative payment query also failed:', altError);
+      }
     }
 
-    // ✅ 9. CALCULATE CHANGES
+    // ✅ 9. STOCK HISTORY COUNT - Count from filling_history table
+    let totalStockHistory = 0;
+    try {
+      console.log('🔄 Counting stock history records...');
+      const stockHistoryQuery = `
+        SELECT COUNT(*) as count 
+        FROM filling_history 
+        WHERE 1=1
+      `;
+      const stockHistoryResult = await executeQuery(stockHistoryQuery);
+      totalStockHistory = parseInt(stockHistoryResult[0]?.count) || 0;
+      console.log('✅ Total Stock History Records:', totalStockHistory);
+    } catch (stockHistoryError) {
+      console.log('⚠️ Stock history count error:', stockHistoryError);
+      totalStockHistory = 0;
+    }
+
+    // ✅ 10. CALCULATE CHANGES
     const clientChange = clientTodayOutstanding;
 
-    // ✅ 10. PREPARE FINAL RESPONSE
+    // ✅ 11. PREPARE FINAL RESPONSE
     const responseData = {
       vendorYesterdayOutstanding: 0,
       vendorTodayOutstanding: 0,
@@ -261,6 +299,7 @@ export async function GET(request) {
       totalVendors: 0,
       totalClients: totalClients,
       totalTransactions: totalTransactions,
+      totalStockHistory: totalStockHistory,
       collectionEfficiency: Math.round(collectionEfficiency * 100) / 100,
       pendingPayments: pendingPayments,
       clearedPayments: clearedPayments,

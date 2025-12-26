@@ -1,8 +1,23 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(request) {
   try {
+    // ✅ Check authentication but don't cause logout on failure
+    // Just log for debugging, continue with data fetch
+    try {
+      const currentUser = await getCurrentUser();
+      if (!currentUser || !currentUser.userId) {
+        console.warn('⚠️ Stock History API: User not authenticated, but continuing with data fetch');
+      } else {
+        console.log('✅ Stock History API: User authenticated:', currentUser.userId);
+      }
+    } catch (authError) {
+      console.warn('⚠️ Stock History API: Auth check failed, but continuing:', authError.message);
+      // Continue with data fetch even if auth check fails - don't cause logout
+    }
+
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
     const pname = searchParams.get("pname");
@@ -23,6 +38,7 @@ export async function GET(request) {
     }
 
     // ✅ Fetch specific fields from filling_history table
+    // ✅ Ensure created_by name is fetched from employee_profile table properly
     const stockTypeField = hasStockType ? 'fh.stock_type,' : '';
     let sql = `
       SELECT 
@@ -39,16 +55,21 @@ export async function GET(request) {
         COALESCE(p.pname, 'Unknown Product') AS pname, 
         COALESCE(fr.vehicle_number, '') AS vehicle_number,
         COALESCE(fs.station_name, 'Unknown Station') AS station_name,
-        COALESCE(ep.name, 'System') AS created_by_name,
         CASE 
-          WHEN ep.id IS NOT NULL THEN ep.name
+          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 AND ep.id IS NOT NULL THEN ep.name
+          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 THEN CONCAT('Employee ID: ', fh.created_by)
+          ELSE 'System'
+        END AS created_by_name,
+        CASE 
+          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 AND ep.id IS NOT NULL THEN ep.name
+          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 THEN CONCAT('Employee ID: ', fh.created_by)
           ELSE 'System'
         END AS user_name
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
       LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
-      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
+      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id AND fh.created_by IS NOT NULL AND fh.created_by > 0
       WHERE fh.trans_type IN ('Inward', 'Outward')
         AND (
           (fh.trans_type = 'Inward' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)

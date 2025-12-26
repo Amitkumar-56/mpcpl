@@ -62,6 +62,7 @@ export default function DashboardPage() {
     totalVendors: 0,
     totalClients: 0,
     totalTransactions: 0,
+    totalStockHistory: 0,
     collectionEfficiency: 0,
     pendingPayments: 0,
     clearedPayments: 0,
@@ -633,7 +634,7 @@ export default function DashboardPage() {
           {/* Quick Stats */}
           <div className="mb-6">
             <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
               <a href="/customers" className="block">
                 <InfoCard
                   title="Total Clients"
@@ -648,6 +649,14 @@ export default function DashboardPage() {
                   value={stats.totalTransactions}
                   icon={<BiShoppingBag />}
                   color="blue"
+                />
+              </a>
+              <a href="/stock" className="block">
+                <InfoCard
+                  title="Stock Management"
+                  value={stats.totalStockHistory || 0}
+                  icon={<BiPackage />}
+                  color="indigo"
                 />
               </a>
               <InfoCard

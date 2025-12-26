@@ -484,13 +484,13 @@ function ReportHistoryContent() {
           onClick={() => handleCheckRecord(record.id, !isChecked)}
           disabled={isDisabled}
           className={`
-            px-4 py-2 rounded-lg font-medium text-sm transition-all duration-300 transform
+            px-3 sm:px-4 py-2 sm:py-2 rounded-lg font-medium text-xs sm:text-sm transition-all duration-300 transform
             ${isChecked
               ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-lg cursor-not-allowed'
               : 'bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white shadow-md hover:scale-105 hover:shadow-xl'
             }
             ${isDisabled ? 'opacity-50 cursor-not-allowed' : ''}
-            flex items-center justify-center space-x-2 min-w-[100px]
+            flex items-center justify-center space-x-1 sm:space-x-2 min-w-[80px] sm:min-w-[100px] touch-manipulation
           `}
         >
           {isLoading ? (
@@ -1317,7 +1317,7 @@ function ReportHistoryContent() {
                           <p className="text-xs font-medium text-gray-500">Request ID</p>
                           <p className="text-sm font-semibold text-gray-900">{record.rid}</p>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-shrink-0">
                           <CheckButton record={record} />
                           <InvoiceButton record={record} />
                         </div>

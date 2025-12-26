@@ -33,6 +33,7 @@ function EditEmployeeContent() {
     "NB Stock": { can_view: false, can_edit: false, can_create: false },
     "Stock Transfer": { can_view: false, can_edit: false, can_create: false },
     Reports: { can_view: false, can_edit: false, can_create: false },
+    Retailers: { can_view: false, can_edit: false, can_create: false },
     "Agent Management": { can_view: false, can_edit: false, can_create: false },
     Users: { can_view: false, can_edit: false, can_create: false },
     Vehicles: { can_view: false, can_edit: false, can_create: false },
@@ -163,12 +164,23 @@ function EditEmployeeContent() {
         if (employeeData && employeeData.id) {
           setFormData(employeeData);
           setStations(stationsData);
-          // Set permissions if returned (admin only)
+          // Set permissions if returned - merge with existing modules list
+          // This ensures all modules are shown even if employee doesn't have permissions for some
           if (permissionsData && Object.keys(permissionsData).length > 0) {
-            setPermissions(prev => ({
-              ...prev,
-              ...permissionsData
-            }));
+            setPermissions(prev => {
+              const updated = { ...prev };
+              // Update permissions for modules that exist in API response
+              Object.keys(permissionsData).forEach(module => {
+                if (updated.hasOwnProperty(module)) {
+                  updated[module] = {
+                    can_view: permissionsData[module].can_view || false,
+                    can_edit: permissionsData[module].can_edit || false,
+                    can_create: permissionsData[module].can_create || false
+                  };
+                }
+              });
+              return updated;
+            });
           }
           setError(null);
         } else {

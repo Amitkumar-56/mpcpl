@@ -13,9 +13,42 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get shipment records
+    // Get shipment records - handle both id and shipment_id columns
     const shipmentQuery = `
-      SELECT * FROM shipment_records 
+      SELECT 
+        COALESCE(shipment_id, id) as id,
+        tanker, tanker_number,
+        driver, driver_name,
+        dispatch, dispatch_from,
+        driver_mobile,
+        empty_weight_loading,
+        loaded_weight_loading, loaded_weight,
+        net_weight_loading, net_weight,
+        final_loading_datetime,
+        entered_by_loading,
+        seal1_loading,
+        seal2_loading,
+        seal_datetime_loading,
+        sealed_by_loading,
+        density_loading,
+        temperature_loading,
+        timing_loading,
+        consignee, customer_name,
+        empty_weight_unloading,
+        loaded_weight_unloading,
+        net_weight_unloading,
+        final_unloading_datetime,
+        entered_by_unloading,
+        seal1_unloading,
+        seal2_unloading,
+        seal_datetime_unloading,
+        sealed_by_unloading,
+        density_unloading,
+        temperature_unloading,
+        timing_unloading,
+        created_at,
+        updated_at
+      FROM shipment_records 
       ORDER BY created_at DESC
     `;
     const shipmentResult = await executeQuery(shipmentQuery) || [];
@@ -88,23 +121,47 @@ export async function GET(request) {
     const totalQuery = "SELECT COUNT(*) as total FROM shipment_records";
     const totalResult = await executeQuery(totalQuery) || [{ total: 0 }];
 
-    const completedQuery = "SELECT COUNT(*) as completed FROM shipment_records WHERE net_weight_loading > 0";
+    // Handle both net_weight_loading and net_weight columns
+    const completedQuery = `
+      SELECT COUNT(*) as completed 
+      FROM shipment_records 
+      WHERE (net_weight_loading > 0 OR net_weight > 0)
+    `;
     const completedResult = await executeQuery(completedQuery) || [{ completed: 0 }];
 
-    const pendingQuery = "SELECT COUNT(*) as pending FROM shipment_records WHERE net_weight_loading = 0 OR net_weight_loading IS NULL";
+    const pendingQuery = `
+      SELECT COUNT(*) as pending 
+      FROM shipment_records 
+      WHERE (net_weight_loading = 0 OR net_weight_loading IS NULL)
+        AND (net_weight = 0 OR net_weight IS NULL)
+    `;
     const pendingResult = await executeQuery(pendingQuery) || [{ pending: 0 }];
 
-    const driversQuery = "SELECT COUNT(DISTINCT driver) as drivers FROM shipment_records";
+    // Handle both driver and driver_name columns
+    const driversQuery = `
+      SELECT COUNT(DISTINCT COALESCE(driver, driver_name, '')) as drivers 
+      FROM shipment_records 
+      WHERE (driver IS NOT NULL AND driver != '') 
+         OR (driver_name IS NOT NULL AND driver_name != '')
+    `;
     const driversResult = await executeQuery(driversQuery) || [{ drivers: 0 }];
 
+    console.log('✅ Loading-Unloading History Data:', {
+      shipmentsCount: shipmentResult.length,
+      total: totalResult[0]?.total || 0,
+      completed: completedResult[0]?.completed || 0,
+      pending: pendingResult[0]?.pending || 0,
+      drivers: driversResult[0]?.drivers || 0
+    });
+
     return NextResponse.json({
-      shipments: shipmentResult,
+      shipments: shipmentResult || [],
       permissions: permissionResult[0] || { can_view: 0, can_edit: 0, can_delete: 0, can_create: 0 },
       summary: {
-        total: totalResult[0]?.total || 0,
-        completed: completedResult[0]?.completed || 0,
-        pending: pendingResult[0]?.pending || 0,
-        drivers: driversResult[0]?.drivers || 0
+        total: parseInt(totalResult[0]?.total) || 0,
+        completed: parseInt(completedResult[0]?.completed) || 0,
+        pending: parseInt(pendingResult[0]?.pending) || 0,
+        drivers: parseInt(driversResult[0]?.drivers) || 0
       }
     });
 

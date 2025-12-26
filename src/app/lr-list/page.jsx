@@ -51,7 +51,16 @@ function LRManagementContent() {
   const searchParams = useSearchParams();
 
   useEffect(() => {
-    fetchShipments();
+    // Only fetch if component is mounted
+    let isMounted = true;
+    
+    if (isMounted) {
+      fetchShipments();
+    }
+    
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const fetchShipments = async () => {
@@ -59,26 +68,49 @@ function LRManagementContent() {
       setLoading(true);
       setError('');
       
-      const response = await fetch('/api/lr-list');
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch('/api/lr-list', {
+        signal: controller.signal,
+        credentials: 'include', // Include cookies for auth
+        cache: 'no-store'
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch shipments');
+        const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+        throw new Error(errorData.error || `Failed to fetch shipments (${response.status})`);
       }
       
       const data = await response.json();
+      
+      // Check if data has expected structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
+      
       setShipments(data.shipments || []);
       setPermissions(data.permissions || {});
       
       // ✅ Debug: Log permissions to help troubleshoot
-      console.log('🔍 [LR List] Permissions received:', data.permissions);
-      console.log('🔍 [LR List] can_create value:', data.permissions?.can_create);
-      console.log('🔍 [LR List] can_create === 1:', data.permissions?.can_create === 1);
-      console.log('🔍 [LR List] can_create === true:', data.permissions?.can_create === true);
+      console.log('✅ [LR List] Data loaded successfully:', {
+        shipmentsCount: (data.shipments || []).length,
+        permissions: data.permissions
+      });
       
     } catch (err) {
-      setError(err.message);
+      // Handle abort (timeout)
+      if (err.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else {
+        setError(err.message || 'Failed to load shipments. Please try again.');
+      }
+      console.error('❌ [LR List] Error fetching shipments:', err);
     } finally {
+      // ✅ Always set loading to false
       setLoading(false);
     }
   };

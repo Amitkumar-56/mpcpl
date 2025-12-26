@@ -193,8 +193,28 @@ export async function POST(request) {
     console.log("Stock database insert successful:", stockResult);
 
     // ✅ Get current user once for all operations
+    // getCurrentUser() returns employee_profile.id as userId
     const currentUser = await getCurrentUser();
-    const userId = currentUser?.userId || null;
+    const userId = currentUser?.userId || null; // This is employee_profile.id
+    
+    // ✅ Verify userId exists in employee_profile table
+    if (userId) {
+      try {
+        const verifyUser = await executeQuery(
+          `SELECT id FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (verifyUser.length === 0) {
+          console.error(`❌ User ID ${userId} not found in employee_profile table`);
+          return NextResponse.json({ 
+            success: false, 
+            error: 'Invalid user. Please login again.' 
+          }, { status: 401 });
+        }
+      } catch (verifyError) {
+        console.error('❌ Error verifying user in employee_profile:', verifyError);
+      }
+    }
     
     // ✅ Fetch user name from database if not available
     let userName = currentUser?.userName || null;
@@ -212,68 +232,132 @@ export async function POST(request) {
       }
     }
     
-    console.log('✅ User info for purchase:', { userId, userName });
+    console.log('✅ User info for purchase (employee_profile.id):', { userId, userName });
 
-    // ✅ Always update/insert filling_station_stocks when purchase is created
-    // Check if stock record exists (no duplicate - check first)
-    const checkStockQuery = `
-      SELECT stock FROM filling_station_stocks 
-      WHERE fs_id = ? AND product = ?
-    `;
-    const existingStock = await executeQuery(checkStockQuery, [fs_id, product_id]);
+    // ✅ Handle stock addition only if initial status is "delivered"
+    // If status is "delivered" (or "3"), add stock immediately and create filling_history entry
+    const finalStatus = status || "pending";
+    const isDelivered = finalStatus === 'delivered' || finalStatus === '3';
     
-    // Get current stock before update (for filling_history)
-    const currentStock = existingStock.length > 0 ? parseFloat(existingStock[0].stock) || 0 : 0;
-    const availableStock = currentStock + quantityInLtrNum;
-    
-    if (existingStock.length > 0) {
-      // Update existing stock (no duplicate - only UPDATE, not INSERT)
-      const updateStockQuery = `
-        UPDATE filling_station_stocks 
-        SET stock = stock + ?, 
-            msg = ?, 
-            remark = ?, 
-            created_at = NOW()
+    if (isDelivered) {
+      // Check if stock record exists
+      const checkStockQuery = `
+        SELECT stock FROM filling_station_stocks 
         WHERE fs_id = ? AND product = ?
       `;
-      await executeQuery(updateStockQuery, [
-        quantityInLtrNum,
-        `New purchase - Invoice: ${invoiceNumber}`,
-        `Tanker: ${tankerNumber || 'N/A'}`,
-        fs_id,
-        product_id
-      ]);
-      console.log("✅ Filling station stocks updated successfully:", {
-        fs_id,
-        product_id,
-        oldStock: currentStock,
-        added: quantityInLtrNum,
-        newStock: availableStock
-      });
-    } else {
-      // Insert new stock record (only if doesn't exist - no duplicate)
-      const insertStockQuery = `
-        INSERT INTO filling_station_stocks (
+      const existingStock = await executeQuery(checkStockQuery, [fs_id, product_id]);
+      
+      const currentStock = existingStock.length > 0 ? parseFloat(existingStock[0].stock) || 0 : 0;
+      const availableStock = currentStock + quantityInLtrNum;
+      
+      if (existingStock.length > 0) {
+        // Update existing stock
+        const updateStockQuery = `
+          UPDATE filling_station_stocks 
+          SET stock = stock + ?, 
+              msg = ?, 
+              remark = ?, 
+              created_at = NOW()
+          WHERE fs_id = ? AND product = ?
+        `;
+        await executeQuery(updateStockQuery, [
+          quantityInLtrNum,
+          `Purchase delivered - Invoice: ${invoiceNumber}`,
+          `Tanker: ${tankerNumber || 'N/A'}`,
           fs_id,
-          product,
-          stock,
-          msg,
-          remark,
-          created_at
-        ) VALUES (?, ?, ?, ?, ?, NOW())
-      `;
-      await executeQuery(insertStockQuery, [
-        fs_id,
-        product_id,
-        quantityInLtrNum,
-        `New purchase - Invoice: ${invoiceNumber}`,
-        `Tanker: ${tankerNumber || 'N/A'}`
-      ]);
-      console.log("✅ Filling station stocks insert successful:", {
-        fs_id,
-        product_id,
-        stock: quantityInLtrNum
-      });
+          product_id
+        ]);
+        console.log("✅ Filling station stocks updated (delivered status):", {
+          fs_id,
+          product_id,
+          oldStock: currentStock,
+          added: quantityInLtrNum,
+          newStock: availableStock
+        });
+      } else {
+        // Insert new stock record
+        const insertStockQuery = `
+          INSERT INTO filling_station_stocks (
+            fs_id,
+            product,
+            stock,
+            msg,
+            remark,
+            created_at
+          ) VALUES (?, ?, ?, ?, ?, NOW())
+        `;
+        await executeQuery(insertStockQuery, [
+          fs_id,
+          product_id,
+          quantityInLtrNum,
+          `Purchase delivered - Invoice: ${invoiceNumber}`,
+          `Tanker: ${tankerNumber || 'N/A'}`
+        ]);
+        console.log("✅ Filling station stocks inserted (delivered status):", {
+          fs_id,
+          product_id,
+          stock: quantityInLtrNum
+        });
+      }
+      
+      // Insert into filling_history when status is delivered
+      // ✅ Note: userId here is the original purchase creator (employee_profile.id) since we're in the create flow
+      try {
+        // Check if stock_type column exists
+        const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+        const colSet = new Set(colsInfo.map(r => r.Field));
+        const hasStockType = colSet.has('stock_type');
+        
+        if (hasStockType) {
+          await executeQuery(
+            `INSERT INTO filling_history 
+             (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
+             VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())`,
+            [
+              fs_id,
+              product_id,
+              currentStock,
+              quantityInLtrNum,
+              availableStock,
+              userId || null // Original purchase creator's ID (employee_profile.id)
+            ]
+          );
+        } else {
+          await executeQuery(
+            `INSERT INTO filling_history 
+             (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
+             VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())`,
+            [
+              fs_id,
+              product_id,
+              currentStock,
+              quantityInLtrNum,
+              availableStock,
+              userId || null // Original purchase creator's ID (employee_profile.id)
+            ]
+          );
+        }
+        console.log('✅ Filling history entry created (delivered status) with creator ID:', {
+          fs_id,
+          product_id,
+          trans_type: 'Inward',
+          current_stock: currentStock,
+          filling_qty: quantityInLtrNum,
+          available_stock: availableStock,
+          created_by: userId
+        });
+      } catch (historyError) {
+        console.error('❌ filling_history insert failed:', historyError);
+        // Don't throw - continue even if history insert fails
+      }
+      
+      // ✅ Stock record remains in stock table with status "delivered"
+      // Staff and Incharge will not see delivered items (filtered in GET route)
+      console.log(`✅ Stock record created with delivered status (ID: ${stockResult.insertId}). Record remains in stock table.`);
+    } else {
+      // ✅ NOTE: Stock will NOT be added if status is not "delivered"
+      // Stock will only be added when status changes to "delivered" (handled in stock/edit route)
+      console.log("✅ Purchase created with status:", finalStatus, "- Stock will be added when status becomes 'delivered'");
     }
 
     // ✅ Create audit log with user info

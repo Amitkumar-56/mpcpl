@@ -143,12 +143,15 @@ function CreateLoadingUnloadingContent() {
       const result = await response.json();
 
       if (result.success) {
-        setMessage(result.message);
+        setMessage(result.message || '✅ Shipment record saved successfully');
+        // Redirect after success - shorter delay
         setTimeout(() => {
           router.push('/loading-unloading-history');
-        }, 2000);
+          // Force refresh the list page to show new record
+          router.refresh();
+        }, 1500);
       } else {
-        setMessage(result.message);
+        setMessage(result.message || '❌ Error saving record. Please try again.');
       }
     } catch (error) {
       setMessage('❌ Error saving record');

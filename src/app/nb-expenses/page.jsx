@@ -92,22 +92,52 @@ function ExpensesContent() {
       setLoading(true);
       setError('');
       
-      const response = await fetch('/api/nb-expenses');
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch('/api/nb-expenses', {
+        signal: controller.signal,
+        credentials: 'include', // Include cookies for auth
+        cache: 'no-store'
+      });
+      
+      clearTimeout(timeoutId);
       
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to load expenses');
+        const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+        const errorMessage = errorData.error || `Failed to load expenses (${response.status})`;
+        
+        // Don't redirect on 401, just show error
+        if (response.status === 401) {
+          setError('Unauthorized. Please login again.');
+        } else {
+          setError(errorMessage);
+        }
+        return;
       }
       
       const data = await response.json();
+      
+      // Check if data has expected structure
+      if (!data || typeof data !== 'object') {
+        throw new Error('Invalid response format from server');
+      }
       
       // Remove duplicates from the data
       const uniqueExpenses = removeDuplicateExpenses(data.expenses || []);
       setExpenses(uniqueExpenses);
       setPermissions(data.permissions || {});
     } catch (err) {
-      setError(err.message);
+      // Handle abort (timeout)
+      if (err.name === 'AbortError') {
+        setError('Request timeout. Please try again.');
+      } else {
+        setError(err.message || 'Failed to load expenses. Please try again.');
+      }
+      console.error('❌ [NB Expenses] Error fetching expenses:', err);
     } finally {
+      // ✅ Always set loading to false
       setLoading(false);
     }
   };
@@ -433,11 +463,17 @@ function ExpensesContent() {
             </div>
           )}
 
-          {/* Add Expense FAB */}
-          {permissions.can_create && (
+          {/* Add Expense FAB - Show button if permissions loaded and can_create is true, or if permissions not loaded yet (optimistic UI) */}
+          {(permissions.can_create === 1 || permissions.can_create === true || (!loading && Object.keys(permissions).length === 0)) && (
             <Link
               href="/create-expense"
-              className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white rounded-full px-6 py-3 shadow-lg flex items-center space-x-2 z-50 transition-colors"
+              className={`fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white rounded-full px-6 py-3 shadow-lg flex items-center space-x-2 z-50 transition-colors ${loading ? 'opacity-50 cursor-wait' : ''}`}
+              onClick={(e) => {
+                // Prevent navigation if loading or no permission
+                if (loading || (Object.keys(permissions).length > 0 && permissions.can_create !== 1 && permissions.can_create !== true)) {
+                  e.preventDefault();
+                }
+              }}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />

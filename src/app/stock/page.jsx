@@ -8,7 +8,8 @@ import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTrash } from "react-icons/bs";
+import { BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTrash, BsBox, BsBoxSeam, BsTruck } from "react-icons/bs";
+import { BiPackage, BiHistory, BiTrendingUp } from "react-icons/bi";
 
 // A sub-component for data rendering inside Suspense
 function StockTable({ stockRequests, permissions = { can_view: true, can_edit: true, can_delete: true }, onStatusUpdate, onRefresh }) {
@@ -484,6 +485,13 @@ export default function StockRequest() {
     can_edit: false,
     can_delete: false
   });
+  const [stats, setStats] = useState({
+    totalStock: 0,
+    totalStockHistory: 0,
+    pendingStock: 0,
+    deliveredStock: 0
+  });
+  const [statsLoading, setStatsLoading] = useState(true);
   const { user } = useSession();
   const router = useRouter();
 
@@ -506,6 +514,7 @@ export default function StockRequest() {
     if (Number(user.role) === 5) {
       setHasPermission(true);
       setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchStockStats();
       fetchStockRequests();
       return;
     }
@@ -520,6 +529,7 @@ export default function StockRequest() {
           can_edit: stockPerms.can_edit,
           can_delete: stockPerms.can_delete
         });
+        fetchStockStats();
         fetchStockRequests();
         return;
       }
@@ -533,6 +543,7 @@ export default function StockRequest() {
       if (cachedPerms.can_view) {
         setHasPermission(true);
         setPermissions(cachedPerms);
+        fetchStockStats();
         fetchStockRequests();
         return;
       }
@@ -565,6 +576,7 @@ export default function StockRequest() {
       if (perms.can_view) {
         setHasPermission(true);
         setPermissions(perms);
+        fetchStockStats();
         fetchStockRequests();
       } else {
         setHasPermission(false);
@@ -574,6 +586,51 @@ export default function StockRequest() {
       console.error('Permission check error:', error);
       setHasPermission(false);
       setError('Failed to check permissions.');
+    }
+  };
+
+  // Fetch stock statistics
+  const fetchStockStats = async () => {
+    try {
+      setStatsLoading(true);
+      
+      // Fetch from dashboard API which has stock history count
+      const dashboardResponse = await fetch('/api/dashboard');
+      const dashboardResult = await dashboardResponse.json();
+      
+      // Fetch stock counts
+      const stockResponse = await fetch('/api/stock');
+      const stockData = await stockResponse.json();
+      
+      if (dashboardResult.success && stockData) {
+        const stockArray = Array.isArray(stockData) ? stockData : [];
+        const totalStock = stockArray.length;
+        const pendingStock = stockArray.filter(s => 
+          s.status === 'pending' || s.status === '1' || 
+          s.status === 'on_the_way' || s.status === '2'
+        ).length;
+        const deliveredStock = stockArray.filter(s => 
+          s.status === 'delivered' || s.status === '3'
+        ).length;
+        
+        setStats({
+          totalStock: totalStock,
+          totalStockHistory: dashboardResult.data?.totalStockHistory || 0,
+          pendingStock: pendingStock,
+          deliveredStock: deliveredStock
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching stock stats:', err);
+      // Set default values on error
+      setStats({
+        totalStock: 0,
+        totalStockHistory: 0,
+        pendingStock: 0,
+        deliveredStock: 0
+      });
+    } finally {
+      setStatsLoading(false);
     }
   };
 
@@ -599,7 +656,26 @@ export default function StockRequest() {
       console.log("API response:", result);
       
       if (result.success) {
-        setStockRequests(result.data || []);
+        const stockData = result.data || [];
+        setStockRequests(stockData);
+        
+        // Update stats after fetching stock data
+        const totalStock = stockData.length;
+        const pendingStock = stockData.filter(s => 
+          s.status === 'pending' || s.status === '1' || 
+          s.status === 'on_the_way' || s.status === '2'
+        ).length;
+        const deliveredStock = stockData.filter(s => 
+          s.status === 'delivered' || s.status === '3'
+        ).length;
+        
+        setStats(prev => ({
+          ...prev,
+          totalStock: totalStock,
+          pendingStock: pendingStock,
+          deliveredStock: deliveredStock
+        }));
+        
         if (result.message) {
           console.info("API message:", result.message);
         }
@@ -697,8 +773,64 @@ export default function StockRequest() {
                   </div>
                 </div>
               )}
-              
-              <StockTable 
+
+              {/* Quick Stats Section */}
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="border rounded-lg p-4 bg-blue-100 text-blue-800 border-blue-200 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Total Stock</p>
+                        <p className="text-lg font-bold mt-1">
+                          {statsLoading ? '...' : stats.totalStock}
+                        </p>
+                      </div>
+                      <BsBox className="text-2xl opacity-70" />
+                    </div>
+                  </div>
+                  
+                  <Link href="/stock-history" className="block">
+                    <div className="border rounded-lg p-4 bg-indigo-100 text-indigo-800 border-indigo-200 shadow-sm hover:bg-indigo-200 transition-colors cursor-pointer">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Stock History</p>
+                          <p className="text-lg font-bold mt-1">
+                            {statsLoading ? '...' : stats.totalStockHistory}
+                          </p>
+                        </div>
+                        <BiHistory className="text-2xl opacity-70" />
+                      </div>
+                    </div>
+                  </Link>
+                  
+                  <div className="border rounded-lg p-4 bg-yellow-100 text-yellow-800 border-yellow-200 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Pending</p>
+                        <p className="text-lg font-bold mt-1">
+                          {statsLoading ? '...' : stats.pendingStock}
+                        </p>
+                      </div>
+                      <BsClockHistory className="text-2xl opacity-70" />
+                    </div>
+                  </div>
+                  
+                  <div className="border rounded-lg p-4 bg-green-100 text-green-800 border-green-200 shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium">Delivered</p>
+                        <p className="text-lg font-bold mt-1">
+                          {statsLoading ? '...' : stats.deliveredStock}
+                        </p>
+                      </div>
+                      <BsTruck className="text-2xl opacity-70" />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <StockTable
                 stockRequests={stockRequests} 
                 permissions={permissions}
                 onStatusUpdate={(stockId, newStatus) => {

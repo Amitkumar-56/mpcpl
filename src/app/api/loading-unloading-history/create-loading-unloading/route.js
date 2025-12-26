@@ -1,5 +1,8 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken, getCurrentUser } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
 
 export async function POST(request) {
   try {
@@ -69,24 +72,43 @@ export async function POST(request) {
     try {
       let userId = null;
       let userName = null;
+      
+      // ✅ Use getCurrentUser() first for reliable authentication
       try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('token')?.value;
-        if (token) {
-          const decoded = verifyToken(token);
-          if (decoded) {
-            userId = decoded.userId || decoded.id;
-            const users = await executeQuery(
-              `SELECT name FROM employee_profile WHERE id = ?`,
-              [userId]
-            );
-            if (users.length > 0) {
-              userName = users[0].name || null;
+        const currentUser = await getCurrentUser();
+        if (currentUser && currentUser.userId) {
+          userId = currentUser.userId; // This is employee_profile.id
+          userName = currentUser.userName || null;
+          console.log('✅ [Loading-Unloading] Got user from getCurrentUser:', { userId, userName });
+        }
+      } catch (getUserError) {
+        console.warn('⚠️ [Loading-Unloading] getCurrentUser failed, trying token fallback:', getUserError.message);
+      }
+      
+      // Fallback: Try token-based authentication if getCurrentUser failed
+      if (!userId) {
+        try {
+          const cookieStore = await cookies();
+          const token = cookieStore.get('token')?.value;
+          if (token) {
+            const decoded = verifyToken(token);
+            if (decoded) {
+              userId = decoded.userId || decoded.id;
+              console.log('✅ [Loading-Unloading] Got userId from token:', userId);
+              
+              // Get user name from database
+              const users = await executeQuery(
+                `SELECT name FROM employee_profile WHERE id = ?`,
+                [userId]
+              );
+              if (users.length > 0) {
+                userName = users[0].name || null;
+              }
             }
           }
+        } catch (tokenError) {
+          console.error('❌ [Loading-Unloading] Token fallback also failed:', tokenError.message);
         }
-      } catch (authError) {
-        console.error('Error getting user for audit log:', authError);
       }
 
       await createAuditLog({

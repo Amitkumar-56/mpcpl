@@ -4,7 +4,7 @@
 import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState, memo } from "react";
+import { useMemo, useState, memo, useEffect } from "react";
 import {
   FaBars,
   FaBox,
@@ -30,6 +30,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   const { user, logout } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [navigatingTo, setNavigatingTo] = useState(null); // Track which link is being navigated to
   const router = useRouter();
   const pathname = usePathname();
 
@@ -158,11 +159,24 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     return filtered;
   }, [user, menuItems, moduleMapping]);
 
-  // Improved navigation handler
-  const handleNavigation = (path) => {
-    router.push(path);
+  // Improved navigation handler - prevent default and use Link
+  const handleNavigation = (e, path) => {
+    e?.preventDefault();
+    // Set loading state for navigation
+    if (path !== pathname) {
+      setNavigatingTo(path);
+    }
+    // Use window.location for reliable navigation without redirect loops
     setIsOpen(false);
+    setTimeout(() => {
+      window.location.href = path;
+    }, 100);
   };
+
+  // Reset navigating state when pathname changes
+  useEffect(() => {
+    setNavigatingTo(null);
+  }, [pathname]);
 
   // Always render sidebar - don't wait for loading
   // Show empty state if no user yet
@@ -237,19 +251,37 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                   prefetch={false}
                   onClick={(e) => {
                     setIsOpen(false);
-                    // Ensure navigation happens
+                    // Prevent redirect loops - allow navigation
                     if (e.metaKey || e.ctrlKey) {
                       return; // Allow browser default for Cmd/Ctrl+click
                     }
+                    // Set loading state for this navigation
+                    if (item.path !== pathname) {
+                      setNavigatingTo(item.path);
+                    }
+                    // Use window.location for reliable navigation to prevent redirect issues
+                    e.preventDefault();
+                    setTimeout(() => {
+                      window.location.href = item.path;
+                    }, 50);
                   }}
-                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors cursor-pointer ${
+                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors cursor-pointer relative ${
                     isActive
                       ? "bg-blue-500 text-white shadow-md"
                       : "text-black hover:bg-blue-300 hover:text-gray-900"
-                  }`}
+                  } ${navigatingTo === item.path ? 'opacity-50 pointer-events-none' : ''}`}
                 >
-                  <span className="mr-3 text-lg">{item.icon}</span>
-                  <span className="text-sm font-medium">{item.name}</span>
+                  {navigatingTo === item.path ? (
+                    <>
+                      <div className="mr-3 w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
+                      <span className="text-sm font-medium">Loading...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span className="mr-3 text-lg">{item.icon}</span>
+                      <span className="text-sm font-medium">{item.name}</span>
+                    </>
+                  )}
                 </Link>
               );
             })

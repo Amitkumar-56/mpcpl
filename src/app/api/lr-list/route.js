@@ -14,26 +14,47 @@ export async function GET(request) {
       if (currentUser && currentUser.userId) {
         userId = currentUser.userId;
         userRole = currentUser.role;
-      } else {
-        // Fallback: Try to get from token directly
+        console.log('✅ [LR List] User authenticated via getCurrentUser:', { userId, userRole });
+      }
+    } catch (getUserError) {
+      console.warn('⚠️ [LR List] getCurrentUser failed, trying token fallback:', getUserError.message);
+    }
+    
+    // Fallback: Try token-based authentication if getCurrentUser failed
+    if (!userId) {
+      try {
         const cookieStore = await cookies();
         const token = cookieStore.get('token')?.value;
+        
         if (token) {
           const { verifyToken } = await import('@/lib/auth');
           const decoded = verifyToken(token);
           if (decoded) {
             userId = decoded.userId || decoded.id;
+            console.log('✅ [LR List] User authenticated via token:', userId);
+            
             // Get role from database
-            const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
-            const users = await executeQuery(userQuery, [userId]);
-            if (users.length > 0) {
-              userRole = users[0].role;
+            if (userId) {
+              try {
+                const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
+                const users = await executeQuery(userQuery, [userId]);
+                if (users.length > 0) {
+                  userRole = users[0].role;
+                  console.log('✅ [LR List] User role fetched:', userRole);
+                }
+              } catch (roleError) {
+                console.warn('⚠️ [LR List] Failed to fetch role:', roleError.message);
+              }
             }
+          } else {
+            console.warn('⚠️ [LR List] Token verification failed');
           }
+        } else {
+          console.warn('⚠️ [LR List] No token found in cookies');
         }
+      } catch (tokenError) {
+        console.error('❌ [LR List] Token fallback failed:', tokenError.message);
       }
-    } catch (authError) {
-      console.error('Error getting current user:', authError);
     }
 
     if (!userId) {

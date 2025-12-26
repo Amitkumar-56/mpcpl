@@ -21,6 +21,7 @@ function StockHistoryContent() {
     to_date: ''
   });
   const [exportLoading, setExportLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Add loading state
   const isMountedRef = useRef(true);
   const fetchingRef = useRef(false);
 
@@ -36,7 +37,7 @@ function StockHistoryContent() {
 
     try {
       fetchingRef.current = true;
-      // No loading state - instant display
+      setLoading(true); // Set loading state
       const params = new URLSearchParams();
       
       if (cid) params.append('id', cid);
@@ -49,6 +50,7 @@ function StockHistoryContent() {
 
       const response = await fetch(url, {
         cache: 'no-store',
+        credentials: 'include', // Include cookies for auth
         headers: {
           'Content-Type': 'application/json',
         }
@@ -57,6 +59,20 @@ function StockHistoryContent() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ HTTP error:', response.status, errorText);
+        
+        // ✅ Don't throw error for 401/403 - just return empty data to prevent logout
+        if (response.status === 401 || response.status === 403) {
+          console.warn('⚠️ Authentication error, returning empty data instead of throwing');
+          if (!isMountedRef.current) return;
+          setData({
+            filling_stations: {},
+            products: [],
+            rows: [],
+            filters: {}
+          });
+          return; // Exit early, don't throw
+        }
+        
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -110,6 +126,9 @@ function StockHistoryContent() {
       });
     } finally {
       fetchingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false); // Clear loading state
+      }
     }
   }, [cid]); // Only depend on cid
 
@@ -219,14 +238,14 @@ function StockHistoryContent() {
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex items-center">
-            <button 
-              onClick={() => window.history.back()} 
+            <Link 
+              href="/stock"
               className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
             >
               <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-            </button>
+            </Link>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">All Stocks</h1>
               <nav className="flex mt-2">
@@ -362,6 +381,17 @@ function StockHistoryContent() {
             </div>
           </div>
           <div className="p-6">
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="flex flex-col items-center">
+                  <svg className="animate-spin h-8 w-8 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <p className="text-gray-600">Loading stock history...</p>
+                </div>
+              </div>
+            ) : (
             <div className="overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -489,7 +519,7 @@ function StockHistoryContent() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {row.user_name || row.created_by_name || 'System'}
+                          {row.user_name || row.created_by_name || (row.created_by ? `Employee ID: ${row.created_by}` : 'System')}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-2">
@@ -543,6 +573,7 @@ function StockHistoryContent() {
                 </tbody>
               </table>
             </div>
+            )}
           </div>
         </div>
       </div>

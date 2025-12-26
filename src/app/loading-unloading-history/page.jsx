@@ -49,6 +49,7 @@ function SummaryCard({ icon, value, label, gradient }) {
 function LoadingUnloadingContent() {
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
+  const [loading, setLoading] = useState(true);
   const router = useRouter();
   const { user } = useSession();
 
@@ -61,16 +62,35 @@ function LoadingUnloadingContent() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
+  
+  // ✅ Refresh data when navigating back to this page
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user && document.visibilityState === 'visible') {
+        // Refresh data when page gets focus (user navigates back)
+        fetchData();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+    };
+  }, [user]);
 
   const checkPermissions = async () => {
+    setLoading(true);
+    setError(null);
+    
     if (!user || !user.id) {
       router.push('/login');
+      setLoading(false);
       return;
     }
 
     // Admin (role 5) has full access
     if (user.role === 5) {
-      fetchData();
+      await fetchData();
       return;
     }
 
@@ -78,7 +98,7 @@ function LoadingUnloadingContent() {
     if (user.permissions && user.permissions['Loading History']) {
       const loadingPerms = user.permissions['Loading History'];
       if (loadingPerms.can_view) {
-        fetchData();
+        await fetchData();
         return;
       } else {
         setError('You are not allowed to access this page.');
@@ -93,10 +113,11 @@ function LoadingUnloadingContent() {
     if (cached) {
       const cachedPerms = JSON.parse(cached);
       if (cachedPerms.can_view) {
-        fetchData();
+        await fetchData();
         return;
       } else {
         setError('You are not allowed to access this page.');
+        setLoading(false);
         return;
       }
     }
@@ -124,65 +145,128 @@ function LoadingUnloadingContent() {
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
 
       if (data.allowed) {
-        fetchData();
+        await fetchData();
       } else {
         setError('You are not allowed to access this page.');
+        setLoading(false);
         console.log('❌ Access denied - No permission for Loading History module');
       }
     } catch (error) {
       console.error('❌ Permission check error:', error);
       setError('Failed to check permissions');
+      setLoading(false);
     }
   };
 
   const fetchData = async () => {
     try {
+      setLoading(true);
+      setError(null);
+      
       if (!user || !user.id) {
         router.push('/login');
+        setLoading(false);
         return;
       }
 
-      setError(null);
-
-      const response = await fetch(`/api/loading-unloading-history?user_id=${user.id}&role=${user.role || ''}`);
+      const response = await fetch(`/api/loading-unloading-history?user_id=${user.id}&role=${user.role || ''}`, {
+        credentials: 'include',
+        cache: 'no-store'
+      });
       
       if (!response.ok) {
         if (response.status === 403) {
           setError('You are not allowed to access this page.');
+          setLoading(false);
           return;
         }
-        throw new Error('Failed to fetch data');
+        if (response.status === 401) {
+          setError('Unauthorized. Please login again.');
+          setLoading(false);
+          return;
+        }
+        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch data' }));
+        throw new Error(errorData.error || 'Failed to fetch data');
       }
 
       const result = await response.json();
       
       if (result.error) {
         setError(result.error);
+        setLoading(false);
         return;
       }
       
-      if (result.shipments && result.summary) {
-        setData(result);
+      // ✅ FIX: Handle case where shipments might be empty array but still valid
+      if (result.shipments !== undefined && result.summary !== undefined) {
+        setData({
+          shipments: result.shipments || [],
+          permissions: result.permissions || { can_view: 0, can_edit: 0, can_delete: 0, can_create: 0 },
+          summary: result.summary || { total: 0, completed: 0, pending: 0, drivers: 0 }
+        });
       } else {
         setError('Invalid data structure received from server');
+        setLoading(false);
+        return;
       }
     } catch (err) {
-      console.error('Error fetching loading-unloading data:', err);
+      console.error('❌ Error fetching loading-unloading data:', err);
       setError(err.message || 'Failed to fetch data');
+    } finally {
+      setLoading(false);
     }
   };
 
 
-  // Show error state
-  if (error) {
-    return <ErrorDisplay error={error} onRetry={fetchData} />;
+  // Show loading state
+  if (loading) {
+    return <LoadingSpinner />;
   }
 
-  // Show no data state
+  // Show error state
+  if (error) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <Sidebar />
+        </div>
+        <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+          <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+            <Header />
+          </div>
+          <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+            <ErrorDisplay error={error} onRetry={checkPermissions} />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // Show no data state - but still show the page structure
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600 text-xl">No data available</div>
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <Sidebar />
+        </div>
+        <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+          <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+            <Header />
+          </div>
+          <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+            <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="text-center">
+                <div className="text-gray-600 text-xl mb-4">No data available</div>
+                <button
+                  onClick={checkPermissions}
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          </main>
+        </div>
       </div>
     );
   }
@@ -252,10 +336,101 @@ function LoadingUnloadingContent() {
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-lg font-semibold text-gray-900">Shipment Overview</h2>
+            <div className="flex justify-between items-center">
+              <h2 className="text-lg font-semibold text-gray-900">Shipment Records</h2>
+              <span className="text-sm text-gray-500">Total: {shipments.length}</span>
+            </div>
           </div>
-          <div className="p-6 text-gray-700">
-            Data will appear here
+          <div className="overflow-x-auto">
+            {shipments.length > 0 ? (
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Dispatch From</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consignee</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Net Weight (Loading)</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {shipments.map((shipment) => (
+                    <tr key={shipment.id || shipment.shipment_id} className="hover:bg-gray-50">
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {shipment.id || shipment.shipment_id}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {shipment.tanker || shipment.tanker_number || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {shipment.driver || shipment.driver_name || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {shipment.dispatch || shipment.dispatch_from || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {shipment.consignee || shipment.customer_name || '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {shipment.final_loading_datetime 
+                          ? new Date(shipment.final_loading_datetime).toLocaleString('en-GB')
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        {shipment.net_weight_loading || shipment.net_weight || '0'} Kg
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {shipment.created_at 
+                          ? new Date(shipment.created_at).toLocaleDateString('en-GB')
+                          : '-'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center space-x-3">
+                          <Link
+                            href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
+                            target="_blank"
+                            className="text-blue-600 hover:text-blue-900"
+                          >
+                            View
+                          </Link>
+                          {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
+                            <>
+                              <span className="text-gray-300">|</span>
+                              <Link
+                                href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
+                                className="text-orange-600 hover:text-orange-900"
+                              >
+                                Edit
+                              </Link>
+                            </>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            ) : (
+              <div className="p-12 text-center">
+                <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p className="text-lg font-medium text-gray-900 mb-2">No shipment records found</p>
+                <p className="text-sm text-gray-500 mb-4">Create your first loading/unloading record to get started.</p>
+                {(permissions?.can_create === 1 || permissions?.can_create === true) && (
+                  <Link
+                    href="/loading-unloading-history/create-loading-unloading"
+                    className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                  >
+                    Create First Record
+                  </Link>
+                )}
+              </div>
+            )}
           </div>
         </div>
           

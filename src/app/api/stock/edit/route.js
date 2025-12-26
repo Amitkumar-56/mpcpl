@@ -71,39 +71,55 @@ export async function PUT(request) {
     let userName = null; // Start with null, not 'System'
     
     try {
-      // First, try to get user ID from token
-      const cookieStore = await cookies();
-      const token = cookieStore.get('token')?.value;
-      
-      console.log('🔍 [Stock Edit] Token exists:', !!token);
-      
-      if (token) {
-        const decoded = verifyToken(token);
-        if (decoded) {
-          userId = decoded.userId || decoded.id;
-          console.log('🔍 [Stock Edit] Decoded userId:', userId);
-        } else {
-          console.warn('⚠️ [Stock Edit] Token verification failed');
+      // First, try getCurrentUser() which properly fetches from employee_profile
+      try {
+        const currentUser = await getCurrentUser();
+        if (currentUser && currentUser.userId) {
+          userId = currentUser.userId; // This is employee_profile.id
+          userName = currentUser.userName || null;
+          console.log('✅ [Stock Edit] Got user from getCurrentUser:', { userId, userName });
         }
-      } else {
-        console.warn('⚠️ [Stock Edit] No token found in cookies');
+      } catch (getUserError) {
+        console.warn('⚠️ [Stock Edit] getCurrentUser failed, trying token:', getUserError.message);
       }
       
-      // ✅ CRITICAL: If we have userId, ALWAYS fetch name from employee_profile table
+      // Fallback: try to get user ID from token if getCurrentUser didn't work
+      if (!userId) {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        
+        console.log('🔍 [Stock Edit] Token exists:', !!token);
+        
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            console.log('🔍 [Stock Edit] Decoded userId from token:', userId);
+          } else {
+            console.warn('⚠️ [Stock Edit] Token verification failed');
+          }
+        } else {
+          console.warn('⚠️ [Stock Edit] No token found in cookies');
+        }
+      }
+      
+      // ✅ CRITICAL: If we have userId, ALWAYS verify it exists in employee_profile table
+      // userId must be employee_profile.id for filling_history.created_by
       if (userId) {
         try {
-          console.log(`🔍 [Stock Edit] Fetching employee name for userId: ${userId}`);
+          console.log(`🔍 [Stock Edit] Verifying and fetching employee for userId (employee_profile.id): ${userId}`);
           const users = await executeQuery(
             `SELECT id, name FROM employee_profile WHERE id = ?`,
             [userId]
           );
           console.log(`🔍 [Stock Edit] Employee query result:`, users);
           
-          if (users.length > 0 && users[0].name) {
-            userName = users[0].name;
-            console.log(`✅ [Stock Edit] Fetched employee name: ${userName} (ID: ${userId})`);
+          if (users.length > 0) {
+            // Verified: userId exists in employee_profile table (employee_profile.id)
+            userName = users[0].name || null;
+            console.log(`✅ [Stock Edit] Verified employee_profile.id: ${userId}, name: ${userName}`);
           } else {
-            console.error(`❌ [Stock Edit] Employee not found in database for ID: ${userId}`);
+            console.error(`❌ [Stock Edit] Employee not found in employee_profile table for ID: ${userId}`);
             // Try alternative: check if user_id column name is different
             const altUsers = await executeQuery(
               `SELECT * FROM employee_profile WHERE id = ? LIMIT 1`,
@@ -274,10 +290,57 @@ export async function PUT(request) {
           const oldStockValue = currentStock; // Stock before addition
           const newStockValue = currentStock + quantity; // Stock after addition
           
+          // ✅ Use current user (who is delivering/updating status to delivered) as created_by
+          // This is the user who delivered the stock, NOT the original purchase creator
+          let deliveredByUserId = userId; // Current user who is updating status to delivered
+          
+          // ✅ CRITICAL: Ensure we have a valid userId before inserting
+          if (!deliveredByUserId) {
+            console.error('❌ [Stock Edit] userId is null, trying getCurrentUser() again...');
+            try {
+              const currentUser = await getCurrentUser();
+              if (currentUser && currentUser.userId) {
+                deliveredByUserId = currentUser.userId;
+                console.log(`✅ [Stock Edit] Got userId from getCurrentUser fallback: ${deliveredByUserId}`);
+              } else {
+                console.error('❌ [Stock Edit] Could not get userId even after getCurrentUser fallback');
+              }
+            } catch (fallbackError) {
+              console.error('❌ [Stock Edit] getCurrentUser fallback also failed:', fallbackError.message);
+            }
+          }
+          
+          // ✅ Verify the userId exists in employee_profile table
+          if (deliveredByUserId) {
+            try {
+              const verifyQuery = `SELECT id FROM employee_profile WHERE id = ?`;
+              const verifyResult = await executeQuery(verifyQuery, [deliveredByUserId]);
+              if (verifyResult.length === 0) {
+                console.error(`❌ User ID ${deliveredByUserId} not found in employee_profile table`);
+                // Don't set to null, keep the ID but log error
+              } else {
+                console.log(`✅ Verified delivery user (employee_profile.id): ${deliveredByUserId} (Stock ID: ${id})`);
+              }
+            } catch (verifyError) {
+              console.error('❌ Error verifying delivery user in employee_profile:', verifyError.message);
+            }
+          } else {
+            console.error('❌ [Stock Edit] deliveredByUserId is still null - filling_history created_by will be NULL');
+          }
+          
           // Check if stock_type column exists
           const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
           const colSet = new Set(colsInfo.map(r => r.Field));
           const hasStockType = colSet.has('stock_type');
+          
+          // ✅ Log before inserting to debug
+          console.log('🔍 [Stock Edit] Inserting into filling_history with created_by:', {
+            deliveredByUserId,
+            stockId: id,
+            quantity,
+            fs_id: oldStock.fs_id,
+            product_id: oldStock.product_id
+          });
           
           if (hasStockType) {
             await executeQuery(
@@ -290,7 +353,7 @@ export async function PUT(request) {
                 quantity, // Positive quantity for Inward
                 oldStockValue, // Current stock before change
                 newStockValue, // Available stock after change
-                userId || null
+                deliveredByUserId || null // Use current user who delivered (employee_profile.id)
               ]
             );
           } else {
@@ -304,18 +367,31 @@ export async function PUT(request) {
                 quantity, // Positive quantity for Inward
                 oldStockValue, // Current stock before change
                 newStockValue, // Available stock after change
-                userId || null
+                deliveredByUserId || null // Use current user who delivered (employee_profile.id)
               ]
             );
           }
-          console.log('✅ Filling history entry created:', { oldStock: oldStockValue, newStock: newStockValue, quantity });
+          console.log('✅ Filling history entry created with delivery user ID:', { 
+            oldStock: oldStockValue, 
+            newStock: newStockValue, 
+            quantity,
+            created_by: deliveredByUserId,
+            delivered_by: deliveredByUserId,
+            wasNull: !deliveredByUserId
+          });
         } catch (historyError) {
           console.log('⚠️ filling_history insert failed:', historyError);
         }
         
-        console.log(`✅ Stock added: ${quantity} Ltr (Status: ${oldStatus} -> delivered)`);
+        // ✅ Stock record will remain in stock table with status "delivered"
+        // Staff and Incharge will not see delivered items (filtered in GET route)
+        // Only filling_station_stocks and filling_history are updated
+        console.log(`✅ Stock delivered: ${quantity} Ltr (Status: ${oldStatus} -> delivered). Record remains in stock table.`);
       } else if (oldStatus === 'delivered' && (newStatus === 'on_the_way' || newStatus === 'pending')) {
-        // Decrease stock when moving from delivered to other status
+        // When moving from delivered to other status:
+        // 1. Decrease stock from filling_station_stocks
+        // 2. Create filling_history entry
+        // 3. Re-insert record into stock table (since it was deleted when delivered)
         if (currentStockResult.length > 0 && currentStock >= quantity) {
           const newStock = currentStock - quantity;
           await executeQuery(
@@ -346,7 +422,9 @@ export async function PUT(request) {
             console.log('⚠️ filling_history insert failed:', historyError);
           }
           
+          // ✅ Stock record remains in stock table (not deleted), will be updated with new status below
           console.log(`✅ Stock decreased: ${quantity} Ltr (Status: delivered -> ${newStatus})`);
+          // Continue with normal update flow below - record already exists in stock table
         }
       }
     }

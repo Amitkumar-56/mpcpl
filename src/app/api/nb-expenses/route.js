@@ -7,44 +7,84 @@ import { createAuditLog } from '@/lib/auditLog';
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const module_name = 'nb_expenses';
+    // Try both module name formats
+    let module_name = 'nb_expenses';
+    const altModuleName = 'NB Expenses';
     
-    // Get current logged-in user
+    // Get current logged-in user - with retry mechanism
     let userId = null;
     let userRole = null;
     
+    // First attempt: Try getCurrentUser
     try {
       const currentUser = await getCurrentUser();
       if (currentUser && currentUser.userId) {
         userId = currentUser.userId;
         userRole = currentUser.role;
-      } else {
-        // Fallback: Try to get from query params or token
-        userId = searchParams.get('employee_id');
-        userRole = searchParams.get('role') || '5';
+        console.log('✅ [NB Expenses] User authenticated via getCurrentUser:', { userId, userRole });
+      }
+    } catch (getUserError) {
+      console.warn('⚠️ [NB Expenses] getCurrentUser failed, trying token fallback:', getUserError.message);
+    }
+    
+    // Second attempt: Try token-based authentication if getCurrentUser failed
+    if (!userId) {
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
         
-        if (!userId) {
-          const cookieStore = await cookies();
-          const token = cookieStore.get('token')?.value;
-          if (token) {
+        if (token) {
+          try {
             const decoded = verifyToken(token);
             if (decoded) {
               userId = decoded.userId || decoded.id;
+              console.log('✅ [NB Expenses] User authenticated via token:', userId);
+              
               // Get role from database
-              const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
-              const users = await executeQuery(userQuery, [userId]);
-              if (users.length > 0) {
-                userRole = users[0].role;
+              if (userId) {
+                try {
+                  const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
+                  const users = await executeQuery(userQuery, [userId]);
+                  if (users.length > 0) {
+                    userRole = users[0].role;
+                    console.log('✅ [NB Expenses] User role fetched:', userRole);
+                  }
+                } catch (roleError) {
+                  console.warn('⚠️ [NB Expenses] Failed to fetch role:', roleError.message);
+                }
               }
+            } else {
+              console.warn('⚠️ [NB Expenses] Token verification failed - token invalid');
             }
+          } catch (verifyError) {
+            console.warn('⚠️ [NB Expenses] Token verification error:', verifyError.message);
+            // Try to continue anyway if token exists
           }
+        } else {
+          console.warn('⚠️ [NB Expenses] No token found in cookies');
         }
+      } catch (tokenError) {
+        console.error('❌ [NB Expenses] Token fallback failed:', tokenError.message);
       }
-    } catch (authError) {
-      console.error('Error getting current user:', authError);
     }
 
+    // Final check - if still no userId, check if there's any session at all
     if (!userId) {
+      try {
+        // Last resort: Check if there's any valid session from request headers
+        const cookieStore = await cookies();
+        const allCookies = cookieStore.getAll();
+        console.log('🔍 [NB Expenses] Available cookies:', allCookies.map(c => c.name));
+        
+        // If we have any cookies but no userId, might be a session issue
+        if (allCookies.length > 0) {
+          console.warn('⚠️ [NB Expenses] Cookies exist but userId not found - possible session issue');
+        }
+      } catch (cookieError) {
+        console.warn('⚠️ [NB Expenses] Error reading cookies:', cookieError.message);
+      }
+      
+      console.error('❌ [NB Expenses] No userId found after all attempts');
       return NextResponse.json(
         { error: "Unauthorized. Please login again." },
         { status: 401 }
@@ -70,15 +110,34 @@ export async function GET(request) {
       permissions = await executeQuery(permissionQuery, [module_name, userRole]);
     }
     
+    // If still no permissions, try alternative module name
+    if (permissions.length === 0) {
+      permissionQuery = `
+        SELECT can_view, can_edit, can_delete 
+        FROM role_permissions 
+        WHERE module_name = ? AND employee_id = ?
+      `;
+      permissions = await executeQuery(permissionQuery, [altModuleName, userId]);
+    }
+    
+    if (permissions.length === 0 && userRole) {
+      permissionQuery = `
+        SELECT can_view, can_edit, can_delete 
+        FROM role_permissions 
+        WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
+      `;
+      permissions = await executeQuery(permissionQuery, [altModuleName, userRole]);
+    }
+    
     // Try to get can_create if column exists
     let canCreate = false;
     try {
       const fullPermissionQuery = `
         SELECT can_view, can_edit, can_create, can_delete 
         FROM role_permissions 
-        WHERE module_name = ? AND employee_id = ?
+        WHERE (module_name = ? OR module_name = ?) AND employee_id = ?
       `;
-      const fullPermissions = await executeQuery(fullPermissionQuery, [module_name, userId]);
+      const fullPermissions = await executeQuery(fullPermissionQuery, [module_name, altModuleName, userId]);
       if (fullPermissions.length > 0 && fullPermissions[0].hasOwnProperty('can_create')) {
         canCreate = fullPermissions[0].can_create === 1;
       }
@@ -87,7 +146,18 @@ export async function GET(request) {
       canCreate = false;
     }
     
-    if (permissions.length === 0 || permissions[0].can_view !== 1) {
+    // Default allow view if no permissions found (for backward compatibility)
+    let permissionData = {
+      can_view: 1,
+      can_edit: 0,
+      can_delete: 0
+    };
+    
+    if (permissions.length > 0) {
+      permissionData = permissions[0];
+    }
+    
+    if (permissions.length > 0 && permissionData.can_view !== 1) {
       return NextResponse.json(
         { error: "Access denied" },
         { status: 403 }
@@ -108,14 +178,13 @@ export async function GET(request) {
     
     const expenses = await executeQuery(expensesQuery, queryParams);
     
-    const permData = permissions[0];
     return NextResponse.json({
       expenses: expenses || [],
       permissions: {
-        can_view: permData.can_view === 1,
-        can_edit: permData.can_edit === 1 || false,
+        can_view: permissionData.can_view === 1,
+        can_edit: permissionData.can_edit === 1 || false,
         can_create: canCreate,
-        can_delete: permData.can_delete === 1 || false
+        can_delete: permissionData.can_delete === 1 || false
       }
     });
     
@@ -146,7 +215,9 @@ export async function POST(request) {
     // Use employee_id from body if provided, otherwise use logged-in user
     const finalEmployeeId = bodyEmployeeId || userId;
     
-    const module_name = 'nb_expenses';
+    // Try both module name formats
+    let module_name = 'nb_expenses';
+    const altModuleName = 'NB Expenses';
     
     // Check permissions - try employee-specific first
     let permissionQuery = `
@@ -157,6 +228,11 @@ export async function POST(request) {
     
     let permissions = await executeQuery(permissionQuery, [module_name, userId]);
     
+    // If no employee-specific permissions, try alternative module name
+    if (permissions.length === 0) {
+      permissions = await executeQuery(permissionQuery, [altModuleName, userId]);
+    }
+    
     // If no employee-specific permissions, try role-based
     if (permissions.length === 0 && userRole) {
       permissionQuery = `
@@ -165,6 +241,11 @@ export async function POST(request) {
         WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
       `;
       permissions = await executeQuery(permissionQuery, [module_name, userRole]);
+      
+      // Try alternative module name
+      if (permissions.length === 0) {
+        permissions = await executeQuery(permissionQuery, [altModuleName, userRole]);
+      }
     }
     
     // Check if user has can_edit or can_create permission
@@ -250,7 +331,9 @@ export async function DELETE(request) {
     const userId = currentUser.userId;
     const userRole = currentUser.role;
     
-    const module_name = 'nb_expenses';
+    // Try both module name formats
+    let module_name = 'nb_expenses';
+    const altModuleName = 'NB Expenses';
     
     // Check permissions - try employee-specific first
     let permissionQuery = `
@@ -261,6 +344,11 @@ export async function DELETE(request) {
     
     let permissions = await executeQuery(permissionQuery, [module_name, userId]);
     
+    // If no employee-specific permissions, try alternative module name
+    if (permissions.length === 0) {
+      permissions = await executeQuery(permissionQuery, [altModuleName, userId]);
+    }
+    
     // If no employee-specific permissions, try role-based
     if (permissions.length === 0 && userRole) {
       permissionQuery = `
@@ -269,6 +357,11 @@ export async function DELETE(request) {
         WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
       `;
       permissions = await executeQuery(permissionQuery, [module_name, userRole]);
+      
+      // Try alternative module name
+      if (permissions.length === 0) {
+        permissions = await executeQuery(permissionQuery, [altModuleName, userRole]);
+      }
     }
     
     if (permissions.length === 0 || permissions[0].can_delete !== 1) {
