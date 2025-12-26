@@ -3,10 +3,11 @@
   "short_name": "MPCL",
   "description": "MPCL Management System - Complete business management solution",
   "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#7c3aed",
-  "orientation": "portrait-primary",
+  "orientation": "any",
   "icons": [
     {
       "src": "/favicon.png",
