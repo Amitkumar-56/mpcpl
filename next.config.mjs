@@ -9,7 +9,7 @@ export default withPWA({
   dest: 'public',
   register: true,
   skipWaiting: true,
-  disable: process.env.NODE_ENV === 'development', // Disable PWA in development
+  disable: false, // Enable PWA in all modes
   runtimeCaching: [
     {
       urlPattern: /^https?.*/,
