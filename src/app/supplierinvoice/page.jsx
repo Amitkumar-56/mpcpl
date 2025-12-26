@@ -325,7 +325,7 @@ function SupplierInvoiceContent() {
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
                             <div className="flex space-x-2">
                               <Link
-                                href={`/supply-details?id=${invoice.id}`}
+                                href={`/stock/supply-details/${invoice.id}`}
                                 className="px-3 py-1 bg-yellow-500 text-white rounded hover:bg-yellow-600"
                               >
                                 View

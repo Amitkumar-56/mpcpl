@@ -30,7 +30,15 @@ export default function AgentLoginPage() {
         localStorage.setItem("agent", JSON.stringify(data.agent));
         localStorage.setItem("agent_token", "agent_" + Date.now());
         
-        router.push("/agent/dashboard");
+        // ✅ Also save to sessionStorage for consistency
+        sessionStorage.setItem("agent", JSON.stringify(data.agent));
+        sessionStorage.setItem("agent_token", "agent_" + Date.now());
+        
+        // ✅ Use window.location.href for reliable redirect (prevents race conditions)
+        // Small delay to ensure localStorage is set
+        setTimeout(() => {
+          window.location.href = "/agent/dashboard";
+        }, 100);
       } else {
         setError(data.error || "Invalid credentials");
       }

@@ -114,10 +114,12 @@ export async function GET(request) {
     const total = countResult[0]?.total || 0;
     
     // Get audit logs with user names from both employee_profile and customers tables
+    // ✅ FIX: Always fetch employee name from employee_profile using user_id, even if user_name is 'System'
     const query = `
       SELECT 
         al.*,
-        COALESCE(ep.name, c.name, al.user_name, 'System') AS user_display_name
+        COALESCE(ep.name, c.name, al.user_name, 'System') AS user_display_name,
+        ep.name AS employee_name
       FROM audit_log al
       LEFT JOIN employee_profile ep ON al.user_id = ep.id
       LEFT JOIN customers c ON al.user_id = c.id
@@ -138,6 +140,28 @@ export async function GET(request) {
       6: 'Driver'
     };
 
+    // ✅ FIX: Get all user_ids that still have 'System' as name and fetch their names
+    const systemUserIds = logs
+      .filter(log => (!log.employee_name || log.employee_name === 'System') && log.user_id)
+      .map(log => log.user_id)
+      .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
+    
+    const employeeNamesMap = new Map();
+    if (systemUserIds.length > 0) {
+      try {
+        const placeholders = systemUserIds.map(() => '?').join(',');
+        const employeeQuery = `SELECT id, name FROM employee_profile WHERE id IN (${placeholders})`;
+        const employees = await executeQuery(employeeQuery, systemUserIds);
+        employees.forEach(emp => {
+          if (emp.name) {
+            employeeNamesMap.set(emp.id, emp.name);
+          }
+        });
+      } catch (err) {
+        console.error('Error fetching employee names for audit logs:', err);
+      }
+    }
+    
     const logsWithParsedValues = logs.map(log => {
       let oldValue = null;
       let newValue = null;
@@ -172,19 +196,33 @@ export async function GET(request) {
         };
       }
       
-      // Try to get employee name if user_name is 'System' or empty
-      let displayUserName = log.user_display_name || log.user_name;
+      // ✅ FIX: Always prioritize employee_name from employee_profile join
+      // If user_name is 'System' but we have employee_name from join, use that
+      let displayUserName = log.employee_name || log.user_display_name || log.user_name;
+      
+      // ✅ FIX: If still 'System' and we have user_id, check the employeeNamesMap
       if ((!displayUserName || displayUserName === 'System') && log.user_id) {
-        // Already joined with employee_profile, so user_display_name should have the name
-        // But if it's still System, try to get from newValue
-        if (newValue && (newValue.created_by_name || newValue.user_name || newValue.edited_by_name)) {
-          displayUserName = newValue.created_by_name || newValue.user_name || newValue.edited_by_name;
+        const fetchedName = employeeNamesMap.get(log.user_id);
+        if (fetchedName) {
+          displayUserName = fetchedName;
+        } else {
+          // Try to get from newValue (might have created_by_name)
+          if (newValue && (newValue.created_by_name || newValue.user_name || newValue.edited_by_name)) {
+            displayUserName = newValue.created_by_name || newValue.user_name || newValue.edited_by_name;
+          }
+          // Final fallback: try from old_value
+          if ((!displayUserName || displayUserName === 'System') && oldValue) {
+            if (oldValue.created_by_name || oldValue.user_name || oldValue.edited_by_name) {
+              displayUserName = oldValue.created_by_name || oldValue.user_name || oldValue.edited_by_name;
+            }
+          }
         }
       }
       
       return {
         ...log,
         user_name: displayUserName || 'Unknown User',
+        user_display_name: displayUserName || 'Unknown User', // Ensure both fields have the correct name
         old_value: oldValue,
         new_value: newValue,
         creator_info: creatorInfo

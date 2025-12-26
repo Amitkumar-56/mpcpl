@@ -278,7 +278,7 @@ function StockRequestsContent() {
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 sm:space-x-3">
                             <Link
-                              href={`/supply-details?id=${request.id}`}
+                              href={`/stock/supply-details/${request.id}`}
                               className="text-blue-600 hover:text-blue-900"
                             >
                               <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 20 20">

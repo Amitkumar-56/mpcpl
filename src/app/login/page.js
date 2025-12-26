@@ -48,7 +48,11 @@ export default function LoginPage() {
           client: data.client,
         }, data.token);
 
-        router.push("/dashboard");
+        // ✅ Use window.location.href for reliable redirect (prevents race conditions)
+        // Small delay to ensure localStorage is set
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 100);
       } else {
         setError(data.message || "Invalid credentials");
       }
@@ -91,7 +95,11 @@ export default function LoginPage() {
           client: data.client,
         }, data.token);
 
-        router.push("/dashboard");
+        // ✅ Use window.location.href for reliable redirect (prevents race conditions)
+        // Small delay to ensure localStorage is set
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 100);
       } else {
         setError(data.message || "Failed to verify OTP");
       }

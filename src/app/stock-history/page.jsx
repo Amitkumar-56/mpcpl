@@ -5,7 +5,7 @@ import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 
 function StockHistoryContent() {
   const searchParams = useSearchParams();
@@ -21,16 +21,21 @@ function StockHistoryContent() {
     to_date: ''
   });
   const [exportLoading, setExportLoading] = useState(false);
+  const isMountedRef = useRef(true);
+  const fetchingRef = useRef(false);
 
   const cid = searchParams.get('id');
 
-  useEffect(() => {
-    fetchStockHistory();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cid]);
+  // ✅ Memoize fetchStockHistory to prevent unnecessary re-renders
+  const fetchStockHistory = useCallback(async (filterParams = {}) => {
+    // Prevent multiple simultaneous fetches
+    if (fetchingRef.current) {
+      console.log('⚠️ Fetch already in progress, skipping...');
+      return;
+    }
 
-  const fetchStockHistory = async (filterParams = {}) => {
     try {
+      fetchingRef.current = true;
       // No loading state - instant display
       const params = new URLSearchParams();
       
@@ -39,29 +44,84 @@ function StockHistoryContent() {
       if (filterParams.from_date) params.append('from_date', filterParams.from_date);
       if (filterParams.to_date) params.append('to_date', filterParams.to_date);
 
-      const response = await fetch(`/api/stock-history?${params}`);
+      const url = `/api/stock-history?${params}`;
+      console.log('🔍 Fetching stock history from:', url);
+
+      const response = await fetch(url, {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP error:', response.status, errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const result = await response.json();
+      console.log('✅ Stock history API response:', {
+        success: result.success,
+        rowsCount: result.data?.rows?.length || 0,
+        error: result.error
+      });
+
+      if (!isMountedRef.current) {
+        return; // Component unmounted, don't update state
+      }
 
       if (result.success) {
-        setData(result.data);
-        setFilters({
-          pname: result.data.filters.pname || '',
-          from_date: result.data.filters.from_date || '',
-          to_date: result.data.filters.to_date || ''
+        setData(result.data || {
+          filling_stations: {},
+          products: [],
+          rows: [],
+          filters: {}
+        });
+        // Only update filters if they're different to prevent re-renders
+        const newFilters = {
+          pname: result.data?.filters?.pname || '',
+          from_date: result.data?.filters?.from_date || '',
+          to_date: result.data?.filters?.to_date || ''
+        };
+        setFilters(prev => {
+          if (prev.pname === newFilters.pname && 
+              prev.from_date === newFilters.from_date && 
+              prev.to_date === newFilters.to_date) {
+            return prev; // No change, return previous state
+          }
+          return newFilters;
         });
       } else {
+        console.error('❌ API returned error:', result.error);
         throw new Error(result.error || 'Failed to fetch data');
       }
     } catch (error) {
-      console.error('Error fetching stock history:', error);
-      // Silent error - don't show alert, just log
+      if (!isMountedRef.current) {
+        return; // Component unmounted, don't update state
+      }
+      console.error('❌ Error fetching stock history:', error);
+      // Set empty data on error
+      setData({
+        filling_stations: {},
+        products: [],
+        rows: [],
+        filters: {}
+      });
+    } finally {
+      fetchingRef.current = false;
     }
-  };
+  }, [cid]); // Only depend on cid
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchStockHistory();
+    
+    // Cleanup on unmount
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [fetchStockHistory]);
 
   const handleFilterSubmit = (e) => {
     e.preventDefault();
@@ -349,34 +409,47 @@ function StockHistoryContent() {
                           #{row.id}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {data.filling_stations[row.fs_id] || 'Unknown Station'}
+                          {row.fs_id && data.filling_stations[row.fs_id] ? data.filling_stations[row.fs_id] : '-'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {new Date(row.filling_date).toLocaleDateString('en-US', {
+                          {row.filling_date ? new Date(row.filling_date).toLocaleDateString('en-US', {
                             year: 'numeric',
                             month: 'short',
                             day: 'numeric'
-                          })}
+                          }) : '-'}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          <span className="font-medium">{row.pname}</span>
+                          {row.pname ? <span className="font-medium">{row.pname}</span> : '-'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {(() => {
-                            // Determine type: Add for inward/positive, Minus for negative quantity
-                            const fillingQty = parseFloat(row.filling_qty || 0);
-                            const isAdd = row.trans_type?.toLowerCase() === 'inward' || fillingQty > 0;
-                            const isMinus = fillingQty < 0 || (row.trans_type?.toLowerCase() === 'outward' && fillingQty <= 0);
-                            const typeText = isMinus ? 'Minus' : isAdd ? 'Add' : row.trans_type || 'N/A';
+                            // ✅ Show only Inward or Outward (not Add/Minus)
+                            const transType = row.trans_type?.toLowerCase() || '';
+                            let typeText;
+                            let badgeColor;
+                            
+                            if (transType === 'inward') {
+                              typeText = 'Inward';
+                              badgeColor = 'bg-green-100 text-green-800';
+                            } else if (transType === 'outward') {
+                              typeText = 'Outward';
+                              badgeColor = 'bg-red-100 text-red-800';
+                            } else {
+                              // Fallback: use stock_type if available
+                              if (row.stock_type === 'extra') {
+                                typeText = 'Extra';
+                                badgeColor = 'bg-green-100 text-green-800';
+                              } else if (row.stock_type === 'stored') {
+                                typeText = 'Stored';
+                                badgeColor = 'bg-red-100 text-red-800';
+                              } else {
+                                typeText = row.trans_type || 'N/A';
+                                badgeColor = 'bg-gray-100 text-gray-800';
+                              }
+                            }
                             
                             return (
-                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                                isAdd
-                                  ? 'bg-green-100 text-green-800'
-                                  : isMinus
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-gray-100 text-gray-800'
-                              }`}>
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${badgeColor}`}>
                                 {typeText}
                               </span>
                             );
@@ -395,8 +468,25 @@ function StockHistoryContent() {
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                           {formatNumber(row.filling_qty)}
                         </td>
-                        <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {formatNumber(row.available_stock)}
+                        <td className={`px-4 py-3 whitespace-nowrap text-sm font-medium ${
+                          // ✅ Show available_stock for both Inward and Outward
+                          // Red color for low stock (available_stock <= 0 or < 1000)
+                          parseFloat(row.available_stock || 0) <= 0 
+                            ? 'text-red-600 font-bold' 
+                            : parseFloat(row.available_stock || 0) < 1000 
+                            ? 'text-red-500' 
+                            : 'text-gray-900'
+                        }`}>
+                          {row.available_stock !== null && row.available_stock !== undefined ? (
+                            <>
+                              {formatNumber(row.available_stock)}
+                              {parseFloat(row.available_stock || 0) <= 0 && (
+                                <span className="ml-2 text-xs text-red-600">(Low Stock)</span>
+                              )}
+                            </>
+                          ) : (
+                            '-'
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
                           {row.user_name || row.created_by_name || 'System'}

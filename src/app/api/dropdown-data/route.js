@@ -11,19 +11,31 @@ export async function GET() {
     
     // Fetch stations
     const stations = await executeQuery('SELECT id, station_name FROM filling_stations ORDER BY station_name');
+    
+    // Fetch transporters
+    let transporters = [];
+    try {
+      const transportersResult = await executeQuery('SELECT id, transporter_name FROM transporters ORDER BY transporter_name');
+      transporters = Array.isArray(transportersResult) ? transportersResult : [];
+    } catch (err) {
+      console.log('⚠️ Transporters table might not exist:', err.message);
+      transporters = [];
+    }
 
     // Ensure arrays are always returned
     const response = {
       success: true,
       suppliers: Array.isArray(suppliers) ? suppliers : [],
       products: Array.isArray(products) ? products : [],
-      stations: Array.isArray(stations) ? stations : []
+      stations: Array.isArray(stations) ? stations : [],
+      transporters: transporters
     };
 
     console.log('📦 Dropdown data loaded:', {
       suppliers: response.suppliers.length,
       products: response.products.length,
-      stations: response.stations.length
+      stations: response.stations.length,
+      transporters: response.transporters.length
     });
 
     return NextResponse.json(response);
@@ -36,7 +48,8 @@ export async function GET() {
       error: error.message,
       suppliers: [],
       products: [],
-      stations: []
+      stations: [],
+      transporters: []
     }, { status: 500 });
   }
 }

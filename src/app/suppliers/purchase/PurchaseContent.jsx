@@ -25,9 +25,11 @@ export default function PurchaseContent() {
     tankerNumber: '',
     driverNumber: '',
     lrNo: '',
+    transporter_id: '',
     invoiceAmount: '',
     debitNote: '',
     creditNote: '',
+    tds_cutting: '',
 
     // Purchase for Use fields
     amount: '',
@@ -39,7 +41,8 @@ export default function PurchaseContent() {
   const [formData, setFormData] = useState({
     suppliers: [],
     products: [],
-    stations: []
+    stations: [],
+    transporters: []
   });
 
   const [status, setStatus] = useState('on_the_way');
@@ -56,7 +59,8 @@ export default function PurchaseContent() {
           setFormData({
             suppliers: data.suppliers || [],
             products: data.products || [],
-            stations: data.stations || []
+            stations: data.stations || [],
+            transporters: data.transporters || []
           });
         } else {
         }
@@ -102,6 +106,8 @@ export default function PurchaseContent() {
       // Ensure numeric fields are properly formatted
       debitNote: purchaseData.debitNote || 0,
       creditNote: purchaseData.creditNote || 0,
+      tds_cutting: purchaseData.tds_cutting || 0,
+      transporter_id: purchaseData.transporter_id || null,
       // For purchase for use, set quantity_kg from quantity field
       quantityInKg: activeTab === 'use' ? purchaseData.quantity : purchaseData.quantityInKg
     };
@@ -149,6 +155,8 @@ export default function PurchaseContent() {
       invoiceAmount: '',
       debitNote: '',
       creditNote: '',
+      tds_cutting: '',
+      transporter_id: '',
       amount: '',
       unit: '',
       quantity: '',
@@ -390,6 +398,22 @@ export default function PurchaseContent() {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Transporter (Optional)
+                  </label>
+                  <select
+                    name="transporter_id"
+                    value={purchaseData.transporter_id}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  >
+                    <option value="">Select Transporter (Optional)</option>
+                    {formData.transporters.map(t => (
+                      <option key={t.id} value={t.id}>{t.transporter_name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
                     Invoice Amount *
                   </label>
                   <input
@@ -402,8 +426,46 @@ export default function PurchaseContent() {
                     required
                   />
                 </div>
-             
-                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Debit Note
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="debitNote"
+                    value={purchaseData.debitNote}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Credit Note
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="creditNote"
+                    value={purchaseData.creditNote}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    TDS Cutting (Manual)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    name="tds_cutting"
+                    value={purchaseData.tds_cutting}
+                    onChange={handleInputChange}
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    placeholder="Enter TDS amount (optional)"
+                  />
+                </div>
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

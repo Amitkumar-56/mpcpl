@@ -47,6 +47,7 @@ function VoucherWalletDriverContent() {
   const [permissions, setPermissions] = useState(null);
   const [driverName, setDriverName] = useState(null);
   const [error, setError] = useState(null);
+  const [pendingExpanded, setPendingExpanded] = useState(false);
   
   const searchParams = useSearchParams();
   const emp_id = searchParams.get('emp_id');
@@ -280,66 +281,169 @@ function VoucherWalletDriverContent() {
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {vouchers.length > 0 && !error ? (
-                      vouchers.map((voucher, index) => (
-                        <tr key={voucher.voucher_id || index} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {index + 1}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {voucher.voucher_no || 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatDate(voucher.exp_date)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {voucher.vehicle_no || 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm">
-                            {voucher.emp_id ? (
-                              <Link 
-                                href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
-                                className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
-                              >
-                                {voucher.emp_name || 'N/A'}
-                              </Link>
-                            ) : (
-                              <span className="text-gray-900">{voucher.emp_name || 'N/A'}</span>
+                      (() => {
+                        const pendingVouchers = vouchers.filter(v => v.status == 0 || v.status == null);
+                        const otherVouchers = vouchers.filter(v => v.status != 0 && v.status != null);
+                        let displayIndex = 0;
+                        
+                        return (
+                          <>
+                            {/* Pending Vouchers Section - Collapsible */}
+                            {pendingVouchers.length > 0 && (
+                              <>
+                                <tr className="bg-yellow-50">
+                                  <td colSpan="10" className="px-6 py-3">
+                                    <button
+                                      onClick={() => setPendingExpanded(!pendingExpanded)}
+                                      className="flex items-center justify-between w-full text-left"
+                                    >
+                                      <span className="font-semibold text-yellow-800">
+                                        Pending Vouchers ({pendingVouchers.length})
+                                      </span>
+                                      <svg 
+                                        className={`w-5 h-5 text-yellow-800 transition-transform ${pendingExpanded ? 'rotate-180' : ''}`}
+                                        fill="none" 
+                                        stroke="currentColor" 
+                                        viewBox="0 0 24 24"
+                                      >
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      </svg>
+                                    </button>
+                                  </td>
+                                </tr>
+                                {pendingExpanded && pendingVouchers.map((voucher, idx) => {
+                                  displayIndex++;
+                                  return (
+                                    <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {displayIndex}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {voucher.voucher_no || 'N/A'}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {formatDate(voucher.exp_date)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {voucher.vehicle_no || 'N/A'}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                        {voucher.emp_id ? (
+                                          <Link 
+                                            href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
+                                            className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                                          >
+                                            {voucher.emp_name || 'N/A'}
+                                          </Link>
+                                        ) : (
+                                          <span className="text-gray-900">{voucher.emp_name || 'N/A'}</span>
+                                        )}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {voucher.driver_phone || 'N/A'}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                        {formatCurrency(voucher.advance)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                        {formatCurrency(voucher.total_expense)}
+                                      </td>
+                                      <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                                        {formatCurrency(voucher.remaining_amount)}
+                                      </td>
+                                      <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2 flex justify-center">
+                                        <Link
+                                          href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                          className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                        >
+                                          Edit
+                                        </Link>
+                                        <Link
+                                          href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                          className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                        >
+                                          Items
+                                        </Link>
+                                        <Link
+                                          href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                          className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                        >
+                                          Print
+                                        </Link>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </>
                             )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {voucher.driver_phone || 'N/A'}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatCurrency(voucher.advance)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {formatCurrency(voucher.total_expense)}
-                          </td>
-                          <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${getAmountColor(voucher.remaining_amount)}`}>
-                            {formatCurrency(voucher.remaining_amount)}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2 flex justify-center">
-                            <Link
-                              href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs transition-colors"
-                            >
-                              Edit
-                            </Link>
-                            <Link
-                              href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                              className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
-                            >
-                              Items
-                            </Link>
-                            <Link
-                              href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                              className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs transition-colors"
-                            >
-                              Print
-                            </Link>
-                          </td>
-                        </tr>
-                      ))
+                            
+                            {/* Other Vouchers */}
+                            {otherVouchers.map((voucher, idx) => {
+                              displayIndex++;
+                              return (
+                                <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {displayIndex}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {voucher.voucher_no || 'N/A'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {formatDate(voucher.exp_date)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {voucher.vehicle_no || 'N/A'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                    {voucher.emp_id ? (
+                                      <Link 
+                                        href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
+                                        className="text-blue-600 hover:text-blue-800 hover:underline transition-colors"
+                                      >
+                                        {voucher.emp_name || 'N/A'}
+                                      </Link>
+                                    ) : (
+                                      <span className="text-gray-900">{voucher.emp_name || 'N/A'}</span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {voucher.driver_phone || 'N/A'}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                    {formatCurrency(voucher.advance)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                    {formatCurrency(voucher.total_expense)}
+                                  </td>
+                                  <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                                    {formatCurrency(voucher.remaining_amount)}
+                                  </td>
+                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-center space-x-2 flex justify-center">
+                                    <Link
+                                      href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                    >
+                                      Edit
+                                    </Link>
+                                    <Link
+                                      href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                      className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                    >
+                                      Items
+                                    </Link>
+                                    <Link
+                                      href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                      className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs transition-colors"
+                                    >
+                                      Print
+                                    </Link>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </>
+                        );
+                      })()
                     ) : (
                       <tr>
                         <td colSpan="10" className="px-6 py-12 text-center">

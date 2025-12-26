@@ -83,7 +83,7 @@ function EditStockContent() {
           t_payable: result.data.t_payable || '',
           payment: result.data.payment || '',
           t_payment: result.data.t_payment || '',
-          status: result.data.status || '',
+          status: result.data.status || 'pending',
           weight_type: result.data.weight_type || '',
           quantity_change_reason: result.data.quantity_change_reason || '',
           quantity_changed: result.data.quantity_changed || ''
@@ -463,15 +463,20 @@ function EditStockContent() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Status
+                  Status <span className="text-red-500">*</span>
                 </label>
-                <input
-                  type="text"
+                <select
                   name="status"
                   value={formData.status}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  required
+                >
+                  <option value="">Select Status</option>
+                  <option value="pending">Pending</option>
+                  <option value="on_the_way">On The Way</option>
+                  <option value="delivered">Delivered</option>
+                </select>
               </div>
 
               <div>

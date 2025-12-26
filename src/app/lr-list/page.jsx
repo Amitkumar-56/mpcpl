@@ -70,6 +70,12 @@ function LRManagementContent() {
       setShipments(data.shipments || []);
       setPermissions(data.permissions || {});
       
+      // ✅ Debug: Log permissions to help troubleshoot
+      console.log('🔍 [LR List] Permissions received:', data.permissions);
+      console.log('🔍 [LR List] can_create value:', data.permissions?.can_create);
+      console.log('🔍 [LR List] can_create === 1:', data.permissions?.can_create === 1);
+      console.log('🔍 [LR List] can_create === true:', data.permissions?.can_create === true);
+      
     } catch (err) {
       setError(err.message);
     } finally {
@@ -77,26 +83,6 @@ function LRManagementContent() {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm('Are you sure you want to delete this shipment?')) {
-      return;
-    }
-
-    try {
-      const response = await fetch(`/api/lr-list?id=${id}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to delete shipment');
-      }
-
-      await fetchShipments();
-    } catch (err) {
-      setError(err.message);
-    }
-  };
 
   if (loading) {
     return <LoadingFallback />;
@@ -108,7 +94,8 @@ function LRManagementContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {permissions.can_create === 1 && (
+      {/* ✅ FIX: Check can_create permission - handle both number and boolean */}
+      {(permissions.can_create === 1 || permissions.can_create === true) && (
         <Link 
           href="/create-lr"
           className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg transition duration-200 z-50 flex items-center space-x-2 text-sm sm:text-base"
@@ -183,7 +170,7 @@ function LRManagementContent() {
                             View
                           </Link>
                           
-                          {permissions.can_edit === 1 && (
+                          {(permissions.can_edit === 1 || permissions.can_edit === true) && (
                             <>
                               <span className="text-gray-300">|</span>
                               <Link 
@@ -192,18 +179,6 @@ function LRManagementContent() {
                               >
                                 Edit
                               </Link>
-                            </>
-                          )}
-                          
-                          {permissions.can_delete === 1 && (
-                            <>
-                              <span className="text-gray-300">|</span>
-                              <button
-                                onClick={() => handleDelete(shipment.id)}
-                                className="text-red-600 hover:text-red-900 transition duration-150"
-                              >
-                                Delete
-                              </button>
                             </>
                           )}
                         </div>
@@ -218,7 +193,7 @@ function LRManagementContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <p className="text-lg font-medium">No shipments found</p>
-                        {permissions.can_edit === 1 && (
+                        {(permissions.can_edit === 1 || permissions.can_edit === true) && (
                           <Link 
                             href="/create-lr"
                             className="mt-2 inline-block bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition duration-200"
@@ -278,14 +253,6 @@ function LRManagementContent() {
                       >
                         Edit
                       </Link>
-                    )}
-                    {permissions.can_delete === 1 && (
-                      <button
-                        onClick={() => handleDelete(shipment.id)}
-                        className="text-red-600 text-sm"
-                      >
-                        Delete
-                      </button>
                     )}
                   </div>
                 </div>

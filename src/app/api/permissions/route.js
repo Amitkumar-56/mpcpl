@@ -47,10 +47,10 @@ export async function GET(request) {
 
     const p = perms[0];
     return NextResponse.json({ 
-      can_view: p.can_view === 1, 
-      can_edit: p.can_edit === 1, 
-      can_create: p.can_create === 1 || false,
-      can_delete: p.can_delete === 1 || false
+      can_view: p.can_view === 1 || p.can_view === true, 
+      can_edit: p.can_edit === 1 || p.can_edit === true, 
+      can_create: (p.can_create === 1 || p.can_create === true) ? true : false, // ✅ Only true if explicitly 1 or true
+      can_delete: p.can_delete === 1 || p.can_delete === true || false
     });
   } catch (err) {
     console.error('Permissions API error:', err);

@@ -34,7 +34,7 @@ export default function PurchaseContent() {
     stations: []
   });
 
-  const [status, setStatus] = useState('on_the_way');
+  const [status, setStatus] = useState('pending');
   const [quantityChanged, setQuantityChanged] = useState(false);
   const [quantityChangeReason, setQuantityChangeReason] = useState('');
   const [loading, setLoading] = useState(false);

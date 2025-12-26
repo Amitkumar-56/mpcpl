@@ -4,43 +4,34 @@
 import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useMemo, useState, memo } from "react";
 import {
-    FaBars,
-    FaBox,
-    FaBuilding,
-    FaClipboard,
-    FaCog,
-    FaExchangeAlt,
-    FaFileAlt,
-    FaFileInvoice,
-    FaHistory,
-    FaHome,
-    FaMoneyBill,
-    FaSignOutAlt,
-    FaStickyNote,
-    FaTimes,
-    FaTruck,
-    FaTruckMoving,
-    FaUsers,
-    FaUserTie,
+  FaBars,
+  FaBox,
+  FaBuilding,
+  FaClipboard,
+  FaCog,
+  FaExchangeAlt,
+  FaFileAlt,
+  FaFileInvoice,
+  FaHistory,
+  FaHome,
+  FaMoneyBill,
+  FaSignOutAlt,
+  FaStickyNote,
+  FaTimes,
+  FaTruck,
+  FaTruckMoving,
+  FaUsers,
+  FaUserTie,
 } from "react-icons/fa";
 
-export default function Sidebar({ onClose }) {
+const Sidebar = memo(function Sidebar({ onClose }) {
   const { user, logout } = useSession();
   const [isOpen, setIsOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
-
-  const roleNames = {
-    1: 'Staff',
-    2: 'Incharge',
-    3: 'Team Leader',
-    4: 'Accountant',
-    5: 'Admin',
-    6: 'Driver'
-  };
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -75,7 +66,6 @@ export default function Sidebar({ onClose }) {
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock_transfers", path: "/stock-transfers" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
-    { name: "Retailers", icon: <FaUsers />, module: "retailers", path: "/retailers" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
     { name: "Users", icon: <FaUsers />, module: "users", path: "/users" },
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
@@ -86,7 +76,6 @@ export default function Sidebar({ onClose }) {
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
-    { name: "Roles", icon: <FaUserTie />, module: "roles", path: "/roles", adminOnly: true },
   ], []);
 
   const moduleMapping = useMemo(() => ({
@@ -117,30 +106,7 @@ export default function Sidebar({ onClose }) {
     deepo_history: "Deepo History",
     nb_expenses: "NB Expenses",
     nb_stock: "NB Stock",
-    retailers: "Retailers", // ✅ FIX: Added missing mapping
     agent_management: "Agent Management", // ✅ FIX: Added missing mapping
-  }), []);
-
-  const permissionSynonyms = useMemo(() => ({
-    "Filling Requests": ["Purchase Request", "Purchese Request", "Filling Request"],
-    "Items & Products": ["Products", "Items"],
-    "Loading Station": ["Loading Stations", "Stations"],
-    "Stock Transfer": ["Stock Transfers"],
-    "Customer": ["Customers"],
-    "Vehicle": ["Vehicles"],
-    "Voucher": ["Vouchers"],
-    "NB Accounts": ["NB Balance", "Outstanding", "NB Account"],
-    "Agent Management": ["Agents", "Agent"],
-    "Stock History": ["Stock Histories"],
-    "Outstanding History": ["Outstanding Histories"],
-    "Deepo History": ["Depot History"],
-    "Tanker History": ["Tankers History"],
-    "Reports": ["Report"],
-    "Employees": ["Employee"],
-    "Suppliers": ["Supplier"],
-    "Transporters": ["Transporter"],
-    "LR Management": ["LR", "LR List"],
-    "Loading History": ["Loading-Unloading History", "Unloading History"]
   }), []);
 
   // ✅ FIX: Enhanced permission filtering - only show items with can_view permission
@@ -159,13 +125,13 @@ export default function Sidebar({ onClose }) {
     
     // ✅ Filter menu items based on can_view permission
     const filtered = menuItems.filter((item) => {
-      // ✅ Admin-only items (like Roles) - only show to admin
+      // ✅ Admin-only items - only show to admin
       if (item.adminOnly && Number(user.role) !== 5) {
         return false;
       }
       
-      // ✅ Admin gets all items (except adminOnly is handled above)
-      if (Number(user.role) === 5 && !item.adminOnly) {
+      // ✅ Admin gets all items (including adminOnly items)
+      if (Number(user.role) === 5) {
         return true;
       }
       
@@ -177,16 +143,7 @@ export default function Sidebar({ onClose }) {
       }
       
       // Check if user has permission for this module
-      let modulePermission = user.permissions[backendModuleName];
-      if (!modulePermission) {
-        const syns = permissionSynonyms[backendModuleName] || [];
-        for (const alt of syns) {
-          if (user.permissions[alt]) {
-            modulePermission = user.permissions[alt];
-            break;
-          }
-        }
-      }
+      const modulePermission = user.permissions[backendModuleName];
       
       // If no permission record exists, hide the item
       if (!modulePermission || typeof modulePermission !== 'object') {
@@ -199,7 +156,7 @@ export default function Sidebar({ onClose }) {
     });
     
     return filtered;
-  }, [user, menuItems, moduleMapping, permissionSynonyms]);
+  }, [user, menuItems, moduleMapping]);
 
   // Improved navigation handler
   const handleNavigation = (path) => {
@@ -225,7 +182,7 @@ export default function Sidebar({ onClose }) {
       {/* Mobile toggle */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-7 right-60 z-50 p-1 bg-gray-900 text-white rounded"
+        className="md:hidden fixed top-7 right-12 z-50 p-1 bg-gray-900 text-white rounded"
       >
         {isOpen ? <FaTimes /> : <FaBars />}
       </button>
@@ -257,7 +214,7 @@ export default function Sidebar({ onClose }) {
               <p className="text-xs text-gray-600 truncate">
                 {Number(user?.role) === 5 
                   ? 'Admin' 
-                  : (user?.role_name || roleNames[Number(user?.role)] || 'Unknown')}
+                  : (user?.role_name || 'Employee')}
               </p>
               {Number(user?.role) === 5 && (
                 <p className="text-xs text-blue-600 font-semibold mt-0.5">
@@ -278,8 +235,14 @@ export default function Sidebar({ onClose }) {
                   key={item.name}
                   href={item.path}
                   prefetch={false}
-                  onClick={() => setIsOpen(false)}
-                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
+                  onClick={(e) => {
+                    setIsOpen(false);
+                    // Ensure navigation happens
+                    if (e.metaKey || e.ctrlKey) {
+                      return; // Allow browser default for Cmd/Ctrl+click
+                    }
+                  }}
+                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors cursor-pointer ${
                     isActive
                       ? "bg-blue-500 text-white shadow-md"
                       : "text-black hover:bg-blue-300 hover:text-gray-900"
@@ -327,4 +290,8 @@ export default function Sidebar({ onClose }) {
       </aside>
     </>
   );
-}
+});
+
+Sidebar.displayName = 'Sidebar';
+
+export default Sidebar;

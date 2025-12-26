@@ -36,7 +36,7 @@ export async function GET(request) {
     // ✅ FIX: Check permissions with employee_id AND role (as per database structure)
     // First check for employee-specific permissions
     let permissionQuery = `
-      SELECT module_name, can_view, can_edit, can_delete 
+      SELECT module_name, can_view, can_edit, can_delete, can_create 
       FROM role_permissions 
       WHERE employee_id = ? AND module_name = ?
     `;
@@ -45,7 +45,7 @@ export async function GET(request) {
     // If no employee-specific permission found, check role-based permissions
     if (permissionResult.length === 0) {
       permissionQuery = `
-        SELECT module_name, can_view, can_edit, can_delete 
+        SELECT module_name, can_view, can_edit, can_delete, can_create 
         FROM role_permissions 
         WHERE role = ? AND module_name = ? AND (employee_id IS NULL OR employee_id = 0)
       `;
@@ -55,7 +55,7 @@ export async function GET(request) {
     // ✅ FIX: Also check if employee_id matches AND role matches
     if (permissionResult.length === 0) {
       permissionQuery = `
-        SELECT module_name, can_view, can_edit, can_delete 
+        SELECT module_name, can_view, can_edit, can_delete, can_create 
         FROM role_permissions 
         WHERE employee_id = ? AND role = ? AND module_name = ?
       `;
@@ -68,7 +68,8 @@ export async function GET(request) {
         module_name: moduleName,
         can_view: 1,
         can_edit: 1,
-        can_delete: 1
+        can_delete: 1,
+        can_create: 1
       }];
     }
 
@@ -98,7 +99,7 @@ export async function GET(request) {
 
     return NextResponse.json({
       shipments: shipmentResult,
-      permissions: permissionResult[0] || { can_view: 0, can_edit: 0, can_delete: 0 },
+      permissions: permissionResult[0] || { can_view: 0, can_edit: 0, can_delete: 0, can_create: 0 },
       summary: {
         total: totalResult[0]?.total || 0,
         completed: completedResult[0]?.completed || 0,

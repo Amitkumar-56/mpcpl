@@ -12,37 +12,41 @@ function EditEmployeeContent() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
   const [loading, setLoading] = useState(true);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [checkingPermission, setCheckingPermission] = useState(true);
   const [stations, setStations] = useState([]);
   const [formData, setFormData] = useState(null);
   const [error, setError] = useState(null);
   const [permissions, setPermissions] = useState({
-    Dashboard: { can_view: false, can_edit: false, can_delete: false },
-    Customers: { can_view: false, can_edit: false, can_delete: false },
-    "Filling Requests": { can_view: false, can_edit: false, can_delete: false },
-    Stock: { can_view: false, can_edit: false, can_delete: false },
-    "Loading Station": { can_view: false, can_edit: false, can_delete: false },
-    "Schedule Prices": { can_view: false, can_edit: false, can_delete: false },
-    Products: { can_view: false, can_edit: false, can_delete: false },
-    Employees: { can_view: false, can_edit: false, can_delete: false },
-    Suppliers: { can_view: false, can_edit: false, can_delete: false },
-    Transporters: { can_view: false, can_edit: false, can_delete: false },
-    "NB Accounts": { can_view: false, can_edit: false, can_delete: false },
-    "NB Expenses": { can_view: false, can_edit: false, can_delete: false },
-    "NB Stock": { can_view: false, can_edit: false, can_delete: false },
-    "Stock Transfer": { can_view: false, can_edit: false, can_delete: false },
-    Reports: { can_view: false, can_edit: false, can_delete: false },
-    "Agent Management": { can_view: false, can_edit: false, can_delete: false },
-    Users: { can_view: false, can_edit: false, can_delete: false },
-    Vehicles: { can_view: false, can_edit: false, can_delete: false },
-    "LR Management": { can_view: false, can_edit: false, can_delete: false },
-    "Loading History": { can_view: false, can_edit: false, can_delete: false },
-    "Tanker History": { can_view: false, can_edit: false, can_delete: false },
-    "Deepo History": { can_view: false, can_edit: false, can_delete: false },
-    Vouchers: { can_view: false, can_edit: false, can_delete: false },
-    Remarks: { can_view: false, can_edit: false, can_delete: false },
-    Items: { can_view: false, can_edit: false, can_delete: false },
+    Dashboard: { can_view: false, can_edit: false, can_create: false },
+    Customers: { can_view: false, can_edit: false, can_create: false },
+    "Filling Requests": { can_view: false, can_edit: false, can_create: false },
+    Stock: { can_view: false, can_edit: false, can_create: false },
+    "Loading Station": { can_view: false, can_edit: false, can_create: false },
+    "Schedule Prices": { can_view: false, can_edit: false, can_create: false },
+    Products: { can_view: false, can_edit: false, can_create: false },
+    Employees: { can_view: false, can_edit: false, can_create: false },
+    Suppliers: { can_view: false, can_edit: false, can_create: false },
+    Transporters: { can_view: false, can_edit: false, can_create: false },
+    "NB Accounts": { can_view: false, can_edit: false, can_create: false },
+    "NB Expenses": { can_view: false, can_edit: false, can_create: false },
+    "NB Stock": { can_view: false, can_edit: false, can_create: false },
+    "Stock Transfer": { can_view: false, can_edit: false, can_create: false },
+    Reports: { can_view: false, can_edit: false, can_create: false },
+    "Agent Management": { can_view: false, can_edit: false, can_create: false },
+    Users: { can_view: false, can_edit: false, can_create: false },
+    Vehicles: { can_view: false, can_edit: false, can_create: false },
+    "LR Management": { can_view: false, can_edit: false, can_create: false },
+    "Loading History": { can_view: false, can_edit: false, can_create: false },
+    "Tanker History": { can_view: false, can_edit: false, can_create: false },
+    "Deepo History": { can_view: false, can_edit: false, can_create: false },
+    Vouchers: { can_view: false, can_edit: false, can_create: false },
+    Remarks: { can_view: false, can_edit: false, can_create: false },
+    Items: { can_view: false, can_edit: false, can_create: false },
   });
   const modules = Object.keys(permissions);
+
+  const isAdmin = user?.role === 5;
 
   useEffect(() => {
     if (!authLoading) {
@@ -50,6 +54,7 @@ function EditEmployeeContent() {
         router.push('/login');
         return;
       }
+      checkPermissions();
       if (id) {
         fetchData();
       } else {
@@ -58,6 +63,64 @@ function EditEmployeeContent() {
       }
     }
   }, [id, user, authLoading]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setCheckingPermission(false);
+      setHasPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (user.role === 5) {
+      setHasPermission(true);
+      setCheckingPermission(false);
+      return;
+    }
+
+    // Check cache first
+    const cacheKey = `perms_${user.id}_Employees`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_edit) {
+        setHasPermission(true);
+        setCheckingPermission(false);
+        return;
+      }
+    }
+
+    try {
+      // Check user's permissions from session
+      if (user.permissions && user.permissions['Employees']) {
+        const empPerms = user.permissions['Employees'];
+        if (empPerms.can_edit) {
+          sessionStorage.setItem(cacheKey, JSON.stringify(empPerms));
+          setHasPermission(true);
+          setCheckingPermission(false);
+          return;
+        }
+      }
+
+      // Check API for Employees module - check can_edit permission
+      const response = await fetch(
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('Employees')}&action=can_edit`
+      );
+      const data = await response.json();
+
+      if (data.allowed) {
+        setHasPermission(true);
+        sessionStorage.setItem(cacheKey, JSON.stringify({ can_edit: true }));
+      } else {
+        setHasPermission(false);
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+    } finally {
+      setCheckingPermission(false);
+    }
+  };
 
   async function fetchData() {
     try {
@@ -140,16 +203,15 @@ function EditEmployeeContent() {
     // Add employee ID to form data
     fd.append('id', id);
     
-    // Add permissions if admin (same as add page)
+    // Add permissions if admin (only Employees module)
     if (isAdmin) {
-      const formattedPermissions = {};
-      modules.forEach(module => {
-        formattedPermissions[module] = {
-          can_view: permissions[module]?.can_view || false,
-          can_edit: permissions[module]?.can_edit || false,
-          can_delete: permissions[module]?.can_delete || false
-        };
-      });
+      const formattedPermissions = {
+        'Employees': {
+          can_view: permissions['Employees']?.can_view || false,
+          can_edit: permissions['Employees']?.can_edit || false,
+          can_create: permissions['Employees']?.can_create || false
+        }
+      };
       fd.append('permissions', JSON.stringify(formattedPermissions));
     }
     
@@ -173,7 +235,8 @@ function EditEmployeeContent() {
     }
   };
 
-  if (loading || authLoading) {
+  // Show loading state
+  if (checkingPermission || authLoading || loading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
@@ -186,7 +249,36 @@ function EditEmployeeContent() {
           <main className="pt-16 lg:pt-20 min-h-screen flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading employee data...</p>
+              <p className="text-gray-600">{checkingPermission ? 'Checking permissions...' : 'Loading employee data...'}</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // Show access denied if no permission
+  if (!hasPermission && !authLoading && !checkingPermission) {
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <Sidebar activePage="Employees" />
+        </div>
+        <div className="flex-1 lg:ml-64 w-full">
+          <div className="fixed top-0 left-0 lg:left-64 right-0 z-40">
+            <Header />
+          </div>
+          <main className="pt-16 lg:pt-20 min-h-screen flex items-center justify-center">
+            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
+              <div className="text-red-500 text-6xl mb-4">🚫</div>
+              <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-6">You don't have permission to edit employees.</p>
+              <button
+                onClick={() => router.push('/employees')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+              >
+                Go Back
+              </button>
             </div>
           </main>
         </div>
@@ -222,8 +314,6 @@ function EditEmployeeContent() {
       </div>
     );
   }
-
-  const isAdmin = user?.role === 5;
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -376,7 +466,7 @@ function EditEmployeeContent() {
              )}
           </div>
 
-          {/* Permissions Section - Only for Admin */}
+          {/* Permissions Section - Only for Admin, Only Employees Module */}
           {isAdmin && (
             <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
               <h3 className="text-md font-semibold mb-3 text-gray-800">Assign Module Permissions</h3>
@@ -387,39 +477,37 @@ function EditEmployeeContent() {
                       <th className="p-2 border text-left">Module</th>
                       <th className="p-2 border text-center">View</th>
                       <th className="p-2 border text-center">Edit</th>
-                      <th className="p-2 border text-center">Delete</th>
+                      <th className="p-2 border text-center">Create</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {modules.map((mod, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
-                        <td className="p-2 border font-medium text-gray-700">{mod}</td>
-                        <td className="p-2 border text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={permissions[mod]?.can_view || false} 
-                            onChange={() => handlePermissionChange(mod, "can_view")} 
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                          />
-                        </td>
-                        <td className="p-2 border text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={permissions[mod]?.can_edit || false} 
-                            onChange={() => handlePermissionChange(mod, "can_edit")} 
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                          />
-                        </td>
-                        <td className="p-2 border text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={permissions[mod]?.can_delete || false} 
-                            onChange={() => handlePermissionChange(mod, "can_delete")} 
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    <tr className="bg-white">
+                      <td className="p-2 border font-medium text-gray-700">Employees</td>
+                      <td className="p-2 border text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={permissions['Employees']?.can_view || false} 
+                          onChange={() => handlePermissionChange('Employees', "can_view")} 
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={permissions['Employees']?.can_edit || false} 
+                          onChange={() => handlePermissionChange('Employees', "can_edit")} 
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                      </td>
+                      <td className="p-2 border text-center">
+                        <input 
+                          type="checkbox" 
+                          checked={permissions['Employees']?.can_create || false} 
+                          onChange={() => handlePermissionChange('Employees', "can_create")}
+                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
+                        />
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>

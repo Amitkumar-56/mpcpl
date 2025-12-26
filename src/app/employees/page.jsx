@@ -6,7 +6,7 @@ import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaTrash, FaKey } from 'react-icons/fa';
+import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaKey } from 'react-icons/fa';
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
@@ -16,7 +16,7 @@ export default function EmployeeHistory() {
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
-    can_delete: false
+    can_create: false
   });
   const { user, loading: authLoading } = useSession();
   const isAdmin = user?.role === 5;
@@ -91,9 +91,9 @@ export default function EmployeeHistory() {
       if (data.can_view) {
         setHasPermission(true);
         setPermissions({
-          can_view: data.can_view,
-          can_edit: data.can_edit,
-          can_create: data.can_create || false
+          can_view: data.can_view === true || data.can_view === 1,
+          can_edit: data.can_edit === true || data.can_edit === 1,
+          can_create: data.can_create === true || data.can_create === 1 // ✅ Only true if explicitly can_create
         });
         fetchEmployees();
       } else {
@@ -314,8 +314,8 @@ export default function EmployeeHistory() {
                   Activity Logs
                 </button>
                 
-                {/* Add Employee Button - Only show if user has permission */}
-                {(permissions.can_edit || isAdmin) && (
+                {/* Add Employee Button - Only show if user has can_create permission (NOT can_edit) */}
+                {(permissions.can_create === true || isAdmin) && (
                   <button
                     onClick={() => router.push('/employees/add')}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2"
@@ -413,7 +413,7 @@ export default function EmployeeHistory() {
                   </div>
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">No Employees Found</h3>
                   <p className="text-gray-600 mb-6">Get started by adding your first employee.</p>
-                  {(permissions.can_edit || isAdmin) && (
+                  {(permissions.can_create === true || isAdmin) && (
                     <button
                       onClick={() => router.push('/employees/add')}
                       className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center gap-2 mx-auto"
@@ -559,7 +559,7 @@ export default function EmployeeHistory() {
                               
                               
                               {/* No Actions Message */}
-                              {!permissions.can_view && !permissions.can_edit && !permissions.can_delete && (
+                              {!permissions.can_view && !permissions.can_edit && (
                                 <span className="text-sm text-gray-400">No actions available</span>
                               )}
                             </div>

@@ -49,8 +49,7 @@ export async function GET(request) {
       permissionsObj[perm.module_name] = {
         can_view: perm.can_view === 1 || perm.can_view === true,
         can_edit: perm.can_edit === 1 || perm.can_edit === true,
-        can_create: perm.can_create === 1 || perm.can_create === true || perm.can_delete === 1 || perm.can_delete === true,
-        can_delete: perm.can_delete === 1 || perm.can_delete === true
+        can_create: perm.can_create === 1 || perm.can_create === true
       };
     });
 

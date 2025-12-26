@@ -11,24 +11,50 @@ export async function GET(request) {
 
     const cid = id ? parseInt(id) : 0;
 
-    // Check if agents table exists, if not use simpler query
+    // ✅ Check if stock_type column exists
+    let hasStockType = false;
+    try {
+      const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+      const colSet = new Set(colsInfo.map(r => r.Field));
+      hasStockType = colSet.has('stock_type');
+      console.log('✅ stock_type column exists:', hasStockType);
+    } catch (colError) {
+      console.log('⚠️ Could not check stock_type column:', colError.message);
+    }
+
+    // ✅ Fetch specific fields from filling_history table
+    const stockTypeField = hasStockType ? 'fh.stock_type,' : '';
     let sql = `
       SELECT 
-        fh.*, 
-        p.pname, 
-        fr.vehicle_number,
-        fs.station_name,
+        fh.id,
+        fh.fs_id,
+        fh.product_id,
+        fh.trans_type,
+        ${stockTypeField}
+        fh.current_stock,
+        fh.filling_qty,
+        fh.available_stock,
+        fh.filling_date,
+        fh.created_by,
+        COALESCE(p.pname, 'Unknown Product') AS pname, 
+        COALESCE(fr.vehicle_number, '') AS vehicle_number,
+        COALESCE(fs.station_name, 'Unknown Station') AS station_name,
         COALESCE(ep.name, 'System') AS created_by_name,
         CASE 
           WHEN ep.id IS NOT NULL THEN ep.name
           ELSE 'System'
         END AS user_name
       FROM filling_history AS fh
-      INNER JOIN products AS p ON fh.product_id = p.id
+      LEFT JOIN products AS p ON fh.product_id = p.id
       LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
-      WHERE 1=1
+      WHERE fh.trans_type IN ('Inward', 'Outward')
+        AND (
+          (fh.trans_type = 'Inward' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
+          OR
+          (fh.trans_type = 'Outward')
+        )
     `;
 
     const params = [];
@@ -60,7 +86,12 @@ export async function GET(request) {
 
     sql += " ORDER BY fh.id DESC";
 
+    console.log('🔍 Stock History Query:', sql);
+    console.log('🔍 Stock History Params:', params);
+
     const rows = await executeQuery(sql, params);
+
+    console.log('✅ Stock History Rows Count:', rows?.length || 0);
 
     const filling_stations = {};
     const productsSet = new Set();
@@ -76,12 +107,18 @@ export async function GET(request) {
 
     const products = Array.from(productsSet).sort();
 
+    console.log('✅ Stock History Response:', {
+      rowsCount: rows?.length || 0,
+      stationsCount: Object.keys(filling_stations).length,
+      productsCount: products.length
+    });
+
     return NextResponse.json({
       success: true,
       data: {
         filling_stations,
         products,
-        rows,
+        rows: rows || [],
         filters: {
           pname: pname || "",
           from_date: from_date || "",
@@ -90,7 +127,8 @@ export async function GET(request) {
       },
     });
   } catch (error) {
-    console.error("Error fetching stock history:", error);
+    console.error("❌ Error fetching stock history:", error);
+    console.error("❌ Error stack:", error.stack);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

@@ -197,7 +197,7 @@ function DNCNContent() {
                           <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{row.id}</td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
                             <a 
-                              href={`/supply-details?id=${row.sup_id}`}
+                              href={`/stock/supply-details/${row.sup_id}`}
                               className="text-blue-600 hover:text-blue-800 underline"
                             >
                               {row.sup_id}
@@ -230,7 +230,7 @@ function DNCNContent() {
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
                             <a 
-                              href={`/supply-details?id=${row.id}`}
+                              href={`/stock/supply-details/${row.id}`}
                               className="text-blue-600 hover:text-blue-800 transition-colors"
                               title="View Details"
                             >

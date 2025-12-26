@@ -51,7 +51,7 @@ export async function POST(request) {
       );
     }
 
-    // First, check if the stock record exists
+    // ✅ First, check if the stock record exists (no duplicate - check first)
     const checkQuery = `
       SELECT id, stock FROM filling_station_stocks 
       WHERE fs_id = ? AND product = ?
@@ -63,25 +63,33 @@ export async function POST(request) {
     const isMinus = operation_type === 'minus' || quantityValue < 0;
     const absQuantity = Math.abs(quantityValue);
     
+    // ✅ Get current stock before update (for filling_history)
+    const currentStock = existingRecord.length > 0 ? parseFloat(existingRecord[0].stock) || 0 : 0;
+    const availableStock = isMinus ? Math.max(0, currentStock - absQuantity) : currentStock + absQuantity;
+    
     if (existingRecord.length > 0) {
-      const currentStock = parseFloat(existingRecord[0].stock) || 0;
-      const newStock = isMinus ? Math.max(0, currentStock - absQuantity) : currentStock + absQuantity;
-      
-      // Update existing record
+      // ✅ Update existing record (no duplicate - only UPDATE, not INSERT)
       const updateQuery = `
         UPDATE filling_station_stocks 
         SET stock = ?, msg = ?, remark = ?, created_at = NOW() 
         WHERE fs_id = ? AND product = ?
       `;
       await executeQuery(updateQuery, [
-        newStock, 
+        availableStock, 
         isMinus ? `Stock shortage: -${absQuantity}` : `Stock added: +${absQuantity}`, 
         remarks || (isMinus ? 'Stock shortage deducted' : 'Stock added'),
         station_id, 
         product_id
       ]);
+      console.log("✅ Filling station stocks updated:", {
+        fs_id: station_id,
+        product_id,
+        oldStock: currentStock,
+        change: isMinus ? -absQuantity : absQuantity,
+        newStock: availableStock
+      });
     } else {
-      // Insert new record (only for plus, not for minus if no record exists)
+      // ✅ Insert new record (only for plus, not for minus if no record exists)
       if (!isMinus) {
         const insertQuery = `
           INSERT INTO filling_station_stocks 
@@ -95,6 +103,11 @@ export async function POST(request) {
           `Stock added: +${absQuantity}`,
           remarks || 'Stock added'
         ]);
+        console.log("✅ Filling station stocks inserted:", {
+          fs_id: station_id,
+          product_id,
+          stock: absQuantity
+        });
       } else {
         return NextResponse.json(
           { success: false, error: 'Cannot deduct stock: No stock record exists for this station/product' },
@@ -122,35 +135,87 @@ export async function POST(request) {
       console.log('stock_history table might not exist, skipping...');
     }
     
-    // Also insert into filling_history for inward transaction (both plus and minus)
+    // ✅ Always insert into filling_history (insert only) - ONLY when called from all-stock page
+    // Add (+): trans_type 'Inward', stock_type 'extra'
+    // Minus (-): trans_type 'Outward', stock_type 'stored'
     try {
-      // Get old stock before update
-      const oldStock = existingRecord.length > 0 ? parseFloat(existingRecord[0].stock) || 0 : 0;
-      const newStock = isMinus ? Math.max(0, oldStock - absQuantity) : oldStock + absQuantity;
+      // Check if stock_type column exists
+      const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+      const colSet = new Set(colsInfo.map(r => r.Field));
+      const hasStockType = colSet.has('stock_type');
       
-      const fillingHistoryQuery = `
-        INSERT INTO filling_history 
-        (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, agent_id, created_at) 
-        VALUES (?, ?, ?, 'Inward', ?, ?, NOW(), ?, ?, NOW())
-      `;
-      await executeQuery(fillingHistoryQuery, [
-        station_id,
-        product_id,
-        isMinus ? -absQuantity : absQuantity, // Negative for minus, positive for add
-        oldStock, // Current stock before change
-        newStock, // Available stock after change
-        userId || null,
-        agent_id || null
-      ]);
-      console.log('✅ Filling history entry created:', { oldStock, newStock, quantity: isMinus ? -absQuantity : absQuantity });
+      // ✅ Determine trans_type and stock_type based on operation
+      // Add (+): trans_type = 'Inward', stock_type = 'extra'
+      // Minus (-): trans_type = 'Outward', stock_type = 'stored'
+      const transType = isMinus ? 'Outward' : 'Inward';
+      const stockType = isMinus ? 'stored' : 'extra';
+      
+      // ✅ filling_qty: positive for add, negative for minus
+      const fillingQty = isMinus ? -absQuantity : absQuantity;
+      
+      if (hasStockType) {
+        // ✅ Insert with both trans_type and stock_type
+        const fillingHistoryQuery = `
+          INSERT INTO filling_history 
+          (fs_id, product_id, trans_type, stock_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
+        `;
+        const insertResult = await executeQuery(fillingHistoryQuery, [
+          station_id,
+          product_id,
+          transType, // ✅ 'Inward' for add (+), 'Outward' for minus (-)
+          stockType, // ✅ 'extra' for add (+), 'stored' for minus (-)
+          currentStock, // Current stock before change
+          fillingQty, // Positive for add, negative for minus
+          availableStock, // Available stock after change
+          userId || null
+        ]);
+        console.log('✅ Filling history entry created (with stock_type):', {
+          fs_id: station_id,
+          product_id,
+          trans_type: transType,
+          stock_type: stockType,
+          current_stock: currentStock,
+          filling_qty: fillingQty,
+          available_stock: availableStock,
+          operation: isMinus ? 'Minus (-)' : 'Add (+)',
+          insertId: insertResult?.insertId || 'N/A'
+        });
+      } else {
+        // ✅ Insert without stock_type column (if column doesn't exist)
+        const fillingHistoryQuery = `
+          INSERT INTO filling_history 
+          (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
+          VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
+        `;
+        const insertResult = await executeQuery(fillingHistoryQuery, [
+          station_id,
+          product_id,
+          transType, // ✅ 'Inward' for add (+), 'Outward' for minus (-)
+          currentStock, // Current stock before change
+          fillingQty, // Positive for add, negative for minus
+          availableStock, // Available stock after change
+          userId || null
+        ]);
+        console.log('✅ Filling history entry created (without stock_type):', {
+          fs_id: station_id,
+          product_id,
+          trans_type: transType,
+          stock_type: 'N/A (column not exists)',
+          current_stock: currentStock,
+          filling_qty: fillingQty,
+          available_stock: availableStock,
+          operation: isMinus ? 'Minus (-)' : 'Add (+)',
+          insertId: insertResult?.insertId || 'N/A'
+        });
+      }
     } catch (fillingError) {
-      console.log('⚠️ filling_history insert failed, skipping...', fillingError);
+      console.error('❌ filling_history insert failed:', fillingError);
+      // Don't throw - continue even if history insert fails
     }
 
-    // Get stock ID and old value for audit log
+    // Get stock ID for audit log
     const stockId = existingRecord.length > 0 ? existingRecord[0].id : null;
-    const oldStock = existingRecord.length > 0 ? parseFloat(existingRecord[0].stock) || 0 : 0;
-    const newStock = isMinus ? Math.max(0, oldStock - absQuantity) : oldStock + absQuantity;
     
     // Get station and product names for better logging
     let stationName = 'N/A';
@@ -175,22 +240,33 @@ export async function POST(request) {
       console.error('Error fetching names:', nameError);
     }
 
-    // Create comprehensive audit log entry
-    const logUserName = agentName || userName;
-    await createAuditLog({
-      page: 'Stock Management',
-      uniqueCode: stockId ? `STOCK-${stockId}` : `NEW-STOCK-${station_id}-${product_id}`,
-      section: 'Add Stock',
-      userId: agent_id ? null : userId,
-      userName: logUserName,
-      action: isMinus ? 'deduct' : (existingRecord.length > 0 ? 'update' : 'add'),
-      remarks: remarks || `Stock ${isMinus ? 'shortage deducted' : (existingRecord.length > 0 ? 'updated' : 'added')} for ${stationName} - ${productName}${agent_id ? ' (by Agent)' : ''}`,
-      oldValue: { stock: oldStock, station_id, product_id },
-      newValue: { stock: newStock, station_id, product_id, quantity_change: isMinus ? -absQuantity : absQuantity, agent_id: agent_id || null },
-      fieldName: 'stock',
-      recordType: 'stock',
-      recordId: stockId
-    });
+    // ✅ Create comprehensive audit log entry
+    try {
+      const logUserName = agentName || userName || 'System';
+      const auditResult = await createAuditLog({
+        page: 'Stock Management',
+        uniqueCode: stockId ? `STOCK-${stockId}` : `NEW-STOCK-${station_id}-${product_id}`,
+        section: 'Add Stock',
+        userId: agent_id ? null : userId,
+        userName: logUserName,
+        action: isMinus ? 'deduct' : (existingRecord.length > 0 ? 'update' : 'add'),
+        remarks: remarks || `Stock ${isMinus ? 'shortage deducted' : (existingRecord.length > 0 ? 'updated' : 'added')} for ${stationName} - ${productName}${agent_id ? ' (by Agent)' : ''}`,
+        oldValue: { stock: currentStock, station_id, product_id },
+        newValue: { stock: availableStock, station_id, product_id, quantity_change: isMinus ? -absQuantity : absQuantity, agent_id: agent_id || null },
+        fieldName: 'stock',
+        recordType: 'stock',
+        recordId: stockId
+      });
+      console.log('✅ Audit log created for stock operation:', { 
+        userId: agent_id ? null : userId, 
+        userName: logUserName, 
+        action: isMinus ? 'deduct' : 'add',
+        auditResult 
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+      // Don't throw - continue even if audit log fails
+    }
 
     return NextResponse.json({
       success: true,

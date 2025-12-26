@@ -1,62 +1,93 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
-
-// Simple authentication function
-async function authenticateUser(token) {
-  try {
-    const userQuery = `
-      SELECT 
-        id as employee_id,
-        emp_code,
-        email,
-        role,
-        name,
-        status
-      FROM employee_profile 
-      WHERE id = ? AND status = 'active'
-    `;
-    
-    const users = await executeQuery(userQuery, [token]);
-    
-    if (users.length > 0) {
-      return users[0];
-    } else {
-      return null;
-    }
-  } catch (error) {
-    console.error('Auth error:', error);
-    return null;
-  }
-}
+import { getCurrentUser } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET(request) {
   try {
-    // For demo purposes, using mock session
-    // In real app, you would get this from your auth system
-    const mockSession = {
-      user_id: 1,
-      role: 5
-    };
-
-    // Check permissions
-    const module_name = 'lr_management';
-    const permissionQuery = `
-      SELECT module_name, can_view, can_edit, can_delete 
-      FROM role_permissions 
-      WHERE module_name = ? AND role = ?
-    `;
+    // ✅ FIX: Get actual logged-in user
+    let userId = null;
+    let userRole = null;
     
-    const permissions = await executeQuery(permissionQuery, [module_name, mockSession.role]);
-
-    if (permissions.length === 0) {
-      return NextResponse.json({ 
-        error: 'No permissions found for LR Management.' 
-      }, { status: 403 });
+    try {
+      const currentUser = await getCurrentUser();
+      if (currentUser && currentUser.userId) {
+        userId = currentUser.userId;
+        userRole = currentUser.role;
+      } else {
+        // Fallback: Try to get from token directly
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const { verifyToken } = await import('@/lib/auth');
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            // Get role from database
+            const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
+            const users = await executeQuery(userQuery, [userId]);
+            if (users.length > 0) {
+              userRole = users[0].role;
+            }
+          }
+        }
+      }
+    } catch (authError) {
+      console.error('Error getting current user:', authError);
     }
 
-    const permissionData = permissions[0];
+    if (!userId || !userRole) {
+      return NextResponse.json({ 
+        error: 'Unauthorized. Please login again.' 
+      }, { status: 401 });
+    }
 
-    if (permissionData.can_view !== 1) {
+    // ✅ FIX: Check permissions - try employee-specific first, then role-based
+    const module_name = 'lr_management'; // Use lowercase with underscore
+    
+    // First try employee-specific permissions
+    let permissionQuery = `
+      SELECT module_name, can_view, can_edit, can_delete, can_create 
+      FROM role_permissions 
+      WHERE module_name = ? AND employee_id = ?
+    `;
+    let permissions = await executeQuery(permissionQuery, [module_name, userId]);
+
+    // If no employee-specific permissions, try role-based
+    if (permissions.length === 0) {
+      permissionQuery = `
+        SELECT module_name, can_view, can_edit, can_delete, can_create 
+        FROM role_permissions 
+        WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
+      `;
+      permissions = await executeQuery(permissionQuery, [module_name, userRole]);
+    }
+
+    // If still no permissions, try alternative module name
+    if (permissions.length === 0) {
+      const altModuleName = 'LR Management';
+      permissionQuery = `
+        SELECT module_name, can_view, can_edit, can_delete, can_create 
+        FROM role_permissions 
+        WHERE module_name = ? AND (employee_id = ? OR role = ?)
+      `;
+      permissions = await executeQuery(permissionQuery, [altModuleName, userId, userRole]);
+    }
+
+    // Default permissions if none found
+    let permissionData = {
+      can_view: 0,
+      can_edit: 0,
+      can_delete: 0,
+      can_create: 0
+    };
+
+    if (permissions.length > 0) {
+      permissionData = permissions[0];
+    }
+
+    // Check if user has view permission
+    if (permissionData.can_view !== 1 && permissionData.can_view !== true) {
       return NextResponse.json({ 
         error: 'You are not allowed to access this page.' 
       }, { status: 403 });
@@ -70,10 +101,18 @@ export async function GET(request) {
     `;
     const shipments = await executeQuery(shipmentQuery);
 
+    // ✅ Ensure permissions are returned as numbers (0 or 1) for consistency
+    const formattedPermissions = {
+      can_view: permissionData.can_view === 1 || permissionData.can_view === true ? 1 : 0,
+      can_edit: permissionData.can_edit === 1 || permissionData.can_edit === true ? 1 : 0,
+      can_delete: permissionData.can_delete === 1 || permissionData.can_delete === true ? 1 : 0,
+      can_create: permissionData.can_create === 1 || permissionData.can_create === true ? 1 : 0
+    };
+
     return NextResponse.json({ 
       success: true,
       shipments: shipments || [],
-      permissions: permissionData
+      permissions: formattedPermissions
     });
 
   } catch (error) {

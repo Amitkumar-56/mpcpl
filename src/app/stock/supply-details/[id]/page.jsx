@@ -3,6 +3,7 @@
 import ExportButton from '@/components/ExportButton';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import { useRouter, useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
@@ -14,6 +15,7 @@ export default function SupplyDetailsPage() {
   const [history, setHistory] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [historyExpanded, setHistoryExpanded] = useState(true);
 
   useEffect(() => {
     if (id) {
@@ -38,7 +40,72 @@ export default function SupplyDetailsPage() {
           // Fetch history from multiple sources
           const historyData = [];
           
-          // 1. Stock logs if available
+          // 1. ✅ Audit logs - Status changes and edits (MOST IMPORTANT)
+          try {
+            const auditResponse = await fetch(`/api/audit-logs?record_type=stock&record_id=${id}&limit=100`);
+            const auditResult = await auditResponse.json();
+            if (auditResult.success && auditResult.data) {
+              auditResult.data.forEach(log => {
+                // Parse old and new values to extract status changes
+                let oldStatus = null;
+                let newStatus = null;
+                let actionText = log.action;
+                
+                try {
+                  if (log.old_value && typeof log.old_value === 'object') {
+                    oldStatus = log.old_value.status;
+                  } else if (log.old_value && typeof log.old_value === 'string') {
+                    const parsed = JSON.parse(log.old_value);
+                    oldStatus = parsed.status;
+                  }
+                  
+                  if (log.new_value && typeof log.new_value === 'object') {
+                    newStatus = log.new_value.status;
+                  } else if (log.new_value && typeof log.new_value === 'string') {
+                    const parsed = JSON.parse(log.new_value);
+                    newStatus = parsed.status;
+                  }
+                } catch (e) {
+                  // Ignore parse errors
+                }
+                
+                // Format status change message
+                if (log.action === 'status_change' && oldStatus && newStatus) {
+                  const statusMap = {
+                    'pending': 'Pending',
+                    'on_the_way': 'On The Way',
+                    'delivered': 'Delivered',
+                    '1': 'Pending',
+                    '2': 'On The Way',
+                    '3': 'Delivered'
+                  };
+                  actionText = `Status Changed: ${statusMap[oldStatus] || oldStatus} → ${statusMap[newStatus] || newStatus}`;
+                } else if (log.action === 'edit') {
+                  actionText = 'Stock Details Edited';
+                }
+                
+                // ✅ FIX: Use user_display_name first (from employee_profile join), then user_name, then fallback
+                const changedByName = log.user_display_name || log.user_name || log.employee_name || 'System';
+                
+                historyData.push({
+                  type: 'audit',
+                  action: actionText,
+                  changed_by: changedByName !== 'System' ? changedByName : (log.user_id ? `Employee ID: ${log.user_id}` : 'System'),
+                  date: log.created_at || `${log.action_date} ${log.action_time}`,
+                  status: newStatus || oldStatus || log.new_value?.status || log.old_value?.status,
+                  remarks: log.remarks || log.remarks,
+                  old_status: oldStatus,
+                  new_status: newStatus,
+                  section: log.section,
+                  user_id: log.user_id // Store user_id for debugging
+                });
+              });
+            }
+          } catch (err) {
+            console.log('No audit logs available:', err);
+          }
+          
+          // 2. Stock logs if available
           try {
             const logsResponse = await fetch(`/api/stock/dncn?id=${id}`);
             const logsResult = await logsResponse.json();
@@ -58,7 +125,7 @@ export default function SupplyDetailsPage() {
             console.log('No stock logs available');
           }
           
-          // 2. Stock transfer history
+          // 3. Stock transfer history
           try {
             const transferResponse = await fetch(`/api/stock-transfers?stock_id=${id}`);
             const transferResult = await transferResponse.json();
@@ -78,7 +145,7 @@ export default function SupplyDetailsPage() {
             console.log('No transfer history available');
           }
           
-          // 3. Filling history if linked
+          // 4. Filling history if linked
           try {
             const fillingResponse = await fetch(`/api/filling-requests?stock_id=${id}`);
             const fillingResult = await fillingResponse.json();
@@ -283,16 +350,30 @@ export default function SupplyDetailsPage() {
                 </div>
               )}
 
-              {/* Complete History */}
+              {/* Complete History - Collapsible */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
-                  <h2 className="text-lg font-semibold text-gray-900 flex items-center">
-                    <svg className="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                  <button
+                    onClick={() => setHistoryExpanded(!historyExpanded)}
+                    className="flex items-center justify-between w-full text-left"
+                  >
+                    <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                      </svg>
+                      Complete History ({history.length})
+                    </h2>
+                    <svg 
+                      className={`w-5 h-5 text-gray-600 transition-transform ${historyExpanded ? 'rotate-180' : ''}`}
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
-                    Complete History
-                  </h2>
+                  </button>
                 </div>
+                {historyExpanded && (
                 <div className="p-6">
                   {history.length > 0 ? (
                     <div className="space-y-4">
@@ -301,12 +382,16 @@ export default function SupplyDetailsPage() {
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center">
                               <span className={`inline-flex px-2 py-1 rounded text-xs font-medium mr-2 ${
+                                item.type === 'audit' ? 'bg-red-100 text-red-800' :
                                 item.type === 'log' ? 'bg-blue-100 text-blue-800' :
                                 item.type === 'transfer' ? 'bg-purple-100 text-purple-800' :
                                 item.type === 'filling' ? 'bg-green-100 text-green-800' :
                                 'bg-gray-100 text-gray-800'
                               }`}>
-                                {item.type === 'log' ? 'Log' : item.type === 'transfer' ? 'Transfer' : 'Filling'}
+                                {item.type === 'audit' ? 'Status/Edit' : 
+                                 item.type === 'log' ? 'Log' : 
+                                 item.type === 'transfer' ? 'Transfer' : 
+                                 item.type === 'filling' ? 'Filling' : 'Other'}
                               </span>
                               <span className="text-sm font-medium text-gray-700">
                                 {item.action}
@@ -337,6 +422,16 @@ export default function SupplyDetailsPage() {
                                 Remarks: {item.remarks}
                               </p>
                             )}
+                            {item.old_status && item.new_status && (
+                              <p className="text-xs text-gray-600">
+                                Status: <span className="font-medium text-red-600">{item.old_status}</span> → <span className="font-medium text-green-600">{item.new_status}</span>
+                              </p>
+                            )}
+                            {item.section && (
+                              <p className="text-xs text-gray-500 italic">
+                                Section: {item.section}
+                              </p>
+                            )}
                           </div>
                         </div>
                       ))}
@@ -347,6 +442,7 @@ export default function SupplyDetailsPage() {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             </div>
           </div>

@@ -68,37 +68,64 @@ export async function createAuditLog({
     const actionDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const actionTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
 
-    // Try to get employee name if userName is 'System' or empty
+    // ✅ FIX: Try to get employee name if userName is 'System', empty, or contains 'Employee ID'
     let finalUserName = userName;
-    if ((!finalUserName || finalUserName === 'System') && userId) {
+    
+    // If userName is 'System', 'Unknown User', or starts with 'Employee ID', try to fetch from database
+    const needsFetch = !finalUserName || 
+                      finalUserName === 'System' || 
+                      finalUserName === 'Unknown User' || 
+                      finalUserName.startsWith('Employee ID:');
+    
+    if (needsFetch && userId) {
       try {
+        console.log(`🔍 [AuditLog] Fetching employee name for userId: ${userId}`);
         const users = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
           [userId]
         );
+        console.log(`🔍 [AuditLog] Employee query result:`, users);
+        
         if (users.length > 0 && users[0].name) {
           finalUserName = users[0].name;
+          console.log(`✅ [AuditLog] Fetched employee name: ${finalUserName} (ID: ${userId})`);
+        } else {
+          console.warn(`⚠️ [AuditLog] Employee not found in database for ID: ${userId}`);
         }
       } catch (err) {
-        console.error('Error fetching employee name for audit log:', err);
+        console.error('❌ [AuditLog] Error fetching employee name:', err);
       }
     }
     
     // If still no name, try to get from newValue (for shared/created records)
-    if ((!finalUserName || finalUserName === 'System') && newValue) {
+    if ((!finalUserName || finalUserName === 'System' || finalUserName.startsWith('Employee ID:')) && newValue) {
       try {
         const newValueObj = typeof newValue === 'string' ? JSON.parse(newValue) : newValue;
         if (newValueObj.created_by_name) {
           finalUserName = newValueObj.created_by_name;
+          console.log(`✅ [AuditLog] Got name from newValue.created_by_name: ${finalUserName}`);
         } else if (newValueObj.user_name) {
           finalUserName = newValueObj.user_name;
+          console.log(`✅ [AuditLog] Got name from newValue.user_name: ${finalUserName}`);
         } else if (newValueObj.edited_by_name) {
           finalUserName = newValueObj.edited_by_name;
+          console.log(`✅ [AuditLog] Got name from newValue.edited_by_name: ${finalUserName}`);
         }
       } catch (err) {
-        // Ignore parse errors
+        console.error('❌ [AuditLog] Error parsing newValue:', err);
       }
     }
+    
+    // ✅ Final fallback: If still no name but we have userId, use descriptive message
+    if ((!finalUserName || finalUserName === 'System') && userId) {
+      finalUserName = `Employee ID: ${userId}`;
+      console.warn(`⚠️ [AuditLog] Using fallback name: ${finalUserName}`);
+    } else if (!finalUserName) {
+      finalUserName = 'Unknown User';
+      console.error(`❌ [AuditLog] No userName and no userId, using: ${finalUserName}`);
+    }
+    
+    console.log(`✅ [AuditLog] Final userName for audit log: ${finalUserName} (userId: ${userId})`);
 
     // Convert oldValue and newValue to JSON strings if they are objects
     const oldValueJson = oldValue ? (typeof oldValue === 'string' ? oldValue : JSON.stringify(oldValue)) : null;
@@ -194,4 +221,5 @@ export function formatValueChange(oldValue, newValue, fieldName = null) {
   
   return `"${oldStr}" → "${newStr}"`;
 }
+
 

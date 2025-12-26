@@ -107,7 +107,7 @@ export default function CreateUserPage() {
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const cachedPerms = JSON.parse(cached);
-      if (cachedPerms.can_edit || cachedPerms.can_view) {
+      if (cachedPerms.can_create) {
         setHasPermission(true);
         setCheckingPermission(false);
         return;
@@ -118,7 +118,7 @@ export default function CreateUserPage() {
       // Check user's permissions from session
       if (user.permissions && user.permissions['Employees']) {
         const empPerms = user.permissions['Employees'];
-        if (empPerms.can_edit || empPerms.can_view) {
+        if (empPerms.can_create) {
           sessionStorage.setItem(cacheKey, JSON.stringify(empPerms));
           setHasPermission(true);
           setCheckingPermission(false);
@@ -126,15 +126,15 @@ export default function CreateUserPage() {
         }
       }
 
-      // Check API for Employees module
+      // Check API for Employees module - check can_create permission
       const response = await fetch(
-        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('Employees')}&action=can_edit`
+        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('Employees')}&action=can_create`
       );
       const data = await response.json();
 
       if (data.allowed) {
         setHasPermission(true);
-        sessionStorage.setItem(cacheKey, JSON.stringify({ can_edit: true, can_view: true }));
+        sessionStorage.setItem(cacheKey, JSON.stringify({ can_create: true }));
       } else {
         setHasPermission(false);
       }
@@ -433,6 +433,7 @@ export default function CreateUserPage() {
             </div>
           )}
 
+          {/* Module Permissions - Only for Admin */}
           {isAdmin && (
             <div className="mt-6 overflow-x-auto bg-white rounded-lg p-4">
               <h3 className="text-md font-semibold mb-3">Assign Module Permissions</h3>

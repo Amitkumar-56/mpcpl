@@ -65,7 +65,7 @@ function SetupDealPriceContent() {
         limitedData.forEach((item) => {
           if (item.Schedule_Date === scheduleDate) {
             if (!formatted[item.station_id]) formatted[item.station_id] = {};
-            formatted[item.station_id][item.sub_product_id] = item.price;
+            formatted[item.station_id][item.sub_product_id] = parseFloat(item.price || 0);
           }
         });
         setPrices(formatted);
@@ -323,8 +323,13 @@ function SetupDealPriceContent() {
       alert(
         `✅ Done! Inserted: ${result.counts.inserted}, Updated: ${result.counts.updated}`
       );
-      fetchExistingPrices();
-      fetchScheduledPricesList();
+      // Clear prices state to show fresh data
+      setPrices({});
+      // Refetch existing prices and scheduled prices
+      await Promise.all([
+        fetchExistingPrices(),
+        fetchScheduledPricesList()
+      ]);
     } catch (error) {
       console.error("Error saving prices:", error);
     } finally {
@@ -333,20 +338,7 @@ function SetupDealPriceContent() {
   };
 
   if (pageLoading) {
-    return (
-      <div className="flex h-screen bg-gray-100 overflow-hidden">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-y-auto bg-gray-50 flex items-center justify-center">
-            <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading deal price setup...</p>
-            </div>
-          </main>
-        </div>
-      </div>
-    );
+    return null;
   }
 
   if (error) {

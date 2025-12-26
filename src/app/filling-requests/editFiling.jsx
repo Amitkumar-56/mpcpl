@@ -697,13 +697,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
   );
 };
 
-// Quick Loading Component
-const QuickLoading = () => (
-  <div className="flex justify-center items-center py-10">
-    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-    <span className="ml-3 text-gray-600 font-medium">Loading requests...</span>
-  </div>
-);
+// Quick Loading Component - REMOVED (no loading states)
 
 // StatusFilters Component
 const StatusFilters = ({ currentStatus, onStatusChange }) => {
@@ -752,7 +746,7 @@ const StatusFilters = ({ currentStatus, onStatusChange }) => {
   );
 };
 
-// SearchBar Component
+// SearchBar Component - Mobile Responsive
 const SearchBar = ({ onSearch, initialValue = "" }) => {
   const [searchTerm, setSearchTerm] = useState(initialValue);
   const handleSubmit = (e) => {
@@ -761,16 +755,22 @@ const SearchBar = ({ onSearch, initialValue = "" }) => {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="relative">
+    <form onSubmit={handleSubmit} className="relative w-full">
       <input
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search by RID, Vehicle, Client, Station..."
-        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+        placeholder="Search by RID, Vehicle, Client, Station, Company..."
+        className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 md:pr-12"
       />
-      <button type="submit" className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600">
-        🔍
+      <button 
+        type="submit" 
+        className="absolute right-2 md:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 md:p-1.5"
+        aria-label="Search"
+      >
+        <svg className="w-4 h-4 md:w-5 md:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
       </button>
     </form>
   );
@@ -782,7 +782,6 @@ export default function FillingRequests() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useSession();
   const [requests, setRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [expandedRequest, setExpandedRequest] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({
@@ -877,12 +876,10 @@ export default function FillingRequests() {
         setPermissions(perms);
       } else {
         setHasPermission(false);
-        setLoading(false);
       }
     } catch (error) {
       console.error('Permission check error:', error);
       setHasPermission(false);
-      setLoading(false);
     }
   };
 
@@ -927,7 +924,6 @@ export default function FillingRequests() {
   useEffect(() => {
     const fetchRequests = async () => {
       try {
-        setLoading(true);
         const params = new URLSearchParams({
           page: searchParams.get("page") || "1",
           records_per_page: searchParams.get("records_per_page") || "10",
@@ -994,8 +990,6 @@ export default function FillingRequests() {
           totalRecords: 0,
           totalPages: 1,
         });
-      } finally {
-        setLoading(false);
       }
     };
 
@@ -1188,7 +1182,7 @@ export default function FillingRequests() {
       />
     )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user]);
 
-  if (!user || authLoading) return <QuickLoading />;
+  if (!user || authLoading) return null;
 
   if (!hasPermission) {
     return (
@@ -1258,11 +1252,8 @@ export default function FillingRequests() {
               </button>
             </div>
 
-            {loading ? (
-              <QuickLoading />
-            ) : (
-              <>
-                <div className="hidden md:block overflow-x-auto">
+            <>
+              <div className="hidden md:block overflow-x-auto">
                   <table className="min-w-full bg-white border rounded-lg">
                     <thead>
                       <tr className="bg-gray-100 text-gray-700">
@@ -1364,8 +1355,7 @@ export default function FillingRequests() {
                     </div>
                   </div>
                 )}
-              </>
-            )}
+            </>
           </div>
 
           {expandedRequest && <ExpandedDetails request={expandedRequest} onClose={closeExpanded} />}

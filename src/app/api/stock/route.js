@@ -1,10 +1,21 @@
 // src/app/api/stock/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
 
-export async function GET() {
+export async function GET(request) {
   try {
-    const query = `
+    // Get user role to filter delivered items for staff/incharge
+    let userRole = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userRole = currentUser?.role || null;
+    } catch (err) {
+      console.log('Could not get user role, showing all items');
+    }
+    
+    // Build query with optional filter for staff/incharge (role 1 or 2)
+    let query = `
       SELECT 
         s.id,
         s.supplier_id,
@@ -19,6 +30,7 @@ export async function GET() {
         s.tanker_no,
         s.driver_no,
         s.lr_no,
+        s.transporter_id,
         s.v_invoice_value,
         s.dncn,
         s.t_dncn,
@@ -38,13 +50,24 @@ export async function GET() {
         -- Join with filling_stations table to get station name
         fs.station_name as station_name,
         fs.fl_id,
-        fs.fa_id
+        fs.fa_id,
+        -- Join with transporters table to get transporter name
+        t.transporter_name
       FROM stock s
       LEFT JOIN suppliers sup ON s.supplier_id = sup.id
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN filling_stations fs ON s.fs_id = fs.id
-      ORDER BY s.id DESC
+      LEFT JOIN transporters t ON s.transporter_id = t.id
+      WHERE 1=1
     `;
+    
+    // Filter out 'delivered' items for Staff (role 1) or Incharge (role 2)
+    // Only show delivered items to higher roles (Admin, Accountant, Team Leader)
+    if (userRole === 1 || userRole === 2) {
+      query += ` AND (s.status != 'delivered' AND s.status != '3')`;
+    }
+    
+    query += ` ORDER BY s.id DESC`;
 
     const stockData = await executeQuery(query);
 

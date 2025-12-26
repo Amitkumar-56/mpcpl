@@ -209,7 +209,7 @@ function TInvoiceContent() {
                           <td className="px-4 py-3 whitespace-nowrap text-sm">
                             <div className="flex items-center gap-3">
                               <a 
-                                href={`/supply-details?id=${row.id}`}
+                                href={`/stock/supply-details/${row.id}`}
                                 className="text-blue-600 hover:text-blue-800 transition-colors"
                                 title="View Details"
                               >

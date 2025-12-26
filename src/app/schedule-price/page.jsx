@@ -17,7 +17,6 @@ function SchedulePriceContent() {
   const [selectedCustomers, setSelectedCustomers] = useState([]);
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(false);
-  const [fetchLoading, setFetchLoading] = useState(false);
   const [scheduledPrices, setScheduledPrices] = useState([]);
   const [requireApproval, setRequireApproval] = useState(true);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
@@ -133,12 +132,11 @@ function SchedulePriceContent() {
       setScheduledPrices([]);
       setScheduleData({});
     }
-  }, [selectedCustomers, viewMode]);
+  }, [selectedCustomers, viewMode, scheduleDate, scheduleTime]);
 
   // Fetch setup data
   const fetchSetupData = async () => {
     try {
-      setFetchLoading(true);
       const res = await fetch("/api/schedule-price");
       const result = await res.json();
       
@@ -152,8 +150,6 @@ function SchedulePriceContent() {
     } catch (err) {
       console.error("Error fetching setup data:", err);
       alert("Server error while loading data");
-    } finally {
-      setFetchLoading(false);
     }
   };
 
@@ -371,15 +367,8 @@ function SchedulePriceContent() {
     }
   };
 
-  if (fetchLoading || authLoading) {
-    return (
-      <div className="flex h-screen bg-gray-100">
-        <Sidebar />
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-xl">Loading...</div>
-        </div>
-      </div>
-    );
+  if (authLoading) {
+    return null;
   }
 
   // Check if user has view permission
@@ -417,7 +406,7 @@ function SchedulePriceContent() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Select Multiple Customers ({selectedCustomers.length} selected)
               </label>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-3">
                 {customers.map((customer) => (
                   <div key={customer.id} className="flex items-center">
                     <input
@@ -492,8 +481,8 @@ function SchedulePriceContent() {
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4 border border-gray-200">
               <h2 className="text-lg font-semibold mb-4">Price Schedule Form</h2>
               
-              {/* Date and Time Selection */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              {/* Date and Time Selection - Mobile Responsive */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 md:gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Schedule Date <span className="text-red-500">*</span>
@@ -519,8 +508,8 @@ function SchedulePriceContent() {
                 </div>
               </div>
 
-              {/* View Mode Tabs - Matching Deal Price Design */}
-              <div className="flex gap-2 mb-4">
+              {/* View Mode Tabs - Matching Deal Price Design - Mobile Responsive */}
+              <div className="flex flex-wrap gap-2 mb-4">
                 <button
                   type="button"
                   onClick={() => setViewMode("all")}
@@ -576,7 +565,7 @@ function SchedulePriceContent() {
                     {Object.entries(groupedProducts).map(([productId, group]) => (
                       <div key={productId} className="mb-4">
                         <h3 className="font-medium text-gray-800 mb-2">{group.product_name}</h3>
-                        <div className="grid grid-cols-4 gap-3" style={{ gridTemplateColumns: 'repeat(4, minmax(0, 1fr))' }}>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
                           {group.sub_products.map((subProduct) => (
                             <div 
                               key={subProduct.code_id} 
@@ -647,8 +636,8 @@ function SchedulePriceContent() {
               {scheduledPrices.length === 0 ? (
                 <p className="text-gray-500">No scheduled prices found.</p>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full border-collapse min-w-full">
                     <thead>
                       <tr className="bg-gray-50 border-b">
                         <th className="px-3 py-2 border text-left">Status</th>

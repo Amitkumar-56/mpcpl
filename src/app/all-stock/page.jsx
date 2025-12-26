@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useState } from 'react';
+import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
 
 // Loading component for Suspense fallback
 function AllStockLoading() {
@@ -385,17 +385,28 @@ function AllStockContent() {
   const [addingStock, setAddingStock] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [formErrors, setFormErrors] = useState({});
+  const isMountedRef = useRef(true);
+  const fetchingRef = useRef(false);
 
-  useEffect(() => {
-    fetchStockData();
-  }, []);
+  // ✅ Memoize fetchStockData to prevent unnecessary re-renders
+  const fetchStockData = useCallback(async () => {
+    // Prevent multiple simultaneous fetches
+    if (fetchingRef.current) {
+      console.log('⚠️ Fetch already in progress, skipping...');
+      return;
+    }
 
-  const fetchStockData = async () => {
     try {
+      fetchingRef.current = true;
       setLoading(true);
       setError(null);
       
-      const response = await fetch('/api/all-stock');
+      const response = await fetch('/api/all-stock', {
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
       
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
@@ -403,17 +414,37 @@ function AllStockContent() {
       
       const result = await response.json();
       
+      if (!isMountedRef.current) {
+        return; // Component unmounted, don't update state
+      }
+      
       if (result.success) {
         setStockData(result.data);
       } else {
         throw new Error(result.error);
       }
     } catch (err) {
+      if (!isMountedRef.current) {
+        return; // Component unmounted, don't update state
+      }
       setError(err.message);
     } finally {
-      setLoading(false);
+      fetchingRef.current = false;
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []); // Empty dependency array - only create once
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    fetchStockData();
+    
+    // Cleanup on unmount
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, [fetchStockData]);
 
   const refreshData = () => {
     fetchStockData();
@@ -491,9 +522,11 @@ function AllStockContent() {
         setShowConfirmModal(false);
         setShowAddModal(false);
         
-        // Refresh data after short delay
+        // Refresh data after short delay (only if component is still mounted)
         setTimeout(() => {
-          fetchStockData();
+          if (isMountedRef.current && !fetchingRef.current) {
+            fetchStockData();
+          }
         }, 1000);
         
       } else {

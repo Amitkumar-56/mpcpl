@@ -44,6 +44,7 @@ function VoucherWalletDriverEmpContent() {
   const [driverName, setDriverName] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [error, setError] = useState(null);
+  const [pendingExpanded, setPendingExpanded] = useState(false);
   const [modalData, setModalData] = useState({
     showCash: false,
     showAdvance: false,
@@ -337,7 +338,7 @@ function VoucherWalletDriverEmpContent() {
               )}
 
               {/* Floating Add Button */}
-              {permissions?.can_create == 1 && (
+              {permissions?.can_create === 1 && (
                 <Link href="/create-voucher" className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg transition-colors z-50 flex items-center space-x-2">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -407,11 +408,43 @@ function VoucherWalletDriverEmpContent() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {vouchers.length > 0 && !error ? (
-                        vouchers.map((voucher, index) => (
+                        (() => {
+                          const pendingVouchers = vouchers.filter(v => v.status == 0 || v.status == null);
+                          const otherVouchers = vouchers.filter(v => v.status != 0 && v.status != null);
+                          let displayIndex = 0;
+                          
+                          return (
+                            <>
+                              {/* Pending Vouchers Section - Collapsible */}
+                              {pendingVouchers.length > 0 && (
+                                <>
+                                  <tr className="bg-yellow-50">
+                                    <td colSpan="10" className="px-6 py-3">
+                                      <button
+                                        onClick={() => setPendingExpanded(!pendingExpanded)}
+                                        className="flex items-center justify-between w-full text-left"
+                                      >
+                                        <span className="font-semibold text-yellow-800">
+                                          Pending Vouchers ({pendingVouchers.length})
+                                        </span>
+                                        <svg 
+                                          className={`w-5 h-5 text-yellow-800 transition-transform ${pendingExpanded ? 'rotate-180' : ''}`}
+                                          fill="none" 
+                                          stroke="currentColor" 
+                                          viewBox="0 0 24 24"
+                                        >
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                        </svg>
+                                      </button>
+                                    </td>
+                                  </tr>
+                                  {pendingExpanded && pendingVouchers.map((voucher, idx) => {
+                                    displayIndex++;
+                                    return (
                           <tr key={voucher.voucher_id || index} className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {index + 1}
-                            </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {displayIndex}
+                          </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                               {voucher.voucher_no || 'N/A'}
                             </td>
@@ -528,32 +561,171 @@ function VoucherWalletDriverEmpContent() {
                               </div>
                             </td>
                           </tr>
-                        ))
-                      ) : (
-                        <tr>
-                          <td colSpan="10" className="px-6 py-12 text-center">
-                            <div className="text-gray-500 text-lg mb-2">
-                              {error ? 'Error loading vouchers' : 'No vouchers found for this staff member'}
-                            </div>
-                            <div className="text-gray-400 text-sm mb-4">
-                              {emp_id && driverName ? `No vouchers found for ${driverName}` : 'No vouchers available'}
-                            </div>
-                            <div className="flex gap-3 justify-center">
-                              <button
-                                onClick={fetchVouchers}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
-                              >
-                                Try Again
-                              </button>
-                              <Link
-                                href="/voucher-wallet-driver"
-                                className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
-                              >
-                                View All Vouchers
-                              </Link>
-                            </div>
+                                    );
+                                  })}
+                                </>
+                              )}
+                              
+                              {/* Other Vouchers */}
+                              {otherVouchers.map((voucher, idx) => {
+                                displayIndex++;
+                                return (
+                          <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {displayIndex}
                           </td>
-                        </tr>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {voucher.voucher_no || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatDate(voucher.exp_date)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {voucher.station_name || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {voucher.vehicle_no || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {voucher.driver_phone || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatCurrency(voucher.advance)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {formatCurrency(voucher.total_expense)}
+                            </td>
+                            <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                              {formatCurrency(voucher.remaining_amount)}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                              <div className="flex flex-wrap gap-1">
+                                {/* Add Cash Button */}
+                                <button
+                                  onClick={() => openCashModal(voucher)}
+                                  className="bg-gray-800 hover:bg-gray-900 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                  </svg>
+                                  Cash
+                                </button>
+
+                                {/* Add Advance Button */}
+                                <button
+                                  onClick={() => openAdvanceModal(voucher)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
+                                  </svg>
+                                  Advance
+                                </button>
+
+                                {/* Edit Button */}
+                                <Link
+                                  href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit
+                                </Link>
+
+                                {/* View Button */}
+                                <Link
+                                  href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                  </svg>
+                                  View
+                                </Link>
+
+                                {/* Print Button */}
+                                {voucher.status == 1 && (
+                                  <Link
+                                    href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                    target="_blank"
+                                    className="bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1 rounded text-sm flex items-center gap-1"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                    </svg>
+                                    Print
+                                  </Link>
+                                )}
+
+                                {/* Status Badge */}
+                                <div className="mt-1">
+                                  {getStatusBadge(voucher)}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                                    );
+                                  })}
+                            </>
+                          );
+                        })()
+                      ) : (
+                        <>
+                          {/* No Vouchers Message */}
+                          {vouchers.length === 0 && !error && (
+                                <tr>
+                                  <td colSpan="10" className="px-6 py-12 text-center">
+                                    <div className="text-gray-500 text-lg mb-2">
+                                      No vouchers found for this staff member
+                                    </div>
+                                    <div className="text-gray-400 text-sm mb-4">
+                                      {emp_id && driverName ? `No vouchers found for ${driverName}` : 'No vouchers available'}
+                                    </div>
+                                    <div className="flex gap-3 justify-center">
+                                      <button
+                                        onClick={fetchVouchers}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                                      >
+                                        Try Again
+                                      </button>
+                                      <Link
+                                        href="/voucher-wallet-driver"
+                                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+                                      >
+                                        View All Vouchers
+                                      </Link>
+                                    </div>
+                                  </td>
+                                </tr>
+                          )}
+                          
+                          {/* Error Message */}
+                          {error && (
+                                <tr>
+                                  <td colSpan="10" className="px-6 py-12 text-center">
+                                    <div className="text-gray-500 text-lg mb-2">
+                                      Error loading vouchers
+                                    </div>
+                                    <div className="flex gap-3 justify-center">
+                                      <button
+                                        onClick={fetchVouchers}
+                                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                                      >
+                                        Try Again
+                                      </button>
+                                      <Link
+                                        href="/voucher-wallet-driver"
+                                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg transition-colors"
+                                      >
+                                        View All Vouchers
+                                      </Link>
+                                    </div>
+                                  </td>
+                                </tr>
+                          )}
+                        </>
                       )}
                     </tbody>
                   </table>

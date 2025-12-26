@@ -11,12 +11,14 @@ import { useEffect, useMemo, useState } from "react";
 import { BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTrash } from "react-icons/bs";
 
 // A sub-component for data rendering inside Suspense
-function StockTable({ stockRequests, permissions = { can_view: true, can_edit: true, can_delete: true } }) {
+function StockTable({ stockRequests, permissions = { can_view: true, can_edit: true, can_delete: true }, onStatusUpdate, onRefresh }) {
   const [sortConfig, setSortConfig] = useState({ key: null, direction: "asc" });
   const [filterText, setFilterText] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  const [editingStatus, setEditingStatus] = useState({});
+  const [updatingStatus, setUpdatingStatus] = useState({});
 
   const getStatusBadge = (status) => {
     // ✅ FIX: Handle both numeric and string status values
@@ -26,13 +28,14 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
     const numericMap = {
       '1': { text: "Dispatched", color: "bg-blue-100 text-blue-800 border border-blue-200" },
       '2': { text: "Processing", color: "bg-yellow-100 text-yellow-800 border border-yellow-200" },
-      '3': { text: "Completed", color: "bg-green-100 text-green-800 border border-green-200" },
+      '3': { text: "Delivered", color: "bg-green-100 text-green-800 border border-green-200" },
       '4': { text: "Cancelled", color: "bg-red-100 text-red-800 border border-red-200" }
     };
     
     // Map string values
     const stringMap = {
       'on_the_way': { text: "On The Way", color: "bg-blue-100 text-blue-800 border border-blue-200" },
+      'delivered': { text: "Delivered", color: "bg-green-100 text-green-800 border border-green-200" },
       'dispatched': { text: "Dispatched", color: "bg-blue-100 text-blue-800 border border-blue-200" },
       'processing': { text: "Processing", color: "bg-yellow-100 text-yellow-800 border border-yellow-200" },
       'completed': { text: "Completed", color: "bg-green-100 text-green-800 border border-green-200" },
@@ -51,6 +54,70 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
         {statusInfo.text}
       </span>
     );
+  };
+
+  const handleStatusChange = (stockId, newStatus) => {
+    setEditingStatus(prev => ({
+      ...prev,
+      [stockId]: newStatus
+    }));
+  };
+
+  const handleStatusUpdate = async (stockId) => {
+    const newStatus = editingStatus[stockId];
+    if (!newStatus) return;
+
+    setUpdatingStatus(prev => ({ ...prev, [stockId]: true }));
+
+    try {
+      // ✅ FIX: Send id in body, not query parameter
+      const response = await fetch(`/api/stock/edit`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ id: stockId, status: newStatus }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        // Update local state
+        if (onStatusUpdate) {
+          onStatusUpdate(stockId, newStatus);
+        }
+        // Clear editing state
+        setEditingStatus(prev => {
+          const updated = { ...prev };
+          delete updated[stockId];
+          return updated;
+        });
+        // ✅ Refresh stock data without page reload (prevents logout)
+        if (onRefresh) {
+          onRefresh();
+        }
+      } else {
+        alert(result.error || 'Failed to update status');
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+      alert('Error updating status. Please try again.');
+    } finally {
+      setUpdatingStatus(prev => {
+        const updated = { ...prev };
+        delete updated[stockId];
+        return updated;
+      });
+    }
+  };
+
+  const getStatusValue = (status) => {
+    const statusValue = status?.toString().toLowerCase();
+    // Normalize status values
+    if (statusValue === 'pending' || statusValue === '0' || !statusValue) return 'pending';
+    if (statusValue === 'on_the_way' || statusValue === '1') return 'on_the_way';
+    if (statusValue === 'delivered' || statusValue === '3') return 'delivered';
+    return statusValue || 'pending';
   };
 
   const formatDate = (date) =>
@@ -81,7 +148,9 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
         item.tanker_no?.toLowerCase().includes(filterText.toLowerCase());
 
       const matchesStatus =
-        statusFilter === "all" || item.status?.toString() === statusFilter;
+        statusFilter === "all" || 
+        getStatusValue(item.status) === statusFilter ||
+        item.status?.toString() === statusFilter;
 
       return matchesSearch && matchesStatus;
     });
@@ -149,10 +218,9 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
               className="border px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
               <option value="all">All Statuses</option>
-              <option value="1">Dispatched</option>
-              <option value="2">Processing</option>
-              <option value="3">Completed</option>
-              <option value="4">Cancelled</option>
+              <option value="pending">Pending</option>
+              <option value="on_the_way">On The Way</option>
+              <option value="delivered">Delivered</option>
             </select>
           </div>
           <div className="text-sm text-gray-600">
@@ -248,7 +316,55 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                       {formatCurrency(request.payable)}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {getStatusBadge(request.status)}
+                      {editingStatus[request.id] !== undefined ? (
+                        <div className="flex items-center gap-2">
+                          <select
+                            value={editingStatus[request.id]}
+                            onChange={(e) => handleStatusChange(request.id, e.target.value)}
+                            className="px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            disabled={updatingStatus[request.id]}
+                          >
+                            <option value="pending">Pending</option>
+                            <option value="on_the_way">On The Way</option>
+                            <option value="delivered">Delivered</option>
+                          </select>
+                          <button
+                            onClick={() => handleStatusUpdate(request.id)}
+                            disabled={updatingStatus[request.id]}
+                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Update Status"
+                          >
+                            {updatingStatus[request.id] ? '...' : 'OK'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setEditingStatus(prev => {
+                                const updated = { ...prev };
+                                delete updated[request.id];
+                                return updated;
+                              });
+                            }}
+                            disabled={updatingStatus[request.id]}
+                            className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
+                            title="Cancel"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          {getStatusBadge(request.status)}
+                          {permissions.can_edit && (
+                            <button
+                              onClick={() => handleStatusChange(request.id, getStatusValue(request.status))}
+                              className="text-blue-600 hover:text-blue-800 text-xs"
+                              title="Edit Status"
+                            >
+                              ✏️
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                       <div className="flex justify-center space-x-2">
@@ -582,7 +698,18 @@ export default function StockRequest() {
                 </div>
               )}
               
-              <StockTable stockRequests={stockRequests} permissions={permissions} />
+              <StockTable 
+                stockRequests={stockRequests} 
+                permissions={permissions}
+                onStatusUpdate={(stockId, newStatus) => {
+                  setStockRequests(prev => 
+                    prev.map(item => 
+                      item.id === stockId ? { ...item, status: newStatus } : item
+                    )
+                  );
+                }}
+                onRefresh={fetchStockRequests}
+              />
             </div>
           </main>
           <Footer />

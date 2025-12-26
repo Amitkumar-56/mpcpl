@@ -108,16 +108,27 @@ function StockTransfersContent() {
 
         {/* Scrollable Main Content */}
         <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Floating Action Button */}
-        <Link
-          href="/stock-transfers/create"
-          className="fixed bottom-8 right-8 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200 flex items-center space-x-2 z-50"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span>Create Stock Transfer</span>
-        </Link>
+        {/* Floating Action Buttons */}
+        <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-50">
+          <Link
+            href="/stock-transfers/product"
+            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200 flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+            </svg>
+            <span>Product Transfers</span>
+          </Link>
+          <Link
+            href="/stock-transfers/create"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200 flex items-center space-x-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Create Stock Transfer</span>
+          </Link>
+        </div>
 
         {/* Content Card */}
         <div className="bg-white rounded-lg shadow">

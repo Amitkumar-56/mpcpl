@@ -163,13 +163,41 @@ export async function POST(request) {
       );
     }
 
+    // ✅ Get user ID from cookies/token BEFORE transaction
+    let userId = 1;
+    let userName = 'System';
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id || 1;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
+        }
+      }
+    } catch (userError) {
+      console.error('Error getting user info:', userError);
+    }
+    
+    console.log('✅ User info for transfer:', { userId, userName });
+
     // Use executeTransaction helper to avoid prepared statement error
     console.log("💳 Starting transaction...");
     const result = await executeTransaction(async (connection) => {
+      let new_stock_from;
+      let new_stock_to = null;
+      
       // ✅ NEW: Handle same depot transfer (Industrial Oil 40 <-> 60)
       if (isSameDepotTransfer) {
         // Deduct from source product
-        const new_stock_from = available_stock_from - transferQuantity;
+        new_stock_from = available_stock_from - transferQuantity;
         const updateStockQueryFrom = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND ${stockQueryUsed} = ?`;
         await connection.execute(updateStockQueryFrom, [new_stock_from, station_from, product]);
         
@@ -179,7 +207,6 @@ export async function POST(request) {
           [station_to, product_to]
         );
         
-        let new_stock_to;
         if (stockToResult.length > 0) {
           const current_stock_to = parseFloat(stockToResult[0].stock) || 0;
           new_stock_to = current_stock_to + transferQuantity;
@@ -196,15 +223,21 @@ export async function POST(request) {
           );
         }
         
-        // Insert inward history for destination product
-        await connection.execute(insertHistoryQuery, [
-          station_to, product_to, new_stock_to, transferQuantity, new_stock_to, userId
+        // ✅ Insert inward history for destination product
+        const insertHistoryQueryInward = `
+          INSERT INTO filling_history 
+            (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
+          VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())
+        `;
+        const current_stock_to_before = stockToResult.length > 0 ? parseFloat(stockToResult[0].stock) || 0 : 0;
+        await connection.execute(insertHistoryQueryInward, [
+          station_to, product_to, current_stock_to_before, transferQuantity, new_stock_to, userId
         ]);
         
         console.log(`✅ Same depot transfer: ${transferQuantity} from product ${product} to product ${product_to}`);
       } else {
         // Regular transfer between different stations
-        const new_stock_from = available_stock_from - transferQuantity;
+        new_stock_from = available_stock_from - transferQuantity;
         const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND ${stockQueryUsed} = ?`;
         
         console.log("🔄 Updating stock...");
@@ -224,41 +257,57 @@ export async function POST(request) {
         station_from, station_to, driver_id, vehicle_id,
         transferQuantity, status, slip_new_name, product, product_to || null
       ]);
-
-      // Get user ID from cookies/token
-      let userId = 1;
-      let userName = 'System';
-      try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get('token')?.value;
-        if (token) {
-          const decoded = verifyToken(token);
-          if (decoded) {
-            userId = decoded.userId || decoded.id || 1;
-            const [users] = await connection.execute(
-              `SELECT id, name FROM employee_profile WHERE id = ?`,
-              [userId]
-            );
-            if (users.length > 0) {
-              userName = users[0].name;
-            }
-          }
-        }
-      } catch (userError) {
-        console.error('Error getting user info:', userError);
-      }
       
-      // Insert into filling_history with created_by
+      // ✅ Insert into filling_history with created_by (Outward for source)
       const insertHistoryQuery = `
         INSERT INTO filling_history 
-          (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by)
-        VALUES (?, ?, 'Outward', ?, ?, ?, NOW(), ?)
+          (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
+        VALUES (?, ?, 'Outward', ?, ?, ?, NOW(), ?, NOW())
       `;
       
       console.log("📚 Adding to history with user:", userId);
       await connection.execute(insertHistoryQuery, [
-        station_from, product, available_stock_from, transferQuantity, new_stock_from, userId
+        station_from, product, available_stock_from, -transferQuantity, new_stock_from, userId
       ]);
+      
+      // ✅ For regular transfer (different stations), also add Inward to destination
+      if (!isSameDepotTransfer && station_from !== station_to) {
+        // Check destination stock
+        const [destStockResult] = await connection.execute(
+          `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND ${stockQueryUsed} = ?`,
+          [station_to, product]
+        );
+        
+        let destCurrentStock = 0;
+        let destNewStock = transferQuantity;
+        
+        if (destStockResult.length > 0) {
+          destCurrentStock = parseFloat(destStockResult[0].stock) || 0;
+          destNewStock = destCurrentStock + transferQuantity;
+          // Update destination stock
+          await connection.execute(
+            `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND ${stockQueryUsed} = ?`,
+            [destNewStock, station_to, product]
+          );
+        } else {
+          // Insert new stock record for destination
+          await connection.execute(
+            `INSERT INTO filling_station_stocks (fs_id, ${stockQueryUsed}, stock, created_at) VALUES (?, ?, ?, NOW())`,
+            [station_to, product, destNewStock]
+          );
+        }
+        
+        // Insert Inward history for destination
+        const insertHistoryQueryInward = `
+          INSERT INTO filling_history 
+            (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
+          VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())
+        `;
+        await connection.execute(insertHistoryQueryInward, [
+          station_to, product, destCurrentStock, transferQuantity, destNewStock, userId
+        ]);
+        console.log("✅ Inward history added for destination station");
+      }
       
       // Also create a log entry for stock transfer
       try {
@@ -301,7 +350,17 @@ export async function POST(request) {
       }
 
       console.log("🎉 Stock transfer created successfully!");
-      return { transferResult, stationFromName, stationToName, productName, userId, userName, available_stock_from, new_stock_from, transferQuantity };
+      return { 
+        transferResult, 
+        stationFromName, 
+        stationToName, 
+        productName, 
+        userId, 
+        userName, 
+        available_stock_from, 
+        new_stock_from: new_stock_from || (available_stock_from - transferQuantity),
+        transferQuantity 
+      };
     });
 
     // Create audit log after transaction
