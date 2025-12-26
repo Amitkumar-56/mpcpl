@@ -1,33 +1,90 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
+import { verifyToken, getCurrentUser } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
 
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const role = searchParams.get('role') || '5'; // Default role
-    const employee_id = searchParams.get('employee_id') || '1'; // Default employee
     const module_name = 'nb_expenses';
     
-    // Check permissions - try can_create first, fallback to can_delete
+    // Get current logged-in user
+    let userId = null;
+    let userRole = null;
+    
+    try {
+      const currentUser = await getCurrentUser();
+      if (currentUser && currentUser.userId) {
+        userId = currentUser.userId;
+        userRole = currentUser.role;
+      } else {
+        // Fallback: Try to get from query params or token
+        userId = searchParams.get('employee_id');
+        userRole = searchParams.get('role') || '5';
+        
+        if (!userId) {
+          const cookieStore = await cookies();
+          const token = cookieStore.get('token')?.value;
+          if (token) {
+            const decoded = verifyToken(token);
+            if (decoded) {
+              userId = decoded.userId || decoded.id;
+              // Get role from database
+              const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
+              const users = await executeQuery(userQuery, [userId]);
+              if (users.length > 0) {
+                userRole = users[0].role;
+              }
+            }
+          }
+        }
+      }
+    } catch (authError) {
+      console.error('Error getting current user:', authError);
+    }
+
+    if (!userId) {
+      return NextResponse.json(
+        { error: "Unauthorized. Please login again." },
+        { status: 401 }
+      );
+    }
+    
+    // Check permissions - try with can_create first, fallback if column doesn't exist
     let permissionQuery = `
-      SELECT can_view, can_edit, can_create, can_delete 
+      SELECT can_view, can_edit, can_delete 
       FROM role_permissions 
-      WHERE module_name = ? AND role = ? AND employee_id = ?
+      WHERE module_name = ? AND employee_id = ?
     `;
     
-    let permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+    let permissions = await executeQuery(permissionQuery, [module_name, userId]);
     
-    // If can_create column doesn't exist, try without it
-    if (permissions.length === 0) {
+    // If no employee-specific permissions, try role-based
+    if (permissions.length === 0 && userRole) {
       permissionQuery = `
         SELECT can_view, can_edit, can_delete 
         FROM role_permissions 
-        WHERE module_name = ? AND role = ? AND employee_id = ?
+        WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
       `;
-      permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+      permissions = await executeQuery(permissionQuery, [module_name, userRole]);
+    }
+    
+    // Try to get can_create if column exists
+    let canCreate = false;
+    try {
+      const fullPermissionQuery = `
+        SELECT can_view, can_edit, can_create, can_delete 
+        FROM role_permissions 
+        WHERE module_name = ? AND employee_id = ?
+      `;
+      const fullPermissions = await executeQuery(fullPermissionQuery, [module_name, userId]);
+      if (fullPermissions.length > 0 && fullPermissions[0].hasOwnProperty('can_create')) {
+        canCreate = fullPermissions[0].can_create === 1;
+      }
+    } catch (e) {
+      // can_create column doesn't exist, use false
+      canCreate = false;
     }
     
     if (permissions.length === 0 || permissions[0].can_view !== 1) {
@@ -41,9 +98,10 @@ export async function GET(request) {
     let expensesQuery = "SELECT * FROM expenses";
     let queryParams = [];
     
-    if (role !== '5' && employee_id) {
+    // If not admin (role 5), only show user's own expenses
+    if (userRole !== '5' && userRole !== 5) {
       expensesQuery += " WHERE employee_id = ?";
-      queryParams.push(employee_id);
+      queryParams.push(userId);
     }
     
     expensesQuery += " ORDER BY id DESC";
@@ -52,19 +110,20 @@ export async function GET(request) {
     
     const permData = permissions[0];
     return NextResponse.json({
-      expenses,
+      expenses: expenses || [],
       permissions: {
         can_view: permData.can_view === 1,
-        can_edit: permData.can_edit === 1,
-        can_create: permData.can_create === 1 || false,
+        can_edit: permData.can_edit === 1 || false,
+        can_create: canCreate,
         can_delete: permData.can_delete === 1 || false
       }
     });
     
   } catch (error) {
-    console.error("Error:", error);
+    console.error("Error in nb-expenses GET:", error);
+    console.error("Error stack:", error.stack);
     return NextResponse.json(
-      { error: "Server error" },
+      { error: "Server error: " + (error.message || "Unknown error") },
       { status: 500 }
     );
   }
@@ -73,18 +132,49 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { payment_date, title, details, paid_to, reason, amount, employee_id, role } = body;
+    const { payment_date, title, details, paid_to, reason, amount, employee_id: bodyEmployeeId, role: bodyRole } = body;
+    
+    // Get current logged-in user
+    const currentUser = await getCurrentUser();
+    if (!currentUser || !currentUser.userId) {
+      return NextResponse.json({ error: "Unauthorized. Please login again." }, { status: 401 });
+    }
+    
+    const userId = currentUser.userId;
+    const userRole = currentUser.role;
+    
+    // Use employee_id from body if provided, otherwise use logged-in user
+    const finalEmployeeId = bodyEmployeeId || userId;
     
     const module_name = 'nb_expenses';
-    const permissionQuery = `
-      SELECT can_edit 
+    
+    // Check permissions - try employee-specific first
+    let permissionQuery = `
+      SELECT can_edit, can_create 
       FROM role_permissions 
-      WHERE module_name = ? AND role = ? AND employee_id = ?
+      WHERE module_name = ? AND employee_id = ?
     `;
     
-    const permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+    let permissions = await executeQuery(permissionQuery, [module_name, userId]);
     
-    if (permissions.length === 0 || permissions[0].can_edit !== 1) {
+    // If no employee-specific permissions, try role-based
+    if (permissions.length === 0 && userRole) {
+      permissionQuery = `
+        SELECT can_edit, can_create 
+        FROM role_permissions 
+        WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
+      `;
+      permissions = await executeQuery(permissionQuery, [module_name, userRole]);
+    }
+    
+    // Check if user has can_edit or can_create permission
+    const hasPermission = permissions.length > 0 && (
+      permissions[0].can_edit === 1 || 
+      (permissions[0].can_create === 1) ||
+      (permissions[0].hasOwnProperty('can_create') && permissions[0].can_create === 1)
+    );
+    
+    if (!hasPermission) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
     
@@ -93,23 +183,16 @@ export async function POST(request) {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `;
     
-    // Get user info for audit log
-    let userId = null;
-    let userName = 'System';
+    // Get user name for audit log
+    let userName = currentUser.userName || 'System';
     try {
-      const cookieStore = await cookies();
-      const token = cookieStore.get('token')?.value;
-      if (token) {
-        const decoded = verifyToken(token);
-        if (decoded) {
-          userId = decoded.userId || decoded.id;
-          const users = await executeQuery(
-            `SELECT id, name FROM employee_profile WHERE id = ?`,
-            [userId]
-          );
-          if (users.length > 0) {
-            userName = users[0].name;
-          }
+      if (!userName || userName === 'System') {
+        const users = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
         }
       }
     } catch (userError) {
@@ -117,7 +200,7 @@ export async function POST(request) {
     }
 
     const result = await executeQuery(query, [
-      payment_date, title, details, paid_to, reason, amount, employee_id
+      payment_date, title, details, paid_to, reason, amount, finalEmployeeId
     ]);
     
     // Create audit log
@@ -141,7 +224,11 @@ export async function POST(request) {
     });
     
   } catch (error) {
-    return NextResponse.json({ error: "Failed to create" }, { status: 500 });
+    console.error("Error in nb-expenses POST:", error);
+    console.error("Error stack:", error.stack);
+    return NextResponse.json({ 
+      error: "Failed to create expense: " + (error.message || "Unknown error") 
+    }, { status: 500 });
   }
 }
 
@@ -149,51 +236,68 @@ export async function DELETE(request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    const role = searchParams.get('role') || '5';
-    const employee_id = searchParams.get('employee_id') || '1';
+    
+    if (!id) {
+      return NextResponse.json({ error: "Expense ID is required" }, { status: 400 });
+    }
+    
+    // Get current logged-in user
+    const currentUser = await getCurrentUser();
+    if (!currentUser || !currentUser.userId) {
+      return NextResponse.json({ error: "Unauthorized. Please login again." }, { status: 401 });
+    }
+    
+    const userId = currentUser.userId;
+    const userRole = currentUser.role;
+    
     const module_name = 'nb_expenses';
     
-    const permissionQuery = `
+    // Check permissions - try employee-specific first
+    let permissionQuery = `
       SELECT can_delete 
       FROM role_permissions 
-      WHERE module_name = ? AND role = ? AND employee_id = ?
+      WHERE module_name = ? AND employee_id = ?
     `;
     
-    const permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
+    let permissions = await executeQuery(permissionQuery, [module_name, userId]);
+    
+    // If no employee-specific permissions, try role-based
+    if (permissions.length === 0 && userRole) {
+      permissionQuery = `
+        SELECT can_delete 
+        FROM role_permissions 
+        WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
+      `;
+      permissions = await executeQuery(permissionQuery, [module_name, userRole]);
+    }
     
     if (permissions.length === 0 || permissions[0].can_delete !== 1) {
       return NextResponse.json({ error: "Permission denied" }, { status: 403 });
     }
     
-    if (role !== '5') {
+    // If not admin, check ownership
+    if (userRole !== '5' && userRole !== 5) {
       const checkOwnershipQuery = "SELECT employee_id FROM expenses WHERE id = ?";
       const expense = await executeQuery(checkOwnershipQuery, [id]);
       
-      if (expense.length === 0 || expense[0].employee_id != employee_id) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 });
+      if (expense.length === 0 || expense[0].employee_id != userId) {
+        return NextResponse.json({ error: "Access denied. You can only delete your own expenses." }, { status: 403 });
       }
     }
     
     // Get expense data before deletion for audit log
     const expenseData = await executeQuery("SELECT * FROM expenses WHERE id = ?", [id]);
     
-    // Get user info for audit log
-    let userId = null;
-    let userName = 'System';
+    // Get user name for audit log
+    let userName = currentUser.userName || 'System';
     try {
-      const cookieStore = await cookies();
-      const token = cookieStore.get('token')?.value;
-      if (token) {
-        const decoded = verifyToken(token);
-        if (decoded) {
-          userId = decoded.userId || decoded.id;
-          const users = await executeQuery(
-            `SELECT id, name FROM employee_profile WHERE id = ?`,
-            [userId]
-          );
-          if (users.length > 0) {
-            userName = users[0].name;
-          }
+      if (!userName || userName === 'System') {
+        const users = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0) {
+          userName = users[0].name;
         }
       }
     } catch (userError) {
@@ -223,6 +327,10 @@ export async function DELETE(request) {
     return NextResponse.json({ message: "Deleted successfully" });
     
   } catch (error) {
-    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
+    console.error("Error in nb-expenses DELETE:", error);
+    console.error("Error stack:", error.stack);
+    return NextResponse.json({ 
+      error: "Failed to delete expense: " + (error.message || "Unknown error") 
+    }, { status: 500 });
   }
 }

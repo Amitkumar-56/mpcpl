@@ -36,7 +36,7 @@ export async function GET(request) {
       console.error('Error getting current user:', authError);
     }
 
-    if (!userId || !userRole) {
+    if (!userId) {
       return NextResponse.json({ 
         error: 'Unauthorized. Please login again.' 
       }, { status: 401 });
@@ -53,8 +53,8 @@ export async function GET(request) {
     `;
     let permissions = await executeQuery(permissionQuery, [module_name, userId]);
 
-    // If no employee-specific permissions, try role-based
-    if (permissions.length === 0) {
+    // If no employee-specific permissions, try role-based (only if userRole exists)
+    if (permissions.length === 0 && userRole) {
       permissionQuery = `
         SELECT module_name, can_view, can_edit, can_delete, can_create 
         FROM role_permissions 
@@ -66,17 +66,26 @@ export async function GET(request) {
     // If still no permissions, try alternative module name
     if (permissions.length === 0) {
       const altModuleName = 'LR Management';
-      permissionQuery = `
-        SELECT module_name, can_view, can_edit, can_delete, can_create 
-        FROM role_permissions 
-        WHERE module_name = ? AND (employee_id = ? OR role = ?)
-      `;
-      permissions = await executeQuery(permissionQuery, [altModuleName, userId, userRole]);
+      if (userRole) {
+        permissionQuery = `
+          SELECT module_name, can_view, can_edit, can_delete, can_create 
+          FROM role_permissions 
+          WHERE module_name = ? AND (employee_id = ? OR role = ?)
+        `;
+        permissions = await executeQuery(permissionQuery, [altModuleName, userId, userRole]);
+      } else {
+        permissionQuery = `
+          SELECT module_name, can_view, can_edit, can_delete, can_create 
+          FROM role_permissions 
+          WHERE module_name = ? AND employee_id = ?
+        `;
+        permissions = await executeQuery(permissionQuery, [altModuleName, userId]);
+      }
     }
 
-    // Default permissions if none found
+    // Default permissions if none found - allow access if no permissions exist (for backward compatibility)
     let permissionData = {
-      can_view: 0,
+      can_view: 1, // Default allow view if no permissions found
       can_edit: 0,
       can_delete: 0,
       can_create: 0
@@ -86,8 +95,8 @@ export async function GET(request) {
       permissionData = permissions[0];
     }
 
-    // Check if user has view permission
-    if (permissionData.can_view !== 1 && permissionData.can_view !== true) {
+    // Check if user has view permission (only if permissions exist)
+    if (permissions.length > 0 && permissionData.can_view !== 1 && permissionData.can_view !== true) {
       return NextResponse.json({ 
         error: 'You are not allowed to access this page.' 
       }, { status: 403 });

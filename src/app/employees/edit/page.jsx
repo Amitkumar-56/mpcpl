@@ -203,15 +203,16 @@ function EditEmployeeContent() {
     // Add employee ID to form data
     fd.append('id', id);
     
-    // Add permissions if admin (only Employees module)
+    // Add permissions if admin (all modules)
     if (isAdmin) {
-      const formattedPermissions = {
-        'Employees': {
-          can_view: permissions['Employees']?.can_view || false,
-          can_edit: permissions['Employees']?.can_edit || false,
-          can_create: permissions['Employees']?.can_create || false
-        }
-      };
+      const formattedPermissions = {};
+      modules.forEach(module => {
+        formattedPermissions[module] = {
+          can_view: permissions[module]?.can_view || false,
+          can_edit: permissions[module]?.can_edit || false,
+          can_create: permissions[module]?.can_create || false
+        };
+      });
       fd.append('permissions', JSON.stringify(formattedPermissions));
     }
     
@@ -469,45 +470,47 @@ function EditEmployeeContent() {
           {/* Permissions Section - Only for Admin, Only Employees Module */}
           {isAdmin && (
             <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
-              <h3 className="text-md font-semibold mb-3 text-gray-800">Assign Module Permissions</h3>
-              <div className="overflow-x-auto">
+              <h3 className="text-lg font-semibold mb-4 text-gray-800">Assign Module Permissions</h3>
+              <div className="overflow-x-auto max-h-96 overflow-y-auto">
                 <table className="w-full border border-gray-200 text-sm">
-                  <thead className="bg-gray-100">
+                  <thead className="bg-gray-100 sticky top-0">
                     <tr>
-                      <th className="p-2 border text-left">Module</th>
-                      <th className="p-2 border text-center">View</th>
-                      <th className="p-2 border text-center">Edit</th>
-                      <th className="p-2 border text-center">Create</th>
+                      <th className="p-3 border text-left font-semibold">Module</th>
+                      <th className="p-3 border text-center font-semibold">View</th>
+                      <th className="p-3 border text-center font-semibold">Edit</th>
+                      <th className="p-3 border text-center font-semibold">Create</th>
                     </tr>
                   </thead>
                   <tbody>
-                    <tr className="bg-white">
-                      <td className="p-2 border font-medium text-gray-700">Employees</td>
-                      <td className="p-2 border text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={permissions['Employees']?.can_view || false} 
-                          onChange={() => handlePermissionChange('Employees', "can_view")} 
-                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                        />
-                      </td>
-                      <td className="p-2 border text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={permissions['Employees']?.can_edit || false} 
-                          onChange={() => handlePermissionChange('Employees', "can_edit")} 
-                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                        />
-                      </td>
-                      <td className="p-2 border text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={permissions['Employees']?.can_create || false} 
-                          onChange={() => handlePermissionChange('Employees', "can_create")}
-                          className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-                        />
-                      </td>
-                    </tr>
+                    {modules.map((module, index) => (
+                      <tr key={module} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
+                        <td className="p-3 border font-medium text-gray-700">{module}</td>
+                        <td className="p-3 border text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={permissions[module]?.can_view || false} 
+                            onChange={() => handlePermissionChange(module, "can_view")} 
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 border text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={permissions[module]?.can_edit || false} 
+                            onChange={() => handlePermissionChange(module, "can_edit")} 
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                          />
+                        </td>
+                        <td className="p-3 border text-center">
+                          <input 
+                            type="checkbox" 
+                            checked={permissions[module]?.can_create || false} 
+                            onChange={() => handlePermissionChange(module, "can_create")}
+                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                          />
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

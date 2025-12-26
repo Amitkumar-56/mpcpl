@@ -276,56 +276,6 @@ export async function POST(request) {
       });
     }
 
-    // ✅ Always insert into filling_history with Inward trans_type
-    try {
-      // Check if stock_type column exists
-      const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
-      const colSet = new Set(colsInfo.map(r => r.Field));
-      const hasStockType = colSet.has('stock_type');
-      
-      if (hasStockType) {
-        await executeQuery(
-          `INSERT INTO filling_history 
-           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
-           VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())`,
-          [
-            fs_id,
-            product_id,
-            currentStock, // Current stock before addition
-            quantityInLtrNum, // Filling quantity (in ltr)
-            availableStock, // Available stock after addition (current_stock + filling_qty)
-            userId || null
-          ]
-        );
-      } else {
-        await executeQuery(
-          `INSERT INTO filling_history 
-           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
-           VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())`,
-          [
-            fs_id,
-            product_id,
-            currentStock, // Current stock before addition
-            quantityInLtrNum, // Filling quantity (in ltr)
-            availableStock, // Available stock after addition (current_stock + filling_qty)
-            userId || null
-          ]
-        );
-      }
-      console.log('✅ Filling history entry created:', {
-        fs_id,
-        product_id,
-        trans_type: 'Inward',
-        current_stock: currentStock,
-        filling_qty: quantityInLtrNum,
-        available_stock: availableStock,
-        filling_date: new Date().toISOString().split('T')[0]
-      });
-    } catch (historyError) {
-      console.error('❌ filling_history insert failed:', historyError);
-      // Don't throw - continue even if history insert fails
-    }
-
     // ✅ Create audit log with user info
     try {
       await createAuditLog({
