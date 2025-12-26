@@ -492,12 +492,17 @@ export default function StockRequest() {
     deliveredStock: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
-  const { user } = useSession();
+  const { user, loading: sessionLoading } = useSession();
   const router = useRouter();
 
-  // Check permissions first
+  // Check permissions first - wait for loading to complete
   useEffect(() => {
-    if (!user) {
+    // Don't redirect if session is still loading
+    if (sessionLoading) {
+      return;
+    }
+    // Only redirect if loading is complete and no user
+    if (!sessionLoading && !user) {
       router.push('/login');
       return;
     }
@@ -505,7 +510,7 @@ export default function StockRequest() {
       checkPermissions();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, sessionLoading]);
 
   const checkPermissions = async () => {
     if (!user || !user.id) return;
