@@ -87,7 +87,17 @@ export async function PUT(request) {
     // Get current user
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
-    const userName = currentUser?.userName || 'System';
+    // Ensure userName is fetched from employee_profile if not available
+    let userName = currentUser?.userName;
+    if (!userName && currentUser?.userId) {
+      const users = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [currentUser.userId]
+      );
+      if (users.length > 0 && users[0].name) {
+        userName = users[0].name;
+      }
+    }
 
     const result = await executeTransaction(async (connection) => {
       // Get original transfer data

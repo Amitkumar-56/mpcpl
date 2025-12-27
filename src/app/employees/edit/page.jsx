@@ -1,10 +1,10 @@
 "use client";
-import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState, Suspense } from 'react';
-import Sidebar from '@/components/sidebar';
-import Header from '@/components/Header';
 import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import { useSession } from '@/context/SessionContext';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 
 function EditEmployeeContent() {
   const searchParams = useSearchParams();
@@ -156,7 +156,6 @@ function EditEmployeeContent() {
       const result = await res.json();
       
       if (result.success && result.data) {
-        // Check if data has employee property (new format) or is the employee directly (old format)
         const employeeData = result.data.employee || result.data;
         const stationsData = result.data.stations || [];
         const permissionsData = result.data.permissions || {};
@@ -164,12 +163,11 @@ function EditEmployeeContent() {
         if (employeeData && employeeData.id) {
           setFormData(employeeData);
           setStations(stationsData);
+          
           // Set permissions if returned - merge with existing modules list
-          // This ensures all modules are shown even if employee doesn't have permissions for some
           if (permissionsData && Object.keys(permissionsData).length > 0) {
             setPermissions(prev => {
               const updated = { ...prev };
-              // Update permissions for modules that exist in API response
               Object.keys(permissionsData).forEach(module => {
                 if (updated.hasOwnProperty(module)) {
                   updated[module] = {
@@ -210,10 +208,20 @@ function EditEmployeeContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Basic validation
+    if (!formData || !id) {
+      alert('Employee data not loaded');
+      return;
+    }
+
     const fd = new FormData(e.currentTarget);
     
     // Add employee ID to form data
     fd.append('id', id);
+    
+    // Add current employee data for comparison
+    fd.append('current_data', JSON.stringify(formData));
     
     // Add permissions if admin (all modules)
     if (isAdmin) {
@@ -231,20 +239,24 @@ function EditEmployeeContent() {
     // Get token from localStorage for Authorization header
     const authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
     
-    // Use POST method to match the API route
-    const res = await fetch(`/api/employee/edit`, {
-      method: 'POST', 
-      body: fd,
-      credentials: 'include',
-      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
-    });
+    try {
+      const res = await fetch(`/api/employee/edit`, {
+        method: 'POST', 
+        body: fd,
+        credentials: 'include',
+        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+      });
 
-    const result = await res.json();
-    if (result.success) {
-      alert("Updated Successfully");
-      router.push('/employees');
-    } else {
-      alert("Error: " + (result.error || result.message || 'Update failed'));
+      const result = await res.json();
+      if (result.success) {
+        alert("Updated Successfully");
+        router.push('/employees');
+      } else {
+        alert("Error: " + (result.error || result.message || 'Update failed'));
+      }
+    } catch (error) {
+      console.error('Submit error:', error);
+      alert('Network error. Please try again.');
     }
   };
 
@@ -330,19 +342,15 @@ function EditEmployeeContent() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      {/* Fixed Sidebar - Only on desktop */}
       <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar activePage="Employees" />
       </div>
 
-      {/* Main Content Area */}
       <div className="flex-1 lg:ml-64 w-full flex flex-col">
-        {/* Fixed Header */}
         <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
           <Header />
         </div>
 
-        {/* Scrollable Main Content */}
         <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto">
           <div className="p-4 md:p-6">
             <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-8">
@@ -356,189 +364,185 @@ function EditEmployeeContent() {
                 </button>
               </div>
         
-        <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {/* Name */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Full Name</label>
-            <input name="name" defaultValue={formData.name} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" required />
-          </div>
+              <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Name */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Full Name</label>
+                  <input name="name" defaultValue={formData.name} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" required />
+                </div>
 
-          {/* Email */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Email</label>
-            <input name="email" type="email" defaultValue={formData.email} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          </div>
+                {/* Email */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Email</label>
+                  <input name="email" type="email" defaultValue={formData.email} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
 
-          {/* Role - Only admin can change */}
-          {isAdmin && (
-            <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Role</label>
-              <select name="role" defaultValue={formData.role} className="p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
-                <option value="1">Staff</option>
-                <option value="2">Incharge</option>
-                <option value="3">Team Leader</option>
-                <option value="4">Accountant</option>
-                <option value="5">Admin</option>
-                <option value="6">Driver</option>
-                <option value="7">Hard Operation</option>
-              </select>
+                {/* Role - Only admin can change */}
+                {isAdmin && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-semibold text-gray-600 mb-1">Role</label>
+                    <select name="role" defaultValue={formData.role} className="p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                      <option value="1">Staff</option>
+                      <option value="2">Incharge</option>
+                      <option value="3">Team Leader</option>
+                      <option value="4">Accountant</option>
+                      <option value="5">Admin</option>
+                      <option value="6">Driver</option>
+                      <option value="7">Hard Operation</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Salary */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Basic Salary</label>
+                  <input name="salary" type="number" defaultValue={formData.salary} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
+
+                {/* Phone */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Phone Number</label>
+                  <input name="phone" defaultValue={formData.phone} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
+
+                {/* Alternate Phone */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Alternate Phone</label>
+                  <input name="phonealt" defaultValue={formData.phonealt || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
+
+                {/* Address */}
+                <div className="flex flex-col md:col-span-2">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Address</label>
+                  <input name="address" defaultValue={formData.address || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
+
+                {/* City */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">City</label>
+                  <input name="city" defaultValue={formData.city || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
+
+                {/* Region */}
+                <div className="flex flex-col">
+                  <label className="text-sm font-semibold text-gray-600 mb-1">Region</label>
+                  <input name="region" defaultValue={formData.region || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
+                </div>
+
+                {/* Status - Only admin can change */}
+                {isAdmin && (
+                  <div className="flex flex-col">
+                    <label className="text-sm font-semibold text-gray-600 mb-1">Status</label>
+                    <select name="status" defaultValue={formData.status} className="p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
+                      <option value="1">Enable</option>
+                      <option value="0">Disable</option>
+                    </select>
+                  </div>
+                )}
+
+                {/* Stations - Only admin can assign */}
+                {isAdmin && stations.length > 0 && (
+                  <div className="md:col-span-2">
+                    <label className="text-sm font-semibold text-gray-600 block mb-3">Assigned Filling Stations</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300 max-h-60 overflow-y-auto">
+                      {stations.map(station => {
+                        let fsIdArray = [];
+                        if (formData.fs_id) {
+                          if (Array.isArray(formData.fs_id)) {
+                            fsIdArray = formData.fs_id;
+                          } else if (typeof formData.fs_id === 'string') {
+                            fsIdArray = formData.fs_id.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+                          } else {
+                            fsIdArray = [parseInt(formData.fs_id)];
+                          }
+                        }
+                        const isChecked = fsIdArray.includes(parseInt(station.id));
+                        
+                        return (
+                          <label key={station.id} className="flex items-center space-x-3 p-2 bg-white rounded-md shadow-sm cursor-pointer hover:bg-blue-50 transition">
+                            <input 
+                              type="checkbox" 
+                              name="fs_id" 
+                              value={station.id}
+                              defaultChecked={isChecked}
+                              className="w-4 h-4 text-blue-600 rounded" 
+                            />
+                            <span className="text-sm text-gray-700 font-medium">{station.station_name}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* QR Code Upload */}
+                <div className="md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <label className="text-sm font-semibold text-blue-800 block mb-2">Update QR Code / Identity Document</label>
+                  <input type="file" name="qr_code" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" />
+                  {formData.qr_code && (
+                    <p className="mt-2 text-xs text-gray-500 italic">Current file: {formData.qr_code}</p>
+                  )}
+                </div>
+
+                {/* Permissions Section - Only for Admin */}
+                {isAdmin && (
+                  <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
+                    <h3 className="text-lg font-semibold mb-4 text-gray-800">Assign Module Permissions</h3>
+                    <div className="overflow-x-auto max-h-96 overflow-y-auto">
+                      <table className="w-full border border-gray-200 text-sm">
+                        <thead className="bg-gray-100 sticky top-0">
+                          <tr>
+                            <th className="p-3 border text-left font-semibold">Module</th>
+                            <th className="p-3 border text-center font-semibold">View</th>
+                            <th className="p-3 border text-center font-semibold">Edit</th>
+                            <th className="p-3 border text-center font-semibold">Create</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {modules.map((module, index) => (
+                            <tr key={module} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
+                              <td className="p-3 border font-medium text-gray-700">{module}</td>
+                              <td className="p-3 border text-center">
+                                <input 
+                                  type="checkbox" 
+                                  checked={permissions[module]?.can_view || false} 
+                                  onChange={() => handlePermissionChange(module, "can_view")} 
+                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-3 border text-center">
+                                <input 
+                                  type="checkbox" 
+                                  checked={permissions[module]?.can_edit || false} 
+                                  onChange={() => handlePermissionChange(module, "can_edit")} 
+                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                />
+                              </td>
+                              <td className="p-3 border text-center">
+                                <input 
+                                  type="checkbox" 
+                                  checked={permissions[module]?.can_create || false} 
+                                  onChange={() => handlePermissionChange(module, "can_create")}
+                                  className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                <div className="md:col-span-2 flex items-center justify-end space-x-4 pt-6 border-t">
+                  <button type="button" onClick={() => router.back()} className="px-4 md:px-6 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 transition text-sm md:text-base">Cancel</button>
+                  <button type="submit" className="px-6 md:px-8 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition text-sm md:text-base">Save Changes</button>
+                </div>
+              </form>
             </div>
-          )}
-
-          {/* Salary */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Basic Salary</label>
-            <input name="salary" type="number" defaultValue={formData.salary} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
           </div>
-
-          {/* Phone */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Phone Number</label>
-            <input name="phone" defaultValue={formData.phone} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          </div>
-
-          {/* Alternate Phone */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Alternate Phone</label>
-            <input name="phonealt" defaultValue={formData.phonealt || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          </div>
-
-          {/* Address */}
-          <div className="flex flex-col md:col-span-2">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Address</label>
-            <input name="address" defaultValue={formData.address || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          </div>
-
-          {/* City */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">City</label>
-            <input name="city" defaultValue={formData.city || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          </div>
-
-          {/* Region */}
-          <div className="flex flex-col">
-            <label className="text-sm font-semibold text-gray-600 mb-1">Region</label>
-            <input name="region" defaultValue={formData.region || ''} className="p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" />
-          </div>
-
-          {/* Status - Only admin can change */}
-          {isAdmin && (
-            <div className="flex flex-col">
-              <label className="text-sm font-semibold text-gray-600 mb-1">Status</label>
-              <select name="status" defaultValue={formData.status} className="p-2 border rounded-lg bg-white focus:ring-2 focus:ring-blue-500 outline-none transition">
-                <option value="1">Enable</option>
-                <option value="0">Disable</option>
-              </select>
-            </div>
-          )}
-
-          {/* Stations - Only admin can assign */}
-          {isAdmin && stations.length > 0 && (
-            <div className="md:col-span-2">
-              <label className="text-sm font-semibold text-gray-600 block mb-3">Assigned Filling Stations</label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300 max-h-60 overflow-y-auto">
-                {stations.map(station => {
-                  // Handle fs_id - it could be a number, string, array, or comma-separated string
-                  let fsIdArray = [];
-                  if (formData.fs_id) {
-                    if (Array.isArray(formData.fs_id)) {
-                      fsIdArray = formData.fs_id;
-                    } else if (typeof formData.fs_id === 'string') {
-                      // Handle comma-separated string like "1,2,3"
-                      fsIdArray = formData.fs_id.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-                    } else {
-                      // Single number
-                      fsIdArray = [parseInt(formData.fs_id)];
-                    }
-                  }
-                  const isChecked = fsIdArray.includes(parseInt(station.id));
-                  
-                  return (
-                    <label key={station.id} className="flex items-center space-x-3 p-2 bg-white rounded-md shadow-sm cursor-pointer hover:bg-blue-50 transition">
-                      <input 
-                        type="checkbox" 
-                        name="fs_id" 
-                        value={station.id}
-                        defaultChecked={isChecked}
-                        className="w-4 h-4 text-blue-600 rounded" 
-                      />
-                      <span className="text-sm text-gray-700 font-medium">{station.station_name}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* QR Code Upload */}
-          <div className="md:col-span-2 bg-blue-50 p-4 rounded-xl border border-blue-100">
-             <label className="text-sm font-semibold text-blue-800 block mb-2">Update QR Code / Identity Document</label>
-             <input type="file" name="qr_code" className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-700" />
-             {formData.qr_code && (
-               <p className="mt-2 text-xs text-gray-500 italic">Current file: {formData.qr_code}</p>
-             )}
-          </div>
-
-          {/* Permissions Section - Only for Admin, Only Employees Module */}
-          {isAdmin && (
-            <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
-              <h3 className="text-lg font-semibold mb-4 text-gray-800">Assign Module Permissions</h3>
-              <div className="overflow-x-auto max-h-96 overflow-y-auto">
-                <table className="w-full border border-gray-200 text-sm">
-                  <thead className="bg-gray-100 sticky top-0">
-                    <tr>
-                      <th className="p-3 border text-left font-semibold">Module</th>
-                      <th className="p-3 border text-center font-semibold">View</th>
-                      <th className="p-3 border text-center font-semibold">Edit</th>
-                      <th className="p-3 border text-center font-semibold">Create</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {modules.map((module, index) => (
-                      <tr key={module} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
-                        <td className="p-3 border font-medium text-gray-700">{module}</td>
-                        <td className="p-3 border text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={permissions[module]?.can_view || false} 
-                            onChange={() => handlePermissionChange(module, "can_view")} 
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                          />
-                        </td>
-                        <td className="p-3 border text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={permissions[module]?.can_edit || false} 
-                            onChange={() => handlePermissionChange(module, "can_edit")} 
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                          />
-                        </td>
-                        <td className="p-3 border text-center">
-                          <input 
-                            type="checkbox" 
-                            checked={permissions[module]?.can_create || false} 
-                            onChange={() => handlePermissionChange(module, "can_create")}
-                            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-              <div className="md:col-span-2 flex items-center justify-end space-x-4 pt-6 border-t">
-                <button type="button" onClick={() => router.back()} className="px-4 md:px-6 py-2 border rounded-lg text-gray-600 hover:bg-gray-100 transition text-sm md:text-base">Cancel</button>
-                <button type="submit" className="px-6 md:px-8 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 shadow-lg shadow-blue-200 transition text-sm md:text-base">Save Changes</button>
-              </div>
-            </form>
-          </div>
-        </div>
         </main>
 
-        {/* Fixed Footer */}
         <div className="flex-shrink-0">
           <Footer />
         </div>

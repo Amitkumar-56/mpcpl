@@ -207,7 +207,9 @@ export function SessionProvider({ children }) {
         }
       }
 
-      // ✅ Background verification - don't block UI if it fails
+      // ✅ Background verification - optional, don't block UI if it fails
+      // ✅ User stays logged in using cached data even if verification fails
+      // ✅ Only logout when user explicitly clicks logout button
       try {
         const res = await fetch('/api/auth/verify', {
           credentials: 'include',
@@ -217,7 +219,7 @@ export function SessionProvider({ children }) {
         if (res.ok) {
           const data = await res.json();
           if (data.authenticated && data.id) {
-            // ✅ FIX: Include all employee_profile fields
+            // ✅ Update user data if verification succeeds
             const userData = {
               id: data.id,
               emp_code: data.emp_code,
@@ -235,36 +237,22 @@ export function SessionProvider({ children }) {
             const cacheData = JSON.stringify(userData);
             sessionStorage.setItem('user', cacheData);
             localStorage.setItem('user', cacheData);
-          } else if (data.error && (data.error.includes('unauthenticated') || data.error.includes('invalid token'))) {
-            // ✅ Only logout if API explicitly says unauthenticated
-            setUser(null);
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            sessionStorage.removeItem('token');
-            localStorage.removeItem('token');
           }
-          // ✅ If network error or other error, keep cached user
-        } else if (res.status === 401) {
-          // ✅ Only logout on explicit 401 (Unauthorized)
-          const errorData = await res.json().catch(() => ({}));
-          if (errorData.error && (errorData.error.includes('unauthenticated') || errorData.error.includes('invalid token'))) {
-            setUser(null);
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            sessionStorage.removeItem('token');
-            localStorage.removeItem('token');
-          }
-          // ✅ If 401 but no explicit error message, keep cached user
+          // ✅ NEVER logout automatically - keep cached user even if verification fails
+          // User stays logged in until they explicitly click logout button
         }
-        // ✅ Network errors or other errors - keep cached user (don't logout)
+        // ✅ NEVER logout on any error (401, network, etc.) - keep cached user
+        // User stays logged in until they explicitly click logout button
       } catch (networkError) {
-        console.log('⚠️ Background auth verification failed (network error) - keeping cached user:', networkError.message);
         // ✅ Don't logout on network errors - keep cached user
+        // User stays logged in until they explicitly click logout button
+        console.log('⚠️ Background auth verification failed - keeping user logged in (cached)');
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      setUser(null);
-      sessionStorage.removeItem('user');
+      // ✅ NEVER logout automatically on errors - keep cached user
+      // Only logout when user explicitly clicks logout button
+      // Don't clear user or storage
     } finally {
       setLoading(false);
     }

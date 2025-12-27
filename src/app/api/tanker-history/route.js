@@ -1,5 +1,7 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
+import { verifyToken } from '@/lib/auth';
 
 // GET - Fetch all tanker history records
 export async function GET(request) {
@@ -88,9 +90,42 @@ async function handleApproval(approveId) {
 
     // Check if all required fields are filled
     if (closingStationFilled && closingDateFilled && pdfUploaded) {
-      // Update status to approved and save approver ID (you might want to get this from session)
+      // Get current user from token - ALWAYS fetch from employee_profile
+      let userId = null;
+      let employeeName = null;
+      try {
+        const { cookies } = await import('next/headers');
+        const { verifyToken } = await import('@/lib/auth');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const employeeResult = await executeQuery(
+              `SELECT id, name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (employeeResult.length > 0 && employeeResult[0].name) {
+              employeeName = employeeResult[0].name;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user info:', authError);
+      }
+      
+      // If no user found, return error
+      if (!userId) {
+        return NextResponse.json(
+          { success: false, message: 'Unauthorized. Please login again.' },
+          { status: 401 }
+        );
+      }
+      
+      // Update status to approved and save approver ID from token
       const updateSql = "UPDATE tanker_history SET status = 'approved', approved_by = ? WHERE id = ?";
-      await executeQuery(updateSql, [1, parseInt(approveId)]); // Using 1 as default approver ID
+      await executeQuery(updateSql, [userId, parseInt(approveId)]);
 
       // Create audit log entry for approval
       try {
@@ -108,23 +143,9 @@ async function handleApproval(approveId) {
           )
         `);
         
-        // Fetch employee name from employee_profile
-        let employeeName = 'System';
-        try {
-          const employeeResult = await executeQuery(
-            `SELECT name FROM employee_profile WHERE id = ?`,
-            [1]
-          );
-          if (employeeResult.length > 0) {
-            employeeName = employeeResult[0].name;
-          }
-        } catch (empError) {
-          console.error('Error fetching employee name:', empError);
-        }
-        
         await executeQuery(
           `INSERT INTO tanker_audit_log (tanker_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
-          [parseInt(approveId), 'approve', 1, employeeName, 'Tanker approved']
+          [parseInt(approveId), 'approve', userId, employeeName, 'Tanker approved']
         );
       } catch (auditError) {
         console.error('Error creating audit log:', auditError);

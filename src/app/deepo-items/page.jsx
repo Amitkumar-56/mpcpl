@@ -25,6 +25,7 @@ function DeepoItemsContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
 
   useEffect(() => {
     if (!authLoading) {
@@ -39,29 +40,59 @@ function DeepoItemsContent() {
   const checkPermissions = async () => {
     if (!user || !user.id) return;
     
+    // Admin has full access
+    if (Number(user.role) === 5) {
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
+      setHasPermission(true);
+      fetchRemarks();
+      return;
+    }
+    
     // Check cache first
     const cacheKey = `perms_${user.id}_remarks`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
-      const cachedPerms = JSON.parse(cached);
-      if (cachedPerms.can_view) {
-        setHasPermission(true);
-        fetchRemarks();
-        return;
+      try {
+        const cachedPerms = JSON.parse(cached);
+        setPermissions(cachedPerms);
+        if (cachedPerms.can_view) {
+          setHasPermission(true);
+          fetchRemarks();
+          return;
+        }
+      } catch (e) {
+        console.error('Error parsing cached permissions:', e);
       }
     }
     
     try {
-      const response = await fetch(
-        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('remarks')}&action=can_view`
-      );
-      const data = await response.json();
+      // Fetch all permissions at once
+      const moduleName = 'Remarks';
+      const [viewRes, editRes, createRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
+      ]);
       
-      // Cache permission
-      sessionStorage.setItem(cacheKey, JSON.stringify({ can_view: data.allowed }));
+      const [viewData, editData, createData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        createRes.json()
+      ]);
+      
+      const perms = {
+        can_view: viewData.allowed || false,
+        can_edit: editData.allowed || false,
+        can_create: createData.allowed || false
+      };
+      
+      setPermissions(perms);
+      
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
       
-      if (data.allowed) {
+      if (perms.can_view) {
         setHasPermission(true);
         fetchRemarks();
       } else {
@@ -72,6 +103,7 @@ function DeepoItemsContent() {
       console.error('Permission check error:', error);
       setHasPermission(false);
       setLoading(false);
+      setPermissions({ can_view: false, can_edit: false, can_create: false });
     }
   };
 
@@ -97,6 +129,17 @@ function DeepoItemsContent() {
 
   const handlePageChange = (page) => {
     router.push(`/deepo-items?page=${page}`);
+  };
+
+  // Format price in Indian Rupees
+  const formatPrice = (price) => {
+    if (!price && price !== 0) return '₹0.00';
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(parseFloat(price) || 0);
   };
 
   if (authLoading || loading) {
@@ -168,16 +211,18 @@ function DeepoItemsContent() {
           </div>
         )}
 
-        {/* Floating Add Button */}
-        <Link
-          href="/add-remarks"
-          className="fixed bottom-8 right-8 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span>Add Remark</span>
-        </Link>
+        {/* Floating Add Button - Only show if user has can_create permission */}
+        {(permissions?.can_create === true || permissions?.can_create === 1) && (
+          <Link
+            href="/add-remarks"
+            className="fixed bottom-8 right-8 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg z-50 flex items-center space-x-2 transition-colors duration-200"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span>Add Remark</span>
+          </Link>
+        )}
 
         {/* Remarks List Section */}
         <div className="px-4 py-6 sm:px-0">
@@ -217,8 +262,8 @@ function DeepoItemsContent() {
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {remark.remarks_name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          ${parseFloat(remark.price).toFixed(2)}
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">
+                          {formatPrice(remark.price)}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {remark.image_path ? (
@@ -233,15 +278,20 @@ function DeepoItemsContent() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-3">
-                            <Link
-                              href={`/edit-remarks?id=${remark.id}`}
-                              className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
-                              title="Edit"
-                            >
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                              </svg>
-                            </Link>
+                            {/* Edit button - Only show if user has can_edit permission */}
+                            {(permissions?.can_edit === true || permissions?.can_edit === 1) ? (
+                              <Link
+                                href={`/edit-remarks?id=${remark.id}`}
+                                className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
+                                title="Edit"
+                              >
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                </svg>
+                              </Link>
+                            ) : (
+                              <span className="text-gray-400 text-xs">No permission</span>
+                            )}
                           </div>
                         </td>
                       </tr>

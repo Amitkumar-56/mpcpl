@@ -1,6 +1,8 @@
 // app/api/customers/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { createAuditLog } from "@/lib/auditLog";
 
 export async function GET() {
   try {
@@ -99,6 +101,58 @@ export async function PATCH(req) {
         );
       }
 
+      // ✅ Create Audit Log
+      try {
+        let userId = null;
+        let userName = null;
+        try {
+          const currentUser = await getCurrentUser();
+          if (currentUser && currentUser.userId) {
+            userId = currentUser.userId;
+            userName = currentUser.userName;
+            // If userName not found, fetch from employee_profile
+            if (!userName && userId) {
+              const users = await executeQuery(
+                `SELECT name FROM employee_profile WHERE id = ?`,
+                [userId]
+              );
+              if (users.length > 0 && users[0].name) {
+                userName = users[0].name;
+              }
+            }
+          }
+        } catch (userError) {
+          // Silent fail
+        }
+
+        await createAuditLog({
+          page: 'Customers',
+          uniqueCode: `CUSTOMER-${customerId}`,
+          section: 'Customer Management',
+          userId,
+          userName,
+          action: 'edit',
+          remarks: `Customer switched to Day Limit: ${limitValue} days`,
+          oldValue: {
+            customer_id: customerId,
+            customer_name: currentCustomer.name,
+            previous_client_type: currentCustomer.client_type,
+            previous_day_limit: 0
+          },
+          newValue: {
+            customer_id: customerId,
+            customer_name: currentCustomer.name,
+            new_client_type: '3',
+            new_day_limit: limitValue
+          },
+          fieldName: 'client_type',
+          recordType: 'customer',
+          recordId: customerId
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
       return NextResponse.json({ 
         success: true, 
         message: `Customer switched to Day Limit (${limitValue} days)`, 
@@ -138,6 +192,58 @@ export async function PATCH(req) {
         );
       }
 
+      // ✅ Create Audit Log
+      try {
+        let userId = null;
+        let userName = null;
+        try {
+          const currentUser = await getCurrentUser();
+          if (currentUser && currentUser.userId) {
+            userId = currentUser.userId;
+            userName = currentUser.userName;
+            // If userName not found, fetch from employee_profile
+            if (!userName && userId) {
+              const users = await executeQuery(
+                `SELECT name FROM employee_profile WHERE id = ?`,
+                [userId]
+              );
+              if (users.length > 0 && users[0].name) {
+                userName = users[0].name;
+              }
+            }
+          }
+        } catch (userError) {
+          // Silent fail
+        }
+
+        await createAuditLog({
+          page: 'Customers',
+          uniqueCode: `CUSTOMER-${customerId}`,
+          section: 'Customer Management',
+          userId,
+          userName,
+          action: 'edit',
+          remarks: `Customer switched to Postpaid with credit limit ₹${limitValue}`,
+          oldValue: {
+            customer_id: customerId,
+            customer_name: currentCustomer.name,
+            previous_client_type: currentCustomer.client_type,
+            previous_cst_limit: 0
+          },
+          newValue: {
+            customer_id: customerId,
+            customer_name: currentCustomer.name,
+            new_client_type: '2',
+            new_cst_limit: limitValue
+          },
+          fieldName: 'client_type',
+          recordType: 'customer',
+          recordId: customerId
+        });
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+      }
+
       return NextResponse.json({ 
         success: true, 
         message: `Customer switched to Postpaid with credit limit ₹${limitValue}`, 
@@ -152,25 +258,5 @@ export async function PATCH(req) {
   }
 }
 
-// For customer deletion (if needed)
-export async function POST(req) {
-  try {
-    const body = await req.json();
-    const { id } = body;
-
-    if (!id) {
-      return NextResponse.json({ error: 'Customer ID is required' }, { status: 400 });
-    }
-
-    // Delete from customer_balances first (foreign key constraint)
-    await executeQuery('DELETE FROM customer_balances WHERE com_id = ?', [id]);
-    
-    // Then delete from customers
-    await executeQuery('DELETE FROM customers WHERE id = ?', [id]);
-
-    return NextResponse.json({ success: true, message: 'Customer deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting customer:', error);
-    return NextResponse.json({ error: 'Failed to delete customer' }, { status: 500 });
-  }
-}
+// ✅ Customer deletion removed - customers cannot be deleted
+// Use status update (disable) instead

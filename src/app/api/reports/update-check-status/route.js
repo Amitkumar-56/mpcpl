@@ -61,7 +61,31 @@ export async function POST(request) {
 
     // Get current user for audit log (cookie + Authorization fallback)
     let userId = checked_by || null;
-    let userName = checkedByName || 'System';
+    // Get user from token if checkedByName not provided
+    let userName = checkedByName;
+    if (!userName) {
+      try {
+        const { cookies } = await import('next/headers');
+        const { verifyToken } = await import('@/lib/auth');
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            const userId = decoded.userId || decoded.id;
+            const users = await executeQuery(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0 && users[0].name) {
+              userName = users[0].name;
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching user name:', err);
+      }
+    }
     try {
       const cookieStore = await cookies();
       let token = cookieStore.get('token')?.value;

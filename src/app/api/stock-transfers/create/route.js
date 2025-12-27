@@ -164,26 +164,34 @@ export async function POST(request) {
     }
 
     // ✅ Get user ID from cookies/token BEFORE transaction
-    let userId = 1;
-    let userName = 'System';
+    let userId = null;
+    let userName = null;
     try {
       const cookieStore = await cookies();
       const token = cookieStore.get('token')?.value;
       if (token) {
         const decoded = verifyToken(token);
         if (decoded) {
-          userId = decoded.userId || decoded.id || 1;
+          userId = decoded.userId || decoded.id;
           const users = await executeQuery(
             `SELECT id, name FROM employee_profile WHERE id = ?`,
             [userId]
           );
-          if (users.length > 0) {
+          if (users.length > 0 && users[0].name) {
             userName = users[0].name;
           }
         }
       }
     } catch (userError) {
       console.error('Error getting user info:', userError);
+    }
+    
+    // Return error if no user found
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please login again.' },
+        { status: 401 }
+      );
     }
     
     console.log('✅ User info for transfer:', { userId, userName });

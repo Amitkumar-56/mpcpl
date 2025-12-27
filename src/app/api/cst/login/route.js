@@ -8,9 +8,21 @@ export async function POST(req) {
   try {
     const { email, password } = await req.json();
 
-    if (!email || !password) {
+    // ✅ FIX: Properly validate email and password (trim whitespace and check length)
+    const trimmedEmail = email ? email.trim() : '';
+    const trimmedPassword = password ? password.trim() : '';
+
+    if (!trimmedEmail || !trimmedPassword) {
       return NextResponse.json(
         { error: "Email & password required" },
+        { status: 400 }
+      );
+    }
+
+    // ✅ FIX: Additional validation - password must have minimum length
+    if (trimmedPassword.length < 1) {
+      return NextResponse.json(
+        { error: "Password is required" },
         { status: 400 }
       );
     }
@@ -18,7 +30,7 @@ export async function POST(req) {
     // Fetch customer by email
     const rows = await executeQuery(
       "SELECT * FROM customers WHERE email = ? LIMIT 1",
-      [email]
+      [trimmedEmail]
     );
 
     if (rows.length === 0) {
@@ -39,8 +51,8 @@ export async function POST(req) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
-    // Compute SHA256 hash of input password
-    const hash = crypto.createHash("sha256").update(password).digest("hex");
+    // Compute SHA256 hash of input password (use trimmed password)
+    const hash = crypto.createHash("sha256").update(trimmedPassword).digest("hex");
 
     // Check if DB password is plain-text
     if (customer.password === password) {

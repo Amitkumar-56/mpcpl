@@ -17,11 +17,15 @@ export const metadata = {
   },
   icons: {
     icon: [
+      { url: '/favicon.png', sizes: '32x32', type: 'image/png' },
       { url: '/LOGO_NEW.jpg', sizes: '192x192', type: 'image/jpeg' },
       { url: '/LOGO_NEW.jpg', sizes: '512x512', type: 'image/jpeg' },
     ],
     apple: [
       { url: '/LOGO_NEW.jpg', sizes: '180x180', type: 'image/jpeg' },
+    ],
+    shortcut: [
+      { url: '/favicon.png', type: 'image/png' },
     ],
   },
 };
@@ -44,6 +48,8 @@ export default function RootLayout({ children }) {
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
         <meta name="apple-mobile-web-app-title" content="MPCL System" />
+        <link rel="icon" type="image/png" href="/favicon.png" />
+        <link rel="shortcut icon" type="image/png" href="/favicon.png" />
         <link rel="apple-touch-icon" sizes="180x180" href="/LOGO_NEW.jpg" />
         <link rel="icon" type="image/jpeg" sizes="192x192" href="/LOGO_NEW.jpg" />
         <link rel="icon" type="image/jpeg" sizes="512x512" href="/LOGO_NEW.jpg" />

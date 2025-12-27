@@ -3,14 +3,14 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from "@/context/SessionContext";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
     BiEdit,
     BiHistory,
     BiSearch,
-    BiShow,
-    BiTrash
+    BiShow
 } from "react-icons/bi";
 
 export default function RetailersPage() {
@@ -19,19 +19,90 @@ export default function RetailersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user, loading: authLoading } = useSession();
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false,
+    can_delete: false
+  });
 
   useEffect(() => {
-    async function fetchData() {
-      try {
-        const res = await fetch("/api/retailers");
-        const data = await res.json();
-        setRetailers(data);
-      } catch (err) {
-        console.error("Error fetching retailers:", err);
-      }
+    if (user) {
+      checkPermissions();
     }
-    fetchData();
-  }, []);
+  }, [user]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) return;
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      fetchRetailers();
+      return;
+    }
+
+    // Check cached permissions first
+    if (user.permissions && user.permissions['Retailers']) {
+      const retailerPerms = user.permissions['Retailers'];
+      setPermissions({
+        can_view: retailerPerms.can_view,
+        can_edit: retailerPerms.can_edit,
+        can_delete: retailerPerms.can_delete
+      });
+      fetchRetailers();
+      return;
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_Retailers`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      setPermissions(cachedPerms);
+      fetchRetailers();
+      return;
+    }
+
+    try {
+      const moduleName = 'Retailers';
+      const [viewRes, editRes, deleteRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+      ]);
+
+      const [viewData, editData, deleteData] = await Promise.all([
+        viewRes.json(),
+        editRes.json(),
+        deleteRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_delete: deleteData.allowed
+      };
+
+      // Cache permissions
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+      setPermissions(perms);
+      fetchRetailers();
+    } catch (error) {
+      console.error('Permission check error:', error);
+    }
+  };
+
+  const fetchRetailers = async () => {
+    try {
+      const res = await fetch("/api/retailers");
+      const data = await res.json();
+      setRetailers(data);
+    } catch (err) {
+      console.error("Error fetching retailers:", err);
+    }
+  };
 
   const filteredRetailers = retailers.filter((r) =>
     `${r.name} ${r.email} ${r.phone} ${r.address} ${r.region}`
@@ -44,26 +115,6 @@ export default function RetailersPage() {
   const currentRetailers = filteredRetailers.slice(indexOfFirst, indexOfLast);
   const totalPages = Math.ceil(filteredRetailers.length / itemsPerPage);
 
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this retailer?")) return;
-    try {
-      const res = await fetch("/api/retailers/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      const data = await res.text();
-      if (data === "success") {
-        setRetailers(retailers.filter((r) => r.id !== id));
-        alert("Retailer deleted successfully");
-      } else {
-        alert("Error deleting retailer");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Something went wrong");
-    }
-  };
 
   // Action buttons - Only few for Retailers
   const actionButtons = [
@@ -73,6 +124,7 @@ export default function RetailersPage() {
       label: "View Details",
       href: (id) => `/retailers/details/${id}`,
       color: "bg-blue-500 hover:bg-blue-600",
+      show: permissions.can_view,
     },
     {
       key: "edit",
@@ -80,6 +132,7 @@ export default function RetailersPage() {
       label: "Edit Retailer",
       href: (id) => `/retailers/edit/${id}`,
       color: "bg-yellow-500 hover:bg-yellow-600",
+      show: permissions.can_edit,
     },
     {
       key: "history",
@@ -87,13 +140,7 @@ export default function RetailersPage() {
       label: "History",
       href: (id) => `/retailers/history/${id}`,
       color: "bg-green-500 hover:bg-green-600",
-    },
-    {
-      key: "delete",
-      icon: BiTrash,
-      label: "Delete Retailer",
-      onClick: (id) => handleDelete(id),
-      color: "bg-red-500 hover:bg-red-600",
+      show: permissions.can_view,
     },
   ];
 
@@ -202,17 +249,9 @@ export default function RetailersPage() {
                           </td>
                           <td className="p-4">
                             <div className="flex flex-wrap gap-2">
-                              {actionButtons.map((action) =>
-                                action.key === "delete" ? (
-                                  <button
-                                    key={action.key}
-                                    onClick={() => action.onClick(r.id)}
-                                    className={`p-2 ${action.color} text-white rounded-lg`}
-                                    title={action.label}
-                                  >
-                                    <action.icon className="w-4 h-4" />
-                                  </button>
-                                ) : (
+                              {actionButtons
+                                .filter(action => action.show)
+                                .map((action) => (
                                   <Link
                                     key={action.key}
                                     href={action.href(r.id)}
@@ -221,8 +260,7 @@ export default function RetailersPage() {
                                   >
                                     <action.icon className="w-4 h-4" />
                                   </Link>
-                                )
-                              )}
+                                ))}
                             </div>
                           </td>
                         </tr>
@@ -275,17 +313,9 @@ export default function RetailersPage() {
                           <div className="font-bold text-lg mt-1">{r.name}</div>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          {actionButtons.map((action) =>
-                            action.key === "delete" ? (
-                              <button
-                                key={action.key}
-                                onClick={() => action.onClick(r.id)}
-                                className={`p-2 ${action.color} text-white rounded-lg`}
-                                title={action.label}
-                              >
-                                <action.icon className="w-4 h-4" />
-                              </button>
-                            ) : (
+                          {actionButtons
+                            .filter(action => action.show)
+                            .map((action) => (
                               <Link
                                 key={action.key}
                                 href={action.href(r.id)}
@@ -294,8 +324,7 @@ export default function RetailersPage() {
                               >
                                 <action.icon className="w-4 h-4" />
                               </Link>
-                            )
-                          )}
+                            ))}
                         </div>
                       </div>
                       <div className="space-y-2 text-sm">

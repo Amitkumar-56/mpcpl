@@ -5,9 +5,9 @@ import { cookies } from "next/headers";
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-secret';
 
-// 🔑 Generate JWT
+// 🔑 Generate JWT - ✅ 1 year expiry so user stays logged in until explicit logout
 export function signToken(user) {
-  return jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
+  return jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "365d" });
 }
 
 // 🔑 Get Current User

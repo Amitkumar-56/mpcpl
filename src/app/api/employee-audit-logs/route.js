@@ -30,7 +30,7 @@ export async function GET(request) {
         query = `
           SELECT 
             al.*,
-            COALESCE(ep.name, al.user_name, 'System') AS user_display_name
+            COALESCE(ep.name, al.user_name) AS user_display_name
           FROM audit_log al
           LEFT JOIN employee_profile ep ON al.user_id = ep.id
           WHERE al.record_type = 'employee' 
@@ -43,7 +43,7 @@ export async function GET(request) {
         query = `
           SELECT 
             al.*,
-            COALESCE(ep.name, al.user_name, 'System') AS user_display_name
+            COALESCE(ep.name, al.user_name) AS user_display_name
           FROM audit_log al
           LEFT JOIN employee_profile ep ON al.user_id = ep.id
           WHERE al.record_type = 'employee' 
@@ -57,7 +57,7 @@ export async function GET(request) {
       query = `
         SELECT 
           al.*,
-          COALESCE(ep.name, al.user_name, 'System') AS user_display_name
+          COALESCE(ep.name, al.user_name) AS user_display_name
         FROM audit_log al
         LEFT JOIN employee_profile ep ON al.user_id = ep.id
         WHERE al.record_type = 'employee' 
@@ -102,7 +102,7 @@ export async function GET(request) {
 
       // Extract creator/editor info from new_value or user_id
       const creatorId = newValue?.created_by_employee_id || newValue?.edited_by_employee_id || log.user_id;
-      const creatorName = newValue?.created_by_name || newValue?.edited_by_name || log.user_display_name || 'System';
+      const creatorName = newValue?.created_by_name || newValue?.edited_by_name || log.user_display_name || (creatorId ? `Employee ID: ${creatorId}` : null);
       const creatorRole = newValue?.created_by_role || newValue?.edited_by_role || null;
       const creatorRoleName = creatorRole ? roleNames[creatorRole] || 'Unknown' : null;
 
@@ -113,7 +113,7 @@ export async function GET(request) {
 
       return {
         ...log,
-        user_name: log.user_display_name || log.user_name || 'System',
+        user_name: log.user_display_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : null),
         old_value: oldValue,
         new_value: newValue,
         creator_info: {

@@ -20,7 +20,8 @@ export default function SuppliersPage() {
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
-    can_delete: false
+    can_delete: false,
+    can_create: false
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -43,7 +44,7 @@ export default function SuppliersPage() {
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_delete: true, can_create: true });
       fetchSuppliers();
       return;
     }
@@ -56,7 +57,8 @@ export default function SuppliersPage() {
         setPermissions({
           can_view: supplierPerms.can_view,
           can_edit: supplierPerms.can_edit,
-          can_delete: supplierPerms.can_delete
+          can_delete: supplierPerms.can_delete,
+          can_create: supplierPerms.can_create || false
         });
         fetchSuppliers();
         return;
@@ -78,22 +80,25 @@ export default function SuppliersPage() {
 
     try {
       const moduleName = 'Suppliers';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, deleteRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
 
-      const [viewData, editData, deleteData] = await Promise.all([
+      const [viewData, editData, deleteData, createData] = await Promise.all([
         viewRes.json(),
         editRes.json(),
-        deleteRes.json()
+        deleteRes.json(),
+        createRes.json()
       ]);
 
       const perms = {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed
+        can_delete: deleteData.allowed,
+        can_create: createData.allowed || false
       };
 
       // Cache permissions
@@ -256,20 +261,6 @@ export default function SuppliersPage() {
     }
   };
 
-  // Delete supplier
-  const handleDeleteSupplier = async (id) => {
-    if (!permissions.can_delete) {
-      alert('You do not have permission to delete suppliers.');
-      return;
-    }
-    if (confirm('Are you sure you want to delete this supplier?')) {
-      // Note: You'll need to implement DELETE API endpoint
-      const updatedSuppliers = suppliers.filter(supplier => supplier.id !== id);
-      setSuppliers(updatedSuppliers);
-      setStats(calculateStats(updatedSuppliers));
-      alert('Supplier deleted successfully!');
-    }
-  };
 
   // Toggle supplier status
   const toggleSupplierStatus = async (id) => {
@@ -392,7 +383,7 @@ export default function SuppliersPage() {
                 <span>📋</span>
                 <span>Activity Logs</span>
               </Link>
-                    {permissions.can_edit && (
+                    {permissions.can_create && (
                       <button
                         onClick={() => setShowForm(!showForm)}
                         className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2.5 sm:py-3 rounded-xl hover:from-blue-700 hover:to-purple-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-all duration-200 flex items-center justify-center space-x-2 shadow-md w-full lg:w-auto text-sm sm:text-base"
@@ -555,9 +546,17 @@ export default function SuppliersPage() {
                           </td>
                           <td className="px-4 lg:px-6 py-3 lg:py-4">
                             <div className="flex flex-wrap gap-2">
+                              {permissions.can_view && (
+                                <Link
+                                  href={`/supplierinvoice?id=${supplier.id}`}
+                                  className="text-blue-600 hover:text-blue-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-blue-50 rounded-lg transition-colors"
+                                >
+                                  View
+                                </Link>
+                              )}
                               <button 
                                 onClick={() => loadPurchaseHistory(supplier)}
-                                className="text-blue-600 hover:text-blue-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-blue-50 rounded-lg transition-colors"
+                                className="text-green-600 hover:text-green-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-green-50 rounded-lg transition-colors"
                               >
                                 History
                               </button>
@@ -571,14 +570,6 @@ export default function SuppliersPage() {
                                         }`}
                                       >
                                         {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
-                                      </button>
-                                    )}
-                                    {permissions.can_delete && (
-                                      <button 
-                                        onClick={() => handleDeleteSupplier(supplier.id)}
-                                        className="text-red-600 hover:text-red-900 text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 bg-red-50 rounded-lg transition-colors"
-                                      >
-                                        Delete
                                       </button>
                                     )}
                             </div>
@@ -647,9 +638,17 @@ export default function SuppliersPage() {
 
                         {/* Actions */}
                         <div className="flex flex-wrap gap-2 pt-2 border-t">
+                          {permissions.can_view && (
+                            <Link
+                              href={`/supplierinvoice?id=${supplier.id}`}
+                              className="flex-1 text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-2 bg-blue-50 rounded-lg transition-colors text-center"
+                            >
+                              View
+                            </Link>
+                          )}
                           <button 
                             onClick={() => loadPurchaseHistory(supplier)}
-                            className="flex-1 text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-2 bg-blue-50 rounded-lg transition-colors"
+                            className="flex-1 text-green-600 hover:text-green-900 text-sm font-medium px-3 py-2 bg-green-50 rounded-lg transition-colors"
                           >
                             History
                           </button>
@@ -663,14 +662,6 @@ export default function SuppliersPage() {
                                 }`}
                               >
                                 {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
-                              </button>
-                            )}
-                            {permissions.can_delete && (
-                              <button 
-                                onClick={() => handleDeleteSupplier(supplier.id)}
-                                className="flex-1 text-red-600 hover:text-red-900 text-sm font-medium px-3 py-2 bg-red-50 rounded-lg transition-colors"
-                              >
-                                Delete
                               </button>
                             )}
                         </div>

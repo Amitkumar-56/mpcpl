@@ -131,7 +131,7 @@ export default function AuditLogsPanel({ recordId, recordType, onClose }) {
                 
                 <div className="mt-2">
                   <p className="text-sm font-medium text-gray-900">
-                    {log.user_name || 'System'}
+                    {log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A')}
                   </p>
                   {log.remarks && (
                     <p className="text-xs text-gray-600 mt-1 italic">

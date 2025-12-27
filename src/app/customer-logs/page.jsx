@@ -236,7 +236,7 @@ function CustomerLogsContent() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div>
-                          <div className="font-medium">{log.user_name || 'System'}</div>
+                          <div className="font-medium">{log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A')}</div>
                           {log.user_id && (
                             <div className="text-xs text-gray-500">ID: {log.user_id}</div>
                           )}

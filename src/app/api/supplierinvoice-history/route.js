@@ -50,8 +50,8 @@ export async function GET(request) {
     // Fetch additional data for each stock entry
     const enrichedData = await Promise.all(
       stockRows.map(async (row) => {
-        // Payment records
-        let paymentQuery = 'SELECT * FROM update_invoice WHERE type = 1 AND supply_id = ?';
+        // Payment records - include tds_deduction if column exists
+        let paymentQuery = 'SELECT id, supply_id, v_invoice, payment, date, remarks, type, COALESCE(tds_deduction, 0) as tds_deduction FROM update_invoice WHERE type = 1 AND supply_id = ?';
         const paymentParams = [row.id];
         
         if (from_date) {

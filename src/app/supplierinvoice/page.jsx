@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import Sidebar from '@/components/sidebar';
 import Link from 'next/link';
+import { useSession } from '@/context/SessionContext';
 
 function SupplierInvoiceContent() {
   const [invoices, setInvoices] = useState([]);
@@ -13,24 +14,127 @@ function SupplierInvoiceContent() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false
+  });
   const [formData, setFormData] = useState({
     amount: '',
     pay_date: new Date().toISOString().split('T')[0],
-    remarks: ''
+    remarks: '',
+    tds_deduction: ''
   });
   const [submitting, setSubmitting] = useState(false);
   
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const id = searchParams.get('id');
   const fromDate = searchParams.get('from_date');
   const toDate = searchParams.get('to_date');
 
+  // ✅ Check permissions
   useEffect(() => {
-    if (id) {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setHasPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true });
+      if (id) fetchInvoices();
+      return;
+    }
+
+    // Check cached permissions
+    const moduleName = 'Supplier Invoice';
+    if (user.permissions && user.permissions[moduleName]) {
+      const invoicePerms = user.permissions[moduleName];
+      if (invoicePerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: invoicePerms.can_view,
+          can_edit: invoicePerms.can_edit || false
+        });
+        if (id) fetchInvoices();
+        return;
+      } else {
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false });
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_${moduleName}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        if (id) fetchInvoices();
+        return;
+      } else {
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false });
+        return;
+      }
+    }
+
+    try {
+      const [viewRes, editRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`)
+      ]);
+
+      const [viewData, editData] = await Promise.all([
+        viewRes.json(),
+        editRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed || false,
+        can_edit: editData.allowed || false
+      };
+
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        if (id) fetchInvoices();
+      } else {
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false });
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setPermissions({ can_view: false, can_edit: false });
+    }
+  };
+
+  useEffect(() => {
+    if (id && hasPermission && !authLoading) {
       fetchInvoices();
     }
-  }, [id, fromDate, toDate]);
+  }, [id, fromDate, toDate, hasPermission, authLoading]);
 
   const fetchInvoices = async () => {
     setLoading(true);
@@ -87,7 +191,8 @@ function SupplierInvoiceContent() {
         setFormData({
           amount: '',
           pay_date: new Date().toISOString().split('T')[0],
-          remarks: ''
+          remarks: '',
+          tds_deduction: ''
         });
         fetchInvoices(); // Refresh data
       } else {
@@ -106,7 +211,8 @@ function SupplierInvoiceContent() {
     setFormData({
       amount: '',
       pay_date: new Date().toISOString().split('T')[0],
-      remarks: ''
+      remarks: '',
+      tds_deduction: ''
     });
     setShowModal(true);
   };
@@ -116,10 +222,56 @@ function SupplierInvoiceContent() {
     return date.toLocaleDateString('en-GB');
   };
 
+  // ✅ Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 px-4 py-6 overflow-auto flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Redirect if user is not authenticated
+  if (!user) {
+    return null; // Will redirect via useEffect
+  }
+
+  // ✅ Show access denied if no permission
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 px-4 py-6 overflow-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">You do not have permission to view supplier invoices.</p>
+              <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="flex min-h-screen bg-gray-50">
+        <Sidebar />
+        <div className="flex-1 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
       </div>
     );
   }
@@ -403,6 +555,39 @@ function SupplierInvoiceContent() {
                         setFormData({ ...formData, pay_date: e.target.value })
                       }
                       className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Payment Amount
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      required
+                      value={formData.amount}
+                      onChange={(e) =>
+                        setFormData({ ...formData, amount: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter payment amount"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      TDS Deduction (Manual)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={formData.tds_deduction}
+                      onChange={(e) =>
+                        setFormData({ ...formData, tds_deduction: e.target.value })
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Enter TDS deduction (optional)"
                     />
                   </div>
 

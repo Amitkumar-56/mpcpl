@@ -108,6 +108,11 @@ export async function POST(request) {
     const existingPaths = JSON.parse(existingPdfPaths);
     const allPaths = [...existingPaths, ...uploadedFiles];
 
+    // Get old deepo data before update for audit log
+    const oldDeepoQuery = "SELECT * FROM deepo_history WHERE id = ?";
+    const oldDeepoResult = await executeQuery(oldDeepoQuery, [deepoId]);
+    const oldDeepo = oldDeepoResult.length > 0 ? oldDeepoResult[0] : null;
+
     // Update deepo_history
     const updateDeepoQuery = `
       UPDATE deepo_history 
@@ -124,40 +129,50 @@ export async function POST(request) {
       deepoId
     ]);
 
-    // Create audit log entry for edit
+    // Get updated deepo data
+    const newDeepoQuery = "SELECT * FROM deepo_history WHERE id = ?";
+    const newDeepoResult = await executeQuery(newDeepoQuery, [deepoId]);
+    const newDeepo = newDeepoResult.length > 0 ? newDeepoResult[0] : null;
+
+    // Get current user from token - ALWAYS fetch from employee_profile
+    let userId = null;
+    let userName = null;
     try {
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS deepo_audit_log (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          deepo_id INT NOT NULL,
-          action_type VARCHAR(50) NOT NULL,
-          user_id INT,
-          user_name VARCHAR(255),
-          remarks TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_deepo_id (deepo_id),
-          INDEX idx_created_at (created_at)
-        )
-      `);
-      
-      // Fetch employee name from employee_profile
-      let employeeName = 'System';
-      try {
-        const employeeResult = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
-          [1]
-        );
-        if (employeeResult.length > 0) {
-          employeeName = employeeResult[0].name;
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const { createAuditLog } = await import('@/lib/auditLog');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const employeeResult = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (employeeResult.length > 0 && employeeResult[0].name) {
+            userName = employeeResult[0].name;
+          }
         }
-      } catch (empError) {
-        console.error('Error fetching employee name:', empError);
       }
-      
-      await executeQuery(
-        `INSERT INTO deepo_audit_log (deepo_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
-        [deepoId, 'edited', 1, employeeName, 'Deepo record updated']
-      );
+
+      // Create comprehensive audit log with oldValue and newValue
+      if (userId && userName) {
+        await createAuditLog({
+          page: 'Deepo Management',
+          uniqueCode: `DEPOO-${deepoId}`,
+          section: 'Edit Deepo',
+          userId: userId,
+          userName: userName,
+          action: 'edit',
+          remarks: `Deepo record updated: ID ${deepoId}`,
+          oldValue: oldDeepo,
+          newValue: newDeepo,
+          recordType: 'deepo',
+          recordId: parseInt(deepoId)
+        });
+      }
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
       // Don't fail the main operation

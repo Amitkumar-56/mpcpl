@@ -801,32 +801,11 @@ export async function POST(request) {
         return NextResponse.json({ message: "Password updated successfully" });
 
       case "delete_user":
-        const { userId: deleteUserId } = data;
-
-        if (!deleteUserId) {
-          return NextResponse.json(
-            { error: "User ID is required" },
-            { status: 400 }
-          );
-        }
-
-        console.log("Deleting user ID:", deleteUserId);
-
-        const deleteUserCheck = await executeQuery(
-          "SELECT id FROM customers WHERE id = ?",
-          [deleteUserId]
+        // ✅ DELETE functionality removed - users cannot be deleted
+        return NextResponse.json(
+          { error: "Delete operation is not allowed" },
+          { status: 403 }
         );
-        if (!deleteUserCheck || deleteUserCheck.length === 0) {
-          return NextResponse.json(
-            { error: "User not found" },
-            { status: 404 }
-          );
-        }
-
-        await executeQuery("DELETE FROM customers WHERE id = ?", [
-          deleteUserId,
-        ]);
-        return NextResponse.json({ message: "User deleted successfully" });
 
       case "process_payment":
         const { paymentAmount } = data;

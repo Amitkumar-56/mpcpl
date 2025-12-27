@@ -152,7 +152,7 @@ export async function PUT(request) {
     if (result.affectedRows > 0) {
       // Get user info for audit log
       let userId = null;
-      let userName = 'System';
+      let userName = null;
       try {
         const cookieStore = cookies();
         const token = cookieStore.get('token')?.value;
@@ -376,7 +376,7 @@ export async function POST(request) {
     }
 
     let userId = null;
-    let userName = 'System';
+    let userName = null;
     try {
       const cookieStore = cookies();
       const token = cookieStore.get('token')?.value;

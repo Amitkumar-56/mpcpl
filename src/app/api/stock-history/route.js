@@ -4,18 +4,13 @@ import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(request) {
   try {
-    // ✅ Check authentication but don't cause logout on failure
-    // Just log for debugging, continue with data fetch
+    // ✅ Check authentication silently - don't log warnings for normal unauthenticated requests
+    // Continue with data fetch even if auth check fails
     try {
       const currentUser = await getCurrentUser();
-      if (!currentUser || !currentUser.userId) {
-        console.warn('⚠️ Stock History API: User not authenticated, but continuing with data fetch');
-      } else {
-        console.log('✅ Stock History API: User authenticated:', currentUser.userId);
-      }
+      // Silent auth check - don't log warnings
     } catch (authError) {
-      console.warn('⚠️ Stock History API: Auth check failed, but continuing:', authError.message);
-      // Continue with data fetch even if auth check fails - don't cause logout
+      // Silent error - continue with data fetch
     }
 
     const { searchParams } = new URL(request.url);
@@ -58,12 +53,12 @@ export async function GET(request) {
         CASE 
           WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 AND ep.id IS NOT NULL THEN ep.name
           WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 THEN CONCAT('Employee ID: ', fh.created_by)
-          ELSE 'System'
+          ELSE NULL
         END AS created_by_name,
         CASE 
           WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 AND ep.id IS NOT NULL THEN ep.name
           WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 THEN CONCAT('Employee ID: ', fh.created_by)
-          ELSE 'System'
+          ELSE NULL
         END AS user_name
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id

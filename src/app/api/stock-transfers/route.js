@@ -78,7 +78,17 @@ export async function POST(request) {
     // Get current user for audit log
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
-    const userName = currentUser?.userName || 'System';
+    // Ensure userName is fetched from employee_profile
+    let userName = currentUser?.userName;
+    if (!userName && currentUser?.userId) {
+      const users = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [currentUser.userId]
+      );
+      if (users.length > 0 && users[0].name) {
+        userName = users[0].name;
+      }
+    }
 
     // Create audit log
     await createAuditLog({

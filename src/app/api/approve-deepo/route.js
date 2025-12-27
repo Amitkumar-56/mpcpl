@@ -71,7 +71,40 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { id, action, remarks, userId = 1, userName = 'System' } = await request.json();
+    // Get current user from token - ALWAYS fetch from employee_profile
+    let userId = null;
+    let userName = null;
+    try {
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const { executeQuery } = await import('@/lib/db');
+          const employeeResult = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (employeeResult.length > 0 && employeeResult[0].name) {
+            userName = employeeResult[0].name;
+          }
+        }
+      }
+    } catch (authError) {
+      console.error('Error getting user info:', authError);
+    }
+    
+    if (!userId) {
+      return NextResponse.json(
+        { success: false, error: 'Unauthorized. Please login again.' },
+        { status: 401 }
+      );
+    }
+    
+    const { id, action, remarks } = await request.json();
 
     if (!id || !action) {
       return NextResponse.json(
@@ -145,28 +178,13 @@ export async function POST(request) {
         )
       `);
 
-      // Fetch employee name from employee_profile if user_id is provided
-      let employeeName = userName || 'System';
-      if (userId) {
-        try {
-          const employeeResult = await executeQuery(
-            `SELECT name FROM employee_profile WHERE id = ?`,
-            [userId]
-          );
-          if (employeeResult.length > 0) {
-            employeeName = employeeResult[0].name;
-          }
-        } catch (empError) {
-          console.error('Error fetching employee name:', empError);
-        }
-      }
-      
       // Use consistent action type (approve/rejected)
       const logActionType = action === 'approve' ? 'approve' : 'rejected';
       
+      // userName is already fetched from employee_profile above
       await executeQuery(
         `INSERT INTO deepo_audit_log (deepo_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
-        [id, logActionType, userId, employeeName, remarks || `Deepo ${action}d`]
+        [id, logActionType, userId, userName, remarks || `Deepo ${action}d`]
       );
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);

@@ -29,7 +29,7 @@ export function validateCustomerRole(user) {
 export async function checkPermissions(userId, moduleName, action = 'can_view') {
   try {
     const result = await executeQuery(
-      `SELECT can_view, can_edit, can_delete 
+      `SELECT can_view, can_edit, can_create 
        FROM customer_permissions 
        WHERE customer_id = ? AND module_name = ?`,
       [userId, moduleName]

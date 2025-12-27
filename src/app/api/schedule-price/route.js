@@ -205,7 +205,7 @@ export async function POST(req) {
 
     // Get user info for audit log
     let userId = null;
-    let userName = 'System';
+    let userName = null;
     try {
       const { cookies } = await import('next/headers');
       const { verifyToken } = await import('@/lib/auth');
@@ -358,25 +358,4 @@ export async function PATCH(req) {
 }
 
 // DELETE: Remove scheduled price
-export async function DELETE(req) {
-  try {
-    const url = new URL(req.url);
-    const priceId = url.searchParams.get('price_id');
-    
-    if (!priceId) {
-      return NextResponse.json({ success: false, message: "Price ID is required" }, { status: 400 });
-    }
-
-    await executeQuery(`
-      UPDATE deal_price SET is_active = 0 WHERE id = ?
-    `, [priceId]);
-
-    return NextResponse.json({ 
-      success: true, 
-      message: 'Price schedule deleted successfully' 
-    });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ success: false, message: err.message }, { status: 500 });
-  }
-}
+// ✅ DELETE functionality removed - price schedules cannot be deleted

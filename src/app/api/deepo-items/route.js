@@ -44,38 +44,4 @@ export async function GET(request) {
   }
 }
 
-export async function DELETE(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Remark ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Delete remark from database
-    const result = await executeQuery('DELETE FROM remarks WHERE id = ?', [id]);
-
-    if (result.affectedRows === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Remark not found' },
-        { status: 404 }
-      );
-    }
-
-    return NextResponse.json({
-      success: true,
-      message: 'Remark deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Error deleting remark:', error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
-  }
-}
+// ✅ DELETE functionality removed - remarks cannot be deleted

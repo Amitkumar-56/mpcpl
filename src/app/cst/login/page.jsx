@@ -17,11 +17,27 @@ export default function CustomerLoginPage() {
     setIsLoading(true);
     setError("");
 
+    // ✅ FIX: Validate email and password before sending request
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Email and password are required");
+      setIsLoading(false);
+      return;
+    }
+
+    if (trimmedPassword.length < 1) {
+      setError("Password cannot be empty");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const res = await fetch("/api/cst/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
       });
 
       const data = await res.json();

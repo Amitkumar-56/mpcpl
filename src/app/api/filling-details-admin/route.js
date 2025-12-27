@@ -175,8 +175,7 @@ export async function GET(req) {
           -- Created by: Check customers FIRST, then employee_profile
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
-            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-            'System'
+            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1)
           ) as created_by_name,
           COALESCE(
             (SELECT c.email FROM customers c WHERE c.id = fl.created_by LIMIT 1),
@@ -220,14 +219,13 @@ export async function GET(req) {
       }
       
       // ✅ FIX: If no logs found, try to get created_by from filling_requests
-      if (!data.logs || !data.logs.created_by_name || data.logs.created_by_name === 'System') {
+      if (!data.logs || !data.logs.created_by_name) {
         const fallbackQuery = `
           SELECT 
             fr.cid,
             COALESCE(
               (SELECT c.name FROM customers c WHERE c.id = fr.cid LIMIT 1),
-              (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.cid LIMIT 1),
-              'System'
+              (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.cid LIMIT 1)
             ) as created_by_name,
             CASE 
               WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fr.cid) THEN 'customer'
@@ -242,7 +240,7 @@ export async function GET(req) {
         `;
         const fallbackResult = await executeQuery(fallbackQuery, [data.rid]);
         if (fallbackResult.length > 0 && 
-            fallbackResult[0].created_by_name !== 'System' && 
+            fallbackResult[0].created_by_name && 
             fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
           if (!data.logs) {
             data.logs = {};
@@ -381,16 +379,32 @@ export async function POST(request) {
 
     let resultMessage = '';
 
-    // Track edit operation - create edit log entry
+    // Get old data for audit log before update
+    const oldDataQuery = `SELECT * FROM filling_requests WHERE id = ?`;
+    const oldData = await executeQuery(oldDataQuery, [id]);
+    const oldRecord = oldData.length > 0 ? oldData[0] : null;
+
+    // Get user name from employee_profile for audit log
+    let userName = null;
+    if (userId) {
+      try {
+        const userRows = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
+          [userId]
+        );
+        if (userRows.length > 0 && userRows[0].name) {
+          userName = userRows[0].name;
+        }
+      } catch (userError) {
+        console.error('Error fetching user name:', userError);
+      }
+    }
+
+    // Track edit operation - create edit log entry (existing table)
     const now = getIndianTime();
     try {
-      // Get old data for comparison
-      const oldDataQuery = `SELECT * FROM filling_requests WHERE id = ?`;
-      const oldData = await executeQuery(oldDataQuery, [id]);
-      
-      if (oldData.length > 0) {
-        const oldRecord = oldData[0];
-        // Create edit log entry
+      if (oldRecord) {
+        // Create edit log entry in edit_logs table (existing)
         const editLogQuery = `
           INSERT INTO edit_logs 
           (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
@@ -448,16 +462,18 @@ export async function POST(request) {
           `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
           [userId]
         );
-        const userNameForLog = userRows.length > 0 ? userRows[0].name : 'System';
-        const oldDataForAudit = await executeQuery(`SELECT aqty, price FROM filling_requests WHERE id = ?`, [id]);
-        const oldQty = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].aqty || 0) : 0;
-        const oldPrice = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].price || 0) : 0;
+        const userNameForLog = userRows.length > 0 && userRows[0].name ? userRows[0].name : userName;
+        const newRecord = await executeQuery(`SELECT * FROM filling_requests WHERE id = ?`, [id]);
+        const oldQty = oldRecord ? parseFloat(oldRecord.aqty || 0) : 0;
+        const oldPrice = oldRecord ? parseFloat(oldRecord.price || 0) : 0;
         const newQty = parseFloat(aqty || 0);
         const newPrice = parseFloat(price || 0);
         const oldAmount = (oldPrice || newPrice) * oldQty;
         const newAmount = newPrice * newQty;
         const deltaQty = newQty - oldQty;
         const deltaAmount = newAmount - oldAmount;
+        
+        // Enhanced audit log with full oldValue and newValue
         await createAuditLog({
           page: 'Filling Details Admin',
           uniqueCode: `REQ-EDIT-${rid}`,
@@ -465,9 +481,9 @@ export async function POST(request) {
           userId: userId,
           userName: userNameForLog,
           action: 'update',
-          remarks: `Quantity updated on completed request. ΔQty: ${deltaQty.toFixed(2)}L, ΔAmount: ₹${deltaAmount.toFixed(2)}.`,
-          oldValue: { qty: oldQty, amount: oldAmount, price: oldPrice || newPrice },
-          newValue: { qty: newQty, amount: newAmount, price: newPrice },
+          remarks: `Quantity updated on completed request. ΔQty: ${deltaQty.toFixed(2)}L, ΔAmount: ₹${deltaAmount.toFixed(2)}. Status: ${oldRecord?.status || 'N/A'} → ${status}`,
+          oldValue: oldRecord,
+          newValue: newRecord.length > 0 ? newRecord[0] : null,
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
@@ -482,7 +498,7 @@ export async function POST(request) {
           `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
           [userId]
         );
-        const userNameForLog = userRows.length > 0 ? userRows[0].name : 'System';
+        const userNameForLog = userRows.length > 0 && userRows[0].name ? userRows[0].name : (userId ? `Employee ID: ${userId}` : null);
         await createAuditLog({
           page: 'Filling Details Admin',
           uniqueCode: `REQ-${rid}`,
@@ -502,12 +518,33 @@ export async function POST(request) {
       resultMessage = await updateFillingRequest({
         id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
       });
+      
+      // Create comprehensive audit log for generic status update
+      try {
+        const newRecord = await executeQuery(`SELECT * FROM filling_requests WHERE id = ?`, [id]);
+        await createAuditLog({
+          page: 'Filling Details Admin',
+          uniqueCode: `REQ-${rid}`,
+          section: 'Edit Filling Request',
+          userId: userId,
+          userName: userName,
+          action: 'edit',
+          remarks: `Request updated: Status changed to ${status}, Request ID ${rid}`,
+          oldValue: oldRecord,
+          newValue: newRecord.length > 0 ? newRecord[0] : null,
+          recordType: 'filling_request',
+          recordId: parseInt(id)
+        });
+      } catch (auditErr) {
+        console.error('Error creating audit log for generic update:', auditErr);
+      }
+      
       try {
         const userRows = await executeQuery(
           `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
           [userId]
         );
-        const userNameForLog = userRows.length > 0 ? userRows[0].name : 'System';
+        const userNameForLog = userRows.length > 0 && userRows[0].name ? userRows[0].name : (userId ? `Employee ID: ${userId}` : null);
         const oldDataForAudit = await executeQuery(`SELECT aqty, price FROM filling_requests WHERE id = ?`, [id]);
         const oldQty = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].aqty || 0) : 0;
         const oldPrice = oldDataForAudit.length > 0 ? parseFloat(oldDataForAudit[0].price || 0) : 0;
@@ -1131,7 +1168,7 @@ async function handleCompletedStatus(data) {
   }
 
   // Get user info for audit log
-  let userName = 'System';
+  let userName = null;
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;

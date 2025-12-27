@@ -90,15 +90,28 @@ export async function POST(request) {
             )
           `);
           
-          // Fetch employee name from employee_profile
-          let employeeName = 'System';
+          // Fetch employee name from employee_profile - use actual userId from token
+          let employeeName = null;
+          let userIdForLog = null;
           try {
-            const employeeResult = await executeQuery(
-              `SELECT name FROM employee_profile WHERE id = ?`,
-              [1]
-            );
-            if (employeeResult.length > 0) {
-              employeeName = employeeResult[0].name;
+            const { cookies } = await import('next/headers');
+            const { verifyToken } = await import('@/lib/auth');
+            const cookieStore = await cookies();
+            const token = cookieStore.get('token')?.value;
+            if (token) {
+              const decoded = verifyToken(token);
+              if (decoded) {
+                userIdForLog = decoded.userId || decoded.id;
+                if (userIdForLog) {
+                  const employeeResult = await executeQuery(
+                    `SELECT name FROM employee_profile WHERE id = ?`,
+                    [userIdForLog]
+                  );
+                  if (employeeResult.length > 0 && employeeResult[0].name) {
+                    employeeName = employeeResult[0].name;
+                  }
+                }
+              }
             }
           } catch (empError) {
             console.error('Error fetching employee name:', empError);
@@ -106,7 +119,7 @@ export async function POST(request) {
           
           await executeQuery(
             `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-            [customerId, 'payment', 1, employeeName, `One day payment - Service extended`, amount]
+            [customerId, 'payment', userIdForLog || null, employeeName || (userIdForLog ? `Employee ID: ${userIdForLog}` : null), `One day payment - Service extended`, amount]
           );
         } catch (auditError) {
           console.error('Error creating audit log:', auditError);
@@ -204,15 +217,28 @@ export async function POST(request) {
             )
           `);
           
-          // Fetch employee name from employee_profile
-          let employeeName = 'System';
+          // Fetch employee name from employee_profile - use actual userId from token
+          let employeeName = null;
+          let userIdForLog = null;
           try {
-            const employeeResult = await executeQuery(
-              `SELECT name FROM employee_profile WHERE id = ?`,
-              [1]
-            );
-            if (employeeResult.length > 0) {
-              employeeName = employeeResult[0].name;
+            const { cookies } = await import('next/headers');
+            const { verifyToken } = await import('@/lib/auth');
+            const cookieStore = await cookies();
+            const token = cookieStore.get('token')?.value;
+            if (token) {
+              const decoded = verifyToken(token);
+              if (decoded) {
+                userIdForLog = decoded.userId || decoded.id;
+                if (userIdForLog) {
+                  const employeeResult = await executeQuery(
+                    `SELECT name FROM employee_profile WHERE id = ?`,
+                    [userIdForLog]
+                  );
+                  if (employeeResult.length > 0 && employeeResult[0].name) {
+                    employeeName = employeeResult[0].name;
+                  }
+                }
+              }
             }
           } catch (empError) {
             console.error('Error fetching employee name:', empError);

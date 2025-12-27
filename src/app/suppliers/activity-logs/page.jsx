@@ -15,11 +15,11 @@ export default function SupplierActivityLogsPage() {
     try {
       const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       let userId = null;
-      let userName = 'System';
+      let userName = null;
       if (userData) {
         const parsed = JSON.parse(userData);
         userId = parsed?.id || parsed?.userId || null;
-        userName = parsed?.name || 'System';
+        userName = parsed?.name || null;
       }
       const uniqueCode = `PAGEVIEW-SUPPLIER-${Date.now()}`;
       fetch('/api/audit-logs', {

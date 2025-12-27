@@ -32,7 +32,7 @@ export async function PUT(request) {
 
     // Get user info for audit log
     let userId = null;
-    let userName = 'System';
+    let userName = null;
     try {
       const cookieStore = await cookies();
       const token = cookieStore.get('token')?.value;

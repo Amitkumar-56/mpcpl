@@ -45,7 +45,7 @@ export async function POST(request) {
         c.name AS client_name,
         ep.name as checked_by_name,
         ep_invoice.name as invoiced_by_name,
-        COALESCE(fl_created.created_by_name, 'System') as created_by_name,
+        COALESCE(fl_created.created_by_name, NULL) as created_by_name,
         fl_created.created_date,
         fl_processed.processed_by_name,
         fl_processed.processed_date,
@@ -65,7 +65,7 @@ export async function POST(request) {
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-            'System'
+            NULL
           ) as created_by_name,
           CASE 
             WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'

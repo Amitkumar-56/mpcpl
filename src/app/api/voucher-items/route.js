@@ -46,44 +46,4 @@ export async function GET(request) {
   }
 }
 
-export async function DELETE(request) {
-  try {
-    const body = await request.json();
-    const { item_id } = body;
-
-    if (!item_id) {
-      return NextResponse.json({ success: false, error: 'Item ID required' }, { status: 400 });
-    }
-
-    // Get item amount before deleting
-    const itemQuery = 'SELECT amount, voucher_id FROM vouchers_items WHERE item_id = ? LIMIT 1';
-    const itemResult = await executeQuery(itemQuery, [item_id]);
-
-    if (itemResult.length === 0) {
-      return NextResponse.json({ success: false, error: 'Item not found' }, { status: 404 });
-    }
-
-    const { amount, voucher_id } = itemResult[0];
-
-    // Delete item
-    await executeQuery('DELETE FROM vouchers_items WHERE item_id = ?', [item_id]);
-
-    // Update voucher total_expense by subtracting item amount
-    const voucherQuery = 'SELECT total_expense, advance FROM vouchers WHERE voucher_id = ? LIMIT 1';
-    const voucherResult = await executeQuery(voucherQuery, [voucher_id]);
-    const current = voucherResult[0] || { total_expense: 0, advance: 0 };
-    
-    const newTotal = parseFloat(current.total_expense || 0) - parseFloat(amount || 0);
-    const newRemaining = parseFloat(current.advance || 0) - newTotal;
-
-    await executeQuery(
-      'UPDATE vouchers SET total_expense = ?, remaining_amount = ?, updated_at = NOW() WHERE voucher_id = ?',
-      [Math.max(0, newTotal), newRemaining, voucher_id]
-    );
-
-    return NextResponse.json({ success: true, message: 'Item deleted successfully' });
-  } catch (error) {
-    console.error('Delete item error:', error);
-    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
-  }
-}
+// ✅ DELETE functionality removed - voucher items cannot be deleted

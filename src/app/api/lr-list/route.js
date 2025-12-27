@@ -1,7 +1,7 @@
-import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
@@ -46,11 +46,7 @@ export async function GET(request) {
                 console.warn('⚠️ [LR List] Failed to fetch role:', roleError.message);
               }
             }
-          } else {
-            console.warn('⚠️ [LR List] Token verification failed');
           }
-        } else {
-          console.warn('⚠️ [LR List] No token found in cookies');
         }
       } catch (tokenError) {
         console.error('❌ [LR List] Token fallback failed:', tokenError.message);
@@ -64,11 +60,11 @@ export async function GET(request) {
     }
 
     // ✅ FIX: Check permissions - try employee-specific first, then role-based
-    const module_name = 'lr_management'; // Use lowercase with underscore
+    const module_name = 'lr_management';
     
     // First try employee-specific permissions
     let permissionQuery = `
-      SELECT module_name, can_view, can_edit, can_delete, can_create 
+      SELECT module_name, can_view, can_edit, can_create 
       FROM role_permissions 
       WHERE module_name = ? AND employee_id = ?
     `;
@@ -77,7 +73,7 @@ export async function GET(request) {
     // If no employee-specific permissions, try role-based (only if userRole exists)
     if (permissions.length === 0 && userRole) {
       permissionQuery = `
-        SELECT module_name, can_view, can_edit, can_delete, can_create 
+        SELECT module_name, can_view, can_edit, can_create 
         FROM role_permissions 
         WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)
       `;
@@ -89,14 +85,14 @@ export async function GET(request) {
       const altModuleName = 'LR Management';
       if (userRole) {
         permissionQuery = `
-          SELECT module_name, can_view, can_edit, can_delete, can_create 
+          SELECT module_name, can_view, can_edit, can_create 
           FROM role_permissions 
           WHERE module_name = ? AND (employee_id = ? OR role = ?)
         `;
         permissions = await executeQuery(permissionQuery, [altModuleName, userId, userRole]);
       } else {
         permissionQuery = `
-          SELECT module_name, can_view, can_edit, can_delete, can_create 
+          SELECT module_name, can_view, can_edit, can_create 
           FROM role_permissions 
           WHERE module_name = ? AND employee_id = ?
         `;
@@ -104,20 +100,26 @@ export async function GET(request) {
       }
     }
 
-    // Default permissions if none found - allow access if no permissions exist (for backward compatibility)
+    // ✅ Check if user is admin (role 5) - admins have full access
     let permissionData = {
       can_view: 1, // Default allow view if no permissions found
       can_edit: 0,
-      can_delete: 0,
       can_create: 0
     };
 
-    if (permissions.length > 0) {
+    if (userRole && Number(userRole) === 5) {
+      // Admin has full access
+      permissionData = {
+        can_view: 1,
+        can_edit: 1,
+        can_create: 1
+      };
+    } else if (permissions.length > 0) {
       permissionData = permissions[0];
     }
 
-    // Check if user has view permission (only if permissions exist)
-    if (permissions.length > 0 && permissionData.can_view !== 1 && permissionData.can_view !== true) {
+    // Check if user has view permission (only if permissions exist and user is not admin)
+    if (!(userRole && Number(userRole) === 5) && permissions.length > 0 && permissionData.can_view !== 1 && permissionData.can_view !== true) {
       return NextResponse.json({ 
         error: 'You are not allowed to access this page.' 
       }, { status: 403 });
@@ -135,7 +137,6 @@ export async function GET(request) {
     const formattedPermissions = {
       can_view: permissionData.can_view === 1 || permissionData.can_view === true ? 1 : 0,
       can_edit: permissionData.can_edit === 1 || permissionData.can_edit === true ? 1 : 0,
-      can_delete: permissionData.can_delete === 1 || permissionData.can_delete === true ? 1 : 0,
       can_create: permissionData.can_create === 1 || permissionData.can_create === true ? 1 : 0
     };
 
@@ -151,42 +152,4 @@ export async function GET(request) {
   }
 }
 
-export async function DELETE(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    
-    if (!id) {
-      return NextResponse.json({ error: 'ID is required' }, { status: 400 });
-    }
-
-    // Mock session check
-    const mockSession = {
-      user_id: 1,
-      role: 5
-    };
-
-    // Check delete permissions
-    const module_name = 'lr_management';
-    const permissionQuery = `
-      SELECT can_delete 
-      FROM role_permissions 
-      WHERE module_name = ? AND role = ?
-    `;
-    const permissions = await executeQuery(permissionQuery, [module_name, mockSession.role]);
-
-    if (permissions.length === 0 || permissions[0].can_delete !== 1) {
-      return NextResponse.json({ 
-        error: 'You are not allowed to delete shipments.' 
-      }, { status: 403 });
-    }
-
-    const deleteQuery = `DELETE FROM shipment WHERE id = ?`;
-    await executeQuery(deleteQuery, [id]);
-    
-    return NextResponse.json({ message: 'Shipment deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting shipment:', error);
-    return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
-  }
-}
+// DELETE endpoint tamamen kaldırıldı

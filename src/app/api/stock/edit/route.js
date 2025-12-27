@@ -201,11 +201,10 @@ export async function PUT(request) {
     if (!userName) {
       if (userId) {
         userName = `Employee ID: ${userId}`;
-        // Only log if this is unexpected (we should have userName by now)
+        // Silent - userName not found but userId exists
       } else {
         userName = 'Unknown User';
-        // Only log error if userId is completely missing (shouldn't happen)
-        console.error(`❌ [Stock Edit] No userId found - authentication may have failed`);
+        // Don't log - normal for unauthenticated requests (expired session, etc.)
       }
     }
     
@@ -301,37 +300,28 @@ export async function PUT(request) {
           
           // ✅ CRITICAL: Ensure we have a valid userId before inserting
           if (!deliveredByUserId) {
-            console.error('❌ [Stock Edit] userId is null, trying getCurrentUser() again...');
+            // Try getCurrentUser fallback silently
             try {
               const currentUser = await getCurrentUser();
               if (currentUser && currentUser.userId) {
                 deliveredByUserId = currentUser.userId;
-                console.log(`✅ [Stock Edit] Got userId from getCurrentUser fallback: ${deliveredByUserId}`);
-              } else {
-                console.error('❌ [Stock Edit] Could not get userId even after getCurrentUser fallback');
               }
             } catch (fallbackError) {
-              console.error('❌ [Stock Edit] getCurrentUser fallback also failed:', fallbackError.message);
+              // Silent - fallback failed, will use NULL in database
             }
           }
           
-          // ✅ Verify the userId exists in employee_profile table
+          // ✅ Verify the userId exists in employee_profile table (silently)
           if (deliveredByUserId) {
             try {
               const verifyQuery = `SELECT id FROM employee_profile WHERE id = ?`;
               const verifyResult = await executeQuery(verifyQuery, [deliveredByUserId]);
-              if (verifyResult.length === 0) {
-                console.error(`❌ User ID ${deliveredByUserId} not found in employee_profile table`);
-                // Don't set to null, keep the ID but log error
-              } else {
-                console.log(`✅ Verified delivery user (employee_profile.id): ${deliveredByUserId} (Stock ID: ${id})`);
-              }
+              // Silent verification - if not found, will still use the ID
             } catch (verifyError) {
-              console.error('❌ Error verifying delivery user in employee_profile:', verifyError.message);
+              // Silent - verification failed
             }
-          } else {
-            console.error('❌ [Stock Edit] deliveredByUserId is still null - filling_history created_by will be NULL');
           }
+          // If deliveredByUserId is null, will use NULL in database (normal for unauthenticated requests)
           
           // Check if stock_type column exists
           const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
@@ -582,91 +572,5 @@ export async function PUT(request) {
   }
 }
 
-// DELETE - Delete stock
-export async function DELETE(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { success: false, error: 'Stock ID is required' },
-        { status: 400 }
-      );
-    }
-
-    // Get user info for audit log
-    let userId = null;
-    let userName = 'System';
-    try {
-      const cookieStore = await cookies();
-      const token = cookieStore.get('token')?.value;
-      if (token) {
-        const decoded = verifyToken(token);
-        if (decoded) {
-          userId = decoded.userId || decoded.id;
-          const users = await executeQuery(
-            `SELECT id, name FROM employee_profile WHERE id = ?`,
-            [userId]
-          );
-          if (users.length > 0) {
-            userName = users[0].name;
-          }
-        }
-      }
-    } catch (userError) {
-      console.error('Error getting user info:', userError);
-    }
-
-    // Get stock data before deletion
-    const stockQuery = `
-      SELECT s.*, sup.name as supplier_name, p.pname as product_name, fs.station_name
-      FROM stock s
-      LEFT JOIN suppliers sup ON s.supplier_id = sup.id
-      LEFT JOIN products p ON s.product_id = p.id
-      LEFT JOIN filling_stations fs ON s.fs_id = fs.id
-      WHERE s.id = ?
-    `;
-    const stockResult = await executeQuery(stockQuery, [id]);
-
-    if (stockResult.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Stock record not found' },
-        { status: 404 }
-      );
-    }
-
-    const stockData = stockResult[0];
-
-    // Delete stock
-    await executeQuery('DELETE FROM stock WHERE id = ?', [id]);
-
-    // Create audit log
-    await createAuditLog({
-      page: 'Stock Management',
-      uniqueCode: `STOCK-${id}`,
-      section: 'Delete Stock',
-      userId: userId,
-      userName: userName,
-      action: 'delete',
-      remarks: `Stock record deleted: ${stockData.station_name} - ${stockData.product_name} (Invoice: ${stockData.invoice_number})`,
-      oldValue: stockData,
-      newValue: null,
-      recordType: 'stock',
-      recordId: parseInt(id)
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Stock deleted successfully'
-    });
-
-  } catch (error) {
-    console.error('Error deleting stock:', error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
-  }
-}
+// ✅ DELETE functionality removed - stock records cannot be deleted
 

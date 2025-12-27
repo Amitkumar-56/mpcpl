@@ -68,16 +68,12 @@ export async function createAuditLog({
     const actionDate = now.toISOString().split('T')[0]; // YYYY-MM-DD
     const actionTime = now.toTimeString().split(' ')[0]; // HH:MM:SS
 
-    // ✅ FIX: Try to get employee name if userName is 'System', empty, or contains 'Employee ID'
+    // ✅ FIX: ALWAYS try to get employee name from employee_profile if userId is provided
+    // This ensures we never use 'System' when we have a valid userId
     let finalUserName = userName;
     
-    // If userName is 'System', 'Unknown User', or starts with 'Employee ID', try to fetch from database
-    const needsFetch = !finalUserName || 
-                      finalUserName === 'System' || 
-                      finalUserName === 'Unknown User' || 
-                      finalUserName.startsWith('Employee ID:');
-    
-    if (needsFetch && userId) {
+    // If userId is provided, ALWAYS fetch from employee_profile to ensure accurate name
+    if (userId) {
       try {
         console.log(`🔍 [AuditLog] Fetching employee name for userId: ${userId}`);
         const users = await executeQuery(
@@ -88,17 +84,41 @@ export async function createAuditLog({
         
         if (users.length > 0 && users[0].name) {
           finalUserName = users[0].name;
-          console.log(`✅ [AuditLog] Fetched employee name: ${finalUserName} (ID: ${userId})`);
+          console.log(`✅ [AuditLog] Fetched employee name from employee_profile: ${finalUserName} (ID: ${userId})`);
         } else {
-          console.warn(`⚠️ [AuditLog] Employee not found in database for ID: ${userId}`);
+          console.warn(`⚠️ [AuditLog] Employee not found in employee_profile for ID: ${userId}`);
+          // If not found and userName was 'System', we'll use fallback below
         }
       } catch (err) {
-        console.error('❌ [AuditLog] Error fetching employee name:', err);
+        console.error('❌ [AuditLog] Error fetching employee name from employee_profile:', err);
+      }
+    }
+    
+    // Also handle cases where userName might be 'System' but we have userId
+    const needsFetch = !finalUserName || 
+                      finalUserName === 'System' || 
+                      finalUserName === 'Unknown User' || 
+                      finalUserName.startsWith('Employee ID:');
+    
+    // If still needs fetch and we have userId, try again (in case first fetch failed)
+    if (needsFetch && userId && finalUserName === userName) {
+      try {
+        const users = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        
+        if (users.length > 0 && users[0].name) {
+          finalUserName = users[0].name;
+          console.log(`✅ [AuditLog] Fetched employee name on retry: ${finalUserName} (ID: ${userId})`);
+        }
+      } catch (err) {
+        console.error('❌ [AuditLog] Error on retry fetching employee name:', err);
       }
     }
     
     // If still no name, try to get from newValue (for shared/created records)
-    if ((!finalUserName || finalUserName === 'System' || finalUserName.startsWith('Employee ID:')) && newValue) {
+    if (!finalUserName && newValue) {
       try {
         const newValueObj = typeof newValue === 'string' ? JSON.parse(newValue) : newValue;
         if (newValueObj.created_by_name) {
@@ -116,10 +136,24 @@ export async function createAuditLog({
       }
     }
     
-    // ✅ Final fallback: If still no name but we have userId, use descriptive message
-    if ((!finalUserName || finalUserName === 'System') && userId) {
-      finalUserName = `Employee ID: ${userId}`;
-      console.warn(`⚠️ [AuditLog] Using fallback name: ${finalUserName}`);
+    // ✅ Final fallback: If we have userId but couldn't find employee, use descriptive message
+    if (!finalUserName && userId) {
+      // One more attempt to fetch - sometimes might be timing issue
+      try {
+        const users = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (users.length > 0 && users[0].name) {
+          finalUserName = users[0].name;
+        } else {
+          finalUserName = `Employee ID: ${userId}`;
+          console.warn(`⚠️ [AuditLog] Employee not found in employee_profile, using fallback: ${finalUserName}`);
+        }
+      } catch (err) {
+        finalUserName = `Employee ID: ${userId}`;
+        console.warn(`⚠️ [AuditLog] Error fetching employee, using fallback: ${finalUserName}`, err);
+      }
     } else if (!finalUserName) {
       finalUserName = 'Unknown User';
       console.error(`❌ [AuditLog] No userName and no userId, using: ${finalUserName}`);
@@ -172,7 +206,7 @@ export async function createAuditLog({
 export async function getUserInfoFromToken(token) {
   try {
     if (!token) {
-      return { userId: null, userName: 'System' };
+      return { userId: null, userName: null };
     }
 
     // Import verifyToken
@@ -180,29 +214,38 @@ export async function getUserInfoFromToken(token) {
     const decoded = verifyToken(token);
     
     if (!decoded) {
-      return { userId: null, userName: 'System' };
+      return { userId: null, userName: null };
     }
 
-    // Get user details from database
-    const users = await executeQuery(
-      `SELECT id, name FROM employee_profile WHERE id = ?`,
-      [decoded.userId || decoded.id]
-    );
+    // Get user details from database - ALWAYS fetch from employee_profile
+    const userId = decoded.userId || decoded.id;
+    if (userId) {
+      const users = await executeQuery(
+        `SELECT id, name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
 
-    if (users.length > 0) {
+      if (users.length > 0 && users[0].name) {
+        return {
+          userId: users[0].id,
+          userName: users[0].name
+        };
+      }
+      
+      // If user not found but we have userId, return with descriptive name
       return {
-        userId: users[0].id,
-        userName: users[0].name
+        userId: userId,
+        userName: `Employee ID: ${userId}`
       };
     }
 
     return {
-      userId: decoded.userId || decoded.id || null,
-      userName: decoded.name || 'Unknown User'
+      userId: null,
+      userName: null
     };
   } catch (error) {
     console.error('Error getting user info:', error);
-    return { userId: null, userName: 'System' };
+    return { userId: null, userName: null };
   }
 }
 

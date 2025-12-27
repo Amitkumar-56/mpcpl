@@ -225,22 +225,25 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           {allowedMenu.length > 0 ? (
             allowedMenu.map((item) => {
               const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
+              const handleNavClick = () => {
+                // Close mobile menu on mobile devices
+                setIsOpen(false);
+                
+                // If clicking on the same page, don't navigate
+                if (item.path === pathname) {
+                  return;
+                }
+                
+                // Use router.push for client-side navigation (no full page refresh)
+                router.push(item.path);
+              };
+              
               return (
-                <Link
+                <button
                   key={item.name}
-                  href={item.path}
-                  prefetch={false}
-                  onClick={(e) => {
-                    // Close mobile menu on mobile devices
-                    setIsOpen(false);
-                    
-                    // If clicking on the same page, prevent navigation
-                    if (item.path === pathname) {
-                      e.preventDefault();
-                    }
-                    // For different pages, let Next.js Link handle client-side navigation automatically
-                  }}
-                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors cursor-pointer relative ${
+                  type="button"
+                  onClick={handleNavClick}
+                  className={`flex items-center w-full p-3 mb-2 rounded transition-colors cursor-pointer relative text-left ${
                     isActive
                       ? "bg-blue-500 text-white shadow-md"
                       : "text-black hover:bg-blue-300 hover:text-gray-900"
@@ -248,7 +251,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                 >
                   <span className="mr-3 text-lg">{item.icon}</span>
                   <span className="text-sm font-medium">{item.name}</span>
-                </Link>
+                </button>
               );
             })
           ) : user ? (

@@ -51,7 +51,7 @@ export async function POST(request) {
     // ✅ FIX: Fetch BOTH employee-specific AND role-based permissions
     // Employee-specific permissions take priority
     const [employeePermissions] = await connection.execute(
-      `SELECT module_name, can_view, can_edit, can_delete
+      `SELECT module_name, can_view, can_edit, can_create
        FROM role_permissions 
        WHERE employee_id = ?`,
       [user.id]
@@ -59,7 +59,7 @@ export async function POST(request) {
     
     // Also fetch role-based permissions (for modules not covered by employee-specific)
     const [roleBasedPermissions] = await connection.execute(
-      `SELECT module_name, can_view, can_edit, can_delete
+      `SELECT module_name, can_view, can_edit, can_create
        FROM role_permissions
        WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
       [user.role]
@@ -73,7 +73,7 @@ export async function POST(request) {
       permissionMap.set(perm.module_name, {
         can_view: perm.can_view === 1,
         can_edit: perm.can_edit === 1,
-        can_delete: perm.can_delete === 1
+        can_create: perm.can_create === 1
       });
     });
     
@@ -82,7 +82,7 @@ export async function POST(request) {
       permissionMap.set(perm.module_name, {
         can_view: perm.can_view === 1,
         can_edit: perm.can_edit === 1,
-        can_delete: perm.can_delete === 1
+        can_create: perm.can_create === 1
       });
     });
     
@@ -120,7 +120,7 @@ export async function POST(request) {
     response.cookies.set("token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      maxAge: 24 * 60 * 60, // 24 hours
+      maxAge: 365 * 24 * 60 * 60, // ✅ 1 year expiry - user stays logged in until explicit logout
       path: "/",
       sameSite: "lax"
     });

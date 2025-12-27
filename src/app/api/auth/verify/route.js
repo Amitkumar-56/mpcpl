@@ -80,7 +80,7 @@ export async function GET(request) {
     // ✅ FIX: Fetch BOTH employee-specific AND role-based permissions, then merge
     // Employee-specific permissions take priority
     const employeePermissions = await executeQuery(
-      `SELECT module_name, can_view, can_edit, can_delete
+      `SELECT module_name, can_view, can_edit, can_create
        FROM role_permissions 
        WHERE employee_id = ?`,
       [user.id]
@@ -88,7 +88,7 @@ export async function GET(request) {
     
     // Also fetch role-based permissions (for modules not covered by employee-specific)
     const roleBasedPermissions = await executeQuery(
-      `SELECT module_name, can_view, can_edit, can_delete
+      `SELECT module_name, can_view, can_edit, can_create
        FROM role_permissions 
        WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
       [user.role]
@@ -111,7 +111,7 @@ export async function GET(request) {
       permissionMap.set(perm.module_name, {
         can_view: toBool(perm.can_view),
         can_edit: toBool(perm.can_edit),
-        can_delete: toBool(perm.can_delete)
+        can_create: toBool(perm.can_create)
       });
     });
     
@@ -120,7 +120,7 @@ export async function GET(request) {
       permissionMap.set(perm.module_name, {
         can_view: toBool(perm.can_view),
         can_edit: toBool(perm.can_edit),
-        can_delete: toBool(perm.can_delete)
+        can_create: toBool(perm.can_create)
       });
     });
     
@@ -129,7 +129,7 @@ export async function GET(request) {
       module_name,
       can_view: perms.can_view ? 1 : 0,
       can_edit: perms.can_edit ? 1 : 0,
-      can_delete: perms.can_delete ? 1 : 0
+      can_create: perms.can_create ? 1 : 0
     }));
 
     // ✅ Convert merged permissions to object format

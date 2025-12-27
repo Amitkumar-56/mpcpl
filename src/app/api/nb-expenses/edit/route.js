@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth";
+import { createAuditLog } from "@/lib/auditLog";
 
 export async function GET(request) {
   try {
@@ -10,7 +12,7 @@ export async function GET(request) {
     
     // Check permissions
     const permissionQuery = `
-      SELECT can_view, can_edit, can_delete 
+      SELECT can_view, can_edit, can_create 
       FROM role_permissions 
       WHERE module_name = ? AND role = ? AND employee_id = ?
     `;
@@ -44,40 +46,4 @@ export async function GET(request) {
   }
 }
 
-export async function DELETE(request) {
-  try {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const role = searchParams.get('role');
-    const employee_id = searchParams.get('employee_id');
-    const module_name = 'nb_expenses';
-    
-    const permissionQuery = `
-      SELECT can_delete 
-      FROM role_permissions 
-      WHERE module_name = ? AND role = ? AND employee_id = ?
-    `;
-    
-    const permissions = await executeQuery(permissionQuery, [module_name, role, employee_id]);
-    
-    if (permissions.length === 0 || permissions[0].can_delete !== 1) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 });
-    }
-    
-    if (role !== '5') {
-      const checkQuery = "SELECT employee_id FROM expenses WHERE id = ?";
-      const expense = await executeQuery(checkQuery, [id]);
-      
-      if (expense.length === 0 || expense[0].employee_id != employee_id) {
-        return NextResponse.json({ error: "Access denied" }, { status: 403 });
-      }
-    }
-    
-    await executeQuery("DELETE FROM expenses WHERE id = ?", [id]);
-    
-    return NextResponse.json({ message: "Deleted successfully" });
-    
-  } catch (error) {
-    return NextResponse.json({ error: "Failed to delete" }, { status: 500 });
-  }
-}
+// ✅ DELETE functionality removed - expenses cannot be deleted

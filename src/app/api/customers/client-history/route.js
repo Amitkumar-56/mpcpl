@@ -526,7 +526,7 @@ export async function PATCH(request) {
       
       // Get user info from cookies
       let userId = null;
-      let userName = 'System';
+      let userName = null;
       try {
         const { cookies } = await import('next/headers');
         const { verifyToken } = await import('@/lib/auth');

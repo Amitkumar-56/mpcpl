@@ -3,6 +3,7 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { useSession } from "@/context/SessionContext";
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -12,11 +13,16 @@ function EditStockContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
+  const { user, loading: sessionLoading } = useSession();
 
   const [stock, setStock] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_edit: false,
+    can_delete: false
+  });
   const [formData, setFormData] = useState({
     invoice_number: '',
     invoice_date: '',
@@ -43,13 +49,49 @@ function EditStockContent() {
   });
 
   useEffect(() => {
+    if (sessionLoading) return;
+    
+    if (!user) {
+      router.push('/login');
+      return;
+    }
+    
+    // Check permissions
+    checkPermissions();
+    
     if (id) {
       fetchStock();
     } else {
       setError('No stock ID provided');
       setLoading(false);
     }
-  }, [id]);
+  }, [id, user, sessionLoading]);
+
+  const checkPermissions = () => {
+    if (!user) {
+      setPermissions({ can_edit: false, can_delete: false });
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setPermissions({ can_edit: true, can_delete: true });
+      return;
+    }
+
+    // Check cached permissions
+    if (user.permissions && user.permissions['Stock']) {
+      const stockPerms = user.permissions['Stock'];
+      setPermissions({
+        can_edit: stockPerms.can_edit === true,
+        can_delete: stockPerms.can_delete === true
+      });
+      return;
+    }
+
+    // Default: no permissions
+    setPermissions({ can_edit: false, can_delete: false });
+  };
 
   const fetchStock = async () => {
     try {
@@ -138,32 +180,6 @@ function EditStockContent() {
     }
   };
 
-  const handleDelete = async () => {
-    if (!confirm('Are you sure you want to delete this stock record? This action cannot be undone.')) {
-      return;
-    }
-
-    try {
-      setSubmitting(true);
-      const response = await fetch(`/api/stock/edit?id=${id}`, {
-        method: 'DELETE',
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        alert('Stock deleted successfully!');
-        router.push('/stock');
-      } else {
-        alert('Error deleting stock: ' + (data.error || 'Unknown error'));
-      }
-    } catch (error) {
-      console.error('Error deleting stock:', error);
-      alert('Error deleting stock: ' + error.message);
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   if (loading) {
     return (
@@ -199,13 +215,6 @@ function EditStockContent() {
               >
                 Cancel
               </Link>
-              <button
-                onClick={handleDelete}
-                disabled={submitting}
-                className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:opacity-50"
-              >
-                Delete
-              </button>
             </div>
           </div>
 
@@ -528,13 +537,20 @@ function EditStockContent() {
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                disabled={submitting}
-                className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-              >
-                {submitting ? 'Updating...' : 'Update Stock'}
-              </button>
+              {permissions.can_edit && (
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="px-6 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
+                >
+                  {submitting ? 'Updating...' : 'Update Stock'}
+                </button>
+              )}
+              {!permissions.can_edit && (
+                <div className="px-6 py-2 bg-gray-300 text-gray-600 rounded cursor-not-allowed">
+                  No Edit Permission
+                </div>
+              )}
             </div>
           </form>
         </div>

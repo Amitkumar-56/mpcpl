@@ -72,27 +72,21 @@ export default function EditVoucherContent() {
   };
 
   const deleteItem = async (itemId) => {
-    if (!confirm('Delete this item?')) return;
-    
-    try {
-      const res = await fetch('/api/voucher-items', {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ item_id: itemId })
-      });
-      
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
-      
-      fetchVoucherData();
-      alert('Item deleted successfully');
-    } catch (err) {
-      alert('Error: ' + err.message);
-    }
+    // ✅ DELETE functionality removed - voucher items cannot be deleted
+    alert('Delete operation is not allowed. Please contact administrator.');
+    return;
   };
 
   if (loading) {
-    return <div className="p-8 text-center">Loading...</div>;
+    return (
+      <div className="w-full max-w-4xl mx-auto p-6">
+        <div className="animate-pulse space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+          <div className="h-64 bg-gray-200 rounded"></div>
+          <div className="h-48 bg-gray-200 rounded"></div>
+        </div>
+      </div>
+    );
   }
 
   if (error || !voucher) {
@@ -209,12 +203,8 @@ export default function EditVoucherContent() {
                     <td className="border p-2">{item.item_details}</td>
                     <td className="border p-2 text-right font-semibold">₹{parseFloat(item.amount || 0).toFixed(2)}</td>
                     <td className="border p-2 text-center">
-                      <button
-                        onClick={() => deleteItem(item.item_id)}
-                        className="bg-red-600 text-white px-3 py-1 rounded hover:bg-red-700 text-sm"
-                      >
-                        Delete
-                      </button>
+                      {/* ✅ Delete button removed - voucher items cannot be deleted */}
+                      <span className="text-gray-400 text-sm">-</span>
                     </td>
                   </tr>
                 ))

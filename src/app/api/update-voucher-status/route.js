@@ -11,8 +11,8 @@ export async function GET(request) {
     const voucher_id = searchParams.get('voucher_id');
     const status = searchParams.get('status');
 
-    // Get current user from token
-    let current_user = { id: 1, name: 'System' };
+    // Get current user from token - ALWAYS fetch from employee_profile
+    let current_user = { id: null, name: null };
     try {
       const cookieStore = await cookies();
       const token = cookieStore.get('token')?.value;
@@ -24,13 +24,24 @@ export async function GET(request) {
             `SELECT id, name FROM employee_profile WHERE id = ?`,
             [userId]
           );
-          if (users.length > 0) {
-            current_user = users[0];
+          if (users.length > 0 && users[0].name) {
+            current_user = { id: users[0].id, name: users[0].name };
+          } else {
+            // If not found, use userId but don't use 'System'
+            current_user = { id: userId, name: `Employee ID: ${userId}` };
           }
         }
       }
     } catch (authError) {
       console.error('Error getting user info:', authError);
+    }
+    
+    // If no user found, return error instead of using System
+    if (!current_user.id) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please login again.' },
+        { status: 401 }
+      );
     }
 
     let sql, params;

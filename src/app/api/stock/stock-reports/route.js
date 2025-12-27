@@ -40,7 +40,7 @@ export async function GET(request) {
              fh.filling_qty, 
              fh.available_stock, 
              fh.filling_date,
-             COALESCE(ep.name, 'System') AS created_by_name,
+             COALESCE(ep.name, NULL) AS created_by_name,
              fh.created_by,
              fh.filling_date AS transaction_date,
              CASE 

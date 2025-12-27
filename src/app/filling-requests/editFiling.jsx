@@ -812,7 +812,11 @@ export default function FillingRequests() {
   }, [user, authLoading, router]);
 
   const checkPermissions = async () => {
-    if (!user || !user.id) return;
+    if (!user || !user.id) {
+      setHasPermission(false);
+      setPermissions({ can_view: false, can_edit: false, can_create: false });
+      return;
+    }
 
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
@@ -828,9 +832,14 @@ export default function FillingRequests() {
         setHasPermission(true);
         setPermissions({
           can_view: fillingPerms.can_view,
-          can_edit: fillingPerms.can_edit,
-          can_create: fillingPerms.can_create || fillingPerms.can_edit || false
+          can_edit: fillingPerms.can_edit || false,
+          can_create: fillingPerms.can_create || false
         });
+        return;
+      } else {
+        // No view permission - deny access
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false, can_create: false });
         return;
       }
     }
@@ -842,7 +851,16 @@ export default function FillingRequests() {
       const cachedPerms = JSON.parse(cached);
       if (cachedPerms.can_view) {
         setHasPermission(true);
-        setPermissions(cachedPerms);
+        setPermissions({
+          can_view: cachedPerms.can_view,
+          can_edit: cachedPerms.can_edit || false,
+          can_create: cachedPerms.can_create || false
+        });
+        return;
+      } else {
+        // No view permission - deny access
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false, can_create: false });
         return;
       }
     }
@@ -862,8 +880,8 @@ export default function FillingRequests() {
       ]);
 
       const perms = {
-        can_view: viewData.allowed,
-        can_edit: editData.allowed,
+        can_view: viewData.allowed || false,
+        can_edit: editData.allowed || false,
         can_create: createData.allowed || false
       };
 
@@ -875,11 +893,14 @@ export default function FillingRequests() {
         setHasPermission(true);
         setPermissions(perms);
       } else {
+        // No view permission - deny access
         setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false, can_create: false });
       }
     } catch (error) {
       console.error('Permission check error:', error);
       setHasPermission(false);
+      setPermissions({ can_view: false, can_edit: false, can_create: false });
     }
   };
 
@@ -993,10 +1014,20 @@ export default function FillingRequests() {
       }
     };
 
-    if (user && hasPermission) {
+    // ✅ Only fetch data if user is authenticated AND has permission
+    if (user && hasPermission && !authLoading) {
       fetchRequests();
+    } else if (user && !hasPermission && !authLoading) {
+      // User authenticated but no permission - don't fetch data
+      setRequests([]);
+      setPagination({
+        page: 1,
+        recordsPerPage: 10,
+        totalRecords: 0,
+        totalPages: 1,
+      });
     }
-  }, [searchParams, statusFilter, search, user, hasPermission]);
+  }, [searchParams, statusFilter, search, user, hasPermission, authLoading]);
 
   // Handlers
   const handleStatusChange = useCallback((newStatus) => {
@@ -1182,8 +1213,30 @@ export default function FillingRequests() {
       />
     )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user]);
 
-  if (!user || authLoading) return null;
+  // ✅ Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 px-4 py-6 overflow-auto flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
 
+  // ✅ Redirect if user is not authenticated
+  if (!user) {
+    return null; // Will redirect via useEffect
+  }
+
+  // ✅ Show access denied if no permission - don't load data
   if (!hasPermission) {
     return (
       <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -1191,11 +1244,13 @@ export default function FillingRequests() {
         <div className="flex flex-col flex-1 overflow-hidden">
           <Header />
           <main className="flex-1 px-4 py-6 overflow-auto">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
               <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
               <p className="text-red-600">You do not have permission to view filling requests.</p>
+              <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
             </div>
           </main>
+          <Footer />
         </div>
       </div>
     );

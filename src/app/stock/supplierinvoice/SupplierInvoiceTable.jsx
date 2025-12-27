@@ -9,6 +9,7 @@ export default function SupplierInvoiceTable({ supplierId }) {
   const [amount, setAmount] = useState("");
   const [payDate, setPayDate] = useState(new Date().toISOString().slice(0, 10));
   const [remarks, setRemarks] = useState("");
+  const [tdsDeduction, setTdsDeduction] = useState("");
 
   async function fetchData() {
     const res = await fetch(`/api/stock/supplierinvoice?id=${supplierId}`);
@@ -25,6 +26,7 @@ export default function SupplierInvoiceTable({ supplierId }) {
     setAmount("");
     setPayDate(new Date().toISOString().slice(0, 10));
     setRemarks("");
+    setTdsDeduction("");
     setShowModal(true);
   }
 
@@ -41,6 +43,7 @@ export default function SupplierInvoiceTable({ supplierId }) {
         pay_date: payDate,
         remarks,
         v_invoice: modalData.v_invoice,
+        tds_deduction: tdsDeduction || 0,
       }),
     });
 
@@ -119,16 +122,19 @@ export default function SupplierInvoiceTable({ supplierId }) {
             >
               &times;
             </button>
-            <h2 className="text-lg font-semibold mb-2">Update Invoice</h2>
+            <h2 className="text-lg font-semibold mb-2">Make Payment</h2>
             <form onSubmit={handlePayment} className="flex flex-col gap-2">
+              <label className="text-sm font-medium text-gray-700">Payment Amount</label>
               <input
                 type="number"
-                placeholder="Amount Paid"
+                step="0.01"
+                placeholder="Enter payment amount"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 className="border p-2 rounded"
                 required
               />
+              <label className="text-sm font-medium text-gray-700">Payment Date</label>
               <input
                 type="date"
                 value={payDate}
@@ -136,14 +142,25 @@ export default function SupplierInvoiceTable({ supplierId }) {
                 className="border p-2 rounded"
                 required
               />
+              <label className="text-sm font-medium text-gray-700">TDS Deduction (Manual)</label>
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Enter TDS deduction (optional)"
+                value={tdsDeduction}
+                onChange={(e) => setTdsDeduction(e.target.value)}
+                className="border p-2 rounded"
+              />
+              <label className="text-sm font-medium text-gray-700">Remarks</label>
               <textarea
-                placeholder="Remarks"
+                placeholder="Enter remarks (optional)"
                 value={remarks}
                 onChange={(e) => setRemarks(e.target.value)}
                 className="border p-2 rounded"
+                rows="3"
               />
               <button type="submit" className="bg-green-600 text-white p-2 rounded hover:bg-green-700">
-                Save
+                Save Payment
               </button>
             </form>
           </div>

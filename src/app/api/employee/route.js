@@ -17,22 +17,7 @@ export async function GET() {
   }
 }
 
-export async function DELETE(req) {
-  try {
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json({ message: 'ID is required' }, { status: 400 });
-    }
-
-    await db.execute('DELETE FROM employee_profile WHERE id = ?', [id]);
-    return NextResponse.json({ message: 'Employee deleted' });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ message: 'Database error' }, { status: 500 });
-  }
-}
+// ✅ DELETE functionality removed - employees cannot be deleted
 
 export async function POST(req) {
   const conn = await db.getConnection();
@@ -197,7 +182,7 @@ export async function POST(req) {
 
     // Create audit log for employee creation
     try {
-      let creatorName = 'System';
+      let creatorName = null;
       let creatorRole = null;
       if (currentUserId) {
         try {

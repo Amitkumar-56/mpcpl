@@ -85,7 +85,7 @@ export default function SupplyDetailsPage() {
                 }
                 
                 // ✅ FIX: Use user_display_name first (from employee_profile join), then user_name, then fallback
-                const changedByName = log.user_display_name || log.user_name || log.employee_name || 'System';
+                const changedByName = log.user_display_name || log.user_name || log.employee_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A');
                 
                 historyData.push({
                   type: 'audit',

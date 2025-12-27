@@ -97,11 +97,31 @@ export async function POST(req) {
               module_name VARCHAR(255) NOT NULL,
               can_view TINYINT(1) DEFAULT 0,
               can_edit TINYINT(1) DEFAULT 0,
-              can_delete TINYINT(1) DEFAULT 0,
+              can_create TINYINT(1) DEFAULT 0,
               created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
               INDEX idx_customer (customer_id)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
           `);
+          
+          // ✅ Add can_create column if table exists but column doesn't
+          try {
+            await conn.execute(`ALTER TABLE customer_permissions ADD COLUMN can_create TINYINT(1) DEFAULT 0`);
+          } catch (alterErr) {
+            // Column already exists, ignore
+            if (!alterErr.message.includes('Duplicate column name')) {
+              console.warn('Error adding can_create column:', alterErr.message);
+            }
+          }
+          
+          // ✅ Remove can_delete column if it exists
+          try {
+            await conn.execute(`ALTER TABLE customer_permissions DROP COLUMN can_delete`);
+          } catch (dropErr) {
+            // Column doesn't exist, ignore
+            if (!dropErr.message.includes("doesn't exist") && !dropErr.message.includes('Unknown column')) {
+              console.warn('Error removing can_delete column:', dropErr.message);
+            }
+          }
         } catch (createErr) {
           // If create fails, still continue; table may already exist or permissions may not be needed
           console.error('Error ensuring customer_permissions table exists (tx):', createErr);
@@ -125,13 +145,14 @@ export async function POST(req) {
             const perm = permissionsInner[moduleName] || {};
             const can_view = perm.can_view === true || perm.can_view === 1 || perm.can_view === '1' ? 1 : 0;
             const can_edit = perm.can_edit === true || perm.can_edit === 1 || perm.can_edit === '1' ? 1 : 0;
+            const can_create = perm.can_create === true || perm.can_create === 1 || perm.can_create === '1' ? 1 : 0;
 
             try {
               await conn.execute(
                 `INSERT INTO customer_permissions 
-                 (customer_id, module_name, can_view, can_edit, created_at)
-                 VALUES (?, ?, ?, ?, NOW())`,
-                [createdId, moduleName, can_view, can_edit]
+                 (customer_id, module_name, can_view, can_edit, can_create, created_at)
+                 VALUES (?, ?, ?, ?, ?, NOW())`,
+                [createdId, moduleName, can_view, can_edit, can_create]
               );
             } catch (permInsertErr) {
               console.error('Error inserting permission (tx) for module', moduleName, permInsertErr.sqlMessage || permInsertErr.message || permInsertErr);
@@ -150,7 +171,17 @@ export async function POST(req) {
       try {
         const currentUser = await getCurrentUser();
         const userId = currentUser?.userId || null;
-        const userName = currentUser?.userName || 'System';
+        // Ensure userName is fetched from employee_profile
+        let userName = currentUser?.userName;
+        if (!userName && currentUser?.userId) {
+          const users = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [currentUser.userId]
+          );
+          if (users.length > 0 && users[0].name) {
+            userName = users[0].name;
+          }
+        }
 
         await createAuditLog({
           page: 'Customers',

@@ -32,7 +32,7 @@ export async function GET(request) {
     const logs = await executeQuery(
       `SELECT 
         cal.*,
-        COALESCE(ep.name, cal.user_name, 'System') AS employee_name
+        COALESCE(ep.name, cal.user_name) AS employee_name
       FROM customer_audit_log cal
       LEFT JOIN employee_profile ep ON cal.user_id = ep.id
       WHERE cal.customer_id = ? 
@@ -43,7 +43,7 @@ export async function GET(request) {
     // Map the results to use employee_name
     const logsWithNames = logs.map(log => ({
       ...log,
-      user_name: log.employee_name || log.user_name || 'System'
+      user_name: log.employee_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : null)
     }));
 
     return NextResponse.json({

@@ -367,7 +367,7 @@ export async function POST(request) {
         uniqueCode: `PURCHASE-${invoiceNumber}`,
         section: 'Purchase for Sale',
         userId: userId,
-        userName: userName || 'System',
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
         action: 'add',
         remarks: `Purchase added: ${quantityInLtrNum} Ltr (Invoice: ${invoiceNumber}, Tanker: ${tankerNumber || 'N/A'}) for Station ID ${fs_id}, Product ID ${product_id}`,
         oldValue: { quantity: 0, station_id: fs_id, product_id: product_id },

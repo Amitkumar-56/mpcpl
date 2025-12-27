@@ -45,7 +45,7 @@ export async function GET(req) {
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-            'System'
+            NULL
           ) as created_by_name,
           CASE 
             WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'

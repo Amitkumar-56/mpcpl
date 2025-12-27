@@ -1,9 +1,8 @@
-// src/app/api/employee/update-status/route.js
+import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { createAuditLog } from '@/lib/auditLog';
 
 export async function PATCH(request) {
   try {
@@ -42,7 +41,7 @@ export async function PATCH(request) {
     }
 
     const adminCheck = await executeQuery(
-      `SELECT role FROM employee_profile WHERE id = ?`,
+      `SELECT role, name FROM employee_profile WHERE id = ?`,
       [userId]
     );
 
@@ -53,6 +52,8 @@ export async function PATCH(request) {
       }, { status: 403 });
     }
 
+    const currentAdminName = adminCheck[0].name || 'Admin';
+    
     const { employeeId, status } = await request.json();
 
     if (!employeeId || status === undefined) {
@@ -87,20 +88,6 @@ export async function PATCH(request) {
     const newStatus = status ? 1 : 0;
     const employeeName = employee[0].name;
 
-    // Get current user name
-    let currentUserName = 'System';
-    try {
-      const currentUser = await executeQuery(
-        `SELECT name FROM employee_profile WHERE id = ?`,
-        [userId]
-      );
-      if (currentUser.length > 0) {
-        currentUserName = currentUser[0].name;
-      }
-    } catch (nameError) {
-      console.error('Error getting current user name:', nameError);
-    }
-
     // Update status
     await executeQuery(
       `UPDATE employee_profile SET status = ? WHERE id = ?`,
@@ -115,9 +102,9 @@ export async function PATCH(request) {
       uniqueCode: `EMPLOYEE-${employeeId}`,
       section: 'Update Status',
       userId: userId,
-      userName: currentUserName,
-      action: newStatus === 1 ? 'approve' : 'reject',
-      remarks: `Employee ${employeeName} ${newStatus === 1 ? 'activated' : 'deactivated'}`,
+      userName: currentAdminName,
+      action: newStatus === 1 ? 'activate' : 'deactivate',
+      remarks: `Employee ${employeeName} ${newStatus === 1 ? 'activated' : 'deactivated'} by ${currentAdminName}`,
       oldValue: { status: oldStatus, name: employeeName },
       newValue: { status: newStatus, name: employeeName },
       fieldName: 'status',
@@ -127,7 +114,8 @@ export async function PATCH(request) {
 
     return NextResponse.json({ 
       success: true,
-      message: `Employee ${status ? 'activated' : 'deactivated'} successfully` 
+      message: `Employee ${status ? 'activated' : 'deactivated'} successfully`,
+      adminName: currentAdminName
     });
 
   } catch (error) {
@@ -138,4 +126,3 @@ export async function PATCH(request) {
     }, { status: 500 });
   }
 }
-

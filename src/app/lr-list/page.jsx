@@ -1,10 +1,10 @@
 'use client';
-import ExportButton from '@/components/ExportButton';
-import Link from 'next/link';
-import Sidebar from '@/components/sidebar';
-import Header from '@/components/Header';
 import Footer from '@/components/Footer';
-import { useSearchParams } from 'next/navigation';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
+import { useSession } from '@/context/SessionContext';
+import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
 // Loading Component
@@ -21,6 +21,16 @@ function LoadingFallback() {
 
 // Error Component
 function ErrorFallback({ error, onRetry }) {
+  const isAuthError = error && (error.includes('Unauthorized') || error.includes('login') || error.includes('Please login'));
+  
+  const handleLogin = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('user');
+      sessionStorage.clear();
+      window.location.href = '/login';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
       <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-6">
@@ -28,14 +38,25 @@ function ErrorFallback({ error, onRetry }) {
           <svg className="w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
           </svg>
-          <h3 className="text-lg font-semibold mb-2">Error Loading Page</h3>
+          <h3 className="text-lg font-semibold mb-2">
+            {isAuthError ? 'Authentication Required' : 'Error Loading Page'}
+          </h3>
           <p className="text-gray-600 mb-4">{error}</p>
-          <button 
-            onClick={onRetry}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
-          >
-            Try Again
-          </button>
+          {isAuthError ? (
+            <button 
+              onClick={handleLogin}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
+            >
+              Go to Login
+            </button>
+          ) : (
+            <button 
+              onClick={onRetry}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
+            >
+              Try Again
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -44,37 +65,43 @@ function ErrorFallback({ error, onRetry }) {
 
 // Main Content Component
 function LRManagementContent() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [shipments, setShipments] = useState([]);
-  const [permissions, setPermissions] = useState({});
+  const [permissions, setPermissions] = useState({ can_view: 0, can_edit: 0, can_create: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const searchParams = useSearchParams();
 
+  // Check authentication and fetch data
   useEffect(() => {
-    // Only fetch if component is mounted
-    let isMounted = true;
-    
-    if (isMounted) {
-      fetchShipments();
+    if (authLoading) return;
+
+    if (!user) {
+      router.push('/login');
+      return;
     }
-    
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+
+    fetchShipments();
+  }, [user, authLoading, router]);
 
   const fetchShipments = async () => {
+    if (!user) {
+      setLoading(false);
+      setError('Please login to access this page.');
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
       
-      // Add timeout to prevent infinite loading
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
       
       const response = await fetch('/api/lr-list', {
         signal: controller.signal,
-        credentials: 'include', // Include cookies for auth
+        credentials: 'include',
         cache: 'no-store'
       });
       
@@ -82,42 +109,53 @@ function LRManagementContent() {
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Network error' }));
+        
+        if (response.status === 401) {
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('user');
+            sessionStorage.clear();
+          }
+          router.push('/login');
+          return;
+        }
+        
         throw new Error(errorData.error || `Failed to fetch shipments (${response.status})`);
       }
       
       const data = await response.json();
       
-      // Check if data has expected structure
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
       
-      setShipments(data.shipments || []);
-      setPermissions(data.permissions || {});
-      
-      // ✅ Debug: Log permissions to help troubleshoot
-      console.log('✅ [LR List] Data loaded successfully:', {
-        shipmentsCount: (data.shipments || []).length,
-        permissions: data.permissions
-      });
+      if (user) {
+        setShipments(data.shipments || []);
+        const loadedPermissions = data.permissions || { can_view: 0, can_edit: 0, can_create: 0 };
+        setPermissions(loadedPermissions);
+        
+        console.log('✅ [LR List] Permissions loaded:', loadedPermissions);
+        console.log('✅ [LR List] can_create value:', loadedPermissions.can_create, 'Type:', typeof loadedPermissions.can_create);
+        console.log('✅ [LR List] Button should show:', loadedPermissions.can_create === 1 || loadedPermissions.can_create === true);
+      }
       
     } catch (err) {
-      // Handle abort (timeout)
       if (err.name === 'AbortError') {
         setError('Request timeout. Please try again.');
       } else {
         setError(err.message || 'Failed to load shipments. Please try again.');
       }
-      console.error('❌ [LR List] Error fetching shipments:', err);
+      console.error('❌ [LR List] Error:', err);
     } finally {
-      // ✅ Always set loading to false
       setLoading(false);
     }
   };
 
-
-  if (loading) {
+  if (authLoading || loading) {
     return <LoadingFallback />;
+  }
+
+  if (!user) {
+    return null;
   }
 
   if (error && !shipments.length) {
@@ -126,49 +164,73 @@ function LRManagementContent() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* ✅ FIX: Check can_create permission - handle both number and boolean */}
-      {(permissions.can_create === 1 || permissions.can_create === true) && (
-        <Link 
-          href="/create-lr"
-          className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 rounded-full shadow-lg transition duration-200 z-50 flex items-center space-x-2 text-sm sm:text-base"
-        >
-          <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
-          <span className="hidden sm:inline">Create LR</span>
-        </Link>
-      )}
-
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
-        {error && (
-          <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                </svg>
-                <span className="text-red-800">{error}</span>
-              </div>
-              <button 
-                onClick={() => setError('')}
-                className="text-red-500 hover:text-red-700"
+        {/* Header Section with Create LR Button */}
+        <div className="mb-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">LR Management</h1>
+              <p className="text-gray-600 mt-1">
+                Total {shipments.length} shipment{shipments.length !== 1 ? 's' : ''}
+              </p>
+            </div>
+            
+            {/* 🔥 CREATE LR BUTTON - Show if user has create permission */}
+            {(permissions?.can_create === 1 || permissions?.can_create === true || permissions?.can_create === '1') && (
+              <Link
+                href="/create-lr"
+                className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                 </svg>
+                Create New LR
+              </Link>
+            )}
+          </div>
+          
+          {error && (
+            <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-red-800">{error}</span>
+                </div>
+                <button 
+                  onClick={() => setError('')}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Desktop Table */}
+        <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-900">Shipment List</h2>
+              <button 
+                onClick={fetchShipments}
+                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                disabled={loading}
+              >
+                <svg className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Refresh
               </button>
             </div>
           </div>
-        )}
-
-        <div className="bg-white rounded-lg shadow-sm border">
-          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200">
-            <h2 className="text-base sm:text-lg font-semibold text-gray-900">Shipment List</h2>
-          </div>
           
-          {/* Desktop Table */}
           <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-full">
               <thead className="bg-gray-50">
                 <tr>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
@@ -193,26 +255,28 @@ function LRManagementContent() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-3">
                           <Link 
                             href={`/transport-receipt?id=${shipment.id}`}
                             target="_blank"
-                            className="text-blue-600 hover:text-blue-900 transition duration-150"
+                            className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm"
                           >
                             View
                           </Link>
                           
-                          {(permissions.can_edit === 1 || permissions.can_edit === true) && (
+                          {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
                             <>
                               <span className="text-gray-300">|</span>
                               <Link 
                                 href={`/create-lr?id=${shipment.id}`}
-                                className="text-orange-600 hover:text-orange-900 transition duration-150"
+                                className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
                               >
                                 Edit
                               </Link>
                             </>
                           )}
+                          
+                          {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
                         </div>
                       </td>
                     </tr>
@@ -225,14 +289,7 @@ function LRManagementContent() {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
                         <p className="text-lg font-medium">No shipments found</p>
-                        {(permissions.can_edit === 1 || permissions.can_edit === true) && (
-                          <Link 
-                            href="/create-lr"
-                            className="mt-2 inline-block bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition duration-200"
-                          >
-                            Create First LR
-                          </Link>
-                        )}
+                        <p className="text-sm mt-1">Create your first LR using the button above</p>
                       </div>
                     </td>
                   </tr>
@@ -251,68 +308,61 @@ function LRManagementContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-base font-medium">No shipments found</p>
-                {permissions.can_edit === 1 && (
-                  <Link 
-                    href="/create-lr"
-                    className="mt-3 inline-block bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition duration-200 text-sm"
-                  >
-                    Create First LR
-                  </Link>
-                )}
               </div>
             </div>
           ) : (
             shipments.map((shipment) => (
               <div key={shipment.id} className="bg-white rounded-lg shadow-sm border p-3 sm:p-4">
-              <div className="space-y-2">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h3 className="font-semibold text-blue-600">LR: {shipment.lr_id}</h3>
-                    <p className="text-sm text-gray-500">ID: {shipment.id}</p>
-                  </div>
-                  <div className="flex space-x-2">
-                    <Link 
-                      href={`/transport-receipt?id=${shipment.id}`}
-                      target="_blank"
-                      className="text-blue-600 text-sm"
-                    >
-                      View
-                    </Link>
-                    {permissions.can_edit === 1 && (
+                <div className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h3 className="font-semibold text-blue-600">LR: {shipment.lr_id}</h3>
+                      <p className="text-sm text-gray-500">ID: {shipment.id}</p>
+                    </div>
+                    <div className="flex space-x-2">
                       <Link 
-                        href={`/create-lr?id=${shipment.id}`}
-                        className="text-orange-600 text-sm"
+                        href={`/transport-receipt?id=${shipment.id}`}
+                        target="_blank"
+                        className="text-blue-600 text-sm"
                       >
-                        Edit
+                        View
                       </Link>
-                    )}
+                      {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
+                        <Link 
+                          href={`/create-lr?id=${shipment.id}`}
+                          className="text-orange-600 text-sm"
+                        >
+                          Edit
+                        </Link>
+                      )}
+                      {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
+                    </div>
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <div>
-                    <span className="font-medium">Consigner:</span>
-                    <p>{shipment.consigner}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Consignee:</span>
-                    <p>{shipment.consignee}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">From:</span>
-                    <p>{shipment.from_location}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">To:</span>
-                    <p>{shipment.to_location}</p>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="font-medium">Tanker No:</span>
-                    <p>{shipment.tanker_no}</p>
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <span className="font-medium">Consigner:</span>
+                      <p>{shipment.consigner}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">Consignee:</span>
+                      <p>{shipment.consignee}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">From:</span>
+                      <p>{shipment.from_location}</p>
+                    </div>
+                    <div>
+                      <span className="font-medium">To:</span>
+                      <p>{shipment.to_location}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <span className="font-medium">Tanker No:</span>
+                      <p>{shipment.tanker_no}</p>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))
+            ))
           )}
         </div>
       </main>

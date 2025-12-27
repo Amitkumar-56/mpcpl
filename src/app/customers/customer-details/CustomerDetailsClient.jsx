@@ -268,12 +268,9 @@ export default function CustomerDetailsClient() {
   };
 
   const handleDeleteUser = async (userId) => {
-    if (
-      !confirm(
-        "Are you sure you want to delete this user? This action cannot be undone."
-      )
-    )
-      return;
+    // ✅ DELETE functionality removed - users cannot be deleted
+    alert('Delete operation is not allowed. Please contact administrator.');
+    return;
 
     try {
       const res = await fetch("/api/customers/customer-details", {
@@ -288,8 +285,7 @@ export default function CustomerDetailsClient() {
         throw new Error(data.error || "Failed to delete user");
       }
 
-      alert(data.message || "User deleted successfully");
-      fetchCustomerDetails();
+      // This code will never execute since delete is disabled
     } catch (err) {
       alert(err.message || "Error deleting user");
     }
@@ -736,12 +732,7 @@ function UsersTab({ customer, onAddUser, onEditUser, onDeleteUser }) {
                     >
                       Update Password
                     </button>
-                    <button
-                      onClick={() => onDeleteUser(user.id)}
-                      className="text-red-600 hover:text-red-900 transition-colors"
-                    >
-                      Delete
-                    </button>
+                    {/* ✅ Delete button removed - users cannot be deleted */}
                   </td>
                 </tr>
               ))}

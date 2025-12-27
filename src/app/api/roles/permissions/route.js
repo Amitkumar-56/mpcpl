@@ -49,7 +49,6 @@ export async function GET(request) {
         can_view,
         can_edit,
         can_create,
-        can_delete,
         created_at
       FROM role_permissions
       WHERE employee_id IS NULL OR employee_id = 0
@@ -67,8 +66,7 @@ export async function GET(request) {
         rolePermissions[role][perm.module_name] = {
           can_view: perm.can_view === 1,
           can_edit: perm.can_edit === 1,
-          can_create: perm.can_create === 1 || perm.can_create === true,
-          can_delete: perm.can_delete === 1
+          can_create: perm.can_create === 1 || perm.can_create === true
         };
       }
     });
@@ -163,21 +161,19 @@ export async function POST(request) {
     const can_view = perms['View'] ? 1 : 0;
     const can_edit = perms['Edit'] ? 1 : 0;
     const can_create = perms['Create'] ? 1 : 0;
-    const can_delete = perms['Delete'] ? 1 : 0;
 
     for (const [moduleName, enabled] of Object.entries(modules)) {
       if (enabled) {
         // Insert permission for this module with the selected permissions
         await executeQuery(
           `INSERT INTO role_permissions 
-           (role, module_name, can_view, can_edit, can_create, can_delete, employee_id, created_at)
-           VALUES (?, ?, ?, ?, ?, ?, 0, NOW())
+           (role, module_name, can_view, can_edit, can_create, employee_id, created_at)
+           VALUES (?, ?, ?, ?, ?, 0, NOW())
            ON DUPLICATE KEY UPDATE
            can_view = VALUES(can_view),
            can_edit = VALUES(can_edit),
-           can_create = VALUES(can_create),
-           can_delete = VALUES(can_delete)`,
-          [roleNumber, moduleName, can_view, can_edit, can_create, can_delete]
+           can_create = VALUES(can_create)`,
+          [roleNumber, moduleName, can_view, can_edit, can_create]
         );
       }
     }

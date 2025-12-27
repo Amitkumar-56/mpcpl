@@ -1,6 +1,7 @@
 //src/app/api/cst/create-requests/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from "@/lib/auditLog";
 
 export async function POST(request) {
   try {
@@ -11,6 +12,7 @@ export async function POST(request) {
     
     const {
       product_id,
+      sub_product_id, // ✅ Accept sub_product_id if provided
       station_id,
       licence_plate,
       phone,
@@ -21,11 +23,11 @@ export async function POST(request) {
     } = body;
 
     // Validate required fields
-    if (!product_id || !station_id || !licence_plate || !phone || !customer_id) {
+    if ((!product_id && !sub_product_id) || !station_id || !licence_plate || !phone || !customer_id) {
       console.log('❌ Missing required fields');
       return NextResponse.json({ 
         success: false, 
-        message: 'Missing required fields' 
+        message: 'Missing required fields (product/sub-product, station, vehicle, phone, or customer)' 
       }, { status: 400 });
     }
 
@@ -148,7 +150,10 @@ export async function POST(request) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // Get product details
+    // ✅ Use sub_product_id if provided, otherwise use product_id as fallback
+    const subProductIdToUse = sub_product_id || product_id;
+    
+    // Get product details using sub_product_id (product_code.id)
     const productQuery = `
       SELECT 
         pc.id as product_code_id,
@@ -160,35 +165,66 @@ export async function POST(request) {
       LEFT JOIN products p ON pc.product_id = p.id 
       WHERE pc.id = ?
     `;
-    const productResult = await executeQuery(productQuery, [product_id]);
+    const productResult = await executeQuery(productQuery, [subProductIdToUse]);
     
     if (productResult.length === 0) {
       return NextResponse.json({
         success: false,
-        message: 'Invalid product selected'
+        message: 'Invalid product code (sub-product) selected'
       }, { status: 400 });
     }
 
     const productData = productResult[0];
 
-    // Get price
-    const priceQuery = `
+    // Get price - check for sub_product_id match first, then product_id only
+    let priceQuery = '';
+    let priceParams = [];
+    
+    // First try to get price with sub_product_id match
+    priceQuery = `
       SELECT price 
       FROM deal_price 
       WHERE com_id = ? 
         AND station_id = ?
         AND product_id = ?
+        AND sub_product_id = ?
         AND is_active = 1
         AND status = 'active'
       ORDER BY updated_date DESC
       LIMIT 1
     `;
-
-    const priceResult = await executeQuery(priceQuery, [
+    
+    priceParams = [
       customer_id,
       station_id,
-      productData.product_id
-    ]);
+      productData.product_id,
+      productData.sub_product_id
+    ];
+    
+    let priceResult = await executeQuery(priceQuery, priceParams);
+    
+    // If no exact match with sub_product_id, try without sub_product_id
+    if (priceResult.length === 0) {
+      priceQuery = `
+        SELECT price 
+        FROM deal_price 
+        WHERE com_id = ? 
+          AND station_id = ?
+          AND product_id = ?
+          AND is_active = 1
+          AND status = 'active'
+        ORDER BY updated_date DESC
+        LIMIT 1
+      `;
+      
+      priceParams = [
+        customer_id,
+        station_id,
+        productData.product_id
+      ];
+      
+      priceResult = await executeQuery(priceQuery, priceParams);
+    }
 
     let price = 0;
     if (priceResult.length > 0) {
@@ -266,6 +302,70 @@ export async function POST(request) {
     console.log('✅ Database insert result:', result);
 
     if (result.affectedRows === 1) {
+      // ✅ Get customer name from customers table
+      let customerName = null;
+      let customerPermissions = {};
+      
+      try {
+        const customerInfo = await executeQuery(
+          `SELECT id, name FROM customers WHERE id = ?`,
+          [parseInt(customer_id)]
+        );
+        
+        if (customerInfo.length > 0) {
+          customerName = customerInfo[0].name;
+          
+          // ✅ Check customer_permissions
+          const permissionRows = await executeQuery(
+            `SELECT module_name, can_view, can_edit, can_create 
+             FROM customer_permissions 
+             WHERE customer_id = ?`,
+            [parseInt(customer_id)]
+          );
+          
+          permissionRows.forEach((row) => {
+            customerPermissions[row.module_name] = {
+              can_view: Boolean(row.can_view),
+              can_edit: Boolean(row.can_edit),
+              can_create: Boolean(row.can_create),
+            };
+          });
+        }
+      } catch (custError) {
+        console.error('Error fetching customer info:', custError);
+      }
+
+      // ✅ Create audit log with customer name and permissions
+      try {
+        await createAuditLog({
+          page: 'Customer Dashboard - Filling Requests',
+          uniqueCode: `FR-CST-${newRid}`,
+          section: 'Create Filling Request',
+          userId: parseInt(customer_id),
+          userName: customerName || `Customer ID: ${customer_id}`,
+          action: 'create',
+          remarks: `Created filling request ${newRid}: ${productData.product_name}, Qty: ${qty}, Vehicle: ${licence_plate.toUpperCase()}, Station: ${station_id}`,
+          oldValue: null,
+          newValue: {
+            rid: newRid,
+            customer_id: parseInt(customer_id),
+            customer_name: customerName,
+            product_id: productData.product_id,
+            product_name: productData.product_name,
+            station_id: parseInt(station_id),
+            vehicle_number: licence_plate.toUpperCase(),
+            qty: parseFloat(qty) || 0,
+            price: price,
+            total_amount: (price * parseFloat(qty || 0)).toFixed(2),
+            permissions: customerPermissions
+          }
+        });
+        console.log('✅ Audit log created for customer filling request');
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+        // Continue even if audit log fails
+      }
+
       // ✅ FIX: Create filling_logs entry with customer ID (for CST requests)
       // Customer creates request, so created_by = customer_id
       try {

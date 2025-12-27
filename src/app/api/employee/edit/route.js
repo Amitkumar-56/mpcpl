@@ -1,4 +1,3 @@
-// src/app/api/employee/edit/route.js
 import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
@@ -35,9 +34,9 @@ export async function GET(request) {
       );
     }
 
-    // Get permissions - try can_create first, fallback to can_delete
+    // Get permissions for this employee
     let permissionsQuery = `
-      SELECT module_name, can_view, can_edit, can_create, can_delete 
+      SELECT module_name, can_view, can_edit, can_create
       FROM role_permissions 
       WHERE employee_id = ?
     `;
@@ -90,6 +89,13 @@ export async function PUT(request) {
           updateData[key] = value; // Keep as string, will parse later
         } else if (key === 'picture' && value instanceof File) {
           updateData[key] = value; // Keep File object for processing
+        } else if (key === 'current_data') {
+          // Parse current data for comparison
+          try {
+            updateData[key] = JSON.parse(value);
+          } catch (e) {
+            console.error('Error parsing current_data:', e);
+          }
         } else {
           updateData[key] = value;
         }
@@ -112,29 +118,36 @@ export async function PUT(request) {
       );
     }
 
-    // Get user info for audit log
-    let userId = null;
-    let userName = 'System';
+    // Get current user info for audit log
+    let currentUserId = null;
+    let currentUserName = null;
+    let currentUserRole = null;
+    
     try {
-      const cookieStore = cookies();
+      const cookieStore = await cookies();
       const token = cookieStore.get('token')?.value;
       if (token) {
         const decoded = verifyToken(token);
         if (decoded) {
-          userId = decoded.userId || decoded.id;
+          currentUserId = decoded.userId || decoded.id;
+          
+          // Get current user details from database
           const users = await executeQuery(
-            `SELECT id, name FROM employee_profile WHERE id = ?`,
-            [userId]
+            `SELECT id, name, role FROM employee_profile WHERE id = ?`,
+            [currentUserId]
           );
+          
           if (users.length > 0) {
-            userName = users[0].name;
+            currentUserName = users[0].name;
+            currentUserRole = users[0].role;
           }
         }
       }
     } catch (userError) {
       console.error('Error getting user info:', userError);
     }
-    // Get old employee data
+
+    // Get old employee data from database
     const oldEmployeeQuery = `SELECT * FROM employee_profile WHERE id = ?`;
     const oldEmployeeResult = await executeQuery(oldEmployeeQuery, [id]);
 
@@ -147,15 +160,14 @@ export async function PUT(request) {
 
     const oldEmployee = oldEmployeeResult[0];
 
-    // Build update query dynamically
+    // Build update query for employee_profile
     const updateFields = [];
     const updateValues = [];
     const changes = {};
 
-    // Ensure id is not treated as a column
-    if (updateData.id !== undefined) {
-      delete updateData.id;
-    }
+    // Store ID separately and remove from updateData
+    const employeeId = updateData.id || id;
+    delete updateData.id;
 
     // Handle password separately (hash it)
     if (updateData.password !== undefined && updateData.password !== null && updateData.password !== '') {
@@ -231,12 +243,34 @@ export async function PUT(request) {
       }
     }
 
-    // Store permissions separately (not a column in employee_profile table)
+    // Store permissions separately
     const permissionsData = updateData.permissions;
     delete updateData.permissions;
     
-    // Store role for permissions (before it gets processed in the loop)
-    const roleForPermissions = updateData.role || oldEmployee.role;
+    // Store role for permissions
+    let roleForPermissions = oldEmployee.role;
+    if (updateData.role !== undefined) {
+      roleForPermissions = updateData.role;
+    }
+
+    // Handle fs_id (checkboxes)
+    if (updateData.fs_id !== undefined) {
+      // If it's an array (from checkboxes), join with comma
+      let fsIdValue = updateData.fs_id;
+      if (Array.isArray(fsIdValue)) {
+        fsIdValue = fsIdValue.filter(id => id).join(',');
+      }
+      
+      const oldFsId = oldEmployee.fs_id || '';
+      const newFsId = fsIdValue || '';
+      
+      if (oldFsId !== newFsId) {
+        updateFields.push('fs_id = ?');
+        updateValues.push(newFsId);
+        changes.fs_id = { old: oldFsId, new: newFsId };
+      }
+      delete updateData.fs_id;
+    }
 
     // Only update fields that have actually changed
     Object.keys(updateData).forEach(key => {
@@ -245,26 +279,27 @@ export async function PUT(request) {
         return;
       }
       
+      // Skip non-column fields
+      if (['current_data', 'fs_id[]'].includes(key)) {
+        return;
+      }
+      
       // Get old and new values
       const oldValue = oldEmployee[key];
       const newValue = updateData[key];
       
-      // Handle numeric fields (role, status, salary) - compare as numbers
-      const numericFields = ['role', 'status', 'salary'];
+      // Handle different field types
       let hasChanged = false;
       
-      if (numericFields.includes(key)) {
+      if (['role', 'status', 'salary'].includes(key)) {
+        // Handle numeric fields
         const oldNum = oldValue !== null && oldValue !== undefined ? Number(oldValue) : null;
         const newNum = newValue !== null && newValue !== undefined ? Number(newValue) : null;
         hasChanged = oldNum !== newNum;
       } else {
-        // For string fields, compare trimmed values
-        const oldStr = oldValue !== null && oldValue !== undefined 
-          ? String(oldValue).trim() 
-          : '';
-        const newStr = newValue !== null && newValue !== undefined 
-          ? String(newValue).trim() 
-          : '';
+        // Handle string fields
+        const oldStr = oldValue !== null && oldValue !== undefined ? String(oldValue).trim() : '';
+        const newStr = newValue !== null && newValue !== undefined ? String(newValue).trim() : '';
         hasChanged = oldStr !== newStr;
       }
       
@@ -281,7 +316,7 @@ export async function PUT(request) {
       }
     });
 
-    // Check if there's anything to update (fields or permissions)
+    // Check if there's anything to update in employee_profile
     const hasFieldsToUpdate = updateFields.length > 0;
     const hasPermissionsToUpdate = permissionsData !== undefined && permissionsData !== null;
     
@@ -299,100 +334,130 @@ export async function PUT(request) {
       );
     }
 
-    // Only update employee_profile if there are fields to update
-    if (hasFieldsToUpdate) {
-      updateValues.push(id);
-      // Update employee
-      const updateQuery = `UPDATE employee_profile SET ${updateFields.join(', ')} WHERE id = ?`;
-      await executeQuery(updateQuery, updateValues);
-    }
-
-    // Handle permissions if provided
-    if (hasPermissionsToUpdate) {
-      // Delete old permissions
-      await executeQuery('DELETE FROM role_permissions WHERE employee_id = ?', [id]);
-
-      // Insert new permissions
-      let permissions;
-      if (typeof permissionsData === 'string') {
-        try {
-          permissions = JSON.parse(permissionsData);
-        } catch (e) {
-          console.error('Error parsing permissions:', e);
-          permissions = {};
-        }
-      } else {
-        permissions = permissionsData;
+    // Start transaction for atomic updates
+    try {
+      // Only update employee_profile if there are fields to update
+      if (hasFieldsToUpdate) {
+        updateValues.push(employeeId);
+        // Update employee
+        const updateQuery = `UPDATE employee_profile SET ${updateFields.join(', ')} WHERE id = ?`;
+        await executeQuery(updateQuery, updateValues);
+        console.log('✅ Employee profile updated');
       }
 
-      const finalRole = roleForPermissions;
-      
-      for (let moduleName in permissions) {
-        const perm = permissions[moduleName];
-        const can_view = perm.can_view === true || perm.can_view === 1 || perm.can_view === '1';
-        const can_edit = perm.can_edit === true || perm.can_edit === 1 || perm.can_edit === '1';
-        const can_create = perm.can_create === true || perm.can_create === 1 || perm.can_create === '1';
+      // Handle permissions if provided
+      if (hasPermissionsToUpdate) {
+        console.log('🔧 Processing permissions update...');
         
-        // Try can_create first, fallback to can_delete if column doesn't exist
-        try {
-          await executeQuery(
-            `INSERT INTO role_permissions 
-              (employee_id, role, module_name, can_view, can_edit, can_create, created_at)
-             VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-            [
-              id,
-              finalRole,
-              moduleName,
-              can_view ? 1 : 0,
-              can_edit ? 1 : 0,
-              can_create ? 1 : 0
-            ]
-          );
-        } catch (err) {
-          // If can_create column doesn't exist, use can_delete
-          if (err.message.includes('can_create')) {
-            await executeQuery(
-              `INSERT INTO role_permissions 
-                (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-              [
-                id,
-                finalRole,
-                moduleName,
-                can_view ? 1 : 0,
-                can_edit ? 1 : 0,
-                can_create ? 1 : 0
-              ]
-            );
+        // Parse permissions data
+        let permissions;
+        if (typeof permissionsData === 'string') {
+          try {
+            permissions = JSON.parse(permissionsData);
+          } catch (e) {
+            console.error('Error parsing permissions:', e);
+            permissions = {};
+          }
+        } else {
+          permissions = permissionsData;
+        }
+
+        console.log('📋 Permissions to update:', Object.keys(permissions).length);
+        
+        // Process each module permission
+        for (const moduleName in permissions) {
+          const perm = permissions[moduleName];
+          
+          // Convert to boolean/numbers
+          const can_view = perm.can_view === true || perm.can_view === 1 || perm.can_view === '1' ? 1 : 0;
+          const can_edit = perm.can_edit === true || perm.can_edit === 1 || perm.can_edit === '1' ? 1 : 0;
+          const can_create = perm.can_create === true || perm.can_create === 1 || perm.can_create === '1' ? 1 : 0;
+          
+          // Check if permission already exists for this employee and module
+          const checkQuery = `
+            SELECT id FROM role_permissions 
+            WHERE employee_id = ? AND module_name = ?
+            LIMIT 1
+          `;
+          const existing = await executeQuery(checkQuery, [employeeId, moduleName]);
+          
+          if (existing.length > 0) {
+            // UPDATE existing permission
+            const updatePermQuery = `
+              UPDATE role_permissions 
+              SET 
+                role = ?,
+                can_view = ?,
+                can_edit = ?,
+                can_create = ?,
+                updated_at = NOW()
+              WHERE employee_id = ? AND module_name = ?
+            `;
+            await executeQuery(updatePermQuery, [
+              roleForPermissions,
+              can_view,
+              can_edit,
+              can_create,
+              employeeId,
+              moduleName
+            ]);
+            console.log(`🔄 Updated permission: ${moduleName} for employee ${employeeId}`);
           } else {
-            throw err;
+            // INSERT new permission only if any permission is true
+            if (can_view === 1 || can_edit === 1 || can_create === 1) {
+              const insertPermQuery = `
+                INSERT INTO role_permissions 
+                  (employee_id, role, module_name, can_view, can_edit, can_create, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, NOW())
+              `;
+              await executeQuery(insertPermQuery, [
+                employeeId,
+                roleForPermissions,
+                moduleName,
+                can_view,
+                can_edit,
+                can_create
+              ]);
+              console.log(`➕ Inserted permission: ${moduleName} for employee ${employeeId}`);
+            } else {
+              console.log(`⏭️ Skipped permission: ${moduleName} (all false)`);
+            }
           }
         }
+        console.log('✅ Permissions updated successfully');
       }
-      
-      // Remove permissions from updateData so it doesn't try to update it as a column
-      delete updateData.permissions;
+
+      // Create audit log
+      await createAuditLog({
+        page: 'Employee Management',
+        uniqueCode: `EMPLOYEE-${employeeId}`,
+        section: 'Edit Employee',
+        userId: currentUserId,
+        userName: currentUserName,
+        action: 'edit',
+        remarks: `Employee ${oldEmployee.name || oldEmployee.emp_code} updated by ${currentUserName}`,
+        oldValue: oldEmployee,
+        newValue: { ...oldEmployee, ...updateData },
+        changes: changes,
+        recordType: 'employee',
+        recordId: parseInt(employeeId)
+      });
+
+      console.log('📝 Audit log created');
+
+      return NextResponse.json({
+        success: true,
+        message: 'Employee updated successfully',
+        changes: changes
+      });
+
+    } catch (dbError) {
+      console.error('Database error:', dbError);
+      return NextResponse.json(
+        { success: false, error: 'Database error: ' + dbError.message },
+        { status: 500 }
+      );
     }
-
-    // Create audit log
-    await createAuditLog({
-      page: 'Employee Management',
-      uniqueCode: `EMPLOYEE-${id}`,
-      section: 'Edit Employee',
-      userId: userId,
-      userName: userName,
-      action: 'edit',
-      remarks: `Employee ${oldEmployee.name || oldEmployee.emp_code} updated`,
-      oldValue: oldEmployee,
-      newValue: { ...oldEmployee, ...updateData },
-      recordType: 'employee',
-      recordId: parseInt(id)
-    });
-
-    return NextResponse.json({
-      success: true,
-      message: 'Employee updated successfully'
-    });
 
   } catch (error) {
     console.error('Error updating employee:', error);
@@ -403,6 +468,7 @@ export async function PUT(request) {
   }
 }
 
+// POST - Alias for PUT
 export async function POST(request) {
   return PUT(request);
 }

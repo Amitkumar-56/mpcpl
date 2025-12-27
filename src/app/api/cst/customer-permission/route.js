@@ -41,7 +41,7 @@ export async function GET(req) {
 
     // ✅ Fetch permissions for this customer
     const permissionRows = await executeQuery(
-      `SELECT module_name, can_view, can_edit, can_delete
+      `SELECT module_name, can_view, can_edit, can_create
        FROM customer_permissions
        WHERE customer_id = ?`,
       [customer_id]
@@ -55,7 +55,7 @@ export async function GET(req) {
       permissions[row.module_name] = {
         can_view: Boolean(row.can_view),
         can_edit: Boolean(row.can_edit),
-        can_delete: Boolean(row.can_delete),
+        can_create: Boolean(row.can_create),
       };
     });
 

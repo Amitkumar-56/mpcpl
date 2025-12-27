@@ -266,7 +266,7 @@ export async function POST(request) {
       }, { status: 401 });
     }
 
-    let userName = 'System';
+    let userName = null;
     let userRole = 0;
     
     try {

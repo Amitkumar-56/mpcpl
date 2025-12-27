@@ -20,21 +20,21 @@ export async function GET(request) {
 
     if (moduleName) {
       const rows = await executeQuery(
-        `SELECT can_view, can_edit, can_delete FROM customer_permissions WHERE customer_id = ? AND module_name = ? LIMIT 1`,
+        `SELECT can_view, can_edit, can_create FROM customer_permissions WHERE customer_id = ? AND module_name = ? LIMIT 1`,
         [customerId, moduleName]
       );
 
       if (!rows || rows.length === 0) {
-        return NextResponse.json({ can_view: false, can_edit: false, can_delete: false });
+        return NextResponse.json({ can_view: false, can_edit: false, can_create: false });
       }
 
       const p = rows[0];
-      return NextResponse.json({ can_view: p.can_view === 1, can_edit: p.can_edit === 1, can_delete: p.can_delete === 1 });
+      return NextResponse.json({ can_view: p.can_view === 1, can_edit: p.can_edit === 1, can_create: p.can_create === 1 });
     }
 
     // No module specified — return all customer permissions
     const allRows = await executeQuery(
-      `SELECT module_name, can_view, can_edit, can_delete FROM customer_permissions WHERE customer_id = ?`,
+      `SELECT module_name, can_view, can_edit, can_create FROM customer_permissions WHERE customer_id = ?`,
       [customerId]
     );
 
@@ -43,7 +43,7 @@ export async function GET(request) {
       permissions[r.module_name] = {
         can_view: Boolean(r.can_view),
         can_edit: Boolean(r.can_edit),
-        can_delete: Boolean(r.can_delete),
+        can_create: Boolean(r.can_create),
       };
     });
 

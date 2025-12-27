@@ -33,6 +33,18 @@ export default function LoginPage() {
 
       const data = await res.json();
 
+      if (!res.ok) {
+        // Handle HTTP errors
+        if (res.status === 401 || res.status === 403) {
+          setError(data.message || "Invalid credentials or account deactivated");
+        } else if (res.status === 500) {
+          setError(data.message || "Server error. Please try again later.");
+        } else {
+          setError(data.message || "Login failed. Please try again.");
+        }
+        return;
+      }
+
       if (data.success) {
         // ✅ Session Context का login function use करें
         login({
@@ -58,7 +70,11 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error("Login error:", err);
-      setError("Network error. Please try again.");
+      if (err.message && err.message.includes('fetch')) {
+        setError("Network error. Please check your connection and try again.");
+      } else {
+        setError(err.message || "An error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -79,6 +95,18 @@ export default function LoginPage() {
       });
 
       const data = await res.json();
+
+      if (!res.ok) {
+        // Handle HTTP errors
+        if (res.status === 401 || res.status === 403) {
+          setError(data.message || "Mobile number not found or account deactivated");
+        } else if (res.status === 500) {
+          setError(data.message || "Server error. Please try again later.");
+        } else {
+          setError(data.message || "Login failed. Please try again.");
+        }
+        return;
+      }
 
       if (data.success) {
         // ✅ Session Context का login function use करें
@@ -105,7 +133,11 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error("OTP login error:", err);
-      setError("Network error. Please try again.");
+      if (err.message && err.message.includes('fetch')) {
+        setError("Network error. Please check your connection and try again.");
+      } else {
+        setError(err.message || "An error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -201,9 +233,16 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-semibold hover:from-blue-500 hover:to-blue-700 transition"
+                  className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-semibold hover:from-blue-500 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? "Logging in..." : "Continue"}
+                  {isLoading ? (
+                    <span className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Logging in...
+                    </span>
+                  ) : (
+                    "Continue"
+                  )}
                 </button>
               </form>
             )}
@@ -228,14 +267,25 @@ export default function LoginPage() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-semibold hover:from-blue-500 hover:to-blue-700 transition"
+                  className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-400 to-blue-600 text-white font-semibold hover:from-blue-500 hover:to-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? "Sending OTP..." : "Send OTP"}
+                  {isLoading ? (
+                    <span className="flex items-center justify-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Sending OTP...
+                    </span>
+                  ) : (
+                    "Send OTP"
+                  )}
                 </button>
               </form>
             )}
 
-            {error && <p className="text-red-500 text-center mt-4">{error}</p>}
+            {error && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+                <p className="text-red-600 text-sm text-center">{error}</p>
+              </div>
+            )}
 
             <p className="text-center text-gray-600 mt-6 text-sm">
               Login with your employee credentials

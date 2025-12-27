@@ -23,7 +23,7 @@ export async function GET(request) {
 
     // Try to fetch permissions scoped to employee first
     let perms = await executeQuery(
-      `SELECT module_name, can_view, can_edit, can_create, can_delete FROM role_permissions WHERE employee_id = ? AND module_name = ?`,
+      `SELECT module_name, can_view, can_edit, can_create FROM role_permissions WHERE employee_id = ? AND module_name = ?`,
       [userId, moduleName]
     );
 
@@ -34,7 +34,7 @@ export async function GET(request) {
       const role = users && users.length ? users[0].role : null;
       if (role !== null) {
         perms = await executeQuery(
-          `SELECT module_name, can_view, can_edit, can_create, can_delete FROM role_permissions WHERE role = ? AND (employee_id IS NULL OR employee_id = 0) AND module_name = ?`,
+          `SELECT module_name, can_view, can_edit, can_create FROM role_permissions WHERE role = ? AND (employee_id IS NULL OR employee_id = 0) AND module_name = ?`,
           [role, moduleName]
         );
       }
@@ -49,8 +49,7 @@ export async function GET(request) {
     return NextResponse.json({ 
       can_view: p.can_view === 1 || p.can_view === true, 
       can_edit: p.can_edit === 1 || p.can_edit === true, 
-      can_create: (p.can_create === 1 || p.can_create === true) ? true : false, // ✅ Only true if explicitly 1 or true
-      can_delete: p.can_delete === 1 || p.can_delete === true || false
+      can_create: (p.can_create === 1 || p.can_create === true) ? true : false // ✅ Only true if explicitly 1 or true
     });
   } catch (err) {
     console.error('Permissions API error:', err);

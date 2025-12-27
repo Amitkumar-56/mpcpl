@@ -242,7 +242,7 @@ export async function POST(request) {
 
     // ✅ Create comprehensive audit log entry
     try {
-      const logUserName = agentName || userName || 'System';
+      const logUserName = agentName || userName || (userId ? `Employee ID: ${userId}` : null);
       const auditResult = await createAuditLog({
         page: 'Stock Management',
         uniqueCode: stockId ? `STOCK-${stockId}` : `NEW-STOCK-${station_id}-${product_id}`,

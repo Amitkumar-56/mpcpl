@@ -40,7 +40,7 @@ export async function GET(request) {
     if (stockId) {
       query = `SELECT 
         sal.*,
-        COALESCE(ep.name, sal.user_name, 'System') AS employee_name
+        COALESCE(ep.name, sal.user_name) AS employee_name
       FROM stock_audit_log sal
       LEFT JOIN employee_profile ep ON sal.user_id = ep.id
       WHERE sal.stock_id = ? 
@@ -49,7 +49,7 @@ export async function GET(request) {
     } else if (stationId && productId) {
       query = `SELECT 
         sal.*,
-        COALESCE(ep.name, sal.user_name, 'System') AS employee_name
+        COALESCE(ep.name, sal.user_name) AS employee_name
       FROM stock_audit_log sal
       LEFT JOIN employee_profile ep ON sal.user_id = ep.id
       WHERE sal.station_id = ? AND sal.product_id = ?
@@ -58,7 +58,7 @@ export async function GET(request) {
     } else {
       query = `SELECT 
         sal.*,
-        COALESCE(ep.name, sal.user_name, 'System') AS employee_name
+        COALESCE(ep.name, sal.user_name) AS employee_name
       FROM stock_audit_log sal
       LEFT JOIN employee_profile ep ON sal.user_id = ep.id
       WHERE sal.station_id = ?
@@ -71,7 +71,7 @@ export async function GET(request) {
     // Map the results to use employee_name
     const logsWithNames = logs.map(log => ({
       ...log,
-      user_name: log.employee_name || log.user_name || 'System'
+      user_name: log.employee_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : null)
     }));
 
     return NextResponse.json({

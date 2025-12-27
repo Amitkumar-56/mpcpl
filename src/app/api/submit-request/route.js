@@ -1,6 +1,7 @@
 // src/app/api/submit-request/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from "@/lib/auditLog";
 
 export async function POST(req) {
   try {
@@ -132,13 +133,77 @@ export async function POST(req) {
     console.log('✅ CORRECTED - Insert result:', result);
 
     if (result.affectedRows > 0) {
-      // Also create entry in filling_logs
+      // ✅ Get customer name from customers table
+      let customerName = null;
+      let customerPermissions = {};
+      
+      try {
+        const customerInfo = await executeQuery(
+          `SELECT id, name FROM customers WHERE id = ?`,
+          [parseInt(customer)]
+        );
+        
+        if (customerInfo.length > 0) {
+          customerName = customerInfo[0].name;
+          
+          // ✅ Check customer_permissions
+          const permissionRows = await executeQuery(
+            `SELECT module_name, can_view, can_edit, can_create 
+             FROM customer_permissions 
+             WHERE customer_id = ?`,
+            [parseInt(customer)]
+          );
+          
+          permissionRows.forEach((row) => {
+            customerPermissions[row.module_name] = {
+              can_view: Boolean(row.can_view),
+              can_edit: Boolean(row.can_edit),
+              can_create: Boolean(row.can_create),
+            };
+          });
+        }
+      } catch (custError) {
+        console.error('Error fetching customer info:', custError);
+      }
+
+      // ✅ Create audit log with customer name and permissions
+      try {
+        await createAuditLog({
+          page: 'Customer Dashboard - Submit Request',
+          uniqueCode: `FR-SUBMIT-${nextRID}`,
+          section: 'Create Filling Request',
+          userId: parseInt(customer),
+          userName: customerName || `Customer ID: ${customer}`,
+          action: 'create',
+          remarks: `Created filling request ${nextRID}: ${product_code_name}, Qty: ${qty}, Vehicle: ${cleanVehicleNo}, Station: ${station_id}`,
+          oldValue: null,
+          newValue: {
+            rid: nextRID,
+            customer_id: parseInt(customer),
+            customer_name: customerName,
+            product_id: parseInt(product_id),
+            product_code: product_code_name,
+            sub_product_id: parseInt(sub_product_id),
+            station_id: parseInt(station_id),
+            vehicle_number: cleanVehicleNo,
+            driver_number: cleanDriverNo,
+            qty: parseFloat(qty),
+            permissions: customerPermissions
+          }
+        });
+        console.log('✅ Audit log created for customer filling request');
+      } catch (auditError) {
+        console.error('Error creating audit log:', auditError);
+        // Continue even if audit log fails
+      }
+
+      // Also create entry in filling_logs - use customer ID
       try {
         await executeQuery(
           `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`,
-          [nextRID, 1, currentDate]
+          [nextRID, parseInt(customer), currentDate]
         );
-        console.log('✅ Filling logs entry created');
+        console.log('✅ Filling logs entry created with customer ID:', customer);
       } catch (logError) {
         console.error('⚠️ Error creating filling logs:', logError);
       }

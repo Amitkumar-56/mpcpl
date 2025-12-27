@@ -74,11 +74,31 @@ export async function PATCH(request) {
           module_name VARCHAR(255) NOT NULL,
           can_view TINYINT(1) DEFAULT 0,
           can_edit TINYINT(1) DEFAULT 0,
-          can_delete TINYINT(1) DEFAULT 0,
+          can_create TINYINT(1) DEFAULT 0,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           INDEX idx_customer (customer_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
       `);
+      
+      // ✅ Add can_create column if table exists but column doesn't
+      try {
+        await executeQuery(`ALTER TABLE customer_permissions ADD COLUMN can_create TINYINT(1) DEFAULT 0`);
+      } catch (alterErr) {
+        // Column already exists, ignore
+        if (!alterErr.message.includes('Duplicate column name')) {
+          console.warn('Error adding can_create column:', alterErr.message);
+        }
+      }
+      
+      // ✅ Remove can_delete column if it exists
+      try {
+        await executeQuery(`ALTER TABLE customer_permissions DROP COLUMN can_delete`);
+      } catch (dropErr) {
+        // Column doesn't exist, ignore
+        if (!dropErr.message.includes("doesn't exist") && !dropErr.message.includes('Unknown column')) {
+          console.warn('Error removing can_delete column:', dropErr.message);
+        }
+      }
     } catch (permErr) {
       // continue even if ensure fails
       console.error('Ensure customer_permissions error:', permErr);
@@ -94,14 +114,14 @@ export async function PATCH(request) {
       );
       if (existing.length > 0) {
         await executeQuery(
-          `UPDATE customer_permissions SET can_view = ?, can_edit = ? WHERE id = ?`,
-          [status ? 1 : 0, status ? 1 : 0, existing[0].id]
+          `UPDATE customer_permissions SET can_view = ?, can_edit = ?, can_create = ? WHERE id = ?`,
+          [status ? 1 : 0, status ? 1 : 0, status ? 1 : 0, existing[0].id]
         );
       } else {
         await executeQuery(
-          `INSERT INTO customer_permissions (customer_id, module_name, can_view, can_edit, created_at)
-           VALUES (?, ?, ?, ?, NOW())`,
-          [customerId, moduleName, status ? 1 : 0, status ? 1 : 0]
+          `INSERT INTO customer_permissions (customer_id, module_name, can_view, can_edit, can_create, created_at)
+           VALUES (?, ?, ?, ?, ?, NOW())`,
+          [customerId, moduleName, status ? 1 : 0, status ? 1 : 0, status ? 1 : 0]
         );
       }
     }

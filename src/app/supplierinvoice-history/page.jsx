@@ -4,13 +4,23 @@
 import { ArrowLeft, Download, Filter } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { useSession } from '@/context/SessionContext';
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 function SupplierInvoiceHistoryContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { user, loading: authLoading } = useSession();
   const [loading, setLoading] = useState(false);
   const [data, setData] = useState([]);
   const [supplierName, setSupplierName] = useState('');
+  const [hasPermission, setHasPermission] = useState(false);
+  const [permissions, setPermissions] = useState({
+    can_view: false,
+    can_edit: false
+  });
   const [filters, setFilters] = useState({
     from_date: '',
     to_date: ''
@@ -19,11 +29,107 @@ function SupplierInvoiceHistoryContent() {
   
   const id = searchParams.get('id');
 
+  // ✅ Check permissions
   useEffect(() => {
-    if (id) {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      checkPermissions();
+    }
+  }, [user, authLoading, router]);
+
+  const checkPermissions = async () => {
+    if (!user || !user.id) {
+      setHasPermission(false);
+      return;
+    }
+
+    // Admin (role 5) has full access
+    if (Number(user.role) === 5) {
+      setHasPermission(true);
+      setPermissions({ can_view: true, can_edit: true });
+      if (id) fetchData();
+      return;
+    }
+
+    // Check cached permissions
+    const moduleName = 'Supplier Invoice';
+    if (user.permissions && user.permissions[moduleName]) {
+      const invoicePerms = user.permissions[moduleName];
+      if (invoicePerms.can_view) {
+        setHasPermission(true);
+        setPermissions({
+          can_view: invoicePerms.can_view,
+          can_edit: invoicePerms.can_edit || false
+        });
+        if (id) fetchData();
+        return;
+      } else {
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false });
+        return;
+      }
+    }
+
+    // Check cache
+    const cacheKey = `perms_${user.id}_${moduleName}`;
+    const cached = sessionStorage.getItem(cacheKey);
+    if (cached) {
+      const cachedPerms = JSON.parse(cached);
+      if (cachedPerms.can_view) {
+        setHasPermission(true);
+        setPermissions(cachedPerms);
+        if (id) fetchData();
+        return;
+      } else {
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false });
+        return;
+      }
+    }
+
+    try {
+      const [viewRes, editRes] = await Promise.all([
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`)
+      ]);
+
+      const [viewData, editData] = await Promise.all([
+        viewRes.json(),
+        editRes.json()
+      ]);
+
+      const perms = {
+        can_view: viewData.allowed || false,
+        can_edit: editData.allowed || false
+      };
+
+      sessionStorage.setItem(cacheKey, JSON.stringify(perms));
+      sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
+
+      if (perms.can_view) {
+        setHasPermission(true);
+        setPermissions(perms);
+        if (id) fetchData();
+      } else {
+        setHasPermission(false);
+        setPermissions({ can_view: false, can_edit: false });
+      }
+    } catch (error) {
+      console.error('Permission check error:', error);
+      setHasPermission(false);
+      setPermissions({ can_view: false, can_edit: false });
+    }
+  };
+
+  useEffect(() => {
+    if (id && hasPermission && !authLoading) {
       fetchData();
     }
-  }, [searchParams]);
+  }, [searchParams, hasPermission, authLoading]);
 
   useEffect(() => {
     // Set initial filter values from URL
@@ -89,7 +195,7 @@ function SupplierInvoiceHistoryContent() {
     }
 
     // Create CSV content
-    const headers = ['Date', 'Invoice#', 'Remarks', 'Type', 'Debit', 'Credit', 'Balance'];
+    const headers = ['Date', 'Invoice#', 'Remarks', 'Type', 'Payment Date', 'Payment Amount', 'TDS Deduction', 'Debit', 'Credit', 'Balance'];
     const csvRows = [
       headers.join(','),
       ...exportData.map(row => [
@@ -97,6 +203,9 @@ function SupplierInvoiceHistoryContent() {
         row.invoice_number || '',
         (row.remarks || '-').replace(/,/g, ';'),
         row.type || '',
+        row.payment_date || '',
+        row.payment_amount || '',
+        row.tds_deduction || '',
         row.debit || '',
         row.credit || '',
         row.balance || 0
@@ -173,11 +282,58 @@ function SupplierInvoiceHistoryContent() {
     });
   };
 
+  // ✅ Show loading while checking authentication
+  if (authLoading) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 px-4 py-6 overflow-auto flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
+  }
+
+  // ✅ Redirect if user is not authenticated
+  if (!user) {
+    return null; // Will redirect via useEffect
+  }
+
+  // ✅ Show access denied if no permission
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <Sidebar />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <Header />
+          <main className="flex-1 px-4 py-6 overflow-auto">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600">You do not have permission to view supplier invoice history.</p>
+              <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
+            </div>
+          </main>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-auto bg-gray-50">
+          {/* Header */}
+          <header className="bg-white shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center space-x-4">
               <button
@@ -188,8 +344,11 @@ function SupplierInvoiceHistoryContent() {
               </button>
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900">
-                  {supplierName} Supplier Invoice History
+                  Supplier Invoice History
                 </h1>
+                {supplierName && (
+                  <p className="text-gray-600 mt-1">Supplier: {supplierName}</p>
+                )}
                 <nav className="flex space-x-2 text-sm text-gray-600 mt-1">
                   <a href="/" className="hover:text-blue-600">Home</a>
                   <span>/</span>
@@ -216,9 +375,9 @@ function SupplierInvoiceHistoryContent() {
             </div>
           </div>
         </div>
-      </header>
+          </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filter Panel */}
         {showFilter && (
           <div className="mb-6 bg-white rounded-xl shadow-sm p-6">
@@ -274,7 +433,7 @@ function SupplierInvoiceHistoryContent() {
         {/* Transactions Table */}
         <div className="bg-white rounded-xl shadow-sm overflow-hidden">
           <div className="px-6 py-4 border-b">
-            <h2 className="text-xl font-semibold">Invoice Transaction History</h2>
+            <h2 className="text-xl font-semibold">Supplier Invoice History</h2>
           </div>
           
           <div className="overflow-x-auto">
@@ -294,6 +453,15 @@ function SupplierInvoiceHistoryContent() {
                     Type
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment Date
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Payment Amount
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    TDS Deduction
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Debit
                   </th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -308,7 +476,7 @@ function SupplierInvoiceHistoryContent() {
               <tbody className="bg-white divide-y divide-gray-200">
                 {data.length === 0 ? (
                   <tr>
-                    <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
+                    <td colSpan="10" className="px-6 py-8 text-center text-gray-500">
                       No transactions found
                     </td>
                   </tr>
@@ -331,7 +499,10 @@ function SupplierInvoiceHistoryContent() {
                         type: 'Payment',
                         debit: p.payment,
                         credit: null,
-                        payment: p.payment
+                        payment: p.payment,
+                        payment_date: p.date,
+                        payment_amount: p.payment,
+                        tds_deduction: p.tds_deduction || 0
                       })),
                       ...invoice.dncns.map(d => ({
                         date: d.dncn_date,
@@ -372,6 +543,23 @@ function SupplierInvoiceHistoryContent() {
                               </span>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.payment_date ? new Date(transaction.payment_date).toLocaleDateString('en-GB') : '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.payment_amount ? (
+                                <span className="text-green-600 font-medium">
+                                  ₹{parseFloat(transaction.payment_amount).toFixed(2)}
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.type === 'Payment' && transaction.tds_deduction ? (
+                                <span className="text-orange-600 font-medium">
+                                  ₹{parseFloat(transaction.tds_deduction).toFixed(2)}
+                                </span>
+                              ) : '-'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               {transaction.debit ? (
                                 <span className="text-red-600 font-medium">
                                   ₹{parseFloat(transaction.debit).toFixed(2)}
@@ -391,7 +579,7 @@ function SupplierInvoiceHistoryContent() {
                           </tr>
                         ))}
                         <tr className="bg-white">
-                          <td colSpan="7" className="h-4"></td>
+                          <td colSpan="10" className="h-4"></td>
                         </tr>
                       </tbody>
                     );
@@ -401,7 +589,10 @@ function SupplierInvoiceHistoryContent() {
             </table>
           </div>
         </div>
-      </main>
+          </div>
+        </main>
+        <Footer />
+      </div>
     </div>
   );
 }

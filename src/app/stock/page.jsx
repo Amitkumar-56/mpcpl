@@ -383,13 +383,15 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                         >
                           <BsClockHistory size={16} />
                         </Link>
-                        <Link
-                          href={`/stock/edit?id=${request.id}`}
-                          className="text-green-600 hover:text-green-800 transition-colors"
-                          title="Edit"
-                        >
-                          <BsPencil size={16} />
-                        </Link>
+                        {permissions.can_edit && (
+                          <Link
+                            href={`/stock/edit?id=${request.id}`}
+                            className="text-green-600 hover:text-green-800 transition-colors"
+                            title="Edit"
+                          >
+                            <BsPencil size={16} />
+                          </Link>
+                        )}
                       </div>
                     </td>
                   </tr>
@@ -483,7 +485,8 @@ export default function StockRequest() {
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
-    can_delete: false
+    can_delete: false,
+    can_create: false
   });
   const [stats, setStats] = useState({
     totalStock: 0,
@@ -518,7 +521,7 @@ export default function StockRequest() {
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_delete: true, can_create: true });
       fetchStockStats();
       fetchStockRequests();
       return;
@@ -532,7 +535,8 @@ export default function StockRequest() {
         setPermissions({
           can_view: stockPerms.can_view,
           can_edit: stockPerms.can_edit,
-          can_delete: stockPerms.can_delete
+          can_delete: stockPerms.can_delete,
+          can_create: stockPerms.can_create || false
         });
         fetchStockStats();
         fetchStockRequests();
@@ -556,22 +560,25 @@ export default function StockRequest() {
 
     try {
       const moduleName = 'Stock';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, deleteRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
 
-      const [viewData, editData, deleteData] = await Promise.all([
+      const [viewData, editData, deleteData, createData] = await Promise.all([
         viewRes.json(),
         editRes.json(),
-        deleteRes.json()
+        deleteRes.json(),
+        createRes.json()
       ]);
 
       const perms = {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed
+        can_delete: deleteData.allowed,
+        can_create: createData.allowed || false
       };
 
       // Cache permissions
@@ -739,20 +746,24 @@ export default function StockRequest() {
                     <BsClockHistory size={16} />
                     Activity Logs
                   </Link>
-                  <Link
-                    href="/stock/purchase-for-use-history"
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
-                  >
-                    <BsPlusCircle size={16} />
-                    Purchase for Use
-                  </Link>
-                  <Link
-                    href="/stock/purchase"
-                    className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-colors shadow-sm"
-                  >
-                    <BsPlusCircle size={16} />
-                    Purchase for Sale
-                  </Link>
+                  {(permissions.can_create === true || permissions.can_create === 1 || Number(user?.role) === 5) && (
+                    <>
+                      <Link
+                        href="/stock/purchase-for-use-history"
+                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
+                      >
+                        <BsPlusCircle size={16} />
+                        Purchase for Use
+                      </Link>
+                      <Link
+                        href="/stock/purchase"
+                        className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-colors shadow-sm"
+                      >
+                        <BsPlusCircle size={16} />
+                        Purchase for Sale
+                      </Link>
+                    </>
+                  )}
                 </div>
               </div>
             </div>

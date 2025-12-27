@@ -138,7 +138,7 @@ function StockLogsContent() {
                 columns={[
                   { field: 'created_at', header: 'Date & Time', formatter: (row) => new Date(row.created_at).toLocaleString() },
                   { field: 'action_type', header: 'Action' },
-                  { field: 'user_name', header: 'User', formatter: (row) => `${row.user_name || 'System'} ${row.user_id ? `(ID: ${row.user_id})` : ''}` },
+                  { field: 'user_name', header: 'User', formatter: (row) => `${row.user_name || (row.user_id ? `Employee ID: ${row.user_id}` : 'N/A')} ${row.user_id ? `(ID: ${row.user_id})` : ''}` },
                   { field: 'quantity', header: 'Quantity' },
                   { field: 'remarks', header: 'Remarks' }
                 ]}
@@ -230,7 +230,7 @@ function StockLogsContent() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         <div>
-                          <div className="font-medium">{log.user_name || 'System'}</div>
+                          <div className="font-medium">{log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A')}</div>
                           {log.user_id && (
                             <div className="text-xs text-gray-500">ID: {log.user_id}</div>
                           )}

@@ -28,7 +28,7 @@ function CustomersPage() {
   const [permissions, setPermissions] = useState({ 
     can_edit: false, 
     can_view: false, 
-    can_delete: false 
+    can_create: false 
   });
   const [hasPermission, setHasPermission] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -834,19 +834,6 @@ function CustomersPage() {
                                               .map((action) => {
                                                 const commonClasses = `p-2 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
                                                 
-                                                if (action.key === 'delete') {
-                                                  return (
-                                                    <button
-                                                      key={action.key}
-                                                      onClick={() => action.onClick(c.id)}
-                                                      className={commonClasses}
-                                                      title={action.label}
-                                                    >
-                                                      <action.icon className="w-3 h-3" />
-                                                    </button>
-                                                  );
-                                                }
-                                                
                                                 return (
                                                   <Link
                                                     key={action.key}
@@ -1158,19 +1145,6 @@ function CustomersPage() {
                                         .filter(action => action.show)
                                         .map((action) => {
                                           const commonClasses = `p-2 ${action.color} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all`;
-                                          
-                                          if (action.key === 'delete') {
-                                            return (
-                                              <button
-                                                key={action.key}
-                                                onClick={() => action.onClick(c.id)}
-                                                className={commonClasses}
-                                              >
-                                                <action.icon className="w-3 h-3" />
-                                                <span className="text-xs">{action.label}</span>
-                                              </button>
-                                            );
-                                          }
                                           
                                           return (
                                             <Link

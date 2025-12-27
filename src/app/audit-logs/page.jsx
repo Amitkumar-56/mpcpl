@@ -38,11 +38,11 @@ export default function AuditLogsPage() {
     try {
       const userData = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
       let userId = null;
-      let userName = 'System';
+      let userName = null;
       if (userData) {
         const parsed = JSON.parse(userData);
         userId = parsed?.id || parsed?.userId || null;
-        userName = parsed?.name || 'System';
+        userName = parsed?.name || null;
       }
       const uniqueCode = `PAGEVIEW-AUDIT-${Date.now()}`;
       fetch('/api/audit-logs', {
@@ -350,7 +350,7 @@ export default function AuditLogsPage() {
                           {log.unique_code || 'N/A'}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {log.user_name || 'System'}
+                          {log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A')}
                           {log.user_id && (
                             <span className="text-gray-500 ml-1">(ID: {log.user_id})</span>
                           )}

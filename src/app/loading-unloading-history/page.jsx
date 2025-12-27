@@ -8,24 +8,17 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
-// Loading component
-function LoadingSpinner() {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
-    </div>
-  );
-}
+// ✅ Loading spinner removed - show page skeleton instead
 
 // Error component
 function ErrorDisplay({ error, onRetry }) {
   return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="text-center">
-        <div className="text-red-600 text-xl mb-4">{error}</div>
+        <div className="text-red-500 text-xl mb-4">{error}</div>
         <button
           onClick={onRetry}
-          className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+          className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors"
         >
           Try Again
         </button>
@@ -34,13 +27,13 @@ function ErrorDisplay({ error, onRetry }) {
   );
 }
 
-// Summary Card Component
-function SummaryCard({ icon, value, label, gradient }) {
+// Summary Card Component - Light colors
+function SummaryCard({ icon, value, label }) {
   return (
-    <div className={`bg-gradient-to-br ${gradient} text-white rounded-xl p-6 shadow-sm`}>
+    <div className="bg-gray-50 text-gray-900 rounded-lg p-6 shadow-sm border border-gray-200">
       <div className="text-3xl mb-3">{icon}</div>
       <div className="text-3xl font-bold mb-1">{value}</div>
-      <div className="text-white/90">{label}</div>
+      <div className="text-gray-600">{label}</div>
     </div>
   );
 }
@@ -169,9 +162,13 @@ function LoadingUnloadingContent() {
         return;
       }
 
+      // ✅ Fetch data with proper error handling
       const response = await fetch(`/api/loading-unloading-history?user_id=${user.id}&role=${user.role || ''}`, {
         credentials: 'include',
-        cache: 'no-store'
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json'
+        }
       });
       
       if (!response.ok) {
@@ -181,12 +178,27 @@ function LoadingUnloadingContent() {
           return;
         }
         if (response.status === 401) {
-          setError('Unauthorized. Please login again.');
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('user');
+            sessionStorage.clear();
+          }
+          router.push('/login');
           setLoading(false);
           return;
         }
-        const errorData = await response.json().catch(() => ({ error: 'Failed to fetch data' }));
-        throw new Error(errorData.error || 'Failed to fetch data');
+        
+        let errorData;
+        try {
+          errorData = await response.json();
+        } catch (jsonError) {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText || 'Failed to fetch data'}` };
+        }
+        
+        const errorMessage = errorData.error || errorData.message || 'Failed to fetch data';
+        setError(errorMessage);
+        setLoading(false);
+        console.error('❌ API Error Response:', errorData);
+        return;
       }
 
       const result = await response.json();
@@ -201,7 +213,7 @@ function LoadingUnloadingContent() {
       if (result.shipments !== undefined && result.summary !== undefined) {
         setData({
           shipments: result.shipments || [],
-          permissions: result.permissions || { can_view: 0, can_edit: 0, can_delete: 0, can_create: 0 },
+          permissions: result.permissions || { can_view: 0, can_edit: 0, can_create: 0 },
           summary: result.summary || { total: 0, completed: 0, pending: 0, drivers: 0 }
         });
       } else {
@@ -218,9 +230,36 @@ function LoadingUnloadingContent() {
   };
 
 
-  // Show loading state
+  // ✅ Show page skeleton instead of spinner
   if (loading) {
-    return <LoadingSpinner />;
+    return (
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <Sidebar />
+        </div>
+        <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+          <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 bg-gray-50">
+            <div className="h-8 bg-gray-200 rounded w-64 mb-4 animate-pulse"></div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
+              {[1,2,3,4].map(i => (
+                <div key={i} className="bg-gray-100 rounded-lg p-6 h-32 animate-pulse"></div>
+              ))}
+            </div>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <div className="h-4 bg-gray-200 rounded w-32 mb-4 animate-pulse"></div>
+              <div className="space-y-3">
+                {[1,2,3,4,5].map(i => (
+                  <div key={i} className="h-12 bg-gray-100 rounded animate-pulse"></div>
+                ))}
+              </div>
+            </div>
+          </main>
+        </div>
+      </div>
+    );
   }
 
   // Show error state
@@ -231,10 +270,10 @@ function LoadingUnloadingContent() {
           <Sidebar />
         </div>
         <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-          <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+          <div className="bg-white shadow-sm">
             <Header />
           </div>
-          <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
+          <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 bg-gray-50">
             <ErrorDisplay error={error} onRetry={checkPermissions} />
           </main>
         </div>
@@ -259,7 +298,7 @@ function LoadingUnloadingContent() {
                 <div className="text-gray-600 text-xl mb-4">No data available</div>
                 <button
                   onClick={checkPermissions}
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors"
+                  className="bg-gray-400 text-white px-4 py-2 rounded-lg hover:bg-gray-500 transition-colors"
                 >
                   Retry
                 </button>
@@ -282,27 +321,46 @@ function LoadingUnloadingContent() {
 
       {/* Main Content Area */}
       <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+        {/* Fixed Header - ✅ Removed fixed positioning to prevent overlap */}
+        <div className="bg-white shadow-sm">
           <Header />
         </div>
 
         {/* Scrollable Main Content */}
-        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8">
-          <div className="flex items-center justify-between mb-6">
+        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 bg-gray-50">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div className="flex items-center">
-              <Link href="/dashboard" className="mr-4 text-purple-600 hover:text-purple-800 transition-transform hover:-translate-x-1">
+              <Link href="/dashboard" className="mr-4 text-gray-600 hover:text-gray-800 transition-transform hover:-translate-x-1">
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
               </Link>
-              <h1 className="text-2xl font-bold text-gray-900">Loading & Unloading Dashboard</h1>
+              <div>
+                <h1 className="text-2xl font-bold text-gray-900">Loading & Unloading Dashboard</h1>
+                <p className="text-gray-600 mt-1 text-sm">
+                  Total {shipments.length} shipment{shipments.length !== 1 ? 's' : ''}
+                </p>
+              </div>
             </div>
-            <nav className="flex space-x-2 text-sm text-gray-600">
-              <Link href="/dashboard" className="hover:text-gray-900">Home</Link>
-              <span>/</span>
-              <span className="text-gray-900">Loading & Unloading</span>
-            </nav>
+            <div className="flex items-center gap-4">
+              {/* Create Button - Show if user has create permission */}
+              {(permissions?.can_create === 1 || permissions?.can_create === true) && (
+                <Link
+                  href="/loading-unloading-history/create-loading-unloading"
+                  className="inline-flex items-center justify-center bg-gray-400 hover:bg-gray-500 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create New Record
+                </Link>
+              )}
+              <nav className="hidden md:flex space-x-2 text-sm text-gray-600">
+                <Link href="/dashboard" className="hover:text-gray-900">Home</Link>
+                <span>/</span>
+                <span className="text-gray-900">Loading & Unloading</span>
+              </nav>
+            </div>
           </div>
         {/* Summary Cards */}
         
@@ -311,25 +369,21 @@ function LoadingUnloadingContent() {
               icon="🚚"
               value={summary.total}
               label="Total Shipments"
-              gradient="from-purple-600 to-purple-800"
             />
             <SummaryCard
               icon="✅"
               value={summary.completed}
               label="Completed Loadings"
-              gradient="from-blue-500 to-blue-700"
             />
             <SummaryCard
               icon="⏳"
               value={summary.pending}
               label="Pending Loadings"
-              gradient="from-yellow-500 to-orange-500"
             />
             <SummaryCard
               icon="👨‍💼"
               value={summary.drivers}
               label="Active Drivers"
-              gradient="from-green-500 to-green-600"
             />
           </div>
         
@@ -393,7 +447,7 @@ function LoadingUnloadingContent() {
                           <Link
                             href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
                             target="_blank"
-                            className="text-blue-600 hover:text-blue-900"
+                            className="text-gray-600 hover:text-gray-800"
                           >
                             View
                           </Link>
@@ -402,7 +456,7 @@ function LoadingUnloadingContent() {
                               <span className="text-gray-300">|</span>
                               <Link
                                 href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                className="text-orange-600 hover:text-orange-900"
+                                className="text-gray-600 hover:text-gray-800"
                               >
                                 Edit
                               </Link>
@@ -420,28 +474,11 @@ function LoadingUnloadingContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-lg font-medium text-gray-900 mb-2">No shipment records found</p>
-                <p className="text-sm text-gray-500 mb-4">Create your first loading/unloading record to get started.</p>
-                {(permissions?.can_create === 1 || permissions?.can_create === true) && (
-                  <Link
-                    href="/loading-unloading-history/create-loading-unloading"
-                    className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700 transition-colors"
-                  >
-                    Create First Record
-                  </Link>
-                )}
+                <p className="text-sm text-gray-500 mb-4">No loading/unloading records available.</p>
               </div>
             )}
           </div>
         </div>
-          
-        {permissions?.can_create === 1 && (
-          <Link
-            href="/loading-unloading-history/create-loading-unloading"
-            className="fixed bottom-20 right-6 w-14 h-14 bg-purple-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-purple-700 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 z-40"
-          >
-            <span className="text-2xl">+</span>
-          </Link>
-        )}
         </main>
 
         {/* Fixed Footer */}
@@ -453,10 +490,10 @@ function LoadingUnloadingContent() {
   );
 }
 
-// Main component with Suspense boundary
+// Main component with Suspense boundary - ✅ No spinner fallback
 export default function LoadingUnloadingHistory() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={null}>
       <LoadingUnloadingContent />
     </Suspense>
   );

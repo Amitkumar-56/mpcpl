@@ -5,7 +5,7 @@ import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { BiEdit, BiShow, BiTrash } from "react-icons/bi";
+import { BiEdit, BiShow } from "react-icons/bi";
 import { useSession } from "@/context/SessionContext";
 
 export default function ProductsPage() {
@@ -128,16 +128,6 @@ export default function ProductsPage() {
     }
   };
 
-  const deleteProduct = async (id) => {
-    if (!confirm("Are you sure you want to delete this product?")) return;
-    try {
-      const res = await fetch(`/api/products?id=${id}`, { method: "DELETE" });
-      if (!res.ok) throw new Error("Failed to delete product");
-      fetchProducts();
-    } catch (err) {
-      alert(err.message);
-    }
-  };
 
   return (
     <div className="h-screen flex bg-gray-50">
@@ -205,15 +195,6 @@ export default function ProductsPage() {
                             title="Edit Product"
                           >
                             <BiEdit size={22} />
-                          </button>
-                        )}
-                        {permissions.can_delete && (
-                          <button
-                            onClick={() => deleteProduct(p.id)}
-                            className="text-red-600 hover:text-red-800 transition"
-                            title="Delete Product"
-                          >
-                            <BiTrash size={22} />
                           </button>
                         )}
                         {!permissions.can_view && !permissions.can_edit && !permissions.can_delete && (

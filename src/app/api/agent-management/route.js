@@ -122,7 +122,7 @@ export async function POST(request) {
 
     // Gather actor info for audit
     let actorId = null;
-    let actorName = 'System';
+    let actorName = null;
     try {
       const cookieStore = await cookies();
       let token = cookieStore.get("token")?.value;
@@ -468,7 +468,7 @@ export async function PUT(request) {
 
     // Gather actor info for audit
     let actorId = null;
-    let actorName = 'System';
+    let actorName = null;
     try {
       const cookieStore = await cookies();
       let token = cookieStore.get("token")?.value;

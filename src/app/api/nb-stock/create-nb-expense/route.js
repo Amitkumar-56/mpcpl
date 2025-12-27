@@ -42,7 +42,7 @@ export async function POST(req) {
     
     // Get user ID from cookies/token
     let user_id = 1;
-    let userName = 'System';
+    let userName = null;
     try {
       const cookieStore = await cookies();
       const token = cookieStore.get('token')?.value;

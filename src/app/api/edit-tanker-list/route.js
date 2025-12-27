@@ -2,6 +2,7 @@ import { executeQuery } from '@/lib/db';
 import fs from 'fs';
 import { NextResponse } from 'next/server';
 import path from 'path';
+import { createAuditLog } from '@/lib/auditLog';
 
 // GET - Fetch tanker data and related information
 export async function GET(request) {
@@ -123,6 +124,11 @@ export async function POST(request) {
       JSON.stringify(uploadedFiles) : 
       existingPdfPaths;
 
+    // Get old tanker data before update for audit log
+    const oldTankerQuery = "SELECT * FROM tanker_history WHERE id = ?";
+    const oldTankerResult = await executeQuery(oldTankerQuery, [tankerId]);
+    const oldTanker = oldTankerResult.length > 0 ? oldTankerResult[0] : null;
+
     // Update tanker_history
     const updateTankerQuery = `
       UPDATE tanker_history 
@@ -131,7 +137,7 @@ export async function POST(request) {
       WHERE id = ?
     `;
 
-    const tankerResult = await executeQuery(updateTankerQuery, [
+    await executeQuery(updateTankerQuery, [
       closingMeter ? parseFloat(closingMeter) : null,
       dieselLtr ? parseFloat(dieselLtr) : null,
       remarks,
@@ -141,40 +147,51 @@ export async function POST(request) {
       tankerId
     ]);
 
-    // Create audit log entry for edit
+    // Get updated tanker data
+    const newTankerQuery = "SELECT * FROM tanker_history WHERE id = ?";
+    const newTankerResult = await executeQuery(newTankerQuery, [tankerId]);
+    const newTanker = newTankerResult.length > 0 ? newTankerResult[0] : null;
+
+    // Get current user from token - ALWAYS fetch from employee_profile
+    let userId = null;
+    let userName = null;
     try {
-      await executeQuery(`
-        CREATE TABLE IF NOT EXISTS tanker_audit_log (
-          id INT AUTO_INCREMENT PRIMARY KEY,
-          tanker_id INT NOT NULL,
-          action_type VARCHAR(50) NOT NULL,
-          user_id INT,
-          user_name VARCHAR(255),
-          remarks TEXT,
-          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-          INDEX idx_tanker_id (tanker_id),
-          INDEX idx_created_at (created_at)
-        )
-      `);
-      
-      // Fetch employee name from employee_profile
-      let employeeName = 'System';
-      try {
-        const employeeResult = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
-          [1]
-        );
-        if (employeeResult.length > 0) {
-          employeeName = employeeResult[0].name;
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const employeeResult = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (employeeResult.length > 0 && employeeResult[0].name) {
+            userName = employeeResult[0].name;
+          }
         }
-      } catch (empError) {
-        console.error('Error fetching employee name:', empError);
       }
-      
-      await executeQuery(
-        `INSERT INTO tanker_audit_log (tanker_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
-        [tankerId, 'edited', 1, employeeName, 'Tanker record updated']
-      );
+    } catch (authError) {
+      console.error('Error getting user info:', authError);
+    }
+
+    // Create comprehensive audit log with oldValue and newValue
+    try {
+      await createAuditLog({
+        page: 'Tanker Management',
+        uniqueCode: `TANKER-${tankerId}`,
+        section: 'Edit Tanker',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Tanker record updated: Licence ${oldTanker?.licence_plate || 'N/A'}`,
+        oldValue: oldTanker,
+        newValue: newTanker,
+        recordType: 'tanker',
+        recordId: parseInt(tankerId)
+      });
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
       // Don't fail the main operation

@@ -72,14 +72,21 @@ function VoucherContent() {
     await logout();
   };
 
-  // Loading State
+  // Loading State - Skeleton loader instead of spinner
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading voucher data...</p>
-          <p className="text-sm text-gray-500 mt-2">Voucher ID: {voucher_id}</p>
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+            <div className="grid grid-cols-3 gap-4 mt-6">
+              <div className="h-16 bg-gray-200 rounded"></div>
+              <div className="h-16 bg-gray-200 rounded"></div>
+              <div className="h-16 bg-gray-200 rounded"></div>
+            </div>
+            <div className="h-64 bg-gray-200 rounded mt-6"></div>
+          </div>
         </div>
       </div>
     );
@@ -384,10 +391,12 @@ function VoucherContent() {
 export default function VoucherPrint() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p>Loading voucher page...</p>
+      <div className="min-h-screen bg-gray-50 p-4">
+        <div className="max-w-4xl mx-auto bg-white rounded-lg shadow p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-8 bg-gray-200 rounded w-1/3"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+          </div>
         </div>
       </div>
     }>

@@ -82,7 +82,7 @@ export async function GET(request) {
 
     // ✅ Check permissions from role_permissions table
     const permissionsQuery = `
-      SELECT module_name, can_view, can_edit, can_delete 
+      SELECT module_name, can_view, can_edit, can_create 
       FROM role_permissions 
       WHERE module_name = 'Vouchers' AND role = ? AND employee_id = ?
     `;
@@ -93,7 +93,7 @@ export async function GET(request) {
       module_name: 'Vouchers',
       can_view: 1,
       can_edit: 1,
-      can_delete: 1
+      can_create: 1
     };
 
     if (permissionsResult.length > 0) {

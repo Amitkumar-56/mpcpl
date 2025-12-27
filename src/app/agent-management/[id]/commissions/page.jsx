@@ -336,7 +336,7 @@ export default function AgentCommissionsPage() {
                           <td className="px-4 py-2 font-semibold">₹{parseFloat(log.net_amount || ((log.amount || 0) - (log.tds_amount || 0))).toFixed(2)}</td>
                           <td className="px-4 py-2">
                             <div>
-                              <div className="font-medium">{log.paid_by_user_name || 'System'}</div>
+                              <div className="font-medium">{log.paid_by_user_name || (log.paid_by_user_id ? `Employee ID: ${log.paid_by_user_id}` : 'N/A')}</div>
                               {log.paid_by_user_id && (
                                 <div className="text-xs text-gray-500">ID: {log.paid_by_user_id}</div>
                               )}

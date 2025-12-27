@@ -36,6 +36,7 @@ export default function CreateRequestForm() {
   const [isCustomerDisabled, setIsCustomerDisabled] = useState(false)
   const [productCodes, setProductCodes] = useState([])
   const [selectedSubProductId, setSelectedSubProductId] = useState('')
+  const [loadingSubProducts, setLoadingSubProducts] = useState(false)
 
   // Product configuration based on product_id
   const productConfig = {
@@ -177,8 +178,11 @@ export default function CreateRequestForm() {
     if (!pid) {
       setProductCodes([]);
       setSelectedSubProductId('');
+      setLoadingSubProducts(false);
       return;
     }
+    
+    setLoadingSubProducts(true);
     (async () => {
       try {
         const res = await fetch(`/api/cst/product-codes?product_id=${pid}`);
@@ -186,15 +190,23 @@ export default function CreateRequestForm() {
         if (json.success) {
           const codes = json.codes || [];
           setProductCodes(codes);
-          const first = codes[0]?.id ? String(codes[0].id) : '';
-          setSelectedSubProductId(first);
+          // Auto-select first sub-product if available
+          if (codes.length > 0) {
+            const first = codes[0]?.id ? String(codes[0].id) : '';
+            setSelectedSubProductId(first);
+          } else {
+            setSelectedSubProductId('');
+          }
         } else {
           setProductCodes([]);
           setSelectedSubProductId('');
         }
       } catch (e) {
+        console.error('Error fetching product codes:', e);
         setProductCodes([]);
         setSelectedSubProductId('');
+      } finally {
+        setLoadingSubProducts(false);
       }
     })();
   }, [formData.product_id]);
@@ -460,6 +472,13 @@ export default function CreateRequestForm() {
       alert('❌ Please select a Product before submitting the request.');
       return;
     }
+
+    // ✅ Validate sub-product selection
+    if (!selectedSubProductId || selectedSubProductId === '') {
+      setErrors(prev => ({ ...prev, sub_product_id: 'Please select a product code (sub-product)' }));
+      alert('❌ Please select a Product Code (Sub-Product) before submitting the request.');
+      return;
+    }
     
     // Validate form
     if (!validateForm()) {
@@ -501,9 +520,10 @@ export default function CreateRequestForm() {
         console.warn('Vehicle check failed, but continuing...', checkError);
       }
 
-      // Prepare data for backend
+      // Prepare data for backend - use sub_product_id if available, otherwise product_id
       const requestData = {
-        product_id: selectedSubProductId || formData.product_id,
+        product_id: formData.product_id, // Main product ID
+        sub_product_id: selectedSubProductId, // Sub-product (product code) ID - this is what we send
         station_id: formData.station_id,
         licence_plate: formData.licence_plate,
         phone: formData.phone,
@@ -926,10 +946,12 @@ export default function CreateRequestForm() {
                           {errors.product_id}
                         </p>
                       )}
-                      {productCodes.length > 0 && (
+                      
+                      {/* Sub-Product Selection - Show when product is selected */}
+                      {formData.product_id && (
                         <div className="mt-4">
                           <label htmlFor="sub_product_id" className="block text-sm font-semibold text-gray-700 mb-2">
-                            Select Product Code
+                            Select Product Code (Sub-Product) *
                           </label>
                           <div className="relative">
                             <select
@@ -937,24 +959,56 @@ export default function CreateRequestForm() {
                               name="sub_product_id"
                               value={selectedSubProductId}
                               onChange={(e) => setSelectedSubProductId(e.target.value)}
-                              className="w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white border-gray-300 hover:border-gray-400"
+                              disabled={loadingSubProducts || productCodes.length === 0}
+                              required={!!formData.product_id}
+                              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
+                                loadingSubProducts || productCodes.length === 0
+                                  ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
+                                  : 'border-gray-300 hover:border-gray-400'
+                              } ${
+                                errors.sub_product_id ? 'border-red-500 bg-red-50' : ''
+                              }`}
                             >
-                              {productCodes.map(code => (
-                                <option key={code.id} value={code.id}>
-                                  {code.pcode} — {code.product_name}
-                                </option>
-                              ))}
+                              {loadingSubProducts ? (
+                                <option value="">Loading sub-products...</option>
+                              ) : productCodes.length === 0 ? (
+                                <option value="">No sub-products available</option>
+                              ) : (
+                                <>
+                                  <option value="">Select Product Code</option>
+                                  {productCodes.map(code => (
+                                    <option key={code.id} value={code.id}>
+                                      {code.pcode} — {code.product_name || 'N/A'}
+                                    </option>
+                                  ))}
+                                </>
+                              )}
                             </select>
                             <div className="absolute right-4 top-1/2 transform -translate-y-1/2 pointer-events-none">
-                              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                              </svg>
+                              {loadingSubProducts ? (
+                                <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                              ) : (
+                                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                </svg>
+                              )}
                             </div>
                           </div>
-                          {selectedSubProductId && (
+                          {selectedSubProductId && productCodes.length > 0 && (
                             <div className="mt-2 text-sm text-gray-600">
-                              Product: {productCodes.find(c => String(c.id) === String(selectedSubProductId))?.product_name || 'N/A'}
+                              Selected: {productCodes.find(c => String(c.id) === String(selectedSubProductId))?.pcode || 'N/A'} — {productCodes.find(c => String(c.id) === String(selectedSubProductId))?.product_name || 'N/A'}
                             </div>
+                          )}
+                          {errors.sub_product_id && (
+                            <p className="mt-2 text-sm text-red-600 flex items-center">
+                              <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                              </svg>
+                              {errors.sub_product_id}
+                            </p>
                           )}
                         </div>
                       )}

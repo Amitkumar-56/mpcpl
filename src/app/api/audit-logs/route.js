@@ -118,7 +118,7 @@ export async function GET(request) {
     const query = `
       SELECT 
         al.*,
-        COALESCE(ep.name, c.name, al.user_name, 'System') AS user_display_name,
+        COALESCE(ep.name, c.name, al.user_name) AS user_display_name,
         ep.name AS employee_name
       FROM audit_log al
       LEFT JOIN employee_profile ep ON al.user_id = ep.id
@@ -190,18 +190,17 @@ export async function GET(request) {
         const creatorRole = newValue.created_by_role || newValue.edited_by_role;
         creatorInfo = {
           id: creatorId,
-          name: newValue.created_by_name || newValue.edited_by_name || log.user_display_name || 'System',
+          name: newValue.created_by_name || newValue.edited_by_name || log.user_display_name || (creatorId ? `Employee ID: ${creatorId}` : null),
           role: creatorRole,
           role_name: creatorRole ? roleNames[creatorRole] || 'Unknown' : null
         };
       }
       
       // ✅ FIX: Always prioritize employee_name from employee_profile join
-      // If user_name is 'System' but we have employee_name from join, use that
       let displayUserName = log.employee_name || log.user_display_name || log.user_name;
       
-      // ✅ FIX: If still 'System' and we have user_id, check the employeeNamesMap
-      if ((!displayUserName || displayUserName === 'System') && log.user_id) {
+      // ✅ FIX: If still no name and we have user_id, check the employeeNamesMap
+      if (!displayUserName && log.user_id) {
         const fetchedName = employeeNamesMap.get(log.user_id);
         if (fetchedName) {
           displayUserName = fetchedName;
@@ -211,10 +210,14 @@ export async function GET(request) {
             displayUserName = newValue.created_by_name || newValue.user_name || newValue.edited_by_name;
           }
           // Final fallback: try from old_value
-          if ((!displayUserName || displayUserName === 'System') && oldValue) {
+          if (!displayUserName && oldValue) {
             if (oldValue.created_by_name || oldValue.user_name || oldValue.edited_by_name) {
               displayUserName = oldValue.created_by_name || oldValue.user_name || oldValue.edited_by_name;
             }
+          }
+          // If still no name, use descriptive text
+          if (!displayUserName && log.user_id) {
+            displayUserName = `Employee ID: ${log.user_id}`;
           }
         }
       }

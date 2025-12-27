@@ -63,7 +63,7 @@ export async function GET(request) {
             END,
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-            'System'
+            NULL
           ) as created_by_name
         FROM filling_logs fl
         WHERE fl.created_by IS NOT NULL
