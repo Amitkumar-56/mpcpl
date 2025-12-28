@@ -43,7 +43,7 @@ export default function UserList() {
   const handleDelete = async (id) => {
     // ✅ DELETE functionality removed - users cannot be deleted
     alert('Delete operation is not allowed. Please contact administrator.');
-    return;
+      return;
   };
 
   if (loading) {
