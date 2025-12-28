@@ -1,8 +1,8 @@
 {
-  "name": "MPCL Management System",
-  "short_name": "MPCL",
-  "description": "MPCL Management System - Complete business management solution",
-  "start_url": "/",
+  "name": "MPCL Employee Portal",
+  "short_name": "MPCL Employee",
+  "description": "MPCL Employee Management Portal",
+  "start_url": "/dashboard",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -60,3 +60,4 @@
   ],
   "categories": ["business", "productivity"]
 }
+

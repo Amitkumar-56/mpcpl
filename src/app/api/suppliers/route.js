@@ -112,8 +112,9 @@ export async function POST(request) {
 
     return NextResponse.json(newSupplier[0], { status: 201 });
   } catch (error) {
+    console.error('Error creating supplier:', error);
     return NextResponse.json(
-      { error: 'Error creating supplier' },
+      { error: error.message || 'Error creating supplier', details: error.toString() },
       { status: 500 }
     );
   } finally {

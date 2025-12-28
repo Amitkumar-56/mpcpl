@@ -4,6 +4,7 @@ import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -701,6 +702,7 @@ export default function DashboardPage() {
         </main>
 
         <Footer />
+        <PWAInstallBanner />
       </div>
 
       {/* Chat Widget */}

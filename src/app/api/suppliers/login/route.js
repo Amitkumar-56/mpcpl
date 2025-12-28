@@ -14,41 +14,61 @@ export async function POST(req) {
   try {
     const { email, password } = await req.json();
 
-    if (!email || !password) {
+    // ✅ FIX: Properly validate email and password (trim whitespace and check length)
+    const trimmedEmail = email ? email.trim() : '';
+    const trimmedPassword = password ? password.trim() : '';
+
+    if (!trimmedEmail || !trimmedPassword) {
       return NextResponse.json(
-        { error: "Email & password required" },
+        { success: false, error: "Email & password required" },
         { status: 400 }
       );
     }
 
-    // Fetch supplier by email
+    // ✅ FIX: Additional validation - password must have minimum length
+    if (trimmedPassword.length < 1) {
+      return NextResponse.json(
+        { success: false, error: "Password is required" },
+        { status: 400 }
+      );
+    }
+
+    // Fetch supplier by email (use trimmed email)
     const rows = await executeQuery(
       "SELECT * FROM suppliers WHERE email = ? LIMIT 1",
-      [email]
+      [trimmedEmail]
     );
 
     if (rows.length === 0) {
-      return NextResponse.json({ error: "Supplier not found" }, { status: 404 });
+      return NextResponse.json({ 
+        success: false, 
+        error: "Supplier not found. Please check your email." 
+      }, { status: 404 });
     }
 
     const supplier = rows[0];
 
-    // Check if supplier is active (status = 1) BEFORE password check for security
-    if (supplier.status === 0 || supplier.status === null || supplier.status === undefined) {
+    // Check if supplier is active (status = 1 or 'active') BEFORE password check for security
+    const supplierStatus = supplier.status;
+    if (supplierStatus === 0 || supplierStatus === '0' || supplierStatus === 'inactive' || supplierStatus === null || supplierStatus === undefined) {
       return NextResponse.json({ 
+        success: false,
         error: "Your account has been deactivated by admin. Please contact administrator." 
       }, { status: 403 });
     }
 
-    // Compute SHA256 hash of input password
-    const hash = crypto.createHash("sha256").update(password).digest("hex");
+    // Compute SHA256 hash of input password (use trimmed password)
+    const hash = crypto.createHash("sha256").update(trimmedPassword).digest("hex");
 
     // Check if DB password is plain-text (for migration)
-    if (supplier.password === password) {
+    if (supplier.password === trimmedPassword) {
       // Update password in DB to hashed version
       await executeQuery("UPDATE suppliers SET password=? WHERE id=?", [hash, supplier.id]);
     } else if (supplier.password !== hash) {
-      return NextResponse.json({ error: "Invalid password" }, { status: 401 });
+      return NextResponse.json({ 
+        success: false,
+        error: "Invalid password. Please check your password." 
+      }, { status: 401 });
     }
 
     // Issue JWT for supplier
@@ -74,7 +94,10 @@ export async function POST(req) {
     return response;
   } catch (err) {
     console.error("Supplier login error:", err);
-    return NextResponse.json({ error: "Server error" }, { status: 500 });
+    return NextResponse.json({ 
+      success: false,
+      error: "Server error. Please try again later." 
+    }, { status: 500 });
   }
 }
 

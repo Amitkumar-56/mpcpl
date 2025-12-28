@@ -3,6 +3,7 @@
 
 import AgentHeader from "@/components/agentHeader";
 import AgentSidebar from "@/components/agentSidebar";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -249,6 +250,7 @@ export default function AgentDashboard() {
             </div>
           </div>
         </main>
+        <PWAInstallBanner />
     </div>
   </div>
   );

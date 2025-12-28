@@ -5,6 +5,7 @@ import ChatBox from "@/components/ChatBox";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Footer from "@/components/Footer";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
@@ -1003,6 +1004,7 @@ export default function CustomerDashboardPage() {
           userRole="customer"
         />
       )}
+      <PWAInstallBanner />
     </div>
   );
 }

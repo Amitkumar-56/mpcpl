@@ -15,6 +15,16 @@ export default function SupplierLoginPage() {
 
   const handleLogin = async (e) => {
     e.preventDefault();
+    
+    // Client-side validation
+    const trimmedEmail = email.trim();
+    const trimmedPassword = password.trim();
+    
+    if (!trimmedEmail || !trimmedPassword) {
+      setError("Please enter both email and password");
+      return;
+    }
+
     setIsLoading(true);
     setError("");
 
@@ -22,18 +32,22 @@ export default function SupplierLoginPage() {
       const res = await fetch("/api/suppliers/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: trimmedEmail, password: trimmedPassword }),
       });
 
       const data = await res.json();
 
+      console.log('Login response:', { status: res.status, data });
+
       if (!res.ok) {
-        setError(data.error || "Login failed");
+        setError(data.error || `Login failed: ${res.status} ${res.statusText}`);
+        setIsLoading(false);
         return;
       }
 
       if (!data.success) {
         setError(data.error || "Login failed");
+        setIsLoading(false);
         return;
       }
 
@@ -57,7 +71,7 @@ export default function SupplierLoginPage() {
       
     } catch (err) {
       console.error("Login error:", err);
-      setError("Server error - Please try again");
+      setError("Network error - Please check your connection and try again");
     } finally {
       setIsLoading(false);
     }

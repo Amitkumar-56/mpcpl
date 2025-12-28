@@ -1,12 +1,12 @@
 {
-  "name": "MPCL Management System",
-  "short_name": "MPCL",
-  "description": "MPCL Management System - Complete business management solution",
-  "start_url": "/",
-  "scope": "/",
+  "name": "MPCL Customer Portal",
+  "short_name": "MPCL CST",
+  "description": "MPCL Customer Self Service Portal",
+  "start_url": "/cst/cstdashboard",
+  "scope": "/cst/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#7c3aed",
+  "theme_color": "#2563eb",
   "orientation": "any",
   "icons": [
     {
@@ -58,5 +58,22 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "productivity"]
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Go to dashboard",
+      "url": "/cst/cstdashboard",
+      "icons": [{ "src": "/LOGO_NEW.jpg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Filling Requests",
+      "short_name": "Requests",
+      "description": "Create filling requests",
+      "url": "/cst/filling-requests",
+      "icons": [{ "src": "/LOGO_NEW.jpg", "sizes": "96x96" }]
+    }
+  ]
 }
+

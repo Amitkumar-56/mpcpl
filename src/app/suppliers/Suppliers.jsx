@@ -26,6 +26,7 @@ export default function SuppliersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Check permissions first
   useEffect(() => {
@@ -218,26 +219,58 @@ export default function SuppliersPage() {
   // Add new supplier via API
   const handleAddSupplier = async (e) => {
     e.preventDefault();
+    
+    if (submitting) return; // Prevent double submission
+    
+    // Validate required fields
+    if (!formData.name || !formData.pan || !formData.supplier_type || !formData.password) {
+      alert('Please fill in all required fields: Name, PAN, Supplier Type, and Password');
+      return;
+    }
+
+    // Check if status is set
+    if (!formData.status) {
+      formData.status = 'active';
+    }
+
+    setSubmitting(true);
     try {
+      const payload = {
+        name: formData.name.trim(),
+        phone: formData.phone?.trim() || '',
+        address: formData.address?.trim() || '',
+        postbox: formData.postbox?.trim() || '',
+        email: formData.email?.trim() || '',
+        picture: formData.picture?.trim() || '',
+        gstin: formData.gstin?.trim() || '',
+        pan: formData.pan.trim(),
+        supplier_type: formData.supplier_type.trim(),
+        status: formData.status || 'active',
+        password: formData.password
+      };
+
+      console.log('Submitting supplier:', payload);
+
       const response = await fetch('/api/suppliers', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify(payload)
       });
 
+      const data = await response.json();
+
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to create supplier');
+        console.error('API Error:', data);
+        throw new Error(data.error || data.details || `Failed to create supplier: ${response.status} ${response.statusText}`);
       }
 
-      const newSupplier = await response.json();
+      const newSupplier = data;
+      console.log('Supplier created:', newSupplier);
       
-      // Update local state
-      const updatedSuppliers = [...suppliers, newSupplier];
-      setSuppliers(updatedSuppliers);
-      setStats(calculateStats(updatedSuppliers));
+      // Refresh suppliers list
+      await fetchSuppliers();
       
       // Reset form
       setFormData({
@@ -255,9 +288,12 @@ export default function SuppliersPage() {
       });
       setShowForm(false);
       
-      alert('Supplier created successfully!');
+      alert('✅ Supplier created successfully!');
     } catch (error) {
-      alert(`Error: ${error.message}`);
+      console.error('Error creating supplier:', error);
+      alert(`❌ Error: ${error.message}\n\nPlease check console for details.`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -458,9 +494,10 @@ export default function SuppliersPage() {
                   </button>
                   <button
                     type="submit"
-                    className="w-full sm:w-auto bg-green-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base"
+                    disabled={submitting}
+                    className="w-full sm:w-auto bg-green-600 text-white px-4 sm:px-6 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm sm:text-base disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Add Supplier
+                    {submitting ? 'Adding...' : 'Add Supplier'}
                   </button>
                 </div>
               </form>

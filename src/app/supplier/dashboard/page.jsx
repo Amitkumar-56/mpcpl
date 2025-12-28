@@ -4,6 +4,7 @@
 import SupplierHeader from "@/components/supplierHeader";
 import SupplierSidebar from "@/components/supplierSidebar";
 import Footer from "@/components/Footer";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { FaBox, FaFileInvoice, FaHistory, FaMoneyBillWave, FaTruck } from "react-icons/fa";
@@ -198,6 +199,7 @@ export default function SupplierDashboardPage() {
 
         {/* Footer */}
         <Footer />
+        <PWAInstallBanner />
       </div>
     </div>
   );

@@ -1,12 +1,12 @@
 {
-  "name": "MPCL Management System",
-  "short_name": "MPCL",
-  "description": "MPCL Management System - Complete business management solution",
-  "start_url": "/",
-  "scope": "/",
+  "name": "MPCL Supplier Portal",
+  "short_name": "MPCL Supplier",
+  "description": "MPCL Supplier Management Portal",
+  "start_url": "/supplier/dashboard",
+  "scope": "/supplier/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#7c3aed",
+  "theme_color": "#f59e0b",
   "orientation": "any",
   "icons": [
     {
@@ -58,5 +58,29 @@
       "purpose": "any maskable"
     }
   ],
-  "categories": ["business", "productivity"]
+  "categories": ["business", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "short_name": "Dashboard",
+      "description": "Go to dashboard",
+      "url": "/supplier/dashboard",
+      "icons": [{ "src": "/LOGO_NEW.jpg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Invoices",
+      "short_name": "Invoices",
+      "description": "View invoices",
+      "url": "/supplier/invoices",
+      "icons": [{ "src": "/LOGO_NEW.jpg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Stock",
+      "short_name": "Stock",
+      "description": "Manage stock",
+      "url": "/supplier/stock",
+      "icons": [{ "src": "/LOGO_NEW.jpg", "sizes": "96x96" }]
+    }
+  ]
 }
+

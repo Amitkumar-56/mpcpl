@@ -1,6 +1,7 @@
 // src/app/layout.js
 import { SessionProvider } from '@/context/SessionContext';
 import PWARegister from '@/components/PWARegister';
+import DynamicManifest from '@/components/DynamicManifest';
 import './globals.css';
 
 export const metadata = {
@@ -58,6 +59,7 @@ export default function RootLayout({ children }) {
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
       <body>
+        <DynamicManifest />
         <PWARegister />
         <SessionProvider>
           {children}
