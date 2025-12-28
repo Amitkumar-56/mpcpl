@@ -50,6 +50,9 @@ export async function POST(request) {
     // Hash password using SHA-256
     const hashedPassword = hashPassword(password);
 
+    // Convert status string to integer (active = 1, inactive = 0)
+    const statusValue = status === 'active' || status === 'Active' || status === 1 || status === '1' ? 1 : 0;
+
     connection = await pool.getConnection();
     
     const [result] = await connection.execute(
@@ -57,7 +60,7 @@ export async function POST(request) {
        (name, phone, address, postbox, email, picture, gstin, pan, supplier_type, status, password) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [name, phone, address, postbox, email, picture || 'default.png', 
-       gstin, pan, supplier_type, status, hashedPassword]
+       gstin, pan, supplier_type, statusValue, hashedPassword]
     );
 
     const [newSupplier] = await connection.execute(
@@ -198,7 +201,13 @@ export async function PUT(request) {
       // Only add to update if value has actually changed
       if (hasChanged) {
         updateFields.push(`${key} = ?`);
-        updateValues.push(updateData[key]);
+        // Convert status string to integer if it's the status field
+        if (key === 'status') {
+          const statusValue = newValue === 'active' || newValue === 'Active' || newValue === 1 || newValue === '1' ? 1 : 0;
+          updateValues.push(statusValue);
+        } else {
+          updateValues.push(newValue);
+        }
       }
     });
 
