@@ -422,13 +422,6 @@ function CustomersPage() {
       filter: 'daylimit',
       count: customers.filter(c => c.client_type === "3").length
     },
-    { 
-      title: 'Expired Day Limits', 
-      value: customers.filter(c => c.client_type === "3" && c.is_active === 0).length, 
-      color: 'from-red-500 to-red-600',
-      filter: 'daylimit',
-      count: customers.filter(c => c.client_type === "3" && c.is_active === 0).length
-    },
   ], [customers]);
 
   // Handle stat card click to filter

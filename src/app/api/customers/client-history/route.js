@@ -1,6 +1,8 @@
 // app/api/customers/client-history/route.js
 import { executeQuery, executeTransaction, getConnection } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -244,12 +246,59 @@ export async function PATCH(request) {
       );
     }
 
+    // Get current user for audit logging
+    let currentUser = null;
+    try {
+      currentUser = await getCurrentUser();
+    } catch (err) {
+      console.log('Could not get current user:', err);
+    }
+
+    // Get customer details first
+    const customerDetails = await executeQuery(
+      'SELECT id, name, client_type FROM customers WHERE id = ?',
+      [customerId]
+    );
+
+    if (customerDetails.length === 0) {
+      return NextResponse.json(
+        { error: 'Customer not found' },
+        { status: 404 }
+      );
+    }
+
+    const customer = customerDetails[0];
+    const clientType = parseInt(customer.client_type) || 0; // 1=Prepaid, 2=Postpaid, 3=Day Limit
+
+    // Get current balance info before transaction (for reference outside transaction)
+    // If balance record doesn't exist, create it
+    let customerBalanceInfo = await executeQuery(
+      'SELECT is_active, balance FROM customer_balances WHERE com_id = ?',
+      [customerId]
+    );
+    
+    if (customerBalanceInfo.length === 0) {
+      // Create default balance record for customer
+      await executeQuery(
+        `INSERT INTO customer_balances 
+         (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [0, 0, 0, 0, customerId, 0, 0, 1]
+      );
+      // Fetch again after creation
+      customerBalanceInfo = await executeQuery(
+        'SELECT is_active, balance FROM customer_balances WHERE com_id = ?',
+        [customerId]
+      );
+    }
+    
+    const currentIsActive = customerBalanceInfo.length > 0 ? (parseInt(customerBalanceInfo[0].is_active) || 1) : 1;
+    const currentBalance = customerBalanceInfo.length > 0 ? (parseFloat(customerBalanceInfo[0].balance) || 0) : 0;
+
     // Use executeTransaction helper to avoid prepared statement error
     const result = await executeTransaction(async (connection) => {
-      // Get customer info first to check if day_limit customer
       // ✅ ADD: Check if day_remaining_amount column exists, if not add it
       try {
-        // Check if column exists
         const [columns] = await connection.execute(`
           SELECT COLUMN_NAME 
           FROM INFORMATION_SCHEMA.COLUMNS 
@@ -259,7 +308,6 @@ export async function PATCH(request) {
         `);
         
         if (columns.length === 0) {
-          // Column doesn't exist, add it
           await connection.execute(`
             ALTER TABLE customer_balances 
             ADD COLUMN day_remaining_amount DECIMAL(10,2) DEFAULT 0.00
@@ -267,54 +315,201 @@ export async function PATCH(request) {
           console.log('Added day_remaining_amount column to customer_balances');
         }
       } catch (alterError) {
-        // Column might already exist or other error, ignore
         console.log('day_remaining_amount column check:', alterError.message);
       }
 
-      const [customerInfo] = await connection.execute(
-        'SELECT day_limit, amtlimit, is_active, balance, total_day_amount, COALESCE(day_remaining_amount, 0) as day_remaining_amount FROM customer_balances WHERE com_id = ?',
+      let [customerInfo] = await connection.execute(
+        'SELECT day_limit, amtlimit, is_active, balance, total_day_amount, COALESCE(day_remaining_amount, 0) as day_remaining_amount, cst_limit FROM customer_balances WHERE com_id = ?',
         [customerId]
       );
       
+      // Auto-create balance record if it doesn't exist
       if (customerInfo.length === 0) {
-        throw new Error('Customer balance info not found');
+        // Determine default values based on client type
+        const defaultAmtLimit = clientType === 2 ? 0 : 0; // Postpaid can have credit limit set later
+        const defaultDayLimit = clientType === 3 ? 0 : 0; // Day limit can be set later
+        
+        await connection.execute(
+          `INSERT INTO customer_balances 
+           (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [0, 0, defaultAmtLimit, defaultAmtLimit, customerId, defaultDayLimit, 0, 1]
+        );
+        
+        // Fetch again after creation
+        [customerInfo] = await connection.execute(
+          'SELECT day_limit, amtlimit, is_active, balance, total_day_amount, COALESCE(day_remaining_amount, 0) as day_remaining_amount, cst_limit FROM customer_balances WHERE com_id = ?',
+          [customerId]
+        );
       }
 
       const isDayLimit = customerInfo[0].day_limit > 0;
+      const isPrepaid = clientType === 1;
+      const isPostpaid = clientType === 2;
       const currentIsActive = parseInt(customerInfo[0].is_active) || 1;
       const currentBalance = parseFloat(customerInfo[0].balance) || 0;
       const currentTotalDayAmount = parseFloat(customerInfo[0].total_day_amount) || 0;
       const currentDayRemainingAmount = parseFloat(customerInfo[0].day_remaining_amount || 0) || 0;
-
-      // ✅ ONLY allow payment processing for day_limit customers
-      if (!isDayLimit) {
-        throw new Error('Payment processing is only available for day limit customers');
-      }
+      const currentCreditLimit = parseFloat(customerInfo[0].cst_limit || customerInfo[0].amtlimit || 0);
 
       const paymentAmount = parseFloat(rechargeAmount);
       
-      // ✅ Balance logic: Payment amount ADD to balance (inward transaction)
-      // Then paid transactions amount SUBTRACT from balance
-      // ✅ NEW: Use day_remaining_amount first if available
-      let availableAmount = paymentAmount + currentDayRemainingAmount; // Payment + existing remaining
-      let tempBalance = currentBalance + paymentAmount; // Add payment to balance first
-      let tempTotalDayAmount = currentTotalDayAmount + paymentAmount; // Add payment to total_day_amount
-      let invoicesPaid = 0;
-      let totalPaidAmount = 0;
-      let daysCleared = 0;
-      let usedRemainingAmount = 0; // Track how much from day_remaining_amount was used
+      // ============================================================
+      // PREPAID CUSTOMER (client_type = 1): Recharge = Balance se MINUS
+      // ============================================================
+      if (isPrepaid) {
+        // ✅ Recharge = Payment = Balance se MINUS
+        const newBalance = currentBalance - paymentAmount;
+        
+        // Update balance
+        await connection.execute(
+          'UPDATE customer_balances SET balance = ? WHERE com_id = ?',
+          [newBalance, customerId]
+        );
 
-      // ✅ FIXED: Get pending transactions without GROUP_CONCAT
-      const [pendingTransactions] = await connection.execute(
-        `SELECT 
-           id,
-           DATE(completed_date) as day_date,
-           COALESCE(totalamt, price * aqty) as amount
-         FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
-         ORDER BY completed_date ASC`,
-        [customerId]
-      );
+        // Record in filling_history as inward transaction (recharge record)
+        // Balance se MINUS but filling_history me inward type (recharge entry)
+        if (paymentAmount > 0) {
+          await connection.execute(
+            `INSERT INTO filling_history (
+              cl_id, trans_type, amount, credit, credit_date, 
+              new_amount, remaining_limit, created_by, payment_status
+            ) VALUES (?, 'inward', ?, ?, NOW(), ?, ?, ?, 1)`,
+            [
+              customerId, 
+              paymentAmount, // Recharge amount
+              paymentAmount, // Credit amount
+              newBalance, // New balance (after deduction from balance)
+              currentCreditLimit,
+              currentUser?.userId || 1,
+            ]
+          );
+        }
+
+        return {
+          customerType: 'prepaid',
+          newBalance,
+          amountRecharged: paymentAmount,
+          invoicesPaid: 0,
+          totalPaidAmount: 0,
+          daysCleared: 0,
+          isDayLimit: false,
+          newIsActive: currentIsActive
+        };
+      }
+
+      // ============================================================
+      // POSTPAID CUSTOMER (client_type = 2): Recharge = Balance se MINUS, Outstanding se pay
+      // ============================================================
+      if (isPostpaid) {
+        // ✅ Recharge = Payment = Balance se MINUS
+        const balanceAfterRecharge = currentBalance - paymentAmount;
+        let remainingAmount = paymentAmount; // Amount available to pay outstanding
+        let invoicesPaid = 0;
+        let totalPaidAmount = 0;
+
+        // Get pending transactions (outstanding invoices - oldest first)
+        const [pendingTransactions] = await connection.execute(
+          `SELECT 
+             id,
+             COALESCE(totalamt, price * aqty) as amount,
+             completed_date
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           ORDER BY completed_date ASC`,
+          [customerId]
+        );
+
+        // Pay off oldest outstanding invoices first from recharge amount
+        for (const transaction of pendingTransactions) {
+          if (remainingAmount <= 0) break;
+
+          const transactionAmount = parseFloat(transaction.amount || 0);
+          
+          if (remainingAmount >= transactionAmount) {
+            const paymentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+            await connection.execute(
+              'UPDATE filling_requests SET payment_status = 1, payment_date = ? WHERE id = ?',
+              [paymentDate, transaction.id]
+            );
+            remainingAmount -= transactionAmount; // Outstanding se minus
+            totalPaidAmount += transactionAmount;
+            invoicesPaid++;
+          } else {
+            // Not enough to pay this invoice fully
+            break;
+          }
+        }
+
+        // ✅ Final balance: Balance se recharge minus, outstanding invoices paid
+        // Balance = Previous Balance - Recharge Amount
+        // Outstanding invoices paid from recharge amount (outstanding se minus)
+        const finalBalance = balanceAfterRecharge;
+        
+        // Update balance
+        await connection.execute(
+          'UPDATE customer_balances SET balance = ? WHERE com_id = ?',
+          [finalBalance, customerId]
+        );
+
+        // Record recharge in filling_history as inward transaction (recharge record)
+        // Balance se MINUS but filling_history me inward type (recharge entry)
+        // Outstanding invoices paid from this payment
+        if (paymentAmount > 0) {
+          await connection.execute(
+            `INSERT INTO filling_history (
+              cl_id, trans_type, amount, credit, credit_date, 
+              new_amount, remaining_limit, created_by, payment_status
+            ) VALUES (?, 'inward', ?, ?, NOW(), ?, ?, ?, 1)`,
+            [
+              customerId, 
+              paymentAmount, // Recharge amount
+              paymentAmount, // Credit amount
+              finalBalance, // New balance (after deduction from balance)
+              currentCreditLimit,
+              currentUser?.userId || 1,
+            ]
+          );
+        }
+
+        return {
+          customerType: 'postpaid',
+          newBalance: finalBalance,
+          amountRecharged: paymentAmount,
+          invoicesPaid,
+          totalPaidAmount, // Amount paid to outstanding invoices
+          daysCleared: 0,
+          remainingBalance: remainingAmount, // Extra payment (if any) - will be used for future outstanding
+          isDayLimit: false,
+          newIsActive: currentIsActive
+        };
+      }
+
+      // ============================================================
+      // DAY LIMIT CUSTOMER (client_type = 3): Recharge = Balance se MINUS, Outstanding se pay day-wise
+      // ============================================================
+      if (isDayLimit) {
+        // ✅ Recharge = Payment = Balance se MINUS
+        // Balance deduct first, then use to pay outstanding invoices
+        let availableAmount = paymentAmount + currentDayRemainingAmount; // Available to pay outstanding
+        let tempBalance = currentBalance - paymentAmount; // ✅ Balance se MINUS (recharge)
+        let tempTotalDayAmount = currentTotalDayAmount + paymentAmount; // Track total recharged
+        let invoicesPaid = 0;
+        let totalPaidAmount = 0;
+        let daysCleared = 0;
+        let usedRemainingAmount = 0; // Track how much from day_remaining_amount was used
+
+        // ✅ FIXED: Get pending transactions without GROUP_CONCAT
+        const [pendingTransactions] = await connection.execute(
+          `SELECT 
+             id,
+             DATE(completed_date) as day_date,
+             COALESCE(totalamt, price * aqty) as amount
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           ORDER BY completed_date ASC`,
+          [customerId]
+        );
 
       console.log('Pending transactions:', pendingTransactions);
       console.log('Payment amount:', paymentAmount);
@@ -378,7 +573,8 @@ export async function PATCH(request) {
               availableAmount -= dayTotal;
             }
             
-            tempBalance -= dayTotal; // ✅ Subtract paid amount from balance
+            // ✅ Outstanding invoices paid from available amount (outstanding se minus)
+            // Balance already deducted, so no need to subtract again
             daysCleared++;
             console.log(`✅ Paid day ${dayData.day_date}: ${transactionIds.length} transactions, Amount: ${dayTotal}, Payment Date: ${paymentDate}`);
           }
@@ -406,10 +602,10 @@ export async function PATCH(request) {
       });
 
       // ✅ CORRECTED LOGIC:
-      // 1. Balance = currentBalance + paymentAmount - totalPaidAmount
-      //    (Payment added, then paid transactions subtracted)
-      // 2. Total_day_amount = remaining_amount (for future payments)
-      const newBalance = tempBalance;
+      // 1. Balance = currentBalance - paymentAmount (Recharge = Balance se MINUS)
+      // 2. Outstanding invoices paid from payment amount (outstanding se minus)
+      // 3. Total_day_amount = remaining_amount (for future payments)
+      const newBalance = tempBalance; // Already deducted paymentAmount
       const newTotalDayAmount = remainingDayAmount;
       
       // Check if customer is still overdue after payment (for day_limit customers)
@@ -453,7 +649,9 @@ export async function PATCH(request) {
         [newBalance, newTotalDayAmount, newDayRemainingAmount, newIsActive, customerId]
       );
 
-      // Record the recharge in filling_history as inward transaction
+      // Record the recharge in filling_history as inward transaction (recharge record)
+      // Balance se MINUS but filling_history me inward type (recharge entry)
+      // Outstanding day-wise invoices paid from this payment
       if (paymentAmount > 0) {
         await connection.execute(
           `INSERT INTO filling_history (
@@ -462,53 +660,78 @@ export async function PATCH(request) {
           ) VALUES (?, 'inward', ?, ?, NOW(), ?, ?, ?, 1)`,
           [
             customerId, 
-            paymentAmount, // amount (positive)
-            paymentAmount, // credit (positive)
-            newBalance,    // new_amount (balance after payment and deductions)
+            paymentAmount, // Recharge amount
+            paymentAmount, // Credit amount
+            newBalance,    // New balance (after deduction from balance)
             customerInfo[0].day_limit, // Use day_limit instead of amtlimit
-            1, // created_by
+            currentUser?.userId || 1, // created_by
           ]
         );
       }
 
-      // Return result for executeTransaction
-      return {
-        invoicesPaid,
-        totalPaidAmount,
-        remainingDayAmount,
-        dayRemainingAmount: newDayRemainingAmount, // ✅ NEW: Extra payment amount
-        daysCleared,
-        isOverdue,
-        newIsActive,
-        newBalance,
-        newTotalDayAmount,
-        isDayLimit
-      };
+        // Return result for executeTransaction (Day Limit)
+        return {
+          customerType: 'day_limit',
+          invoicesPaid,
+          totalPaidAmount,
+          remainingDayAmount,
+          dayRemainingAmount: newDayRemainingAmount,
+          daysCleared,
+          isOverdue,
+          newIsActive,
+          newBalance,
+          newTotalDayAmount,
+          isDayLimit: true
+        };
+      }
+
+      // If we reach here, customer type is unknown
+      throw new Error(`Unknown customer type: ${clientType}. Expected 1 (Prepaid), 2 (Postpaid), or 3 (Day Limit).`);
 
     });
 
-    // Build success message
+    // Build success message based on customer type
     let message = '';
-    if (result.isDayLimit) {
+    let customerTypeName = '';
+    
+    if (result.customerType === 'prepaid') {
+      customerTypeName = 'Prepaid';
+      message = `Wallet recharge successful! Amount: ₹${rechargeAmount}. New balance: ₹${result.newBalance.toFixed(2)}.`;
+    } else if (result.customerType === 'postpaid') {
+      customerTypeName = 'Postpaid';
+      message = `Recharge successful! Amount: ₹${rechargeAmount}. `;
+      if (result.invoicesPaid > 0) {
+        message += `${result.invoicesPaid} unpaid invoice(s) paid (₹${result.totalPaidAmount.toFixed(2)}). `;
+      }
+      message += `New balance: ₹${result.newBalance.toFixed(2)}.`;
+      if (result.remainingBalance > 0) {
+        message += ` Remaining credit: ₹${result.remainingBalance.toFixed(2)}.`;
+      }
+    } else if (result.customerType === 'day_limit') {
+      customerTypeName = 'Day Limit';
       const daysMessage = result.daysCleared === 1 
         ? '1 day payment made' 
         : `${result.daysCleared} days payment made`;
-      message = `Payment processed successfully. ${daysMessage}. ${result.invoicesPaid} unpaid invoice(s) paid. Amount: ₹${result.totalPaidAmount}.`;
+      message = `Payment processed successfully. ${daysMessage}. ${result.invoicesPaid} unpaid invoice(s) paid. Amount: ₹${result.totalPaidAmount.toFixed(2)}.`;
       
       if (result.remainingDayAmount > 0) {
-        message += ` Remaining balance in day account: ₹${result.remainingDayAmount}.`;
+        message += ` Remaining balance in day account: ₹${result.remainingDayAmount.toFixed(2)}.`;
       }
       
-      // ✅ NEW: Show extra payment amount
       if (result.dayRemainingAmount > 0) {
-        message += ` Extra payment stored: ₹${result.dayRemainingAmount} (will be used for future requests).`;
+        message += ` Extra payment stored: ₹${result.dayRemainingAmount.toFixed(2)} (will be used for future requests).`;
       }
       
       message += result.isOverdue ? ' ⚠️ Status: Overdue' : ' ✅ Status: Active';
     }
 
-    // Create audit log entry for recharge
+    // ✅ COMPREHENSIVE AUDIT LOGGING - Both customer_audit_log and audit_log
     try {
+      // Get user info
+      let userId = currentUser?.userId || null;
+      let userName = currentUser?.userName || null;
+
+      // Ensure customer_audit_log table exists
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS customer_audit_log (
           id INT AUTO_INCREMENT PRIMARY KEY,
@@ -524,35 +747,53 @@ export async function PATCH(request) {
         )
       `);
       
-      // Get user info from cookies
-      let userId = null;
-      let userName = null;
-      try {
-        const { cookies } = await import('next/headers');
-        const { verifyToken } = await import('@/lib/auth');
-        const cookieStore = await cookies();
-        const token = cookieStore.get('token')?.value;
-        if (token) {
-          const decoded = verifyToken(token);
-          if (decoded) {
-            userId = decoded.userId || decoded.id;
-            const employeeResult = await executeQuery(
-              `SELECT name FROM employee_profile WHERE id = ?`,
-              [userId]
-            );
-            if (employeeResult.length > 0) {
-              userName = employeeResult[0].name || 'Unknown';
-            }
-          }
-        }
-      } catch (authError) {
-        console.error('Error getting user for audit log:', authError);
-      }
-      
+      // Insert into customer_audit_log
       await executeQuery(
         `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-        [customerId, 'recharge', userId, userName, `Recharge: ₹${rechargeAmount}`, parseFloat(rechargeAmount)]
+        [
+          customerId, 
+          'recharge', 
+          userId, 
+          userName || 'System', 
+          `${customerTypeName} Recharge: ₹${rechargeAmount}${result.invoicesPaid > 0 ? ` | ${result.invoicesPaid} invoice(s) paid` : ''}`, 
+          parseFloat(rechargeAmount)
+        ]
       );
+
+      // ✅ ALSO create comprehensive audit log using createAuditLog
+      try {
+        await createAuditLog({
+          page: 'Customers',
+          uniqueCode: `CUSTOMER-${customerId}`,
+          section: 'Customer Recharge',
+          userId,
+          userName,
+          action: 'recharge',
+          remarks: `${customerTypeName} customer recharge: ₹${rechargeAmount}${result.invoicesPaid > 0 ? ` | ${result.invoicesPaid} invoice(s) paid (₹${result.totalPaidAmount?.toFixed(2) || 0})` : ''}`,
+          oldValue: {
+            customer_id: customerId,
+            customer_name: customer.name,
+            customer_type: customerTypeName,
+            previous_balance: currentBalance
+          },
+          newValue: {
+            customer_id: customerId,
+            customer_name: customer.name,
+            customer_type: customerTypeName,
+            new_balance: result.newBalance,
+            recharge_amount: parseFloat(rechargeAmount),
+            invoices_paid: result.invoicesPaid || 0,
+            amount_paid: result.totalPaidAmount || 0
+          },
+          fieldName: 'balance',
+          recordType: 'customer',
+          recordId: customerId
+        });
+      } catch (comprehensiveLogError) {
+        console.error('Error creating comprehensive audit log:', comprehensiveLogError);
+        // Don't fail the operation
+      }
+
     } catch (auditError) {
       console.error('Error creating audit log for recharge:', auditError);
       // Don't fail the main operation
@@ -561,15 +802,18 @@ export async function PATCH(request) {
     return NextResponse.json({
       success: true,
       message,
-      invoicesPaid: result.invoicesPaid,
-      amountPaid: result.totalPaidAmount,
-      remainingDayAmount: result.remainingDayAmount,
-      dayRemainingAmount: result.dayRemainingAmount, // ✅ NEW: Extra payment amount
-      daysCleared: result.daysCleared,
-      isOverdue: result.isOverdue,
-      isActive: result.newIsActive,
+      customerType: result.customerType,
+      amountRecharged: parseFloat(rechargeAmount),
       newBalance: result.newBalance,
-      newTotalDayAmount: result.newTotalDayAmount
+      invoicesPaid: result.invoicesPaid || 0,
+      amountPaid: result.totalPaidAmount || 0,
+      remainingDayAmount: result.remainingDayAmount || 0,
+      dayRemainingAmount: result.dayRemainingAmount || 0,
+      daysCleared: result.daysCleared || 0,
+      isOverdue: result.isOverdue || false,
+      isActive: result.newIsActive !== undefined ? result.newIsActive : currentIsActive,
+      newTotalDayAmount: result.newTotalDayAmount || 0,
+      remainingBalance: result.remainingBalance || 0
     });
 
   } catch (error) {

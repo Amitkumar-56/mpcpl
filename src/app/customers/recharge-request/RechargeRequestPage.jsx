@@ -85,8 +85,52 @@ export default function RechargeRequestPage() {
 
   // Calculate payment breakdown based on amount - WITH DAY-WISE BREAKDOWN
   const calculatePaymentBreakdown = (amount) => {
-    if (!customerData || customerData.customer.client_type !== "3") {
+    const clientType = customerData?.customer?.client_type;
+    
+    // Prepaid: Recharge = Balance se MINUS
+    if (clientType === "1") {
+      const paymentAmount = parseFloat(amount) || 0;
+      const currentBalance = customerData?.balance?.current_balance || 0;
+      const newBalance = currentBalance - paymentAmount; // ✅ Balance se MINUS
+      
+      return {
+        customerType: 'prepaid',
+        canPayRequests: 0,
+        amountUsed: 0,
+        daysToAdd: 0,
+        amountUsedForDays: 0,
+        remainingChange: 0,
+        newBalance,
+        hasPendingRequests: false,
+        daysCleared: 0,
+        dayWiseBreakdown: []
+      };
+    }
+    
+    // Postpaid: Recharge = Balance se MINUS, Outstanding invoices se pay
+    if (clientType === "2") {
+      const paymentAmount = parseFloat(amount) || 0;
+      const currentBalance = customerData?.balance?.current_balance || 0;
+      const newBalance = currentBalance - paymentAmount; // ✅ Balance se MINUS
+      
+      return {
+        customerType: 'postpaid',
+        canPayRequests: 0,
+        amountUsed: 0,
+        daysToAdd: 0,
+        amountUsedForDays: 0,
+        remainingChange: 0,
+        newBalance,
+        hasPendingRequests: false,
+        daysCleared: 0,
+        dayWiseBreakdown: []
+      };
+    }
+    
+    // Day Limit: Day-wise breakdown
+    if (clientType !== "3") {
       return { 
+        customerType: 'unknown',
         canPayRequests: 0, 
         amountUsed: 0,
         daysToAdd: 0,
@@ -139,19 +183,20 @@ export default function RechargeRequestPage() {
       }
     }
 
-    const remainingChange = remainingAmount;
+      const remainingChange = remainingAmount;
     
-    // Balance से MINUS, Total Day Amount में ADD
-    // ✅ FIX: Add null check for balance object
+    // ✅ Recharge = Balance se MINUS, Total Day Amount me ADD
+    // ✅ Outstanding invoices pay honge from payment amount
     const currentBalance = customerData?.balance?.current_balance || 0;
     const totalDayAmount = customerData?.balance?.total_day_amount || 0;
-    const newBalance = currentBalance - paymentAmount;
-    const newTotalDayAmount = totalDayAmount + paymentAmount;
+    const newBalance = currentBalance - paymentAmount; // ✅ Balance se MINUS (recharge)
+    const newTotalDayAmount = totalDayAmount + paymentAmount; // Track total recharged
     
     // DAY LIMIT NO CHANGE
     const newDayLimit = customerData.customer.day_limit || 0;
 
     return {
+      customerType: 'day_limit',
       canPayRequests: daysCleared > 0 ? dayWiseBreakdown.slice(0, daysCleared).reduce((sum, d) => sum + (d.transaction_count || 0), 0) : 0,
       amountUsed: amountUsedForDays,
       daysToAdd: 0, // Always 0 now
@@ -202,13 +247,13 @@ export default function RechargeRequestPage() {
       console.log('Payment response:', data);
       
       if (response.ok && data.success) {
-        let message = data.message || "Payment processed successfully!";
+        let message = data.message || "Recharge processed successfully!";
         
-        // ✅ FIX: Update message format to match client-history API response
+        // ✅ Enhanced message format for all customer types
         if (data.newBalance !== undefined) {
           message += `\n\n💰 New Balance: ₹${data.newBalance.toFixed(2)}`;
         }
-        if (data.newTotalDayAmount !== undefined) {
+        if (data.newTotalDayAmount !== undefined && data.newTotalDayAmount > 0) {
           message += `\n\n📊 Total Day Amount: ₹${data.newTotalDayAmount.toFixed(2)}`;
         }
         if (data.dayRemainingAmount !== undefined && data.dayRemainingAmount > 0) {
@@ -220,8 +265,11 @@ export default function RechargeRequestPage() {
         if (data.invoicesPaid !== undefined && data.invoicesPaid > 0) {
           message += `\n\n✅ Paid Requests: ${data.invoicesPaid}`;
         }
-        if (data.amountPaid !== undefined) {
+        if (data.amountPaid !== undefined && data.amountPaid > 0) {
           message += `\n\n💳 Amount Paid: ₹${data.amountPaid.toFixed(2)}`;
+        }
+        if (data.remainingBalance !== undefined && data.remainingBalance > 0) {
+          message += `\n\n💵 Remaining Credit: ₹${data.remainingBalance.toFixed(2)}`;
         }
         
         setSuccessMessage(message);
@@ -297,8 +345,10 @@ export default function RechargeRequestPage() {
   }
 
   const isDayLimitCustomer = customerData?.customer.client_type === "3";
+  const isPrepaid = customerData?.customer.client_type === "1";
+  const isPostpaid = customerData?.customer.client_type === "2";
   const paymentBreakdown = calculatePaymentBreakdown(formData.amount);
-  const hasPendingRequests = customerData?.pending.request_count > 0;
+  const hasPendingRequests = customerData?.pending?.request_count > 0;
 
   return (
     <div className="flex h-screen bg-gray-100">
@@ -426,7 +476,7 @@ export default function RechargeRequestPage() {
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
               </svg>
-              {isDayLimitCustomer ? "Make Payment" : "Recharge Wallet"}
+              {isDayLimitCustomer ? "Make Payment" : (isPrepaid ? "Recharge Wallet" : (isPostpaid ? "Recharge & Pay Invoices" : "Recharge"))}
             </button>
           </div>
         </main>
@@ -446,7 +496,7 @@ export default function RechargeRequestPage() {
           >
             <div className="flex justify-between items-center px-6 py-4 border-b bg-gradient-to-r from-blue-600 to-indigo-700 sticky top-0 bg-white z-10">
               <h2 className="text-lg font-semibold text-white">
-                {isDayLimitCustomer ? "Make Payment" : "Recharge Wallet"} - {customerData?.customer?.name}
+                {isDayLimitCustomer ? "Make Payment" : (isPrepaid ? "Recharge Wallet" : (isPostpaid ? "Recharge & Pay Invoices" : "Recharge"))} - {customerData?.customer?.name}
               </h2>
               <button 
                 onClick={() => setShowModal(false)} 
@@ -458,7 +508,7 @@ export default function RechargeRequestPage() {
             </div>
 
             <form onSubmit={handleSubmit} className="p-6 space-y-6">
-              {isDayLimitCustomer && hasPendingRequests && (
+              {(isDayLimitCustomer && hasPendingRequests) && (
                 <div className="mb-4 p-4 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-center mb-2">
                     <svg className="w-5 h-5 text-orange-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -475,8 +525,8 @@ export default function RechargeRequestPage() {
                 </div>
               )}
 
-              {/* Payment Preview */}
-              {isDayLimitCustomer && formData.amount && parseFloat(formData.amount) > 0 && (
+              {/* Payment Preview - Show for all customer types */}
+              {formData.amount && parseFloat(formData.amount) > 0 && (
                 <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
                   <p className="text-sm font-medium text-blue-800 mb-2">Payment Preview</p>
                   
@@ -486,13 +536,20 @@ export default function RechargeRequestPage() {
                     <p className="text-xs text-gray-600">
                       Balance: {formatCurrency(customerData?.balance?.current_balance || 0)} → {formatCurrency(paymentBreakdown.newBalance)}
                     </p>
-                    <p className="text-xs text-gray-600">
-                      Total Day Amount: {formatCurrency(customerData?.balance?.total_day_amount || 0)} → {formatCurrency(paymentBreakdown.newTotalDayAmount)}
-                    </p>
+                    {isDayLimitCustomer && (
+                      <p className="text-xs text-gray-600">
+                        Total Day Amount: {formatCurrency(customerData?.balance?.total_day_amount || 0)} → {formatCurrency(paymentBreakdown.newTotalDayAmount || 0)}
+                      </p>
+                    )}
+                    {(isPrepaid || isPostpaid) && (
+                      <p className="text-xs text-green-600 mt-1">
+                        ✅ Amount will be added to wallet balance
+                      </p>
+                    )}
                   </div>
                   
-                  {/* Day-wise Breakdown */}
-                  {paymentBreakdown.dayWiseBreakdown && paymentBreakdown.dayWiseBreakdown.length > 0 && (
+                  {/* Day-wise Breakdown - Only for Day Limit */}
+                  {isDayLimitCustomer && paymentBreakdown.dayWiseBreakdown && paymentBreakdown.dayWiseBreakdown.length > 0 && (
                     <div className="mb-3 p-3 bg-yellow-50 rounded-lg">
                       <p className="text-sm font-semibold text-yellow-800 mb-2">📅 Day-wise Payment Breakdown</p>
                       <div className="space-y-2">
@@ -588,7 +645,16 @@ export default function RechargeRequestPage() {
                 {isDayLimitCustomer && (
                   <p className="text-xs text-gray-500 mt-1">
                     Amount will clear pending requests first. Remaining amount will be kept as credit.
-                    {/* ❌ Days calculation message removed */}
+                  </p>
+                )}
+                {isPrepaid && (
+                  <p className="text-xs text-blue-500 mt-1">
+                    💰 Recharge amount will be deducted from balance (payment made).
+                  </p>
+                )}
+                {isPostpaid && (
+                  <p className="text-xs text-purple-500 mt-1">
+                    💳 Recharge amount will be deducted from balance. Outstanding invoices will be automatically paid from this payment.
                   </p>
                 )}
               </div>
@@ -668,7 +734,7 @@ export default function RechargeRequestPage() {
                       Processing...
                     </>
                   ) : (
-                    isDayLimitCustomer ? "Make Payment" : "Recharge"
+                    isDayLimitCustomer ? "Make Payment" : (isPrepaid ? "Recharge" : (isPostpaid ? "Recharge & Pay" : "Recharge"))
                   )}
                 </button>
               </div>
