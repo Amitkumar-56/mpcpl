@@ -432,9 +432,10 @@ function DeepoViewContent() {
         <div className="flex justify-center space-x-4 mt-6 print:hidden">
           <button
             onClick={goBack}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-md font-medium transition-colors flex items-center gap-2"
           >
-            Back
+            <span className="text-lg">←</span>
+            <span>Back</span>
           </button>
           <button
             onClick={generatePDF}

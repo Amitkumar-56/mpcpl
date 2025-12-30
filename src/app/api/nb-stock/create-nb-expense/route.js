@@ -223,18 +223,49 @@ export async function POST(req) {
       recordId: expenseId
     });
 
-    // ✅ FIX: Create log entry for stock update (legacy table)
+    // ✅ FIX: Create log entry for stock update (legacy table) with employee name and date/time
     try {
+      // Check if performed_by_name column exists, if not add it
+      const colsInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_by_name'`);
+      if (colsInfo.length === 0) {
+        await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_by_name VARCHAR(255) AFTER performed_by`);
+      }
+      
+      // Check if performed_date and performed_time columns exist
+      const dateColInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_date'`);
+      if (dateColInfo.length === 0) {
+        await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_date DATE AFTER performed_at`);
+      }
+      const timeColInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_time'`);
+      if (timeColInfo.length === 0) {
+        await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_time TIME AFTER performed_date`);
+      }
+      
+      // Get current date and time in Indian timezone
+      const now = new Date();
+      const currentDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+      const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
+      
       await executeQuery(
         `INSERT INTO nb_stock_logs 
-         (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
-         VALUES (?, ?, 'Expense Deduction', ?, ?, ?, ?, NOW(), ?)`,
-        [station_id, product_id, oldStock, newStock, amount, user_id, `Expense: ${title} - ${reason || 'N/A'}`]
+         (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_by_name, performed_at, performed_date, performed_time, reason)
+         VALUES (?, ?, 'Expense Deduction', ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+        [station_id, product_id, oldStock, newStock, amount, user_id, userName || 'Unknown', currentDate, currentTime, `Expense: ${title} - ${reason || 'N/A'}`]
       );
-      console.log('✅ NB Stock log created for expense deduction');
+      console.log('✅ NB Stock log created for expense deduction with employee name:', userName);
     } catch (logError) {
-      console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
-      // Continue even if log creation fails
+      // If column doesn't exist or other error, try without new columns
+      try {
+        await executeQuery(
+          `INSERT INTO nb_stock_logs 
+           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
+           VALUES (?, ?, 'Expense Deduction', ?, ?, ?, ?, NOW(), ?)`,
+          [station_id, product_id, oldStock, newStock, amount, user_id, `Expense: ${title} - ${reason || 'N/A'}`]
+        );
+      } catch (fallbackError) {
+        console.log('⚠️ NB Stock logs table may not exist, skipping:', fallbackError.message);
+        // Continue even if log creation fails
+      }
     }
 
     return NextResponse.json({

@@ -40,10 +40,10 @@ export async function GET(request) {
       [customerId]
     );
 
-    // Map the results to use employee_name
+    // Map the results to use employee_name (never null or 'System')
     const logsWithNames = logs.map(log => ({
       ...log,
-      user_name: log.employee_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : null)
+      user_name: log.employee_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown')
     }));
 
     return NextResponse.json({

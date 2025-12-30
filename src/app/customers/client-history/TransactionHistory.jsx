@@ -263,7 +263,7 @@ export default function TransactionHistory() {
           
           return [
             item.station_name || 'N/A',
-            item.completed_date ? new Date(item.completed_date).toLocaleDateString() : 'N/A',
+            item.completed_date ? new Date(item.completed_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A',
             item.product_name || 'N/A',
             item.vehicle_number || 'N/A',
             item.trans_type || 'N/A',
@@ -294,14 +294,14 @@ export default function TransactionHistory() {
           
           return [
             item.station_name || 'N/A',
-            item.completed_date ? new Date(item.completed_date).toLocaleDateString() : 'N/A',
+            item.completed_date ? new Date(item.completed_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A',
             item.product_name || 'N/A',
             item.vehicle_number || 'N/A',
             item.trans_type || 'N/A',
             `${item.quantity || '0'} Ltr`,
             `₹${parseFloat(item.amount || 0).toFixed(2)}`,
             `₹${parseFloat(item.credit || 0).toFixed(2)}`,
-            item.credit_date ? new Date(item.credit_date).toLocaleDateString() : 'N/A',
+            item.credit_date ? new Date(item.credit_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A',
             `₹${parseFloat(item.balance || 0).toFixed(2)}`,
             `₹${parseFloat(item.remaining_limit || 0).toFixed(2)}`,
             item.limit_type || 'N/A',

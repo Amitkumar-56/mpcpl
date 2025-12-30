@@ -119,7 +119,9 @@ export async function GET(request) {
       SELECT 
         al.*,
         COALESCE(ep.name, c.name, al.user_name) AS user_display_name,
-        ep.name AS employee_name
+        ep.name AS employee_name,
+        ep.id AS employee_profile_id,
+        al.user_id AS audit_user_id
       FROM audit_log al
       LEFT JOIN employee_profile ep ON al.user_id = ep.id
       LEFT JOIN customers c ON al.user_id = c.id
@@ -140,25 +142,29 @@ export async function GET(request) {
       6: 'Driver'
     };
 
-    // ✅ FIX: Get all user_ids that still have 'System' as name and fetch their names
-    const systemUserIds = logs
-      .filter(log => (!log.employee_name || log.employee_name === 'System') && log.user_id)
+    // ✅ FIX: Get ALL unique user_ids from logs and fetch their names from employee_profile
+    // This ensures all logs get proper employee names, even if JOIN failed
+    const allUserIds = logs
       .map(log => log.user_id)
+      .filter(id => id !== null && id !== undefined) // Remove nulls/undefined
       .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
     
     const employeeNamesMap = new Map();
-    if (systemUserIds.length > 0) {
+    if (allUserIds.length > 0) {
       try {
-        const placeholders = systemUserIds.map(() => '?').join(',');
+        console.log(`🔍 [AuditLogs API] Fetching employee names for ${allUserIds.length} unique user IDs`);
+        const placeholders = allUserIds.map(() => '?').join(',');
         const employeeQuery = `SELECT id, name FROM employee_profile WHERE id IN (${placeholders})`;
-        const employees = await executeQuery(employeeQuery, systemUserIds);
+        const employees = await executeQuery(employeeQuery, allUserIds);
+        console.log(`✅ [AuditLogs API] Found ${employees.length} employees from employee_profile table`);
         employees.forEach(emp => {
-          if (emp.name) {
+          if (emp.name && emp.id) {
             employeeNamesMap.set(emp.id, emp.name);
+            console.log(`  - ID: ${emp.id} => Name: ${emp.name}`);
           }
         });
       } catch (err) {
-        console.error('Error fetching employee names for audit logs:', err);
+        console.error('❌ [AuditLogs API] Error fetching employee names:', err);
       }
     }
     
@@ -196,30 +202,66 @@ export async function GET(request) {
         };
       }
       
-      // ✅ FIX: Always prioritize employee_name from employee_profile join
-      let displayUserName = log.employee_name || log.user_display_name || log.user_name;
+      // ✅ FIX: Always prioritize employee name from employeeNamesMap (fetched from employee_profile)
+      // This ensures we always get the correct name based on user_id
+      let displayUserName = null;
       
-      // ✅ FIX: If still no name and we have user_id, check the employeeNamesMap
-      if (!displayUserName && log.user_id) {
+      // Step 1: If we have user_id, ALWAYS try to get from employeeNamesMap first
+      if (log.user_id) {
         const fetchedName = employeeNamesMap.get(log.user_id);
         if (fetchedName) {
           displayUserName = fetchedName;
-        } else {
-          // Try to get from newValue (might have created_by_name)
-          if (newValue && (newValue.created_by_name || newValue.user_name || newValue.edited_by_name)) {
-            displayUserName = newValue.created_by_name || newValue.user_name || newValue.edited_by_name;
-          }
-          // Final fallback: try from old_value
-          if (!displayUserName && oldValue) {
-            if (oldValue.created_by_name || oldValue.user_name || oldValue.edited_by_name) {
-              displayUserName = oldValue.created_by_name || oldValue.user_name || oldValue.edited_by_name;
-            }
-          }
-          // If still no name, use descriptive text
-          if (!displayUserName && log.user_id) {
-            displayUserName = `Employee ID: ${log.user_id}`;
-          }
         }
+      }
+      
+      // Step 2: If not found in map, try employee_name from JOIN
+      if (!displayUserName && log.employee_name) {
+        // Only use if it's a valid name (not System, Unknown User, etc.)
+        if (log.employee_name !== 'System' && 
+            log.employee_name !== 'Unknown User' &&
+            !log.employee_name.startsWith('Employee ID:')) {
+          displayUserName = log.employee_name;
+        }
+      }
+      
+      // Step 3: Try user_display_name (from COALESCE)
+      if (!displayUserName && log.user_display_name) {
+        if (log.user_display_name !== 'System' && 
+            log.user_display_name !== 'Unknown User' &&
+            !log.user_display_name.startsWith('Employee ID:')) {
+          displayUserName = log.user_display_name;
+        }
+      }
+      
+      // Step 4: Try stored user_name (only if valid)
+      if (!displayUserName && log.user_name) {
+        if (log.user_name !== 'System' && 
+            log.user_name !== 'Unknown User' &&
+            !log.user_name.startsWith('Employee ID:')) {
+          displayUserName = log.user_name;
+        }
+      }
+      
+      // Step 5: Try to get from newValue (might have created_by_name or edited_by_name)
+      if (!displayUserName && newValue) {
+        displayUserName = newValue.created_by_name || newValue.edited_by_name || newValue.user_name;
+      }
+      
+      // Step 6: Try from old_value
+      if (!displayUserName && oldValue) {
+        displayUserName = oldValue.created_by_name || oldValue.edited_by_name || oldValue.user_name;
+      }
+      
+      // Step 7: Final fallback - if we have user_id, show ID format
+      if (!displayUserName && log.user_id) {
+        displayUserName = `Employee ID: ${log.user_id}`;
+        console.warn(`⚠️ [AuditLogs API] Employee not found in employee_profile for user_id ${log.user_id}`);
+      }
+      
+      // Step 8: Last resort - only use 'Unknown User' if no user_id at all
+      if (!displayUserName) {
+        displayUserName = 'Unknown User';
+        console.warn(`⚠️ [AuditLogs API] No user_id for log ${log.id}, using 'Unknown User'`);
       }
       
       return {

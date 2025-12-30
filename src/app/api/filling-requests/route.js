@@ -18,7 +18,10 @@ export async function GET(request) {
 
     console.log('📊 Filters:', { page, recordsPerPage, status, search, startDate, endDate, stationId });
 
-    const offset = (page - 1) * recordsPerPage;
+    // ✅ FIX: Ensure offset and recordsPerPage are valid integers
+    const safePage = parseInt(page) || 1;
+    const safeRecordsPerPage = Math.max(1, Math.min(parseInt(recordsPerPage) || 10, 100));
+    const offset = Math.max(0, (safePage - 1) * safeRecordsPerPage);
 
     let query = `
       SELECT 
@@ -26,46 +29,93 @@ export async function GET(request) {
         c.name as customer_name, 
         c.phone as customer_phone,
         fs.station_name as loading_station,
+        fs.phone as station_phone,
+        fs.map_link as station_map_link,
+        fs.address as station_address,
+        fs.email as station_email,
+        fs.manager as station_manager,
         pc.pcode as product_name,
         COALESCE(
           ep_status.name,
-          ep_processing.name,
-          ep_completed.name,
+          fl_processing.processing_by_name,
+          fl_completed.completed_by_name,
           fl_created.created_by_name,
           NULL
         ) as updated_by_name,
         cb.amtlimit as customer_balance,
         cb.day_limit as customer_day_limit,
-        ep_processing.name as processing_by_name,
-        ep_completed.name as completed_by_name,
+        fl_processing.processing_by_name,
+        fl_processing.processed_date_formatted,
+        fl_completed.completed_by_name,
+        fl_completed.completed_date_formatted,
         fl_created.created_by_name as created_by_name,
-        fl_created.created_date as created_date
+        fl_created.created_date as created_date,
+        fl_created.created_date_formatted as created_date_formatted,
+        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(fr.created, '%d/%m/%Y %h:%i %p') ELSE NULL END as created_formatted,
+        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(fr.completed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted,
+        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(fr.created, '%Y-%m-%d %H:%i:%s') ELSE NULL END as created_ist,
+        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(fr.completed_date, '%Y-%m-%d %H:%i:%s') ELSE NULL END as completed_date_ist
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
       LEFT JOIN product_codes pc ON pc.id = fr.sub_product_id
       LEFT JOIN employee_profile ep_status ON ep_status.id = fr.status_updated_by
       LEFT JOIN customer_balances cb ON cb.com_id = fr.cid
-      LEFT JOIN filling_logs fl_processing ON fr.rid = fl_processing.request_id
-      LEFT JOIN employee_profile ep_processing ON fl_processing.processed_by = ep_processing.id
-      LEFT JOIN filling_logs fl_completed ON fr.rid = fl_completed.request_id
-      LEFT JOIN employee_profile ep_completed ON fl_completed.completed_by = ep_completed.id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          ep.name as processing_by_name,
+          CASE WHEN fl.processed_date IS NOT NULL THEN DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as processed_date_formatted
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
+        WHERE fl.processed_by IS NOT NULL
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.processed_by IS NOT NULL
+          ORDER BY fl2.processed_date DESC, fl2.id DESC
+          LIMIT 1
+        )
+      ) fl_processing ON fr.rid = fl_processing.request_id
+      LEFT JOIN (
+        SELECT 
+          fl.request_id,
+          ep.name as completed_by_name,
+          CASE WHEN fl.completed_date IS NOT NULL THEN DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted
+        FROM filling_logs fl
+        LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
+        WHERE fl.completed_by IS NOT NULL
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.completed_by IS NOT NULL
+          ORDER BY fl2.completed_date DESC, fl2.id DESC
+          LIMIT 1
+        )
+      ) fl_completed ON fr.rid = fl_completed.request_id
       LEFT JOIN (
         SELECT 
           fl.request_id,
           fl.created_by,
           fl.created_date,
+          -- ✅ FIX: Check employee_profile FIRST (using JOINs for better performance), then customers
           COALESCE(
+            CASE WHEN ep_created.role = 5 THEN 'Admin' ELSE NULL END,
+            ep_created.name,
+            c_created.name,
             CASE 
-              WHEN (SELECT ep.role FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1) = 5 
-              THEN 'Admin'
+              WHEN fl.created_by IS NOT NULL AND fl.created_by > 0 
+              THEN CONCAT('Employee ID: ', fl.created_by)
               ELSE NULL
-            END,
-            (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
-            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-            NULL
-          ) as created_by_name
+            END
+          ) as created_by_name,
+          -- ✅ Add formatted date/time
+          CASE WHEN fl.created_date IS NOT NULL THEN DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as created_date_formatted
         FROM filling_logs fl
+        LEFT JOIN employee_profile ep_created ON fl.created_by = ep_created.id
+        LEFT JOIN customers c_created ON fl.created_by = c_created.id
         WHERE fl.created_by IS NOT NULL
         AND fl.id = (
           SELECT fl2.id 
@@ -126,9 +176,8 @@ export async function GET(request) {
       countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
     }
 
-    // query += ' ORDER BY fr.id DESC LIMIT ?, ?';
-    // params.push(offset, recordsPerPage);
-    query += ` ORDER BY fr.id DESC LIMIT ${offset}, ${recordsPerPage}`;
+    // ✅ FIX: Use sanitized values for LIMIT (MySQL may not support placeholders in LIMIT)
+    query += ` ORDER BY fr.id DESC LIMIT ${offset}, ${safeRecordsPerPage}`;
 
 
     console.log('📋 Executing queries...');
@@ -142,9 +191,9 @@ export async function GET(request) {
     // Get requests data
     const requests = await executeQuery(query, params);
 
-    console.log('✅ Raw requests from database:', requests.length);
+    console.log('✅ Raw requests from database:', requests?.length || 0);
 
-let processedRequests = []; // define at the top
+    let processedRequests = []; // define at the top
 
 if (requests && requests.length > 0) {
   processedRequests = requests.map((request) => {
@@ -196,12 +245,12 @@ if (requests && requests.length > 0) {
     // };
 
     const responseData = {
-  requests: processedRequests,
-  currentPage: page,
-  recordsPerPage: recordsPerPage,
-  totalRecords: totalRecords,
-  totalPages: Math.ceil(totalRecords / recordsPerPage)
-};
+      requests: processedRequests,
+      currentPage: safePage,
+      recordsPerPage: safeRecordsPerPage,
+      totalRecords: totalRecords,
+      totalPages: Math.ceil(totalRecords / safeRecordsPerPage)
+    };
 
 
     console.log('🚀 API CALL COMPLETED.', responseData);
@@ -210,10 +259,14 @@ if (requests && requests.length > 0) {
 
   } catch (error) {
     console.error('❌ Database error:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error name:', error.name);
     return NextResponse.json(
       { 
+        success: false,
         error: 'Internal server error',
-        details: error.message 
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );
@@ -254,7 +307,16 @@ export async function POST(request) {
       }
     }
 
-    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // ✅ FIX: Store UTC time in database (MySQL handles timezone, convert on display)
+    // ✅ FIX: Get current IST time directly (server timezone should be IST)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const currentDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
     const dayLimitRows = await executeQuery(
       'SELECT day_limit FROM customer_balances WHERE com_id = ?',

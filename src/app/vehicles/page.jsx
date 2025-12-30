@@ -4,9 +4,11 @@ import Footer from 'components/Footer';
 import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import Link from "next/link";
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from "react";
 
 export default function VehiclesPage() {
+  const router = useRouter();
   const [vehicles, setVehicles] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -66,13 +68,13 @@ export default function VehiclesPage() {
         <button
           key={1}
           onClick={() => handlePageChange(1)}
-          className="px-3 py-2 bg-gradient-to-r from-blue-400 to-purple-500 text-white rounded-lg hover:from-blue-500 hover:to-purple-600 transition-all duration-300 shadow-md text-sm"
+          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
         >
           1
         </button>
       );
       if (startPage > 2) {
-        buttons.push(<span key="ellipsis1" className="px-1 text-purple-600 font-bold">•••</span>);
+        buttons.push(<span key="ellipsis1" className="px-1 text-gray-400">•••</span>);
       }
     }
 
@@ -82,10 +84,10 @@ export default function VehiclesPage() {
         <button
           key={i}
           onClick={() => handlePageChange(i)}
-          className={`px-3 py-2 rounded-lg font-semibold transition-all duration-300 shadow-md text-sm min-w-[40px] ${
+          className={`px-3 py-1 rounded text-sm font-medium transition-colors ${
             currentPage === i 
-              ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white scale-105" 
-              : "bg-gradient-to-r from-cyan-400 to-blue-500 text-white hover:from-cyan-500 hover:to-blue-600 hover:scale-105"
+              ? "bg-blue-600 text-white" 
+              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
           }`}
         >
           {i}
@@ -96,13 +98,13 @@ export default function VehiclesPage() {
     // Last page
     if (endPage < totalPages) {
       if (endPage < totalPages - 1) {
-        buttons.push(<span key="ellipsis2" className="px-1 text-purple-600 font-bold">•••</span>);
+        buttons.push(<span key="ellipsis2" className="px-1 text-gray-400">•••</span>);
       }
       buttons.push(
         <button
           key={totalPages}
           onClick={() => handlePageChange(totalPages)}
-          className="px-3 py-2 bg-gradient-to-r from-green-400 to-teal-500 text-white rounded-lg hover:from-green-500 hover:to-teal-600 transition-all duration-300 shadow-md text-sm"
+          className="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors text-sm"
         >
           {totalPages}
         </button>
@@ -122,99 +124,96 @@ export default function VehiclesPage() {
   const { startItem, endItem } = getShowingRange();
 
   return (
-    <div className="flex flex-col min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-      <div className="flex flex-1 flex-col sm:flex-row">
-        {/* Sidebar */}
-        <div className="w-full sm:w-64 flex-shrink-0">
-          <Sidebar />
-        </div>
-
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col min-w-0">
-          {/* Header */}
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-shrink-0">
           <Header />
-
-          {/* Content area - This will grow and push footer down */}
-          <main className="flex-1 overflow-auto p-4 sm:p-6">
-            {/* Breadcrumb and Header */}
+        </div>
+        <main className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6">
+              {/* Breadcrumb and Header */}
             <div className="mb-6">
-              <nav className="mb-3 text-sm">
-                <Link href="/" className="hover:underline text-purple-600 font-medium">Home</Link> 
-                <span className="mx-2 text-purple-400">❯</span>
-                <span className="text-gradient bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent font-bold">Vehicles List</span>
-              </nav>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h1 className="text-3xl sm:text-4xl font-bold bg-gradient-to-r from-purple-600 to-blue-600 bg-clip-text text-transparent mb-2">
-                    Vehicles Management
-                  </h1>
-                  <p className="text-purple-500 font-medium">Manage your fleet efficiently</p>
-                </div>
+              <div className="flex items-center gap-3 mb-3">
+                <button
+                  onClick={() => router.back()}
+                  className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                  title="Go Back"
+                >
+                  ←
+                </button>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  Vehicles Management
+                </h1>
+              </div>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+                <p className="text-gray-600">Manage your fleet efficiently</p>
                 <Link
                   href="/vehicles/add_vehicle"
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-xl shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105 flex items-center space-x-2 font-semibold text-sm sm:text-base whitespace-nowrap"
+                  className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2 font-medium text-sm whitespace-nowrap"
                 >
-                  <span className="text-lg">+</span>
+                  <span>+</span>
                   <span>Add New Vehicle</span>
                 </Link>
               </div>
             </div>
 
             {/* Vehicle list container */}
-            <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
-              {/* Table container with proper scrolling */}
-              <div className="overflow-auto" style={{ maxHeight: 'calc(100vh - 300px)' }}>
+            <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-auto">
                 <table className="min-w-full divide-y divide-purple-100/50">
-                  <thead className="bg-gradient-to-r from-purple-500/10 to-blue-500/10 backdrop-blur-sm sticky top-0">
+                  <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        📊 S.No
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        S.No
                       </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        🚗 Vehicle
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Vehicle
                       </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        🏷️ Plate
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Plate
                       </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        📞 Phone
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Phone
                       </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        ⚡ Status
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Status
                       </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        👤 Driver
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Driver
                       </th>
-                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-bold text-purple-700 uppercase tracking-wider">
-                        🛠️ Actions
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Actions
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="bg-white/50 divide-y divide-purple-100/30">
+                  <tbody className="bg-white divide-y divide-gray-200">
                     {loading ? (
                       // Loading skeleton
                       Array.from({ length: 5 }).map((_, index) => (
                         <tr key={index} className="animate-pulse">
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-4 bg-gradient-to-r from-purple-200 to-blue-200 rounded-full"></div>
+                            <div className="h-4 bg-gray-200 rounded"></div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-4 bg-gradient-to-r from-pink-200 to-purple-200 rounded-full w-3/4"></div>
+                            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-4 bg-gradient-to-r from-blue-200 to-cyan-200 rounded-full w-1/2"></div>
+                            <div className="h-4 bg-gray-200 rounded w-1/2"></div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-4 bg-gradient-to-r from-green-200 to-teal-200 rounded-full w-2/3"></div>
+                            <div className="h-4 bg-gray-200 rounded w-2/3"></div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-6 bg-gradient-to-r from-yellow-200 to-orange-200 rounded-full w-16"></div>
+                            <div className="h-6 bg-gray-200 rounded-full w-16"></div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-4 bg-gradient-to-r from-purple-200 to-pink-200 rounded-full w-3/4"></div>
+                            <div className="h-4 bg-gray-200 rounded w-3/4"></div>
                           </td>
                           <td className="px-4 sm:px-6 py-4">
-                            <div className="h-8 bg-gradient-to-r from-gray-200 to-gray-300 rounded-lg w-20"></div>
+                            <div className="h-8 bg-gray-200 rounded w-20"></div>
                           </td>
                         </tr>
                       ))
@@ -223,20 +222,20 @@ export default function VehiclesPage() {
                       <tr>
                         <td colSpan="7" className="px-4 sm:px-6 py-12 text-center">
                           <div className="flex flex-col items-center justify-center">
-                            <div className="w-24 h-24 bg-gradient-to-r from-purple-400 to-pink-400 rounded-full flex items-center justify-center mb-4 shadow-xl">
-                              <span className="text-4xl">🚗</span>
+                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                              <span className="text-3xl">🚗</span>
                             </div>
-                            <p className="text-xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                            <p className="text-lg font-semibold text-gray-700 mb-2">
                               No vehicles found
                             </p>
-                            <p className="text-purple-600 font-medium mb-4 max-w-md text-sm">
+                            <p className="text-gray-600 mb-4 max-w-md text-sm">
                               Start building your fleet by adding your first vehicle
                             </p>
                             <Link
                               href="/vehicles/add_vehicle"
-                              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-2 rounded-xl shadow-lg hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105 font-semibold text-sm"
+                              className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
                             >
-                              🚀 Add First Vehicle
+                              Add First Vehicle
                             </Link>
                           </div>
                         </td>
@@ -244,68 +243,56 @@ export default function VehiclesPage() {
                     ) : (
                       // Data rows
                       vehicles.map((v, index) => (
-                        <tr key={v.id} className="group hover:bg-gradient-to-r from-purple-50/80 to-blue-50/80 transition-all duration-300 border-l-4 border-l-transparent hover:border-l-purple-400">
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <span className="inline-flex items-center justify-center w-7 h-7 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-full font-bold text-xs">
-                              {startItem + index}
-                            </span>
+                        <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {startItem + index}
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center space-x-2">
-                              <div className="w-8 h-8 bg-gradient-to-r from-purple-400 to-pink-400 rounded-lg flex items-center justify-center">
-                                <span className="text-white text-sm">🚛</span>
-                              </div>
-                              <span className="font-bold text-purple-900 group-hover:text-purple-700 transition-colors duration-300 text-sm">
+                              <span className="text-lg">🚛</span>
+                              <span className="font-medium text-gray-900 text-sm">
                                 {v.vehicle_name || "N/A"}
                               </span>
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <span className="bg-gradient-to-r from-blue-100 to-cyan-100 text-blue-800 px-2 py-1 rounded-full font-mono font-bold text-xs">
+                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded font-mono text-xs">
                               {v.licence_plate || "N/A"}
                             </span>
                           </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-1">
-                              <span className="text-green-600 text-sm">📞</span>
-                              <span className="font-semibold text-gray-700 text-sm">{v.phone || "N/A"}</span>
-                            </div>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            {v.phone || "N/A"}
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold shadow-md ${
+                            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
                               v.status === 'Active' 
-                                ? 'bg-gradient-to-r from-green-400 to-emerald-500 text-white'
+                                ? 'bg-green-100 text-green-800'
                                 : v.status === 'Inactive'
-                                ? 'bg-gradient-to-r from-red-400 to-pink-500 text-white'
-                                : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-gray-100 text-gray-800'
                             }`}>
-                              <span className="w-1.5 h-1.5 bg-white rounded-full mr-1"></span>
+                              <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${
+                                v.status === 'Active' ? 'bg-green-600' : v.status === 'Inactive' ? 'bg-red-600' : 'bg-gray-600'
+                              }`}></span>
                               {v.status || "Unknown"}
                             </span>
                           </td>
-                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center space-x-2">
-                              <div className="w-6 h-6 bg-gradient-to-r from-orange-400 to-red-400 rounded-full flex items-center justify-center">
-                                <span className="text-white text-xs">👤</span>
-                              </div>
-                              <span className="font-semibold text-gray-700 text-sm">{v.driver_name || "N/A"}</span>
-                            </div>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-700">
+                            {v.driver_name || "N/A"}
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex space-x-2">
                               <Link 
                                 href={`/vehicles/edit/${v.id}`} 
-                                className="bg-gradient-to-r from-blue-400 to-cyan-500 text-white px-3 py-1 rounded-lg hover:from-blue-500 hover:to-cyan-600 transition-all duration-300 transform hover:scale-105 shadow-md flex items-center space-x-1 font-semibold text-xs"
+                                className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-xs font-medium"
                               >
-                                <span>✏️</span>
-                                <span>Edit</span>
+                                Edit
                               </Link>
                               <Link 
                                 href={`/vehicles/view/${v.id}`} 
-                                className="bg-gradient-to-r from-green-400 to-teal-500 text-white px-3 py-1 rounded-lg hover:from-green-500 hover:to-teal-600 transition-all duration-300 transform hover:scale-105 shadow-md flex items-center space-x-1 font-semibold text-xs"
+                                className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors text-xs font-medium"
                               >
-                                <span>👁️</span>
-                                <span>View</span>
+                                View
                               </Link>
                             </div>
                           </td>
@@ -316,36 +303,115 @@ export default function VehiclesPage() {
                 </table>
               </div>
 
+              {/* Mobile Cards View */}
+              <div className="block md:hidden p-4 space-y-4">
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <div key={index} className="bg-white rounded-lg p-4 border border-gray-200 animate-pulse">
+                      <div className="h-4 bg-gray-200 rounded w-3/4 mb-3"></div>
+                      <div className="h-3 bg-gray-200 rounded w-1/2 mb-2"></div>
+                      <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+                    </div>
+                  ))
+                ) : vehicles.length === 0 ? (
+                  <div className="text-center py-12">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <span className="text-3xl">🚗</span>
+                    </div>
+                    <p className="text-lg font-semibold text-gray-700 mb-2">No vehicles found</p>
+                    <Link
+                      href="/vehicles/add_vehicle"
+                      className="inline-block bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm"
+                    >
+                      Add First Vehicle
+                    </Link>
+                  </div>
+                ) : (
+                  vehicles.map((v, index) => (
+                    <div key={v.id} className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+                      <div className="flex justify-between items-start mb-3">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="text-xl">🚛</span>
+                            <div>
+                              <h3 className="font-semibold text-gray-900 text-base">{v.vehicle_name || "N/A"}</h3>
+                              <p className="text-xs text-gray-500">#{startItem + index}</p>
+                            </div>
+                          </div>
+                        </div>
+                        <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${
+                          v.status === 'Active' 
+                            ? 'bg-green-100 text-green-800'
+                            : v.status === 'Inactive'
+                            ? 'bg-red-100 text-red-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {v.status || "Unknown"}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                        <div>
+                          <span className="text-gray-500">Plate:</span>
+                          <p className="font-medium text-gray-900">{v.licence_plate || "N/A"}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Phone:</span>
+                          <p className="font-medium text-gray-900">{v.phone || "N/A"}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Driver:</span>
+                          <p className="font-medium text-gray-900">{v.driver_name || "N/A"}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="flex space-x-2 pt-3 border-t border-gray-100">
+                        <Link 
+                          href={`/vehicles/edit/${v.id}`} 
+                          className="flex-1 bg-blue-600 text-white px-3 py-2 rounded hover:bg-blue-700 transition-colors text-center font-medium text-xs"
+                        >
+                          Edit
+                        </Link>
+                        <Link 
+                          href={`/vehicles/view/${v.id}`} 
+                          className="flex-1 bg-green-600 text-white px-3 py-2 rounded hover:bg-green-700 transition-colors text-center font-medium text-xs"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+
               {/* Pagination */}
               {vehicles.length > 0 && !loading && (
-                <div className="bg-gradient-to-r from-purple-500/5 to-blue-500/5 px-4 sm:px-6 py-4 border-t border-purple-200/50">
+                <div className="bg-gray-50 px-4 sm:px-6 py-4 border-t border-gray-200">
                   <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-                    <div className="text-xs sm:text-sm font-semibold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent">
-                      Showing <span className="text-purple-700">{startItem}</span> to{" "}
-                      <span className="text-purple-700">{endItem}</span> of{" "}
-                      <span className="text-purple-700">{totalCount}</span> vehicles
+                    <div className="text-sm text-gray-600">
+                      Showing <span className="font-medium">{startItem}</span> to{" "}
+                      <span className="font-medium">{endItem}</span> of{" "}
+                      <span className="font-medium">{totalCount}</span> vehicles
                     </div>
-                    <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-4">
+                    <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
                       <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="bg-gradient-to-r from-purple-400 to-blue-400 text-white px-3 py-1 rounded-xl hover:from-purple-500 hover:to-blue-500 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-1 font-semibold text-xs sm:text-sm"
+                        className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                       >
-                        <span>⬅️</span>
-                        <span>Previous</span>
+                        Previous
                       </button>
                       
-                      <div className="flex space-x-1 bg-white/50 backdrop-blur-sm rounded-xl p-1 shadow-inner flex-wrap justify-center">
+                      <div className="flex space-x-1 flex-wrap justify-center">
                         {renderPaginationButtons()}
                       </div>
                       
                       <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="bg-gradient-to-r from-pink-400 to-purple-400 text-white px-3 py-1 rounded-xl hover:from-pink-500 hover:to-purple-500 disabled:from-gray-300 disabled:to-gray-400 disabled:cursor-not-allowed transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-1 font-semibold text-xs sm:text-sm"
+                        className="bg-gray-600 text-white px-3 py-1 rounded hover:bg-gray-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors text-sm font-medium"
                       >
-                        <span>Next</span>
-                        <span>➡️</span>
+                        Next
                       </button>
                     </div>
                   </div>
@@ -353,8 +419,7 @@ export default function VehiclesPage() {
               )}
             </div>
           </main>
-
-          {/* Footer - This will now stick to the bottom */}
+        <div className="flex-shrink-0">
           <Footer />
         </div>
       </div>

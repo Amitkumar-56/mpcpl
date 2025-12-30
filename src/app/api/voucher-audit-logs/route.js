@@ -28,14 +28,27 @@ export async function GET(request) {
       )
     `);
 
+    // ✅ JOIN with employee_profile to get proper employee names
     const logs = await executeQuery(
-      `SELECT * FROM voucher_audit_log WHERE voucher_id = ? ORDER BY created_at DESC`,
+      `SELECT 
+        val.*,
+        COALESCE(ep.name, val.user_name) AS employee_name
+      FROM voucher_audit_log val
+      LEFT JOIN employee_profile ep ON val.user_id = ep.id
+      WHERE val.voucher_id = ? 
+      ORDER BY val.created_at DESC`,
       [voucherId]
     );
 
+    // Map results to use employee_name (never 'System')
+    const logsWithNames = logs.map(log => ({
+      ...log,
+      user_name: log.employee_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown')
+    }));
+
     return NextResponse.json({
       success: true,
-      data: logs
+      data: logsWithNames
     });
 
   } catch (error) {

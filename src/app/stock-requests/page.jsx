@@ -129,11 +129,10 @@ function StockRequestsContent() {
                 <div className="flex items-center space-x-2">
                   <button
                     onClick={() => router.back()}
-                    className="text-gray-600 hover:text-gray-900"
+                    className="text-gray-600 hover:text-gray-900 text-xl sm:text-2xl"
+                    title="Go Back"
                   >
-                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                    </svg>
+                    ←
                   </button>
                   <h1 className="text-2xl font-semibold text-gray-900">Stock Requests</h1>
                 </div>
@@ -162,17 +161,19 @@ function StockRequestsContent() {
                 <h2 className="text-lg font-medium text-gray-900">Requests</h2>
               </div>
               
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                {error ? (
-                  <div className="p-6 text-center text-red-600">
-                    {error}
-                  </div>
-                ) : stockRequests.length === 0 ? (
-                  <div className="p-6 text-center text-gray-500">
-                    No stock requests found
-                  </div>
-                ) : (
-                  <table className="min-w-full divide-y divide-gray-200">
+              {error ? (
+                <div className="p-6 text-center text-red-600">
+                  {error}
+                </div>
+              ) : stockRequests.length === 0 ? (
+                <div className="p-6 text-center text-gray-500">
+                  No stock requests found
+                </div>
+              ) : (
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -307,8 +308,101 @@ function StockRequestsContent() {
                       ))}
                     </tbody>
                   </table>
-                )}
-              </div>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="block md:hidden p-4 space-y-4">
+                    {stockRequests.map((request) => (
+                      <div key={request.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">#{request.id}</h3>
+                            <p className="text-sm text-gray-600">{request.product_name || 'N/A'}</p>
+                          </div>
+                          {getStatusBadge(request.status)}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-500">Supplier:</span>
+                            <Link href={`/supplierinvoice?id=${request.supplier_id}`} className="text-blue-600 hover:text-blue-800 block font-medium">
+                              {request.supplier_name || 'No Supplier'}
+                            </Link>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Station:</span>
+                            <p className="text-gray-900 font-medium">{request.station_name || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Invoice Date:</span>
+                            <p className="text-gray-900">{formatDate(request.invoice_date)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Invoice#:</span>
+                            <p className="text-gray-900">{request.invoice_number || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Tanker No:</span>
+                            <p className="text-gray-900">{request.tanker_no || 'N/A'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Ltr:</span>
+                            <p className="text-gray-900 font-medium">{request.ltr || '0'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Payable:</span>
+                            <p className="text-gray-900 font-semibold">₹{request.payable || '0'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Sup Invoice:</span>
+                            <p className="text-gray-900">₹{request.v_invoice_value || '0'}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Link
+                              href={`/stock/supply-details/${request.id}`}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="View"
+                            >
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                              </svg>
+                            </Link>
+                            <button className="text-green-600 hover:text-green-900">
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
+                              </svg>
+                            </button>
+                            <Link
+                              href={`/stock/dncn?id=${request.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-red-600 hover:text-red-900"
+                              title="DN/CN"
+                            >
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7 9a1 1 0 000 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+                              </svg>
+                            </Link>
+                          </div>
+                          {request.dncn && (
+                            <Link
+                              href={`/stock/dncn?id=${request.id}`}
+                              target="_blank"
+                              className="text-xs text-blue-600 hover:text-blue-800"
+                            >
+                              DNCN: {request.dncn}
+                            </Link>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
         </main>
         <Footer />

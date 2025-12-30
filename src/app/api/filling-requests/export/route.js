@@ -20,8 +20,8 @@ export async function GET(request) {
         pc.pcode as "Product",
         fr.qty as "Quantity",
         fr.status as "Status",
-        DATE_FORMAT(fr.created, '%d/%m/%Y %h:%i %p') as "Created Date",
-        DATE_FORMAT(fr.completed_date, '%d/%m/%Y %h:%i %p') as "Completed Date",
+        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(fr.created, '%d/%m/%Y %h:%i %p') ELSE NULL END as "Created Date",
+        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(fr.completed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as "Completed Date",
         fl_created.created_by_name as "Created By",
         ep_processing.name as "Processed By",
         ep_completed.name as "Completed By"

@@ -110,15 +110,22 @@ export default function AddCustomer() {
   if (checkingPermission || authLoading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 w-full">
-          <Header />
-          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-              <p className="text-gray-600">Checking permissions...</p>
+              <p className="text-gray-600 text-sm sm:text-base">Checking permissions...</p>
             </div>
           </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -127,22 +134,30 @@ export default function AddCustomer() {
   if (!hasPermission) {
     return (
       <div className="flex min-h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 w-full">
-          <Header />
-          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
-            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
-              <div className="text-red-500 text-6xl mb-4">🚫</div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
-              <p className="text-gray-600 mb-6">You don't have permission to create customers.</p>
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
+            <div className="text-center bg-white rounded-lg shadow-lg p-6 sm:p-8 max-w-md w-full">
+              <div className="text-red-500 text-4xl sm:text-6xl mb-4">🚫</div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-6 text-sm sm:text-base">You don't have permission to create customers.</p>
               <button
                 onClick={() => router.push('/customers')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors text-sm sm:text-base flex items-center gap-2"
               >
-                Go Back
+                <span className="text-lg">←</span>
+                <span>Go Back</span>
               </button>
             </div>
           </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -185,41 +200,41 @@ export default function AddCustomer() {
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+      {/* Sidebar */}
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0">
           <Header />
         </div>
 
         {/* Scrollable Main Content */}
-        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-lg p-6">
-            <h1 className="text-2xl font-bold mb-6">Add New Customer</h1>
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-lg p-4 sm:p-6">
+            <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Add New Customer</h1>
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Basic Information */}
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Client Name *</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Client Name *</label>
                 <input 
                   type="text" 
                   name="client_name" 
                   required 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
               
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Role *</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Role *</label>
                 <select 
                   name="role" 
                   required 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 >
                   <option value="1">Client</option>
                   <option value="3">Super Client</option>
@@ -227,41 +242,41 @@ export default function AddCustomer() {
               </div>
               
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Phone *</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Phone *</label>
                 <input 
                   type="tel" 
                   name="phone" 
                   required 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
               
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Email</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Email</label>
                 <input 
                   type="email" 
                   name="email" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Password *</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Password *</label>
                 <input 
                   type="password" 
                   name="password" 
                   required 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               {/* Customer Type */}
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Customer Type *</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Customer Type *</label>
                 <select
                   value={clientType}
                   onChange={(e) => setClientType(e.target.value)}
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 >
                   <option value="1">Prepaid Client</option>
                   <option value="2">Postpaid Client</option>
@@ -270,10 +285,10 @@ export default function AddCustomer() {
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Billing Type</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Billing Type</label>
                 <select 
                   name="billing_type" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 >
                   <option value="1">Billing</option>
                   <option value="2">Non Billing</option>
@@ -283,7 +298,7 @@ export default function AddCustomer() {
               {/* Conditional Fields */}
               {clientType === "2" && (
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">
+                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">
                     Credit Limit (₹) *
                   </label>
                   <input
@@ -291,7 +306,7 @@ export default function AddCustomer() {
                     name="amtlimit" // ⬅️ Field name for Postpaid Credit Limit
                     step="0.01"
                     required
-                    className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                    className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                     placeholder="Enter credit amount"
                   />
                 </div>
@@ -299,14 +314,14 @@ export default function AddCustomer() {
 
               {clientType === "3" && (
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">
+                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">
                     Day Limit (Days) *
                   </label>
                   <input
                     type="number"
                     name="day_limit" // ⬅️ Field name for Day Limit
                     required
-                    className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                    className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                     placeholder="Enter number of days"
                   />
                 </div>
@@ -314,11 +329,11 @@ export default function AddCustomer() {
 
               {/* Products */}
               <div className="col-span-2">
-                <label className="block font-semibold text-gray-700 mb-2">Select Products</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <label className="block font-semibold text-gray-700 mb-2 text-sm sm:text-base">Select Products</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
                   {products.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2">
-                      <input type="checkbox" name="products[]" value={p.id} /> {/* ⬅️ Correct name for multiple selection */}
+                    <label key={p.id} className="flex items-center gap-2 text-sm sm:text-base cursor-pointer hover:bg-gray-50 p-1 rounded">
+                      <input type="checkbox" name="products[]" value={p.id} className="cursor-pointer" />
                       <span>{p.pname}</span>
                     </label>
                   ))}
@@ -327,25 +342,26 @@ export default function AddCustomer() {
 
               {/* Address */}
               <div className="col-span-2">
-                <label className="block font-semibold text-gray-700 mb-1">Address</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Address</label>
                 <textarea 
                   name="address" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500"
+                  rows="3"
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base resize-y"
                 ></textarea>
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">City</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">City</label>
                 <input 
                   type="text" 
                   name="city" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">State</label>
-                   <select name="region" className="w-full border p-2 rounded" required>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">State</label>
+                   <select name="region" className="w-full border p-2 sm:p-2.5 rounded text-sm sm:text-base" required>
                   <option value="">Select State</option>
                   <option value="andhra_pradesh">Andhra Pradesh</option>
                   <option value="arunachal_pradesh">Arunachal Pradesh</option>
@@ -386,49 +402,49 @@ export default function AddCustomer() {
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Country</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Country</label>
                 <input 
                   type="text" 
                   name="country" 
                   defaultValue="India" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">Zip Code</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Zip Code</label>
                 <input 
                   type="text" 
                   name="postbox" // ⬅️ CORRECTED: Changed from "zip" to "postbox" to match DB column
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">GST Name</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">GST Name</label>
                 <input 
                   type="text" 
                   name="gst_name" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               <div>
-                <label className="block font-semibold text-gray-700 mb-1">GSTIN</label>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">GSTIN</label>
                 <input 
                   type="text" 
                   name="gst_number" 
-                  className="w-full border p-2 rounded focus:ring-2 focus:ring-blue-500" 
+                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
                 />
               </div>
 
               {/* Assign Location */}
               <div className="col-span-2">
-                <label className="block font-semibold text-gray-700 mb-2">Assign Locations</label>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                <label className="block font-semibold text-gray-700 mb-2 text-sm sm:text-base">Assign Locations</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
                   {stations.map((s) => (
-                    <label key={s.id} className="flex items-center gap-2">
-                      <input type="checkbox" name="block_location[]" value={s.id} /> {/* ⬅️ Correct name for multiple selection */}
+                    <label key={s.id} className="flex items-center gap-2 text-sm sm:text-base cursor-pointer hover:bg-gray-50 p-1 rounded">
+                      <input type="checkbox" name="block_location[]" value={s.id} className="cursor-pointer" />
                       <span>{s.station_name}</span>
                     </label>
                   ))}
@@ -436,42 +452,43 @@ export default function AddCustomer() {
               </div>
 
               {/* File Upload */}
-              <div className="col-span-2 grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Document 1</label>
-                  <input type="file" name="doc1" className="w-full border p-2 rounded" />
+                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Document 1</label>
+                  <input type="file" name="doc1" className="w-full border p-2 sm:p-2.5 rounded text-xs sm:text-sm" />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Document 2</label>
-                  <input type="file" name="doc2" className="w-full border p-2 rounded" />
+                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Document 2</label>
+                  <input type="file" name="doc2" className="w-full border p-2 sm:p-2.5 rounded text-xs sm:text-sm" />
                 </div>
                 <div>
-                  <label className="block font-semibold text-gray-700 mb-1">Document 3</label>
-                  <input type="file" name="doc3" className="w-full border p-2 rounded" />
+                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Document 3</label>
+                  <input type="file" name="doc3" className="w-full border p-2 sm:p-2.5 rounded text-xs sm:text-sm" />
                 </div>
               </div>
 
               {/* Permissions */}
-              <div className="col-span-2 mt-6">
-                <h3 className="text-lg font-semibold mb-3">Module Permissions</h3>
+              <div className="col-span-2 mt-4 sm:mt-6">
+                <h3 className="text-base sm:text-lg font-semibold mb-3">Module Permissions</h3>
                 <div className="overflow-x-auto border rounded">
-                  <table className="w-full border-collapse">
+                  <table className="w-full border-collapse text-sm sm:text-base">
                     <thead className="bg-gray-100">
                       <tr>
-                        <th className="p-2 border">Module</th>
-                        <th className="p-2 border">View</th>
-                        <th className="p-2 border">Edit</th>
+                        <th className="p-2 border text-left">Module</th>
+                        <th className="p-2 border text-center">View</th>
+                        <th className="p-2 border text-center">Edit</th>
                       </tr>
                     </thead>
                     <tbody>
                       {modules.map((mod, idx) => (
                         <tr key={idx} className={idx % 2 === 0 ? "bg-gray-50" : "bg-white"}>
-                          <td className="p-2 border font-medium">{mod}</td>
+                          <td className="p-2 border font-medium text-xs sm:text-sm">{mod}</td>
                           <td className="p-2 border text-center">
                             <input
                               type="checkbox"
                               checked={permissions[mod].can_view}
                               onChange={() => handlePermissionChange(mod, "can_view")}
+                              className="cursor-pointer w-4 h-4 sm:w-5 sm:h-5"
                             />
                           </td>
                           <td className="p-2 border text-center">
@@ -479,6 +496,7 @@ export default function AddCustomer() {
                               type="checkbox"
                               checked={permissions[mod].can_edit}
                               onChange={() => handlePermissionChange(mod, "can_edit")}
+                              className="cursor-pointer w-4 h-4 sm:w-5 sm:h-5"
                             />
                           </td>
                         </tr>
@@ -489,18 +507,18 @@ export default function AddCustomer() {
               </div>
 
               {/* Submit Buttons */}
-              <div className="col-span-2 flex justify-center gap-4 mt-6">
+              <div className="col-span-2 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 mt-4 sm:mt-6">
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors text-sm sm:text-base font-medium"
                 >
                   {loading ? "Saving..." : "Submit"}
                 </button>
                 <button
                   type="button"
                   onClick={() => router.back()}
-                  className="px-6 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500"
+                  className="w-full sm:w-auto px-6 py-2.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors text-sm sm:text-base font-medium"
                 >
                   Cancel
                 </button>
@@ -509,7 +527,7 @@ export default function AddCustomer() {
           </div>
         </main>
 
-        {/* Fixed Footer */}
+        {/* Footer */}
         <div className="flex-shrink-0">
           <Footer />
         </div>

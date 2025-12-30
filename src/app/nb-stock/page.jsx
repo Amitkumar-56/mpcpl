@@ -451,7 +451,7 @@ export default function NonBillingStocksPage() {
   // Show loading while checking auth
   if (authLoading) {
     return (
-      <div className="min-h-screen flex bg-gray-50 items-center justify-center">
+      <div className="flex h-screen overflow-hidden bg-gray-50 items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading...</p>
@@ -468,11 +468,15 @@ export default function NonBillingStocksPage() {
   // Check if user has view permission
   if (!hasPermission) {
     return (
-      <div className="min-h-screen flex bg-gray-50">
-        <Sidebar />
-        <div className="flex-1 flex flex-col min-h-0">
-          <Header />
-          <main className="flex-1 overflow-auto flex items-center justify-center">
+      <div className="flex h-screen overflow-hidden bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
             <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
               <div className="text-red-500 text-6xl mb-4">🚫</div>
               <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
@@ -480,20 +484,35 @@ export default function NonBillingStocksPage() {
               <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
             </div>
           </main>
-          <Footer />
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col min-h-0">
-        <Header />
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
 
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 overflow-y-auto min-h-0">
           <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
+            </div>
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4 sm:mb-6">
               <div className="w-full sm:w-auto">
                 <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
@@ -539,7 +558,9 @@ export default function NonBillingStocksPage() {
           </div>
         </main>
 
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

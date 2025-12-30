@@ -138,6 +138,15 @@ function CreateExpenseForm() {
       <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6">
         {/* Header Section */}
         <div className="mb-4 sm:mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           <div className="flex items-center gap-3 mb-2">
             <div className="p-2 bg-blue-100 rounded-lg">
               <svg className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">

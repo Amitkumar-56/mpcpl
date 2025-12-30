@@ -1020,7 +1020,7 @@ function ReportHistoryContent() {
                     </tr>
                   ) : displayRecords.length > 0 ? (
                     displayRecords.map((record, index) => (
-                      <React.Fragment key={record.id}>
+                      <React.Fragment key={`record-${record.id}-${index}`}>
                         <tr 
                           className={`
                             hover:bg-gray-50 transition-colors
@@ -1303,7 +1303,7 @@ function ReportHistoryContent() {
               ) : displayRecords.length > 0 ? (
                 displayRecords.map((record, index) => (
                   <div
-                    key={`${record.id}-mobile`}
+                    key={`record-${record.id}-${index}-mobile`}
                     className={`bg-white border rounded-lg p-4 shadow-sm ${
                       selectedRecords.has(record.id) ? 'border-l-4 border-l-green-500 bg-green-50' : ''
                     } ${

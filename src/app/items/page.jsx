@@ -181,13 +181,26 @@ function ItemsListContent() {
   }
 
   return (
-   <div className="flex h-screen bg-gray-50">
-          <Sidebar />
-          <div className="flex-1 flex flex-col overflow-hidden">
-            <Header />
+   <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
       
-      <main className="flex-1 overflow-y-auto">
+      <main className="flex-1 overflow-y-auto min-h-0">
         <div className="max-w-7xl mx-auto py-4 sm:py-6 px-3 sm:px-4 lg:px-8">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           {/* Error Message */}
           {error && (
             <div className="mb-4 sm:mb-6 bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4">
@@ -385,7 +398,9 @@ function ItemsListContent() {
           </div>
         </div>
       </main>
-      <Footer />
+      <div className="flex-shrink-0">
+        <Footer />
+      </div>
     </div>
   </div>
   );

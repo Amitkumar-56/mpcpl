@@ -67,13 +67,11 @@ function ActionButtons({ onBack, onDownloadPDF, generatingPDF }) {
     <div className="max-w-4xl mx-auto px-4 mb-6 flex justify-center space-x-4">
       <button
         onClick={onBack}
-        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center"
+        className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
         disabled={generatingPDF}
       >
-        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Back
+        <span className="text-lg">←</span>
+        <span>Back</span>
       </button>
       <button
         onClick={onDownloadPDF}

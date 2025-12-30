@@ -4,7 +4,7 @@
 import { useSession } from '@/context/SessionContext';
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useMemo, useState, memo, useEffect } from "react";
+import { useMemo, useState, memo, useEffect, startTransition } from "react";
 import {
   FaBars,
   FaBox,
@@ -29,6 +29,7 @@ import {
 const Sidebar = memo(function Sidebar({ onClose }) {
   const { user, logout } = useSession();
   const [isOpen, setIsOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
@@ -174,49 +175,47 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         }
       `}</style>
 
-      {/* Mobile toggle */}
+      {/* Mobile Collapse Toggle */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-7 right-12 z-50 p-1 bg-gray-900 text-white rounded"
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
+        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+        style={{ left: isCollapsed ? '4px' : '260px' }}
       >
-        {isOpen ? <FaTimes /> : <FaBars />}
+        <FaBars className="w-5 h-5" />
       </button>
 
-      {/* Overlay for mobile */}
-      {isOpen && (
-        <div 
-          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
-
-      {/* Sidebar */}
+      {/* Sidebar - Always visible, collapsible on mobile */}
       <aside
-        className={`fixed md:relative z-40 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 transition-transform duration-300`}
+        className={`md:relative z-40 h-screen bg-blue-200 text-black flex flex-col transition-all duration-300 ${
+          isCollapsed 
+            ? 'fixed w-16 md:w-64' 
+            : 'fixed md:relative w-64'
+        }`}
       >
         {/* User Info */}
-        <div className="p-4 border-b border-gray-300 bg-blue-300">
+        <div className={`p-4 border-b border-gray-300 bg-blue-300 ${isCollapsed ? 'px-2' : ''}`}>
           <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold">
+            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold flex-shrink-0">
               {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-900 truncate">
-                {user?.name || 'User'}
-              </p>
-              <p className="text-xs text-gray-600 truncate">
-                {Number(user?.role) === 5 
-                  ? 'Admin' 
-                  : (user?.role_name || 'Employee')}
-              </p>
-              {Number(user?.role) === 5 && (
-                <p className="text-xs text-blue-600 font-semibold mt-0.5">
-                  Administrator
+            {!isCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.name || 'User'}
                 </p>
-              )}
-            </div>
+                <p className="text-xs text-gray-600 truncate">
+                  {Number(user?.role) === 5 
+                    ? 'Admin' 
+                    : (user?.role_name || 'Employee')}
+                </p>
+                {Number(user?.role) === 5 && (
+                  <p className="text-xs text-blue-600 font-semibold mt-0.5">
+                    Administrator
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -225,17 +224,19 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           {allowedMenu.length > 0 ? (
             allowedMenu.map((item) => {
               const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
-              const handleNavClick = () => {
-                // Close mobile menu on mobile devices
-                setIsOpen(false);
+              const handleNavClick = (e) => {
+                e.preventDefault();
+                e.stopPropagation();
                 
                 // If clicking on the same page, don't navigate
                 if (item.path === pathname) {
                   return;
                 }
                 
-                // Use router.push for client-side navigation (no full page refresh)
-                router.push(item.path);
+                // Use startTransition for smooth navigation without blank screen
+                startTransition(() => {
+                  router.push(item.path);
+                });
               };
               
               return (
@@ -247,10 +248,11 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                     isActive
                       ? "bg-blue-500 text-white shadow-md"
                       : "text-black hover:bg-blue-300 hover:text-gray-900"
-                  }`}
+                  } ${isCollapsed ? 'justify-center px-2' : ''}`}
+                  title={isCollapsed ? item.name : ''}
                 >
-                  <span className="mr-3 text-lg">{item.icon}</span>
-                  <span className="text-sm font-medium">{item.name}</span>
+                  <span className={`text-lg flex-shrink-0 ${isCollapsed ? '' : 'mr-3'}`}>{item.icon}</span>
+                  {!isCollapsed && <span className="text-sm font-medium truncate">{item.name}</span>}
                 </button>
               );
             })
@@ -265,7 +267,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         </nav>
 
         {/* Logout Button */}
-        <div className="p-3 border-t border-gray-300 bg-blue-300">
+        <div className={`p-3 border-t border-gray-300 bg-blue-300 ${isCollapsed ? 'px-2' : ''}`}>
           <button
             onClick={handleLogout}
             disabled={isLoggingOut}
@@ -273,17 +275,18 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               isLoggingOut
                 ? "bg-gray-400 cursor-not-allowed" 
                 : "hover:bg-red-500 hover:text-white"
-            }`}
+            } ${isCollapsed ? 'px-2' : ''}`}
+            title={isCollapsed ? 'Logout' : ''}
           >
             {isLoggingOut ? (
               <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-3"></div>
-                <span className="font-medium">Logging out...</span>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white flex-shrink-0"></div>
+                {!isCollapsed && <span className="font-medium ml-3">Logging out...</span>}
               </>
             ) : (
               <>
-                <FaSignOutAlt className="mr-3" /> 
-                <span className="font-medium">Logout</span>
+                <FaSignOutAlt className={`flex-shrink-0 ${isCollapsed ? '' : 'mr-3'}`} /> 
+                {!isCollapsed && <span className="font-medium">Logout</span>}
               </>
             )}
           </button>

@@ -17,7 +17,6 @@ export default function LoadingStations() {
     can_edit: false,
     can_delete: false
   });
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
 
@@ -124,22 +123,26 @@ export default function LoadingStations() {
     }
   };
 
-  const toggleSidebar = () => setSidebarOpen(!sidebarOpen);
-
   // Show access denied if no permission
   if (!authLoading && user && !hasPermission) {
     return (
       <div className="flex h-screen overflow-hidden bg-gray-100">
-        <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header onMenuToggle={toggleSidebar} />
+        <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
           <main className="flex-1 overflow-y-auto p-6">
             <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
               <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
               <p className="text-red-600">You do not have permission to view loading stations.</p>
             </div>
           </main>
-          <Footer />
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -147,10 +150,23 @@ export default function LoadingStations() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gray-100">
-      <Sidebar isOpen={sidebarOpen} toggleSidebar={toggleSidebar} />
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header onMenuToggle={toggleSidebar} />
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        <main className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           <h1 className="text-2xl font-bold mb-6">Loading Stations</h1>
 
           {loading ? (
@@ -161,9 +177,9 @@ export default function LoadingStations() {
             <>
               <a
                 href="/loading-stations/add-station"
-                className="fixed bottom-16 right-10 bg-purple-700 text-white px-4 py-3 rounded-full shadow-lg hover:bg-purple-800 z-10 flex items-center justify-center"
+                className="fixed bottom-16 right-4 sm:right-10 bg-purple-700 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-full shadow-lg hover:bg-purple-800 z-10 flex items-center justify-center text-sm sm:text-base"
               >
-                <span className="mr-2">+</span> Add Station
+                <span className="mr-1 sm:mr-2">+</span> <span className="hidden sm:inline">Add Station</span>
               </a>
 
               {/* Desktop Table */}
@@ -280,7 +296,9 @@ export default function LoadingStations() {
           )}
         </main>
 
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

@@ -24,14 +24,19 @@ export async function GET(request) {
         fh.filling_qty as outward_qty,
         fh.amount,
         fh.filling_date,
+        fh.created_by,
         fh.trans_type,
         fs.station_name,
         p.pname as product_name,
         c.name as customer_name,
         c.id as customer_id,
-        ep.name as employee_name,
+        COALESCE(ep.name, 'Unknown') as employee_name,
         fr.vehicle_number,
-        fr.completed_date
+        fr.completed_date,
+        CASE WHEN fh.filling_date IS NOT NULL THEN DATE_FORMAT(fh.filling_date, '%d/%m/%Y') ELSE NULL END as formatted_date,
+        CASE WHEN fh.filling_date IS NOT NULL THEN DATE_FORMAT(fh.filling_date, '%h:%i %p') ELSE NULL END as formatted_time,
+        DATE(fh.filling_date) as log_date,
+        TIME(fh.filling_date) as log_time
       FROM filling_history fh
       LEFT JOIN filling_requests fr ON fh.rid = fr.rid
       LEFT JOIN customers c ON fr.cid = c.id

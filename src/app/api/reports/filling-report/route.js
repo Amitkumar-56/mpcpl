@@ -21,7 +21,7 @@ export async function POST(request) {
 
     // UPDATED QUERY WITH CHECK STATUS, EMPLOYEE PROFILE, AND LOGS
     let queryStr = `
-      SELECT 
+      SELECT DISTINCT
         fr.id,
         fr.rid,
         fr.vehicle_number,
@@ -91,6 +91,14 @@ export async function POST(request) {
         FROM filling_logs fl
         LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
         WHERE fl.processed_by IS NOT NULL
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.processed_by IS NOT NULL
+          ORDER BY fl2.processed_date DESC, fl2.id DESC
+          LIMIT 1
+        )
       ) fl_processed ON fr.rid = fl_processed.request_id
       LEFT JOIN (
         SELECT 
@@ -100,6 +108,14 @@ export async function POST(request) {
         FROM filling_logs fl
         LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
         WHERE fl.completed_by IS NOT NULL
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.completed_by IS NOT NULL
+          ORDER BY fl2.completed_date DESC, fl2.id DESC
+          LIMIT 1
+        )
       ) fl_completed ON fr.rid = fl_completed.request_id
       WHERE fr.status = 'Completed'
     `;

@@ -143,12 +143,19 @@ export async function POST(req) {
     // Process updates for selected customers only
     for (const customerId of customerIds) {
       for (const u of updates) {
-        // Check if record already exists for same schedule
+        // ✅ FIX: Normalize time format (HH:MM -> HH:MM:SS)
+        let normalizedTime = u.schedule_time;
+        if (normalizedTime && normalizedTime.length === 5 && normalizedTime.indexOf(':') === 2) {
+          // Convert HH:MM to HH:MM:SS
+          normalizedTime = `${normalizedTime}:00`;
+        }
+        
+        // Check if record already exists for same schedule (date + time)
         const existingRecord = await executeQuery(
           `SELECT id, is_applied FROM deal_price 
            WHERE com_id = ? AND station_id = ? AND sub_product_id = ? 
-           AND Schedule_Date = ? AND Schedule_Time = ? AND is_active = 1`,
-          [customerId, u.station_id, u.sub_product_id, u.schedule_date, u.schedule_time]
+           AND Schedule_Date = ? AND (Schedule_Time = ? OR Schedule_Time = ?) AND is_active = 1`,
+          [customerId, u.station_id, u.sub_product_id, u.schedule_date, u.schedule_time, normalizedTime]
         );
 
         if (existingRecord.length > 0) {
@@ -168,17 +175,17 @@ export async function POST(req) {
               u.sub_product_id,
               u.price,
               u.schedule_date,
-              u.schedule_time,
+              normalizedTime || u.schedule_time,
               requireApproval ? 0 : 1
             ]);
             totalInserted++;
           } else {
-            // UPDATE pending record
+            // UPDATE pending record - Update price and ensure Schedule_Date/Time are correct
             await executeQuery(`
               UPDATE deal_price 
-              SET price = ?, updated_date = CURDATE()
+              SET price = ?, Schedule_Date = ?, Schedule_Time = ?, updated_date = CURDATE()
               WHERE id = ?
-            `, [u.price, record.id]);
+            `, [u.price, u.schedule_date, normalizedTime || u.schedule_time, record.id]);
             totalUpdated++;
           }
         } else {
@@ -195,7 +202,7 @@ export async function POST(req) {
             u.sub_product_id,
             u.price,
             u.schedule_date,
-            u.schedule_time,
+            normalizedTime || u.schedule_time,
             requireApproval ? 0 : 1
           ]);
           totalInserted++;

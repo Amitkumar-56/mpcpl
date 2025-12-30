@@ -420,20 +420,29 @@ export default function AgentManagement() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar */}
-      <div className="hidden md:block fixed top-0 left-0 h-full w-64 bg-white shadow z-20">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col md:ml-64">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="fixed top-0 left-0 md:left-64 right-0 z-10">
+        <div className="flex-shrink-0">
           <Header />
         </div>
 
-        <div className="p-4 md:p-6 mt-16 flex-1 overflow-y-auto">
+        <main className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           {/* Page Title */}
           <div className="mb-4 md:mb-6">
             <h1 className="text-xl md:text-2xl font-bold text-gray-800">Agent Management</h1>
@@ -635,9 +644,11 @@ export default function AgentManagement() {
               </div>
             )}
           </div>
-        </div>
+        </main>
 
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
 
       {/* Payment Modal */}

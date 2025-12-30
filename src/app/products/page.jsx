@@ -136,6 +136,15 @@ export default function ProductsPage() {
         <Header />
 
         <main className="flex-1 p-6 overflow-y-auto">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl font-bold text-gray-800">Products</h1>
             {permissions.can_edit && (

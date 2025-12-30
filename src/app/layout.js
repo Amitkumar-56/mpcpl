@@ -1,5 +1,7 @@
 // src/app/layout.js
 import { SessionProvider } from '@/context/SessionContext';
+import { SidebarProvider } from '@/context/SidebarContext';
+import SidebarController from '@/components/SidebarController';
 import PWARegister from '@/components/PWARegister';
 import DynamicManifest from '@/components/DynamicManifest';
 import './globals.css';
@@ -62,7 +64,10 @@ export default function RootLayout({ children }) {
         <DynamicManifest />
         <PWARegister />
         <SessionProvider>
-          {children}
+          <SidebarProvider>
+            <SidebarController />
+            {children}
+          </SidebarProvider>
         </SessionProvider>
       </body>
     </html>

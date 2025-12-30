@@ -57,6 +57,9 @@ function ClientHistoryContent() {
   const [error, setError] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerBalanceInfo, setCustomerBalanceInfo] = useState(null);
+  const [paymentStats, setPaymentStats] = useState(null);
+  const [daysOpen, setDaysOpen] = useState(0);
+  const [overdueDetails, setOverdueDetails] = useState(null);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -186,6 +189,9 @@ function ClientHistoryContent() {
         setPendingTransactions(result.data.pendingTransactions || []);
         setCustomerName(result.data.customerName || `Customer ${cid}`);
         setCustomerBalanceInfo(result.data.customerBalanceInfo || null);
+        setPaymentStats(result.data.paymentStats || null);
+        setDaysOpen(result.data.daysOpen || 0);
+        setOverdueDetails(result.data.overdueDetails || null);
       } else {
         setError(result.error || "Failed to fetch data");
       }
@@ -309,7 +315,7 @@ function ClientHistoryContent() {
     
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-IN');
+    return new Date(dateString).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
   };
   
   const formatDateTime = (dateString) => {
@@ -319,6 +325,7 @@ function ClientHistoryContent() {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
+      timeZone: 'Asia/Kolkata',
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -537,21 +544,10 @@ function ClientHistoryContent() {
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.back()}
-                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
               >
-                <svg
-                  className="w-5 h-5"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                  />
-                </svg>
+                ←
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">
@@ -695,26 +691,73 @@ function ClientHistoryContent() {
 
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Payment Statistics from filling_history - For All Customers */}
+        {paymentStats && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+            <h3 className="text-sm font-semibold text-blue-800 mb-3">📊 Payment Statistics (from filling_history)</h3>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="bg-white rounded-lg p-3 border border-blue-100">
+                <p className="text-xs text-gray-600 mb-1">Paid Requests</p>
+                <p className="text-lg font-bold text-green-600">{paymentStats.paid_requests_count || 0}</p>
+                <p className="text-xs text-gray-500">₹{formatCurrency(paymentStats.total_paid_amount || 0)}</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-blue-100">
+                <p className="text-xs text-gray-600 mb-1">Unpaid Requests</p>
+                <p className="text-lg font-bold text-orange-600">{paymentStats.unpaid_requests_count || 0}</p>
+                <p className="text-xs text-gray-500">₹{formatCurrency(paymentStats.total_unpaid_amount || 0)}</p>
+              </div>
+              {isDayLimitCustomer && (
+                <>
+                  <div className="bg-white rounded-lg p-3 border border-blue-100">
+                    <p className="text-xs text-gray-600 mb-1">Days Open</p>
+                    <p className="text-lg font-bold text-purple-600">{daysOpen}</p>
+                    <p className="text-xs text-gray-500">Days with unpaid requests</p>
+                  </div>
+                  {overdueDetails && (
+                    <div className="bg-red-100 rounded-lg p-3 border border-red-300">
+                      <p className="text-xs text-red-700 mb-1 font-semibold">⚠️ Overdue Balance</p>
+                      <p className="text-lg font-bold text-red-700">₹{formatCurrency(overdueDetails.overdue_amount || 0)}</p>
+                      <p className="text-xs text-red-600">
+                        {overdueDetails.days_overdue} days overdue
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Overdue Warning Banner - Only for Day Limit Customers */}
-        {isDayLimitCustomer && dayLimitInfo && dayLimitInfo.daysRemaining <= 0 && (
+        {isDayLimitCustomer && overdueDetails && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center">
                 <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
                 <div>
                   <p className="font-medium text-red-800">
-                    Day Limit Exceeded - Account Inactive
+                    ⚠️ Day Limit Exceeded - Account Inactive
                   </p>
-                  <p className="text-sm text-red-600">
-                    Your day limit has been exceeded ({dayLimitInfo.daysUsed} days elapsed, limit: {dayLimitInfo.dayLimit} days). 
-                    Total payment due: ₹{formatCurrency(totalPayableAmount)}. Please recharge your account to continue.
-                  </p>
+                  <div className="text-sm text-red-600 mt-1 space-y-1">
+                    <p>
+                      Days Elapsed: <span className="font-semibold">{overdueDetails.days_elapsed} days</span> | 
+                      Day Limit: <span className="font-semibold">{overdueDetails.day_limit} days</span> | 
+                      Days Overdue: <span className="font-semibold">{overdueDetails.days_overdue} days</span>
+                    </p>
+                    <p>
+                      Overdue Balance: <span className="font-semibold">₹{formatCurrency(overdueDetails.overdue_amount || 0)}</span> | 
+                      Unpaid Requests: <span className="font-semibold">{overdueDetails.total_unpaid_requests || 0}</span>
+                    </p>
+                    <p className="font-semibold mt-2">
+                      ❌ Please clear the payment for previous {overdueDetails.day_limit} day(s) before completing new requests.
+                    </p>
+                  </div>
                 </div>
               </div>
               {customerBalanceInfo?.is_active !== 0 && (
                 <button 
                   onClick={handleRechargeClick}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold whitespace-nowrap"
                 >
                   Recharge Now
                 </button>

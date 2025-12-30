@@ -49,8 +49,21 @@ export async function POST(req) {
     const supplier = rows[0];
 
     // Check if supplier is active (status = 1 or 'active') BEFORE password check for security
+    // Only reject if explicitly inactive (0, '0', 'inactive')
+    // Accept: 1, '1', 'active', null, undefined, or any truthy value
     const supplierStatus = supplier.status;
-    if (supplierStatus === 0 || supplierStatus === '0' || supplierStatus === 'inactive' || supplierStatus === null || supplierStatus === undefined) {
+    console.log('🔍 Supplier Status Check:', { 
+      supplierId: supplier.id, 
+      email: supplier.email,
+      status: supplierStatus, 
+      statusType: typeof supplierStatus 
+    });
+    
+    // Only block if explicitly inactive, allow all other values (including null/undefined as active by default)
+    const isInactive = supplierStatus === 0 || supplierStatus === '0' || supplierStatus === 'inactive';
+    
+    if (isInactive) {
+      console.log('❌ Supplier account is inactive:', supplier.email);
       return NextResponse.json({ 
         success: false,
         error: "Your account has been deactivated by admin. Please contact administrator." 
@@ -60,11 +73,82 @@ export async function POST(req) {
     // Compute SHA256 hash of input password (use trimmed password)
     const hash = crypto.createHash("sha256").update(trimmedPassword).digest("hex");
 
-    // Check if DB password is plain-text (for migration)
-    if (supplier.password === trimmedPassword) {
-      // Update password in DB to hashed version
-      await executeQuery("UPDATE suppliers SET password=? WHERE id=?", [hash, supplier.id]);
-    } else if (supplier.password !== hash) {
+    console.log('🔍 Password Check:', { 
+      supplierId: supplier.id,
+      email: supplier.email,
+      dbPasswordLength: supplier.password?.length,
+      dbPasswordType: typeof supplier.password,
+      inputHashLength: hash.length
+    });
+
+    // Check if DB password is plain-text (for migration) or hashed
+    let passwordMatch = false;
+    
+    // Normalize password values for comparison
+    const dbPassword = supplier.password || '';
+    const dbPasswordTrimmed = typeof dbPassword === 'string' ? dbPassword.trim() : String(dbPassword);
+    
+    console.log('🔍 Password Comparison Details:', {
+      supplierId: supplier.id,
+      email: supplier.email,
+      dbPasswordType: typeof dbPassword,
+      dbPasswordLength: dbPassword?.length,
+      dbPasswordTrimmedLength: dbPasswordTrimmed?.length,
+      inputPasswordLength: trimmedPassword?.length,
+      inputHashLength: hash?.length,
+      isHash: dbPasswordTrimmed?.length === 64,
+      dbPasswordPreview: dbPasswordTrimmed?.length > 0 ? dbPasswordTrimmed.substring(0, 10) + '...' : 'empty',
+      inputHashPreview: hash?.substring(0, 10) + '...'
+    });
+    
+    // Check 1: Plain-text password match (for migration) - compare trimmed versions
+    // Plain text passwords are usually shorter than SHA256 hashes (64 chars)
+    if (dbPasswordTrimmed && dbPasswordTrimmed.length < 64) {
+      // Case-insensitive comparison for plain text
+      if (dbPasswordTrimmed.toLowerCase() === trimmedPassword.toLowerCase() || 
+          dbPasswordTrimmed === trimmedPassword) {
+        passwordMatch = true;
+        // Update password in DB to hashed version
+        await executeQuery("UPDATE suppliers SET password=? WHERE id=?", [hash, supplier.id]);
+        console.log('✅ Plain-text password matched (case-insensitive), updated to hash');
+      }
+    } 
+    // Check 2: Hashed password match - compare with computed hash
+    // SHA256 hashes are always 64 characters long
+    else if (dbPasswordTrimmed && dbPasswordTrimmed.length === 64) {
+      // Case-sensitive comparison for hashes (hashes are always lowercase hex)
+      if (dbPasswordTrimmed.toLowerCase() === hash.toLowerCase() || 
+          dbPasswordTrimmed === hash) {
+        passwordMatch = true;
+        console.log('✅ Hashed password matched');
+      } else {
+        // Try comparing without case sensitivity (in case DB has uppercase)
+        if (dbPasswordTrimmed.toLowerCase() === hash.toLowerCase()) {
+          passwordMatch = true;
+          // Normalize DB password to lowercase
+          await executeQuery("UPDATE suppliers SET password=? WHERE id=?", [hash, supplier.id]);
+          console.log('✅ Hashed password matched (case-corrected)');
+        }
+      }
+    }
+    // Check 3: If DB password is empty or null, reject
+    else if (!dbPasswordTrimmed || dbPasswordTrimmed.length === 0) {
+      console.log('❌ DB password is empty or null');
+      passwordMatch = false;
+    }
+    
+    if (!passwordMatch) {
+      console.log('❌ Password mismatch - Details:', {
+        dbPasswordLength: dbPassword?.length || 0,
+        dbPasswordTrimmedLength: dbPasswordTrimmed?.length || 0,
+        inputPasswordLength: trimmedPassword?.length || 0,
+        inputHashLength: hash?.length || 0,
+        dbPasswordIsHash: dbPasswordTrimmed?.length === 64,
+        dbPasswordPreview: dbPasswordTrimmed?.substring(0, 15),
+        inputHashPreview: hash?.substring(0, 15),
+        plainTextMatch: dbPasswordTrimmed && dbPasswordTrimmed.length < 64 && (dbPasswordTrimmed.toLowerCase() === trimmedPassword.toLowerCase()),
+        hashMatch: dbPasswordTrimmed?.length === 64 && (dbPasswordTrimmed.toLowerCase() === hash.toLowerCase())
+      });
       return NextResponse.json({ 
         success: false,
         error: "Invalid password. Please check your password." 

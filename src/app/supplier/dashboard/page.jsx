@@ -62,112 +62,120 @@ export default function SupplierDashboardPage() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
-      <div className="hidden md:block">
+      <div className="flex-shrink-0">
         <SupplierSidebar />
       </div>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Header */}
-        <SupplierHeader />
+        <div className="flex-shrink-0">
+          <SupplierHeader />
+        </div>
 
         {/* Dashboard Content */}
-        <main className="flex-1 overflow-y-auto p-6">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 min-h-0">
           <div className="max-w-7xl mx-auto">
             {/* Welcome Section */}
-            <div className="mb-6">
-              <h1 className="text-3xl font-bold text-gray-900">Welcome, {user.name}</h1>
-              <p className="text-gray-600 mt-1">Supplier Dashboard</p>
+            <div className="mb-4 sm:mb-6">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Welcome, {user.name}</h1>
+              <p className="text-gray-600 mt-1 text-sm sm:text-base">Supplier Dashboard</p>
             </div>
 
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-              <div className="bg-white rounded-lg shadow p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Invoices</p>
-                    <p className="text-2xl font-bold text-gray-900">{stats.totalInvoices}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">Total Invoices</p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900">{stats.totalInvoices}</p>
                   </div>
-                  <div className="bg-blue-100 p-3 rounded-full">
-                    <FaFileInvoice className="w-6 h-6 text-blue-600" />
+                  <div className="bg-blue-100 p-2 sm:p-3 rounded-full">
+                    <FaFileInvoice className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Pending Amount</p>
-                    <p className="text-2xl font-bold text-green-600">₹{stats.pendingAmount.toLocaleString('en-IN')}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">Pending Amount</p>
+                    <p className="text-xl sm:text-2xl font-bold text-green-600">₹{stats.pendingAmount.toLocaleString('en-IN')}</p>
                   </div>
-                  <div className="bg-green-100 p-3 rounded-full">
-                    <FaMoneyBillWave className="w-6 h-6 text-green-600" />
+                  <div className="bg-green-100 p-2 sm:p-3 rounded-full">
+                    <FaMoneyBillWave className="w-5 h-5 sm:w-6 sm:h-6 text-green-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Stock</p>
-                    <p className="text-2xl font-bold text-purple-600">{stats.totalStock}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">Total Stock</p>
+                    <p className="text-xl sm:text-2xl font-bold text-purple-600">{stats.totalStock}</p>
                   </div>
-                  <div className="bg-purple-100 p-3 rounded-full">
-                    <FaBox className="w-6 h-6 text-purple-600" />
+                  <div className="bg-purple-100 p-2 sm:p-3 rounded-full">
+                    <FaBox className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600" />
                   </div>
                 </div>
               </div>
 
-              <div className="bg-white rounded-lg shadow p-6">
+              <div className="bg-white rounded-lg shadow p-4 sm:p-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Recent Orders</p>
-                    <p className="text-2xl font-bold text-orange-600">{stats.recentOrders}</p>
+                    <p className="text-xs sm:text-sm text-gray-600">Recent Orders</p>
+                    <p className="text-xl sm:text-2xl font-bold text-orange-600">{stats.recentOrders}</p>
                   </div>
-                  <div className="bg-orange-100 p-3 rounded-full">
-                    <FaTruck className="w-6 h-6 text-orange-600" />
+                  <div className="bg-orange-100 p-2 sm:p-3 rounded-full">
+                    <FaTruck className="w-5 h-5 sm:w-6 sm:h-6 text-orange-600" />
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow p-6 mb-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Quick Actions</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
                 <button
-                  onClick={() => router.push('/supplier/invoices')}
-                  className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
+                  onClick={() => {
+                    const supplier = JSON.parse(localStorage.getItem("supplier") || "{}");
+                    router.push(`/supplierinvoice?id=${supplier.id}`);
+                  }}
+                  className="p-3 sm:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
                 >
-                  <FaFileInvoice className="w-6 h-6 text-green-600 mb-2" />
-                  <p className="font-semibold">View Invoices</p>
-                  <p className="text-sm text-gray-600">Check all your invoices</p>
+                  <FaFileInvoice className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mb-2" />
+                  <p className="font-semibold text-sm sm:text-base">View Invoices</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Check all your invoices</p>
                 </button>
 
                 <button
-                  onClick={() => router.push('/supplier/stock')}
-                  className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
+                  onClick={() => router.push('/suppliers')}
+                  className="p-3 sm:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
                 >
-                  <FaBox className="w-6 h-6 text-green-600 mb-2" />
-                  <p className="font-semibold">Stock Management</p>
-                  <p className="text-sm text-gray-600">Manage your stock</p>
+                  <FaBox className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mb-2" />
+                  <p className="font-semibold text-sm sm:text-base">Stock Management</p>
+                  <p className="text-xs sm:text-sm text-gray-600">Manage your stock</p>
                 </button>
 
                 <button
-                  onClick={() => router.push('/supplier/history')}
-                  className="p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
+                  onClick={() => {
+                    const supplier = JSON.parse(localStorage.getItem("supplier") || "{}");
+                    router.push(`/supplierinvoice-history?id=${supplier.id}`);
+                  }}
+                  className="p-3 sm:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
                 >
-                  <FaHistory className="w-6 h-6 text-green-600 mb-2" />
-                  <p className="font-semibold">History</p>
-                  <p className="text-sm text-gray-600">View transaction history</p>
+                  <FaHistory className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mb-2" />
+                  <p className="font-semibold text-sm sm:text-base">History</p>
+                  <p className="text-xs sm:text-sm text-gray-600">View transaction history</p>
                 </button>
               </div>
             </div>
 
             {/* Supplier Info */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-4">Supplier Information</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-white rounded-lg shadow p-4 sm:p-6">
+              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Supplier Information</h2>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                 <div>
                   <p className="text-sm text-gray-600">Name</p>
                   <p className="font-semibold">{user.name}</p>
@@ -198,7 +206,9 @@ export default function SupplierDashboardPage() {
         </main>
 
         {/* Footer */}
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
         <PWAInstallBanner />
       </div>
     </div>

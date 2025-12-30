@@ -230,8 +230,8 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
         </div>
       </div>
 
-      {/* Table Section */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      {/* Desktop Table Section */}
+      <div className="bg-white shadow rounded-lg overflow-hidden hidden md:block">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
@@ -473,6 +473,165 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
           </div>
         )}
       </div>
+
+      {/* Mobile Cards View */}
+      <div className="block md:hidden space-y-4">
+        {paginatedData.length > 0 ? (
+          paginatedData.map((request) => (
+            <div key={request.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+              <div className="flex justify-between items-start mb-3">
+                <div>
+                  <h3 className="font-semibold text-gray-900">#{request.id}</h3>
+                  <p className="text-sm text-gray-600">{request.product_name || "N/A"}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {getStatusBadge(request.status)}
+                  {permissions.can_edit && (
+                    <button
+                      onClick={() => handleStatusChange(request.id, getStatusValue(request.status))}
+                      className="text-blue-600 hover:text-blue-800 text-xs"
+                      title="Edit Status"
+                    >
+                      ✏️
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {editingStatus[request.id] !== undefined ? (
+                <div className="space-y-2 mb-3">
+                  <select
+                    value={editingStatus[request.id]}
+                    onChange={(e) => handleStatusChange(request.id, e.target.value)}
+                    className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    disabled={updatingStatus[request.id]}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="on_the_way">On The Way</option>
+                    <option value="delivered">Delivered</option>
+                  </select>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleStatusUpdate(request.id)}
+                      disabled={updatingStatus[request.id]}
+                      className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
+                    >
+                      {updatingStatus[request.id] ? '...' : 'Update'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditingStatus(prev => {
+                          const updated = { ...prev };
+                          delete updated[request.id];
+                          return updated;
+                        });
+                      }}
+                      className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                <div>
+                  <p className="text-gray-500 text-xs">Supplier</p>
+                  <p className="font-medium">{request.supplier_name || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Station</p>
+                  <p className="font-medium">{request.station_name || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Invoice Date</p>
+                  <p className="font-medium">{formatDate(request.invoice_date)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Invoice #</p>
+                  <p className="font-medium font-mono text-xs">{request.invoice_number || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Tanker No</p>
+                  <p className="font-medium font-mono text-xs">{request.tanker_no || "N/A"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Quantity</p>
+                  <p className="font-medium">{request.ltr ? `${parseFloat(request.ltr).toLocaleString()} L` : "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Invoice Value</p>
+                  <p className="font-medium">{request.v_invoice_value || "-"}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs">Payable</p>
+                  <p className="font-semibold text-green-600">{formatCurrency(request.payable)}</p>
+                </div>
+              </div>
+
+              <div className="flex gap-2 pt-3 border-t">
+                <Link
+                  href={`/stock/supply-details/${request.id}`}
+                  className="flex-1 text-center px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                >
+                  View
+                </Link>
+                <Link
+                  href={`/stock/dncn?id=${request.id}`}
+                  className="flex-1 text-center px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
+                >
+                  DN/CN
+                </Link>
+                {permissions.can_edit && (
+                  <Link
+                    href={`/stock/edit?id=${request.id}`}
+                    className="flex-1 text-center px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
+                  >
+                    Edit
+                  </Link>
+                )}
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+            <div className="text-gray-500">
+              <p className="text-base font-medium mb-2">No stock requests found</p>
+              <p className="text-sm">
+                {filterText || statusFilter !== "all" 
+                  ? "Try adjusting your search or filters" 
+                  : "No stock requests available"
+                }
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Mobile Pagination */}
+        {totalPages > 1 && (
+          <div className="bg-white px-4 py-3 border-t border-gray-200 rounded-lg">
+            <div className="flex items-center justify-between">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Previous
+              </button>
+              <div className="text-sm text-gray-700">
+                Page {currentPage} of {totalPages}
+              </div>
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </>
   );
 }
@@ -495,6 +654,7 @@ export default function StockRequest() {
     deliveredStock: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const { user, loading: sessionLoading } = useSession();
   const router = useRouter();
 
@@ -510,7 +670,10 @@ export default function StockRequest() {
       return;
     }
     if (user) {
-      checkPermissions();
+      setDataLoading(true);
+      checkPermissions().finally(() => {
+        setDataLoading(false);
+      });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, sessionLoading]);
@@ -649,6 +812,7 @@ export default function StockRequest() {
   const fetchStockRequests = async () => {
     try {
       setError(null);
+      setDataLoading(true);
       
       console.log("Fetching stock data...");
       const res = await fetch("/api/stock", {
@@ -699,8 +863,31 @@ export default function StockRequest() {
       console.error("Fetch error details:", err);
       setError("Error fetching stock requests: " + err.message);
       setStockRequests([]);
+    } finally {
+      setDataLoading(false);
     }
   };
+
+  // Show loading state
+  if (sessionLoading || dataLoading || (!user && !sessionLoading)) {
+    return (
+      <div className="flex h-screen bg-gray-100">
+        <Sidebar />
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <Header />
+          <div className="flex-1 overflow-y-auto bg-gray-50 p-6">
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                <p className="text-gray-600">Loading stock data...</p>
+              </div>
+            </div>
+          </div>
+          <Footer />
+        </div>
+      </div>
+    );
+  }
 
   // Show access denied if no permission
   if (user && !hasPermission) {
@@ -731,6 +918,15 @@ export default function StockRequest() {
           {/* Header Section */}
           <div className="bg-white shadow-sm border-b sticky top-0 z-10">
             <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+              <div className="flex items-center gap-3 mb-3">
+                <button
+                  onClick={() => router.back()}
+                  className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                  title="Go Back"
+                >
+                  ←
+                </button>
+              </div>
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Stock Requests</h1>
@@ -786,6 +982,16 @@ export default function StockRequest() {
                     >
                       Retry
                     </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Loading State */}
+              {dataLoading && stockRequests.length === 0 && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="text-center">
+                    <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+                    <p className="text-gray-600">Loading stock data...</p>
                   </div>
                 </div>
               )}

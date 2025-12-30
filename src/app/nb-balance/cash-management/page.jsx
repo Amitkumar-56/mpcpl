@@ -226,19 +226,19 @@ function CashManagementContent() {
 
             {/* Filters Section */}
             <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
                 <h2 className="text-xl font-semibold text-gray-800">Cash List</h2>
-                <div className="flex space-x-3">
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
                   <button 
                     onClick={clearFilters}
-                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                    className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors text-sm sm:text-base"
                   >
                     Clear Filters
                   </button>
                   {permissions.can_create && (
                     <Link 
                       href="/nb-balance/create-expense"
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
                     >
                       Create Expense
                     </Link>
@@ -247,7 +247,7 @@ function CashManagementContent() {
               </div>
 
               {/* Search and Filters */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                   <input
@@ -420,14 +420,14 @@ function CashManagementContent() {
 
                   {/* Pagination */}
                   {cashData.length > 0 && (
-                    <div className="flex items-center justify-between mt-6 px-4">
-                      <div className="text-sm text-gray-700">
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 px-4">
+                      <div className="text-xs sm:text-sm text-gray-700 text-center sm:text-left">
                         Showing {((pagination.currentPage - 1) * pagination.limit) + 1} to{' '}
                         {Math.min(pagination.currentPage * pagination.limit, pagination.totalRecords)} of{' '}
                         {pagination.totalRecords} entries
                       </div>
                       
-                      <div className="flex space-x-2">
+                      <div className="flex flex-wrap justify-center gap-2">
                         <button
                           onClick={prevPage}
                           disabled={!pagination.hasPreviousPage}

@@ -636,53 +636,109 @@ function SchedulePriceContent() {
               {scheduledPrices.length === 0 ? (
                 <p className="text-gray-500">No scheduled prices found.</p>
               ) : (
-                <div className="overflow-x-auto -mx-4 sm:mx-0">
-                  <table className="w-full border-collapse min-w-full">
-                    <thead>
-                      <tr className="bg-gray-50 border-b">
-                        <th className="px-3 py-2 border text-left">Status</th>
-                        <th className="px-3 py-2 border text-left">Customer</th>
-                        <th className="px-3 py-2 border text-left">Station</th>
-                        <th className="px-3 py-2 border text-left">Product</th>
-                        <th className="px-3 py-2 border text-left">Code</th>
-                        <th className="px-3 py-2 border text-left">Price</th>
-                        <th className="px-3 py-2 border text-left">Date</th>
-                        <th className="px-3 py-2 border text-left">Time</th>
-                        <th className="px-3 py-2 border text-left">Applied At</th>
-                        {viewMode === "pending" && <th className="px-3 py-2 border text-left">Action</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {scheduledPrices.map((item, index) => (
-                        <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                          <td className="px-3 py-2 border">
-                            {getStatusBadge(item.status, item.is_applied)}
-                          </td>
-                          <td className="px-3 py-2 border">{item.customer_name}</td>
-                          <td className="px-3 py-2 border">{item.station_name}</td>
-                          <td className="px-3 py-2 border">{item.product_name}</td>
-                          <td className="px-3 py-2 border">{item.product_code}</td>
-                          <td className="px-3 py-2 border">₹{item.price}</td>
-                          <td className="px-3 py-2 border">{item.Schedule_Date}</td>
-                          <td className="px-3 py-2 border">{item.Schedule_Time}</td>
-                          <td className="px-3 py-2 border">
-                            {item.applied_at ? new Date(item.applied_at).toLocaleString() : 'Not Applied'}
-                          </td>
-                          {viewMode === "pending" && permissions.can_edit && (
-                            <td className="px-3 py-2 border">
-                              <button
-                                onClick={() => handleApplyPrices([item.id])}
-                                className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
-                              >
-                                Apply
-                              </button>
-                            </td>
-                          )}
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto -mx-4 sm:mx-0">
+                    <table className="w-full border-collapse min-w-full">
+                      <thead>
+                        <tr className="bg-gray-50 border-b">
+                          <th className="px-3 py-2 border text-left">Status</th>
+                          <th className="px-3 py-2 border text-left">Customer</th>
+                          <th className="px-3 py-2 border text-left">Station</th>
+                          <th className="px-3 py-2 border text-left">Product</th>
+                          <th className="px-3 py-2 border text-left">Code</th>
+                          <th className="px-3 py-2 border text-left">Price</th>
+                          <th className="px-3 py-2 border text-left">Date</th>
+                          <th className="px-3 py-2 border text-left">Time</th>
+                          <th className="px-3 py-2 border text-left">Applied At</th>
+                          {viewMode === "pending" && <th className="px-3 py-2 border text-left">Action</th>}
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {scheduledPrices.map((item, index) => (
+                          <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                            <td className="px-3 py-2 border">
+                              {getStatusBadge(item.status, item.is_applied)}
+                            </td>
+                            <td className="px-3 py-2 border">{item.customer_name}</td>
+                            <td className="px-3 py-2 border">{item.station_name}</td>
+                            <td className="px-3 py-2 border">{item.product_name}</td>
+                            <td className="px-3 py-2 border">{item.product_code}</td>
+                            <td className="px-3 py-2 border">₹{item.price}</td>
+                            <td className="px-3 py-2 border">{item.Schedule_Date}</td>
+                            <td className="px-3 py-2 border">{item.Schedule_Time}</td>
+                            <td className="px-3 py-2 border">
+                              {item.applied_at ? new Date(item.applied_at).toLocaleString() : 'Not Applied'}
+                            </td>
+                            {viewMode === "pending" && permissions.can_edit && (
+                              <td className="px-3 py-2 border">
+                                <button
+                                  onClick={() => handleApplyPrices([item.id])}
+                                  className="bg-green-600 text-white px-3 py-1 rounded text-sm hover:bg-green-700"
+                                >
+                                  Apply
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  {/* Mobile Cards */}
+                  <div className="block md:hidden space-y-4">
+                    {scheduledPrices.map((item, index) => (
+                      <div key={index} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">{item.customer_name}</h3>
+                            <p className="text-sm text-gray-600">{item.station_name}</p>
+                          </div>
+                          {getStatusBadge(item.status, item.is_applied)}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-2 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-500">Product:</span>
+                            <p className="font-medium text-gray-900">{item.product_name}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Code:</span>
+                            <p className="font-medium text-gray-900">{item.product_code}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Price:</span>
+                            <p className="font-semibold text-green-600">₹{item.price}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Date:</span>
+                            <p className="font-medium text-gray-900">{item.Schedule_Date}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Time:</span>
+                            <p className="font-medium text-gray-900">{item.Schedule_Time}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Applied:</span>
+                            <p className="font-medium text-gray-900 text-xs">
+                              {item.applied_at ? new Date(item.applied_at).toLocaleString() : 'Not Applied'}
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {viewMode === "pending" && permissions.can_edit && (
+                          <button
+                            onClick={() => handleApplyPrices([item.id])}
+                            className="w-full bg-green-600 text-white px-3 py-2 rounded text-sm hover:bg-green-700 transition-colors"
+                          >
+                            Apply Price
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
               )}
             </div>
           )}

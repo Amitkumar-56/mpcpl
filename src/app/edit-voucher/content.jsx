@@ -1,9 +1,10 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function EditVoucherContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const voucher_id = searchParams.get('voucher_id');
   
@@ -95,6 +96,15 @@ export default function EditVoucherContent() {
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6">
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          onClick={() => router.back()}
+          className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+          title="Go Back"
+        >
+          ←
+        </button>
+      </div>
       <h1 className="text-3xl font-bold mb-6">Edit Voucher</h1>
 
       {/* Voucher Info */}

@@ -179,7 +179,14 @@ function DeepoItemsContent() {
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-6">
-            <div className="flex items-center">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
               <h1 className="text-3xl font-bold text-gray-900">Remarks</h1>
             </div>
             <nav className="flex" aria-label="Breadcrumb">
@@ -231,7 +238,8 @@ function DeepoItemsContent() {
               <h2 className="text-lg font-semibold text-gray-900">Remarks List</h2>
             </div>
 
-            <div className="overflow-x-auto">
+            {/* Desktop Table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -305,6 +313,61 @@ function DeepoItemsContent() {
                   )}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile Cards View */}
+            <div className="block md:hidden space-y-4 p-4">
+              {remarks.length > 0 ? (
+                remarks.map((remark, index) => (
+                  <div key={remark.id} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">{remark.remarks_name}</h3>
+                        <p className="text-xs text-gray-500 mt-1">S.No: {(pagination.currentPage - 1) * pagination.limit + index + 1}</p>
+                      </div>
+                      {(permissions?.can_edit === true || permissions?.can_edit === 1) ? (
+                        <Link
+                          href={`/edit-remarks?id=${remark.id}`}
+                          className="text-orange-600 hover:text-orange-900 transition-colors duration-200"
+                          title="Edit"
+                        >
+                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                          </svg>
+                        </Link>
+                      ) : (
+                        <span className="text-gray-400 text-xs">No permission</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600">Price</p>
+                        <p className="text-lg font-semibold text-gray-900">{formatPrice(remark.price)}</p>
+                      </div>
+                      <div>
+                        {remark.image_path ? (
+                          <img 
+                            src={remark.image_path} 
+                            alt={remark.remarks_name}
+                            className="h-16 w-16 object-cover rounded-lg border border-gray-200"
+                          />
+                        ) : (
+                          <div className="h-16 w-16 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                            <span className="text-gray-400 text-xs">No Image</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  <p className="text-sm">No remarks found.</p>
+                  {(permissions?.can_create === true || permissions?.can_create === 1) && (
+                    <Link href="/add-remarks" className="text-purple-600 hover:text-purple-500 text-sm mt-2 inline-block">Add your first remark</Link>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

@@ -313,28 +313,30 @@ function LoadingUnloadingContent() {
   const { shipments, permissions, summary } = data;
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      {/* Sidebar */}
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-        {/* Fixed Header - ✅ Removed fixed positioning to prevent overlap */}
-        <div className="bg-white shadow-sm">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Fixed Header */}
+        <div className="flex-shrink-0 bg-white shadow-sm">
           <Header />
         </div>
 
         {/* Scrollable Main Content */}
-        <main className="flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-4 md:py-8 bg-gray-50">
+        <main className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6 lg:px-8 py-4 md:py-8 bg-gray-50">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-            <div className="flex items-center">
-              <Link href="/dashboard" className="mr-4 text-gray-600 hover:text-gray-800 transition-transform hover:-translate-x-1">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </Link>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Loading & Unloading Dashboard</h1>
                 <p className="text-gray-600 mt-1 text-sm">
@@ -395,7 +397,8 @@ function LoadingUnloadingContent() {
               <span className="text-sm text-gray-500">Total: {shipments.length}</span>
             </div>
           </div>
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             {shipments.length > 0 ? (
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
@@ -469,12 +472,12 @@ function LoadingUnloadingContent() {
                 </tbody>
               </table>
             ) : (
-              <div className="p-12 text-center">
+              <div className="p-12 text-center bg-gray-50 rounded-lg">
                 <svg className="w-16 h-16 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <p className="text-lg font-medium text-gray-900 mb-2">No shipment records found</p>
-                <p className="text-sm text-gray-500 mb-4">No loading/unloading records available.</p>
+                <p className="text-lg font-semibold text-gray-700 mb-2">No Shipment Records Found</p>
+                <p className="text-sm text-gray-500">No loading/unloading records are available at this time.</p>
               </div>
             )}
           </div>

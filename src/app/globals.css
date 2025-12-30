@@ -25,3 +25,55 @@
   animation: slide-up 0.3s ease-out;
 }
 
+/* Sidebar Mobile Overlay */
+.sidebar-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 35;
+  transition: opacity 0.3s ease-in-out;
+  opacity: 1;
+}
+
+/* Sidebar Mobile Styles */
+@media (max-width: 767px) {
+  .main-sidebar {
+    transition: transform 0.3s ease-in-out;
+    z-index: 40 !important;
+  }
+  
+  .main-sidebar.sidebar-hidden {
+    transform: translateX(-100%) !important;
+  }
+  
+  .main-sidebar.sidebar-visible {
+    transform: translateX(0) !important;
+  }
+  
+  /* Hide sidebar's own toggle button when using Header toggle */
+  .main-sidebar + * button[title*="Expand"],
+  .main-sidebar + * button[title*="Collapse"] {
+    display: none;
+  }
+  
+  /* Close button in sidebar header */
+  .sidebar-close-btn-mobile {
+    display: block;
+  }
+}
+
+/* Desktop: Always show sidebar */
+@media (min-width: 768px) {
+  .main-sidebar {
+    transform: translateX(0) !important;
+  }
+  
+  .sidebar-overlay {
+    display: none !important;
+  }
+  
+  .sidebar-close-btn-mobile {
+    display: none !important;
+  }
+}
+

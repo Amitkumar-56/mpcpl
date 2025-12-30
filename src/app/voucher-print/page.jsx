@@ -144,9 +144,10 @@ function VoucherContent() {
           </button>
           <button 
             onClick={goBack}
-            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors"
+            className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg transition-colors flex items-center gap-2"
           >
-            ← Go Back to Wallet
+            <span className="text-lg">←</span>
+            <span>Go Back to Wallet</span>
           </button>
           <button 
             onClick={handleLogout}

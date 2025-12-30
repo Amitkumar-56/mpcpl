@@ -7,6 +7,7 @@ import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   BiCoin,
@@ -31,11 +32,11 @@ function CustomersPage() {
     can_create: false 
   });
   const [hasPermission, setHasPermission] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [error, setError] = useState(null);
   const [activeFilter, setActiveFilter] = useState("all"); // "all", "prepaid", "postpaid", "daylimit"
   const [updatingStatus, setUpdatingStatus] = useState({});
   const { user } = useSession();
+  const router = useRouter();
   const isAdmin = user?.role === 5;
 
   // Check permissions first
@@ -442,53 +443,56 @@ function CustomersPage() {
   // Show access denied if no permission
   if (user && !hasPermission) {
     return (
-      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-          <Sidebar activePage="Customers" onClose={() => setSidebarOpen(false)} />
+      <div className="flex min-h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="flex-shrink-0">
+          <Sidebar activePage="Customers" />
         </div>
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
-          <main className="flex-1 overflow-auto p-6">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
-              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
-              <p className="text-red-600">{error || 'You do not have permission to view customers.'}</p>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto p-4 lg:p-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-lg sm:text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600 text-sm sm:text-base">{error || 'You do not have permission to view customers.'}</p>
             </div>
           </main>
-          <Footer />
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
       {/* Sidebar */}
-      <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-        <Sidebar activePage="Customers" onClose={() => setSidebarOpen(false)} />
+      <div className="flex-shrink-0">
+        <Sidebar activePage="Customers" />
       </div>
 
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
         {/* Header */}
-        <Header 
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-          title="Customer Management"
-          subtitle="Manage your customers efficiently with real-time data"
-        />
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6 min-h-0">
           <div className="max-w-7xl mx-auto">
             {/* Breadcrumb */}
             <nav className="mb-4 lg:mb-6">
+              <div className="flex items-center gap-3 mb-2">
+                <button
+                  onClick={() => router.back()}
+                  className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                  title="Go Back"
+                >
+                  ←
+                </button>
+              </div>
               <ol className="flex items-center gap-2 text-sm text-purple-600">
                 <li>
                   <Link href="/" className="hover:text-purple-800 font-medium transition-colors">Home</Link>
@@ -618,7 +622,7 @@ function CustomersPage() {
             {!loading && !error && (
               <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-1"></div>
-                <div className="p-4 lg:p-6 overflow-auto max-h-[70vh]">
+                <div className="p-4 lg:p-6">
                   
                   {/* Results Count */}
                   <div className="mb-4 flex justify-between items-center">
@@ -1227,7 +1231,9 @@ function CustomersPage() {
         </main>
 
         {/* Footer */}
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
 
       {/* Switch Modal */}

@@ -148,7 +148,15 @@ export async function POST(request) {
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // ✅ FIX: Get current IST time directly (server timezone should be IST)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const currentDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
     // ✅ Use sub_product_id if provided, otherwise use product_id as fallback
     const subProductIdToUse = sub_product_id || product_id;

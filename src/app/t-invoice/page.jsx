@@ -68,19 +68,22 @@ function TInvoiceContent() {
   if (loading || authLoading) {
     return (
       <div className="flex min-h-screen bg-gray-50">
-        <div className="sticky top-0 h-screen">
+        <div className="flex-shrink-0">
           <Sidebar />
         </div>
-        <div className="flex flex-col flex-1 w-full">
-          <div className="sticky top-0 z-10">
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
             <Header />
           </div>
-          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading invoices...</p>
             </div>
           </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -89,25 +92,28 @@ function TInvoiceContent() {
   if (!transporterId) {
     return (
       <div className="flex min-h-screen bg-gray-50">
-        <div className="sticky top-0 h-screen">
+        <div className="flex-shrink-0">
           <Sidebar />
         </div>
-        <div className="flex flex-col flex-1 w-full">
-          <div className="sticky top-0 z-10">
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
             <Header />
           </div>
-          <main className="flex-1 overflow-auto p-6 flex items-center justify-center">
-            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Invalid Transporter ID</h2>
-              <p className="text-gray-600 mb-6">Please provide a valid transporter ID.</p>
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
+            <div className="text-center bg-white rounded-lg shadow-lg p-6 sm:p-8 max-w-md w-full">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Invalid Transporter ID</h2>
+              <p className="text-gray-600 mb-6 text-sm sm:text-base">Please provide a valid transporter ID.</p>
               <button
                 onClick={() => router.push('/transporters')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
               >
                 Go to Transporters
               </button>
             </div>
           </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -115,28 +121,29 @@ function TInvoiceContent() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="sticky top-0 h-screen">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1 w-full">
-        <div className="sticky top-0 z-10">
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex-shrink-0">
           <Header />
         </div>
 
-        <main className="flex-1 overflow-auto p-6">
-          <div className="flex items-center justify-between mb-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
             <div className="flex items-center">
               <button 
                 onClick={() => router.back()} 
-                className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                className="mr-3 sm:mr-4 text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
               >
-                <FiArrowLeft className="h-6 w-6" />
+                ←
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Stock Requests</h1>
-                <nav className="text-sm text-gray-600 mt-1">
-                  <ol className="flex items-center space-x-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Stock Requests</h1>
+                <nav className="text-xs sm:text-sm text-gray-600 mt-1">
+                  <ol className="flex flex-wrap items-center space-x-2">
                     <li><a href="/" className="hover:text-blue-600">Home</a></li>
                     <li>/</li>
                     <li className="text-gray-900">Transporter Invoice Value</li>
@@ -146,20 +153,23 @@ function TInvoiceContent() {
             </div>
             <a
               href="/add-supply"
-              className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105 z-50"
+              className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 sm:py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105 z-50 text-sm sm:text-base"
             >
               <FiPlus className="h-5 w-5" />
-              <span>Add Supply</span>
+              <span className="hidden sm:inline">Add Supply</span>
+              <span className="sm:hidden">Add</span>
             </a>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">Invoices</h2>
+            <div className="p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">Invoices</h2>
               
               {invoices.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">#</th>
@@ -234,17 +244,95 @@ function TInvoiceContent() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="block md:hidden space-y-4">
+                    {invoices.map((row) => (
+                      <div key={row.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">#{row.id}</h3>
+                            <p className="text-sm text-gray-600">{row.product_name || 'Product not found'}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(row.status)}`}>
+                            {getStatusLabel(row.status)}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-500">Transporter:</span>
+                            <p className="text-gray-900 font-medium">{row.transporter_name || 'No Transporter'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Station:</span>
+                            <p className="text-gray-900 font-medium">{row.station_name || 'Station not found'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Tanker No:</span>
+                            <p className="text-gray-900">{row.tanker_no || '-'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Weight Type:</span>
+                            <p className="text-gray-900">{row.weight_type || '-'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Ltr:</span>
+                            <p className="text-gray-900">{row.ltr || '-'}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Invoice Value:</span>
+                            <p className="text-gray-900 font-semibold">₹{parseFloat(row.t_invoice_value || 0).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">DNCN:</span>
+                            <p className="text-gray-900">₹{parseFloat(row.dncn || 0).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Payable:</span>
+                            <p className="text-green-600 font-semibold">₹{parseFloat(row.payable || 0).toFixed(2)}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <a 
+                              href={`/stock/supply-details/${row.id}`}
+                              className="text-blue-600 hover:text-blue-800"
+                              title="View Details"
+                            >
+                              <FiEye className="h-5 w-5" />
+                            </a>
+                            <button 
+                              className="text-green-600 hover:text-green-800"
+                              title="Chat"
+                            >
+                              <FiMessageCircle className="h-5 w-5" />
+                            </button>
+                            <a 
+                              href={`/dncn?id=${row.id}`}
+                              className="text-red-600 hover:text-red-800"
+                              title="DNCN"
+                            >
+                              <FiDollarSign className="h-5 w-5" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-500 text-lg">No filling requests found</p>
+                <div className="text-center py-8 sm:py-12">
+                  <p className="text-gray-500 text-base sm:text-lg">No filling requests found</p>
                 </div>
               )}
             </div>
           </div>
         </main>
 
-        <div className="sticky bottom-0">
+        <div className="flex-shrink-0">
           <Footer />
         </div>
       </div>

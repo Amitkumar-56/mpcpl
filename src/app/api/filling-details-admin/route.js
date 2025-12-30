@@ -172,10 +172,15 @@ export async function GET(req) {
       const logsQuery = `
         SELECT 
           fl.*,
-          -- Created by: Check customers FIRST, then employee_profile
+          -- Created by: Check customers FIRST, then employee_profile (ALWAYS get name, never 'system')
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
-            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1)
+            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+            CASE 
+              WHEN fl.created_by IS NOT NULL AND fl.created_by > 0 
+              THEN CONCAT('Employee ID: ', fl.created_by)
+              ELSE NULL
+            END
           ) as created_by_name,
           COALESCE(
             (SELECT c.email FROM customers c WHERE c.id = fl.created_by LIMIT 1),
@@ -185,6 +190,7 @@ export async function GET(req) {
           CASE 
             WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
             WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
+            WHEN fl.created_by IS NOT NULL AND fl.created_by > 0 THEN 'employee'
             ELSE 'system'
           END as created_by_type,
           -- Processed by: Only employee (admin/team leader)
@@ -197,10 +203,10 @@ export async function GET(req) {
           COALESCE(ep_cancelled.name, '') as cancelled_by_name,
           COALESCE(ep_cancelled.emp_code, '') as cancelled_by_code,
           -- Format dates properly
-          DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') as created_date_formatted,
-          DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') as processed_date_formatted,
-          DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') as completed_date_formatted,
-          DATE_FORMAT(fl.cancelled_date, '%d/%m/%Y %h:%i %p') as cancelled_date_formatted
+          CASE WHEN fl.created_date IS NOT NULL THEN DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as created_date_formatted,
+          CASE WHEN fl.processed_date IS NOT NULL THEN DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as processed_date_formatted,
+          CASE WHEN fl.completed_date IS NOT NULL THEN DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted,
+          CASE WHEN fl.cancelled_date IS NOT NULL THEN DATE_FORMAT(fl.cancelled_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as cancelled_date_formatted
         FROM filling_logs fl
         LEFT JOIN employee_profile ep_processed ON fl.processed_by = ep_processed.id
         LEFT JOIN employee_profile ep_completed ON fl.completed_by = ep_completed.id
@@ -692,9 +698,15 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
           isExceeded: daysElapsed >= dayLimit
         });
         
-        // If days elapsed >= day_limit, block the request
+        // If days elapsed >= day_limit, block the request and deactivate customer
         if (daysElapsed >= dayLimit) {
           console.log('❌ Day limit exceeded based on oldest unpaid completed_date');
+          
+          // ✅ Set customer as inactive (stop services)
+          await executeQuery(
+            'UPDATE customer_balances SET is_active = 0 WHERE com_id = ?',
+            [cl_id]
+          );
           
           // Calculate total unpaid amount for overdue message
           const totalUnpaidQuery = `
@@ -707,10 +719,16 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
           
           return { 
             sufficient: false, 
-            message: `Day limit exceeded. Oldest unpaid transaction was ${daysElapsed} days ago (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
+            message: `Day limit exceeded. Oldest unpaid transaction was ${daysElapsed} days ago (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue. Services have been stopped.`,
             isDayLimitExpired: true,
             totalUnpaidAmount: totalUnpaid
           };
+        } else {
+          // ✅ If not overdue, ensure customer is active (payment cleared)
+          await executeQuery(
+            'UPDATE customer_balances SET is_active = 1 WHERE com_id = ?',
+            [cl_id]
+          );
         }
       }
     }
@@ -763,11 +781,17 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
 }
 
 function getIndianTime() {
+  // ✅ FIX: Get current IST time directly (server timezone should be IST)
   const now = new Date();
-  const offset = 5.5 * 60 * 60 * 1000;
-  const istTime = new Date(now.getTime() + offset);
+  // Use local time (server timezone - should be IST)
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
   
-  return istTime.toISOString().slice(0, 19).replace('T', ' ');
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 }
 
 // ✅ FIX: Comprehensive logging function that handles customer and employee IDs properly
@@ -961,6 +985,98 @@ async function handleCompletedStatus(data) {
     price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
     isDayLimitCustomer = false
   } = data;
+
+  // ✅ CRITICAL CHECK: For day limit customers, verify that previous days' balance is cleared before completing new request
+  if (isDayLimitCustomer) {
+    const customerBalanceRows = await executeQuery(
+      `SELECT day_limit, is_active FROM customer_balances WHERE com_id = ?`,
+      [cl_id]
+    );
+    
+    if (customerBalanceRows.length > 0) {
+      const customerDayLimit = parseInt(customerBalanceRows[0].day_limit) || 0;
+      const isActive = customerBalanceRows[0].is_active === 1;
+      
+      // Check if customer is inactive (balance not cleared)
+      if (!isActive) {
+        // Get oldest unpaid transaction details
+        const oldestUnpaidCompleted = await executeQuery(
+          `SELECT completed_date, COALESCE(totalamt, price * aqty) as amount
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+           ORDER BY completed_date ASC 
+           LIMIT 1`,
+          [cl_id]
+        );
+        
+        if (oldestUnpaidCompleted.length > 0 && customerDayLimit > 0) {
+          const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
+          oldestUnpaidDate.setHours(0, 0, 0, 0);
+          const currentDate = new Date();
+          currentDate.setHours(0, 0, 0, 0);
+          const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
+          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+          
+          // Calculate total unpaid amount
+          const totalUnpaidResult = await executeQuery(
+            `SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
+             FROM filling_requests 
+             WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
+            [cl_id]
+          );
+          const totalUnpaid = totalUnpaidResult.length > 0 ? parseFloat(totalUnpaidResult[0].total_unpaid) || 0 : 0;
+          
+          throw new Error(
+            `❌ Request cannot be completed. Day limit exceeded (${daysElapsed} days elapsed, limit: ${customerDayLimit} days). ` +
+            `Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. ` +
+            `Please clear the payment for previous ${customerDayLimit} day(s) before completing new requests.`
+          );
+        } else {
+          throw new Error(
+            `❌ Request cannot be completed. Customer account is inactive. Please clear pending payments to activate the account.`
+          );
+        }
+      }
+      
+      // Double-check: Verify that oldest unpaid transaction is within day limit
+      if (customerDayLimit > 0) {
+        const oldestUnpaidCompleted = await executeQuery(
+          `SELECT completed_date 
+           FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+           ORDER BY completed_date ASC 
+           LIMIT 1`,
+          [cl_id]
+        );
+        
+        if (oldestUnpaidCompleted.length > 0) {
+          const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
+          oldestUnpaidDate.setHours(0, 0, 0, 0);
+          const currentDate = new Date();
+          currentDate.setHours(0, 0, 0, 0);
+          const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
+          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+          
+          if (daysElapsed >= customerDayLimit) {
+            // Calculate total unpaid amount
+            const totalUnpaidResult = await executeQuery(
+              `SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
+               FROM filling_requests 
+               WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
+              [cl_id]
+            );
+            const totalUnpaid = totalUnpaidResult.length > 0 ? parseFloat(totalUnpaidResult[0].total_unpaid) || 0 : 0;
+            
+            throw new Error(
+              `❌ Request cannot be completed. Day limit exceeded (${daysElapsed} days elapsed, limit: ${customerDayLimit} days). ` +
+              `Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. ` +
+              `Please clear the payment for previous ${customerDayLimit} day(s) before completing new requests.`
+            );
+          }
+        }
+      }
+    }
+  }
 
   let finalPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, price);
   const calculatedAmount = finalPrice * aqty;
@@ -1214,6 +1330,68 @@ async function handleCompletedStatus(data) {
     recordId: stockRecordId
   });
 
+  // ✅ Create customer audit log for balance update
+  try {
+    // Ensure customer_audit_log table exists
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS customer_audit_log (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        customer_id INT NOT NULL,
+        action_type VARCHAR(50) NOT NULL,
+        user_id INT,
+        user_name VARCHAR(255),
+        remarks TEXT,
+        amount DECIMAL(10,2),
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_customer_id (customer_id),
+        INDEX idx_created_at (created_at)
+      )
+    `);
+    
+    // Insert customer balance change log
+    const customerLogRemarks = isDayLimitCustomer 
+      ? `Filling request completed - Day Limit Customer. Request ID: ${rid}, Amount: ₹${calculatedAmount.toFixed(2)}, Station: ${stationName}, Product: ${productName}`
+      : `Filling request completed - Credit Limit Customer. Request ID: ${rid}, Amount: ₹${calculatedAmount.toFixed(2)}, Balance deducted, Station: ${stationName}, Product: ${productName}`;
+    
+    // ✅ ENSURE: Always fetch employee name if userId exists
+    let finalUserName = userName;
+    if (!finalUserName && userId) {
+      try {
+        const empResult = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (empResult.length > 0 && empResult[0].name) {
+          finalUserName = empResult[0].name;
+        }
+      } catch (empError) {
+        console.error('Error fetching employee name for audit log:', empError);
+      }
+    }
+    
+    // If still no name, use Employee ID format instead of 'System'
+    if (!finalUserName && userId) {
+      finalUserName = `Employee ID: ${userId}`;
+    } else if (!finalUserName) {
+      finalUserName = 'Unknown';
+    }
+    
+    await executeQuery(
+      `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        cl_id,
+        'filling_completed',
+        userId,
+        finalUserName,
+        customerLogRemarks,
+        calculatedAmount
+      ]
+    );
+  } catch (logError) {
+    console.error('❌ Error creating customer audit log:', logError);
+    // Don't fail the request if logging fails
+  }
+
     // Handle non-billing stocks if needed
     if (billing_type == 2) {
       await handleNonBillingStocks(fs_id, product_id, aqty, userId);
@@ -1377,7 +1555,24 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
 
 async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
   try {
-    // ✅ FIX: Use userId passed as parameter
+    // ✅ FIX: Fetch employee name from employee_profile
+    let employeeName = null;
+    try {
+      const employeeResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (employeeResult.length > 0 && employeeResult[0].name) {
+        employeeName = employeeResult[0].name;
+      }
+    } catch (empError) {
+      console.error('Error fetching employee name for stock log:', empError);
+    }
+    
+    // Get current date and time in Indian timezone
+    const now = getIndianTime();
+    const currentDate = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
     
     // For outward transactions, ADD stock to non_billing_stocks
     // When non-billing customer completes request, stock is added (outward)
@@ -1392,17 +1587,33 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
         [updatedStock, userId, station_id, product_id]
       );
       
-      // ✅ FIX: Create log entry
+      // ✅ FIX: Create log entry with employee name and date/time
       try {
+        // Check if performed_by_name column exists, if not add it
+        const colsInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_by_name'`);
+        if (colsInfo.length === 0) {
+          await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_by_name VARCHAR(255) AFTER performed_by`);
+        }
+        
         await executeQuery(
           `INSERT INTO nb_stock_logs 
-           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
-           VALUES (?, ?, 'Stock Added (Outward)', ?, ?, ?, ?, NOW(), ?)`,
-          [station_id, product_id, existingStock, updatedStock, aqty, userId, 'Filling request completed - Non-billing customer']
+           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_by_name, performed_at, performed_date, performed_time, reason)
+           VALUES (?, ?, 'Stock Added (Outward)', ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+          [station_id, product_id, existingStock, updatedStock, aqty, userId, employeeName || 'Unknown', currentDate, currentTime, 'Filling request completed - Non-billing customer']
         );
-        console.log('✅ NB Stock log created for outward transaction');
+        console.log('✅ NB Stock log created for outward transaction with employee name:', employeeName);
       } catch (logError) {
-        console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
+        // If column doesn't exist or other error, try without new columns
+        try {
+          await executeQuery(
+            `INSERT INTO nb_stock_logs 
+             (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
+             VALUES (?, ?, 'Stock Added (Outward)', ?, ?, ?, ?, NOW(), ?)`,
+            [station_id, product_id, existingStock, updatedStock, aqty, userId, 'Filling request completed - Non-billing customer']
+          );
+        } catch (fallbackError) {
+          console.log('⚠️ NB Stock logs table may not exist, skipping:', fallbackError.message);
+        }
       }
       
       console.log(`✅ Added non-billing stock (outward): ${existingStock} + ${aqty} = ${updatedStock}`);
@@ -1413,17 +1624,43 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
         [station_id, product_id, aqty, userId]
       );
       
-      // ✅ FIX: Create log entry for new stock
+      // ✅ FIX: Create log entry for new stock with employee name and date/time
       try {
+        // Check if performed_by_name column exists, if not add it
+        const colsInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_by_name'`);
+        if (colsInfo.length === 0) {
+          await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_by_name VARCHAR(255) AFTER performed_by`);
+        }
+        
+        // Check if performed_date and performed_time columns exist
+        const dateColInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_date'`);
+        if (dateColInfo.length === 0) {
+          await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_date DATE AFTER performed_at`);
+        }
+        const timeColInfo = await executeQuery(`SHOW COLUMNS FROM nb_stock_logs LIKE 'performed_time'`);
+        if (timeColInfo.length === 0) {
+          await executeQuery(`ALTER TABLE nb_stock_logs ADD COLUMN performed_time TIME AFTER performed_date`);
+        }
+        
         await executeQuery(
           `INSERT INTO nb_stock_logs 
-           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
-           VALUES (?, ?, 'Stock Created', 0, ?, ?, ?, NOW(), ?)`,
-          [station_id, product_id, aqty, aqty, userId, 'New stock record - Filling request completed']
+           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_by_name, performed_at, performed_date, performed_time, reason)
+           VALUES (?, ?, 'Stock Created', 0, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+          [station_id, product_id, aqty, aqty, userId, employeeName || 'Unknown', currentDate, currentTime, 'New stock record - Filling request completed']
         );
-        console.log('✅ NB Stock log created for new stock');
+        console.log('✅ NB Stock log created for new stock with employee name:', employeeName);
       } catch (logError) {
-        console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
+        // If column doesn't exist or other error, try without new columns
+        try {
+          await executeQuery(
+            `INSERT INTO nb_stock_logs 
+             (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
+             VALUES (?, ?, 'Stock Created', 0, ?, ?, ?, NOW(), ?)`,
+            [station_id, product_id, aqty, aqty, userId, 'New stock record - Filling request completed']
+          );
+        } catch (fallbackError) {
+          console.log('⚠️ NB Stock logs table may not exist, skipping:', fallbackError.message);
+        }
       }
       
       console.log(`✅ Created new non-billing stock record with ${aqty} (outward)`);

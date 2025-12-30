@@ -336,21 +336,27 @@ export default function ActivityLogs({
                   <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">
                     {log.unique_code || 'N/A'}
                   </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                    {log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A')}
-                    {log.user_id && (
-                      <span className="text-gray-500 ml-1">(ID: {log.user_id})</span>
-                    )}
-                    {/* Only show role for admin users */}
-                    {isAdmin && log.creator_info?.role_name && (
-                      <span className="text-gray-500 ml-1">- {log.creator_info.role_name}</span>
-                    )}
+                  <td className="px-4 py-3 text-sm">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-gray-900">
+                        {log.user_name || log.user_display_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown')}
+                      </span>
+                      {log.user_id && (
+                        <span className="text-xs text-gray-500 mt-0.5">ID: {log.user_id}</span>
+                      )}
+                      {/* Only show role for admin users */}
+                      {isAdmin && log.creator_info?.role_name && (
+                        <span className="text-xs text-gray-400 mt-0.5">{log.creator_info.role_name}</span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getActionColor(log.action)}`}>
-                      <span className="mr-1">{getActionIcon(log.action)}</span>
-                      {log.action || 'N/A'}
-                    </span>
+                    <div className="flex items-center">
+                      <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${getActionColor(log.action)} inline-flex items-center gap-1.5`}>
+                        <span className="text-sm">{getActionIcon(log.action)}</span>
+                        <span className="uppercase tracking-wide">{log.action || 'N/A'}</span>
+                      </span>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
                     {log.old_value || log.new_value ? (

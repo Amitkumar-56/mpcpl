@@ -169,6 +169,15 @@ function EditTankerListContent() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-4">
+          <button
+            onClick={() => router.back()}
+            className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+            title="Go Back"
+          >
+            ←
+          </button>
+        </div>
         <div className="bg-white rounded-lg shadow-lg p-8">
           {/* Header */}
           <div className="flex items-center justify-between border-b-2 border-gray-800 pb-6 mb-8">

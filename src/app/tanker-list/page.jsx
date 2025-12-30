@@ -320,6 +320,15 @@ function TankerFormContent() {
   return (
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="mb-4">
+          <button
+            onClick={() => router.back()}
+            className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+            title="Go Back"
+          >
+            ←
+          </button>
+        </div>
         <div className="bg-white rounded-lg shadow-lg p-8">
           {/* Header */}
           <div className="flex items-center justify-between border-b-2 border-gray-800 pb-6 mb-8">
@@ -565,7 +574,7 @@ function TankerFormContent() {
                   Item Checklist
                 </h3>
                 
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
                     <thead className="bg-gray-50">
                       <tr>
@@ -730,7 +739,7 @@ function TankerFormContent() {
             </div>
 
             {/* Action Buttons */}
-            <div className="flex justify-center space-x-4 pt-6">
+            <div className="flex flex-col sm:flex-row justify-center gap-3 sm:space-x-4 pt-6">
               <button
                 type="submit"
                 disabled={submitting}

@@ -27,6 +27,7 @@ export default function RechargeRequestPage() {
   const [error, setError] = useState("");
   const [showModal, setShowModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
+  const [rechargeResult, setRechargeResult] = useState(null); // Store recharge result with paid/pending requests
 
   useEffect(() => {
     if (customerId) {
@@ -157,6 +158,7 @@ export default function RechargeRequestPage() {
       if (remainingAmount <= 0) break;
 
       const dayTotal = parseFloat(dayData.day_total) || 0;
+      const dayRequests = dayData.requests || []; // Get individual requests for this day
 
       if (remainingAmount >= dayTotal) {
         // Can pay for this entire day
@@ -167,7 +169,8 @@ export default function RechargeRequestPage() {
           day_date: dayData.day_date,
           day_total: dayTotal,
           transaction_count: dayData.transaction_count,
-          can_pay: true
+          can_pay: true,
+          requests: dayRequests // Include individual requests
         });
       } else {
         // Cannot pay for this day (insufficient amount)
@@ -177,7 +180,8 @@ export default function RechargeRequestPage() {
           transaction_count: dayData.transaction_count,
           can_pay: false,
           required_amount: dayTotal,
-          available_amount: remainingAmount
+          available_amount: remainingAmount,
+          requests: dayRequests // Include individual requests even if not paid
         });
         break;
       }
@@ -247,6 +251,9 @@ export default function RechargeRequestPage() {
       console.log('Payment response:', data);
       
       if (response.ok && data.success) {
+        // Store response data for showing request list
+        setRechargeResult(data);
+        
         let message = data.message || "Recharge processed successfully!";
         
         // ✅ Enhanced message format for all customer types
@@ -288,7 +295,7 @@ export default function RechargeRequestPage() {
         
         setTimeout(() => {
           setSuccessMessage("");
-        }, 10000);
+        }, 30000); // Increased timeout to 30 seconds to see request list
       } else {
         setError(data.error || "Failed to process payment");
       }
@@ -368,18 +375,132 @@ export default function RechargeRequestPage() {
           
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-24">
             
-            {/* Success Message */}
+            {/* Success Message with Request List */}
             {successMessage && (
               <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
-                <div className="flex items-center">
-                  <svg className="h-5 w-5 text-green-400 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-green-400 mr-3 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                   </svg>
-                  <div>
-                    <h3 className="text-sm font-medium text-green-800">Success!</h3>
-                    <div className="mt-1 text-sm text-green-700 whitespace-pre-line">
-                      {successMessage}
+                  <div className="flex-1">
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="text-sm font-medium text-green-800">Success!</h3>
+                        <div className="mt-1 text-sm text-green-700 whitespace-pre-line">
+                          {successMessage}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          setSuccessMessage("");
+                          setRechargeResult(null);
+                        }}
+                        className="ml-4 text-green-600 hover:text-green-800 text-lg"
+                      >
+                        ✕
+                      </button>
                     </div>
+                    
+                    {/* ✅ Show Paid and Pending Requests List */}
+                    {rechargeResult && (rechargeResult.paidRequests?.length > 0 || rechargeResult.pendingRequests?.length > 0) && (
+                      <div className="mt-4 space-y-4">
+                        {/* Paid Requests */}
+                        {rechargeResult.paidRequests && rechargeResult.paidRequests.length > 0 && (
+                          <div className="bg-white rounded-lg border border-green-300 p-4">
+                            <h4 className="text-sm font-semibold text-green-800 mb-3 flex items-center">
+                              <span className="mr-2">✅</span>
+                              Paid Requests ({rechargeResult.paidRequests.length}) - Total: {formatCurrency(
+                                rechargeResult.paidRequests.reduce((sum, req) => sum + (req.amount || 0), 0)
+                              )}
+                            </h4>
+                            <div className="max-h-60 overflow-y-auto space-y-2">
+                              {rechargeResult.paidRequests.map((req, index) => (
+                                <div key={index} className="p-2 bg-green-50 rounded border border-green-200">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium text-gray-800">
+                                        Request #{req.rid || req.id}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        Vehicle: {req.vehicle_number || 'N/A'} | {req.product_name || 'N/A'}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        Completed: {req.completed_date ? new Date(req.completed_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A'}
+                                      </p>
+                                      {req.station_name && (
+                                        <p className="text-xs text-gray-600">
+                                          Station: {req.station_name}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="text-right ml-3">
+                                      <p className="text-xs font-semibold text-green-700">
+                                        {formatCurrency(req.amount || 0)}
+                                      </p>
+                                      <p className="text-xs text-green-600 font-semibold">✅ Paid</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Pending Requests */}
+                        {rechargeResult.pendingRequests && rechargeResult.pendingRequests.length > 0 && (
+                          <div className="bg-white rounded-lg border border-orange-300 p-4">
+                            <h4 className="text-sm font-semibold text-orange-800 mb-3 flex items-center">
+                              <span className="mr-2">⏳</span>
+                              Pending Requests ({rechargeResult.pendingRequests.length}) - Total: {formatCurrency(
+                                rechargeResult.pendingRequests.reduce((sum, req) => sum + (req.amount || 0), 0)
+                              )}
+                            </h4>
+                            <div className="max-h-60 overflow-y-auto space-y-2">
+                              {rechargeResult.pendingRequests.map((req, index) => (
+                                <div key={index} className="p-2 bg-orange-50 rounded border border-orange-200">
+                                  <div className="flex justify-between items-start">
+                                    <div className="flex-1">
+                                      <p className="text-xs font-medium text-gray-800">
+                                        Request #{req.rid || req.id}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        Vehicle: {req.vehicle_number || 'N/A'} | {req.product_name || 'N/A'}
+                                      </p>
+                                      <p className="text-xs text-gray-600">
+                                        Completed: {req.completed_date ? new Date(req.completed_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A'}
+                                      </p>
+                                      {req.station_name && (
+                                        <p className="text-xs text-gray-600">
+                                          Station: {req.station_name}
+                                        </p>
+                                      )}
+                                    </div>
+                                    <div className="text-right ml-3">
+                                      <p className="text-xs font-semibold text-orange-700">
+                                        {formatCurrency(req.amount || 0)}
+                                      </p>
+                                      <p className="text-xs text-orange-600 font-semibold">⏳ Pending</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Extra Payment Info */}
+                        {rechargeResult.dayRemainingAmount && rechargeResult.dayRemainingAmount > 0 && (
+                          <div className="bg-blue-50 border border-blue-300 rounded-lg p-3">
+                            <p className="text-xs font-semibold text-blue-800">
+                              💵 Extra Payment Stored: {formatCurrency(rechargeResult.dayRemainingAmount)}
+                            </p>
+                            <p className="text-xs text-blue-700 mt-1">
+                              This amount is stored and will be used for future pending requests automatically
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -552,48 +673,118 @@ export default function RechargeRequestPage() {
                   {isDayLimitCustomer && paymentBreakdown.dayWiseBreakdown && paymentBreakdown.dayWiseBreakdown.length > 0 && (
                     <div className="mb-3 p-3 bg-yellow-50 rounded-lg">
                       <p className="text-sm font-semibold text-yellow-800 mb-2">📅 Day-wise Payment Breakdown</p>
-                      <div className="space-y-2">
-                        {paymentBreakdown.dayWiseBreakdown.map((day, index) => (
-                          <div 
-                            key={index} 
-                            className={`p-2 rounded border ${
-                              day.can_pay 
-                                ? 'bg-green-100 border-green-300' 
-                                : 'bg-red-100 border-red-300'
-                            }`}
-                          >
-                            <div className="flex justify-between items-center">
-                              <div>
-                                <p className="text-xs font-medium text-gray-700">
-                                  {day.can_pay ? '✅' : '❌'} Day {index + 1}: {new Date(day.day_date).toLocaleDateString('en-IN')}
-                                </p>
-                                <p className="text-xs text-gray-600">
-                                  {day.transaction_count} transaction(s)
-                                </p>
-                              </div>
-                              <div className="text-right">
-                                <p className={`text-sm font-semibold ${
-                                  day.can_pay ? 'text-green-700' : 'text-red-700'
-                                }`}>
-                                  {formatCurrency(day.day_total)}
-                                </p>
-                                {!day.can_pay && (
-                                  <p className="text-xs text-red-600">
-                                    Need: {formatCurrency(day.required_amount)}
+                      
+                      {/* Summary */}
+                      <div className="mb-3 p-2 bg-blue-50 rounded border border-blue-200">
+                        <p className="text-xs font-semibold text-blue-800">
+                          📊 Total Days with Pending Requests: {paymentBreakdown.dayWiseBreakdown.length}
+                        </p>
+                        <p className="text-xs text-blue-700">
+                          Total Requests: {customerData?.pending?.request_count || 0} | Total Amount: {formatCurrency(customerData?.pending?.total_amount || 0)}
+                        </p>
+                        {paymentBreakdown.daysCleared > 0 && (
+                          <p className="text-xs text-green-700 mt-1 font-semibold">
+                            ✅ {paymentBreakdown.daysCleared} day(s) payment will be made ({paymentBreakdown.canPayRequests} requests)
+                          </p>
+                        )}
+                      </div>
+                      
+                      <div className="space-y-2 max-h-60 overflow-y-auto">
+                        {paymentBreakdown.dayWiseBreakdown.map((day, dayIndex) => {
+                          // Calculate days elapsed since completion date (for this day)
+                          const completedDate = day.day_date ? new Date(day.day_date) : null;
+                          const currentDate = new Date();
+                          currentDate.setHours(0, 0, 0, 0);
+                          let daysElapsed = 0;
+                          if (completedDate) {
+                            completedDate.setHours(0, 0, 0, 0);
+                            const timeDiff = currentDate.getTime() - completedDate.getTime();
+                            daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+                          }
+                          
+                          const dayLimit = customerData?.customer?.day_limit || 0;
+                          const isOverdue = dayLimit > 0 && daysElapsed >= dayLimit;
+                          
+                          return (
+                            <div 
+                              key={dayIndex} 
+                              className={`p-3 rounded border ${
+                                day.can_pay 
+                                  ? 'bg-green-100 border-green-300' 
+                                  : 'bg-red-100 border-red-300'
+                              }`}
+                            >
+                              <div className="flex justify-between items-start">
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-sm font-semibold text-gray-800">
+                                      {day.can_pay ? '✅' : '❌'} Day {dayIndex + 1}
+                                    </span>
+                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded ${
+                                      isOverdue ? 'bg-red-200 text-red-800' : 'bg-gray-200 text-gray-700'
+                                    }`}>
+                                      {daysElapsed} day{daysElapsed !== 1 ? 's' : ''} ago {isOverdue ? '(OVERDUE)' : ''}
+                                    </span>
+                                  </div>
+                                  <p className="text-xs font-medium text-gray-700 mb-1">
+                                    Completion Date: {completedDate ? completedDate.toLocaleDateString('en-IN', {
+                                      timeZone: 'Asia/Kolkata', 
+                                      day: '2-digit', 
+                                      month: 'short', 
+                                      year: 'numeric' 
+                                    }) : 'N/A'}
                                   </p>
-                                )}
+                                  <p className="text-xs text-gray-600">
+                                    📦 {day.transaction_count} request{day.transaction_count !== 1 ? 's' : ''} completed on this day
+                                  </p>
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    💰 Day Total Amount: {formatCurrency(day.day_total)}
+                                  </p>
+                                </div>
+                                <div className="text-right ml-3">
+                                  <p className={`text-sm font-bold ${
+                                    day.can_pay ? 'text-green-700' : 'text-red-700'
+                                  }`}>
+                                    {formatCurrency(day.day_total)}
+                                  </p>
+                                  {day.can_pay ? (
+                                    <p className="text-xs text-green-600 font-semibold mt-1">✅ Will Pay</p>
+                                  ) : (
+                                    <div>
+                                      <p className="text-xs text-red-600 font-semibold mt-1">❌ Pending</p>
+                                      {day.required_amount && (
+                                        <p className="text-xs text-red-600 mt-0.5">
+                                          Need: {formatCurrency(day.required_amount)}
+                                        </p>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
+                      
                       {paymentBreakdown.daysCleared > 0 && (
-                        <div className="mt-2 p-2 bg-green-200 rounded">
+                        <div className="mt-2 p-2 bg-green-200 rounded border border-green-300">
                           <p className="text-sm font-semibold text-green-800">
                             ✅ {paymentBreakdown.daysCleared === 1 ? '1 day payment' : `${paymentBreakdown.daysCleared} days payment`} will be made
                           </p>
-                          <p className="text-xs text-green-700">
-                            Account will open for {paymentBreakdown.daysCleared} day(s)
+                          <p className="text-xs text-green-700 mt-1">
+                            {paymentBreakdown.canPayRequests} request(s) will be paid | Amount: {formatCurrency(paymentBreakdown.amountUsed)}
+                          </p>
+                        </div>
+                      )}
+                      
+                      {/* Remaining Requests */}
+                      {paymentBreakdown.totalPendingAmount > paymentBreakdown.amountUsed && (
+                        <div className="mt-2 p-2 bg-orange-100 rounded border border-orange-300">
+                          <p className="text-xs font-semibold text-orange-800">
+                            ⚠️ Remaining: {formatCurrency(paymentBreakdown.totalPendingAmount - paymentBreakdown.amountUsed)}
+                          </p>
+                          <p className="text-xs text-orange-700">
+                            More payment needed to clear all pending requests
                           </p>
                         </div>
                       )}

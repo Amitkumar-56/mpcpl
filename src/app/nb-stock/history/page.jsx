@@ -56,8 +56,23 @@ function NBStockHistoryContent() {
 
   const formatDateTime = (dateString) => {
     if (!dateString) return '-';
-    const date = new Date(dateString);
-    return `${date.toLocaleDateString('en-GB')} ${date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return '-';
+      // Format: DD/MM/YYYY HH:MM AM/PM
+      const day = String(date.getDate()).padStart(2, '0');
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const year = date.getFullYear();
+      let hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12; // the hour '0' should be '12'
+      const formattedHours = String(hours).padStart(2, '0');
+      return `${day}/${month}/${year} ${formattedHours}:${minutes} ${ampm}`;
+    } catch (error) {
+      return '-';
+    }
   };
 
   return (
@@ -180,10 +195,13 @@ function NBStockHistoryContent() {
                               {record.vehicle_number || '-'}
                             </td>
                             <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                              {record.employee_name || '-'}
+                              {record.employee_name && record.employee_name !== 'Unknown' ? record.employee_name : (record.created_by ? `Employee ID: ${record.created_by}` : '-')}
                             </td>
                             <td className="p-4 text-sm text-gray-900 whitespace-nowrap">
-                              {formatDateTime(record.filling_date)}
+                              <div>
+                                <div>{record.formatted_date || formatDateTime(record.filling_date)}</div>
+                                <div className="text-xs text-gray-500">{record.formatted_time || (record.filling_date ? new Date(record.filling_date).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Kolkata' }) : '-')}</div>
+                              </div>
                             </td>
                           </tr>
                         ))}

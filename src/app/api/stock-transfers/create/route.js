@@ -317,17 +317,64 @@ export async function POST(request) {
         console.log("✅ Inward history added for destination station");
       }
       
-      // Also create a log entry for stock transfer
+      // Also create a log entry for stock transfer with employee name
       try {
-        const insertTransferLogQuery = `
-          INSERT INTO stock_transfer_logs 
-            (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
-          VALUES (?, 'Created', ?, NOW(), ?, ?, ?, ?)
-        `;
-        await connection.execute(insertTransferLogQuery, [
-          transferResult.insertId, userId, station_from, station_to, transferQuantity, product
-        ]);
-        console.log("✅ Stock transfer log created");
+        // ✅ Fetch employee name for stock transfer log
+        let employeeName = null;
+        if (userId) {
+          try {
+            const [empResult] = await connection.execute(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (empResult && empResult.length > 0 && empResult[0].name) {
+              employeeName = empResult[0].name;
+            }
+          } catch (empError) {
+            console.error('Error fetching employee name for transfer log:', empError);
+          }
+        }
+        
+        // Check if performed_by_name column exists
+        const colsInfo = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
+        let insertQuery = '';
+        let insertParams = [];
+        
+        if (colsInfo.length > 0) {
+          // Column exists, include it
+          insertQuery = `
+            INSERT INTO stock_transfer_logs 
+              (transfer_id, action, performed_by, performed_by_name, performed_at, station_from, station_to, quantity, product_id)
+            VALUES (?, 'Created', ?, ?, NOW(), ?, ?, ?, ?)
+          `;
+          insertParams = [
+            transferResult.insertId, 
+            userId, 
+            employeeName || (userId ? `Employee ID: ${userId}` : 'Unknown'), 
+            station_from, 
+            station_to, 
+            transferQuantity, 
+            product
+          ];
+        } else {
+          // Column doesn't exist, use old format
+          insertQuery = `
+            INSERT INTO stock_transfer_logs 
+              (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
+            VALUES (?, 'Created', ?, NOW(), ?, ?, ?, ?)
+          `;
+          insertParams = [
+            transferResult.insertId, 
+            userId, 
+            station_from, 
+            station_to, 
+            transferQuantity, 
+            product
+          ];
+        }
+        
+        await connection.execute(insertQuery, insertParams);
+        console.log("✅ Stock transfer log created with employee name:", employeeName);
       } catch (logError) {
         console.log("⚠️ Stock transfer logs table may not exist, skipping:", logError.message);
       }

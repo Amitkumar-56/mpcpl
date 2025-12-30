@@ -91,16 +91,23 @@ function DNCNPageContent() {
 
   if (loading) {
     return (
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
           <main className="flex-1 overflow-auto flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading DNCN data...</p>
             </div>
           </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -108,23 +115,29 @@ function DNCNPageContent() {
 
   if (!id) {
     return (
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-auto flex items-center justify-center">
-            <div className="text-center bg-white rounded-lg shadow-lg p-8 max-w-md">
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Invalid Stock ID</h2>
-              <p className="text-gray-600 mb-6">Please provide a valid stock ID.</p>
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
+            <div className="text-center bg-white rounded-lg shadow-lg p-6 sm:p-8 max-w-md w-full">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Invalid Stock ID</h2>
+              <p className="text-gray-600 mb-6 text-sm sm:text-base">Please provide a valid stock ID.</p>
               <button
                 onClick={() => router.push('/stock')}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors text-sm sm:text-base"
               >
                 Go to Stock
               </button>
             </div>
           </main>
-          <Footer />
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -132,22 +145,28 @@ function DNCNPageContent() {
 
   if (error) {
     return (
-      <div className="flex h-screen bg-gray-50">
-        <Sidebar />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-auto flex items-center justify-center">
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
             <div className="text-center">
-              <p className="text-red-600">{error}</p>
+              <p className="text-red-600 text-sm sm:text-base">{error}</p>
               <button
                 onClick={() => router.back()}
-                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm sm:text-base"
               >
                 Go Back
               </button>
             </div>
           </main>
-          <Footer />
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -187,21 +206,29 @@ function DNCNPageContent() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header />
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
         <main className="flex-1 overflow-auto">
-          <div className="py-6 px-4 sm:px-6 lg:px-8">
+          <div className="py-4 sm:py-6 px-4 sm:px-6 lg:px-8">
             {/* Header */}
             <div className="mb-6">
-              <nav className="flex space-x-2 text-sm text-gray-600 mb-4">
+              <div className="flex items-center gap-3 mb-4">
                 <button
                   onClick={() => router.back()}
-                  className="text-blue-600 hover:text-blue-800"
+                  className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                  title="Go Back"
                 >
-                  Home
+                  ←
                 </button>
+              </div>
+              <nav className="flex space-x-2 text-sm text-gray-600 mb-4">
+                <a href="/" className="text-blue-600 hover:text-blue-800">Home</a>
                 <span>/</span>
                 <span>Stock Supply</span>
                 <span>/</span>
@@ -217,7 +244,8 @@ function DNCNPageContent() {
 
             {/* DNCN Table */}
             <div className="bg-white rounded-lg shadow overflow-hidden">
-              <div className="overflow-x-auto">
+              {/* Desktop Table */}
+              <div className="hidden md:block overflow-x-auto">
                 {error ? (
                   <div className="p-6 text-center text-red-600">
                     {error}
@@ -264,21 +292,76 @@ function DNCNPageContent() {
                   </table>
                 )}
               </div>
+
+              {/* Mobile Cards View */}
+              <div className="block md:hidden p-4 space-y-4">
+                {error ? (
+                  <div className="p-4 text-center text-red-600 text-sm">
+                    {error}
+                  </div>
+                ) : dncnEntries.length === 0 ? (
+                  <div className="p-8 text-center text-gray-500">
+                    <p className="text-base">No DNCN found</p>
+                  </div>
+                ) : (
+                  dncnEntries.map((entry) => (
+                    <div key={entry.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">#{entry.id}</h3>
+                          <p className="text-xs text-gray-500">Supply ID: {entry.supply_id}</p>
+                        </div>
+                        {getDNCNTypeBadge(entry.dncn_type)}
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                        <div>
+                          <span className="text-gray-500">Amount:</span>
+                          <p className="font-semibold text-gray-900">{formatCurrency(entry.amount)}</p>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Status:</span>
+                          <div className="mt-1">{getStatusBadge(entry.status)}</div>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-500">Date:</span>
+                          <p className="text-gray-900 text-xs">{formatDate(entry.date)}</p>
+                        </div>
+                        {entry.remarks && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Remarks:</span>
+                            <p className="text-gray-900 text-xs">{entry.remarks}</p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="pt-3 border-t border-gray-200">
+                        <button className="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                          View Details →
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
 
             {/* Floating Action Button */}
             <Link
               href={`/stock/dncn/add?id=${id}`}
-              className="fixed bottom-8 right-8 bg-purple-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors z-50 flex items-center space-x-2"
+              className="fixed bottom-6 right-6 sm:bottom-8 sm:right-8 bg-purple-600 text-white px-4 py-3 sm:px-6 sm:py-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors z-50 flex items-center space-x-2 text-sm sm:text-base"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M10 3a1 1 0 00-1 1v5H4a1 1 0 100 2h5v5a1 1 0 102 0v-5h5a1 1 0 100-2h-5V4a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-              <span>Add Debit/Credit</span>
+              <span className="hidden sm:inline">Add Debit/Credit</span>
+              <span className="sm:hidden">Add</span>
             </Link>
           </div>
         </main>
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

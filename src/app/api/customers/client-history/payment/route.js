@@ -117,9 +117,17 @@ export async function POST(request) {
             console.error('Error fetching employee name:', empError);
           }
           
+          // ✅ ENSURE: Always use proper employee name (never null or 'System')
+          let finalEmployeeName = employeeName;
+          if (!finalEmployeeName && userIdForLog) {
+            finalEmployeeName = `Employee ID: ${userIdForLog}`;
+          } else if (!finalEmployeeName) {
+            finalEmployeeName = 'Unknown';
+          }
+          
           await executeQuery(
             `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-            [customerId, 'payment', userIdForLog || null, employeeName || (userIdForLog ? `Employee ID: ${userIdForLog}` : null), `One day payment - Service extended`, amount]
+            [customerId, 'payment', userIdForLog || null, finalEmployeeName, `One day payment - Service extended`, amount]
           );
         } catch (auditError) {
           console.error('Error creating audit log:', auditError);
@@ -244,9 +252,17 @@ export async function POST(request) {
             console.error('Error fetching employee name:', empError);
           }
           
+          // ✅ ENSURE: Always use proper employee name (never 'System')
+          let finalEmployeeName = employeeName;
+          if (!finalEmployeeName && userIdForLog) {
+            finalEmployeeName = `Employee ID: ${userIdForLog}`;
+          } else if (!finalEmployeeName) {
+            finalEmployeeName = 'Unknown';
+          }
+          
           await executeQuery(
             `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-            [customerId, 'payment', 1, employeeName, `Payment processed - ${invoicesPaid} invoice(s) paid`, totalPaidAmount]
+            [customerId, 'payment', userIdForLog || 1, finalEmployeeName, `Payment processed - ${invoicesPaid} invoice(s) paid`, totalPaidAmount]
           );
         } catch (auditError) {
           console.error('Error creating audit log:', auditError);

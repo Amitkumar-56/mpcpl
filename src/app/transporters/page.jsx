@@ -148,9 +148,11 @@ function TransportersContent() {
   // Check if user has view permission
   if (!hasPermission) {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-auto p-6 bg-gray-50 flex items-center justify-center">
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        <main className="flex-1 overflow-auto p-4 sm:p-6 bg-gray-50 flex items-center justify-center">
           <div className="bg-white rounded-lg shadow-lg p-8 max-w-md text-center">
             <div className="text-red-500 text-6xl mb-4">🚫</div>
             <h2 className="text-2xl font-bold text-gray-800 mb-2">Access Denied</h2>
@@ -158,22 +160,35 @@ function TransportersContent() {
             <p className="text-sm text-gray-500 mt-2">Please contact your administrator for access.</p>
           </div>
         </main>
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden">
-      <Header />
+    <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+      <div className="flex-shrink-0">
+        <Header />
+      </div>
 
-      <main className="flex-1 overflow-auto p-6 bg-gray-50">
-        <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-gray-800">Transporters List</h1>
+      <main className="flex-1 overflow-auto p-4 sm:p-6 bg-gray-50">
+        <div className="flex items-center gap-3 mb-3">
+          <button
+            onClick={() => router.back()}
+            className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+            title="Go Back"
+          >
+            ←
+          </button>
+        </div>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">Transporters List</h1>
           {permissions.can_edit && (
             <a
               href="/transporters/add-transporter"
-              className="bg-purple-700 text-white px-4 py-2 rounded-full shadow hover:bg-purple-800 transition"
+              className="w-full sm:w-auto bg-purple-700 text-white px-4 py-2 rounded-full shadow hover:bg-purple-800 transition text-sm sm:text-base text-center"
             >
               Add Transporter
             </a>
@@ -330,8 +345,10 @@ function TransportersContent() {
         </div>
       </main>
 
-      {/* Sticky Footer */}
-      <Footer />
+      {/* Footer */}
+      <div className="flex-shrink-0">
+        <Footer />
+      </div>
     </div>
   );
 }

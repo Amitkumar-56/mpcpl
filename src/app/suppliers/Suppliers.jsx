@@ -25,7 +25,6 @@ export default function SuppliersPage() {
   });
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   // Check permissions first
@@ -165,7 +164,11 @@ export default function SuppliersPage() {
 
   // Calculate stats from supplier data
   const calculateStats = (suppliersData) => {
-    const activeSuppliers = suppliersData.filter(s => s.status === 'active').length;
+    // Handle both integer (1/0) and string ('active'/'inactive') status values
+    const activeSuppliers = suppliersData.filter(s => {
+      const status = s.status;
+      return status === 1 || status === '1' || status === 'active' || status === 'Active';
+    }).length;
     const totalOutstanding = suppliersData.reduce((sum, supplier) => sum + (supplier.outstandingBalance || 0), 0);
     
     return {
@@ -304,14 +307,62 @@ export default function SuppliersPage() {
       alert('You do not have permission to change supplier status.');
       return;
     }
-    // Note: You'll need to implement UPDATE API endpoint
-    const updatedSuppliers = suppliers.map(supplier => 
-      supplier.id === id 
-        ? { ...supplier, status: supplier.status === 'active' ? 'inactive' : 'active' }
-        : supplier
-    );
-    setSuppliers(updatedSuppliers);
-    setStats(calculateStats(updatedSuppliers));
+
+    // Find the supplier
+    const supplier = suppliers.find(s => s.id === id);
+    if (!supplier) {
+      alert('Supplier not found');
+      return;
+    }
+
+    // Determine new status (toggle between active/inactive)
+    // Handle both integer (1/0) and string ('active'/'inactive') status values
+    const currentStatus = supplier.status;
+    const isCurrentlyActive = currentStatus === 1 || currentStatus === '1' || currentStatus === 'active' || currentStatus === 'Active';
+    const newStatus = isCurrentlyActive ? 'inactive' : 'active';
+    const newStatusValue = isCurrentlyActive ? 0 : 1; // For API
+
+    // Confirm action
+    const confirmMessage = isCurrentlyActive 
+      ? `Are you sure you want to deactivate ${supplier.name}?`
+      : `Are you sure you want to activate ${supplier.name}?`;
+    
+    if (!confirm(confirmMessage)) {
+      return;
+    }
+
+    try {
+      // Call API to update status
+      const response = await fetch(`/api/suppliers?id=${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          status: newStatus
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update supplier status');
+      }
+
+      // Update local state
+      const updatedSuppliers = suppliers.map(s => 
+        s.id === id 
+          ? { ...s, status: newStatus }
+          : s
+      );
+      setSuppliers(updatedSuppliers);
+      setStats(calculateStats(updatedSuppliers));
+
+      alert(`✅ Supplier status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating supplier status:', error);
+      alert(`❌ Error: ${error.message}`);
+    }
   };
 
   // Handle form input changes
@@ -328,7 +379,9 @@ export default function SuppliersPage() {
     const matchesSearch = supplier.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          supplier.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          supplier.gstin?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || supplier.status === statusFilter;
+    const matchesStatus = statusFilter === 'all' || 
+      (statusFilter === 'active' && (supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active')) ||
+      (statusFilter === 'inactive' && (supplier.status === 0 || supplier.status === '0' || supplier.status === 'inactive' || supplier.status === 'Inactive'));
     return matchesSearch && matchesStatus;
   });
 
@@ -345,43 +398,56 @@ export default function SuppliersPage() {
   // Show access denied if no permission
   if (!authLoading && user && !hasPermission) {
     return (
-      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
+      <div className="flex min-h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+        <div className="flex-shrink-0">
           <Sidebar />
         </div>
-        <div className="flex-1 flex flex-col">
-          <Header />
-          <div className="flex-1 overflow-y-auto p-6">
-            <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center max-w-2xl mx-auto">
-              <h2 className="text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
-              <p className="text-red-600">You do not have permission to view suppliers.</p>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 sm:p-6 text-center max-w-2xl mx-auto">
+              <h2 className="text-lg sm:text-xl font-semibold text-red-800 mb-2">Access Denied</h2>
+              <p className="text-red-600 text-sm sm:text-base">You do not have permission to view suppliers.</p>
             </div>
           </div>
-          <Footer />
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-        <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-          {/* Sidebar */}
-          <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"}`}>
-            <Sidebar  />
-          </div>
-    
-        
-      
-    
-          {/* Main Content */}
-          <div className="flex-1 flex flex-col">
-            {/* Header */}
-            <Header/>
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      {/* Sidebar */}
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        
+        {/* Main Content */}
+        <div className="flex-1 overflow-y-auto min-h-0">
         <div className="flex-1 overflow-y-auto p-3 sm:p-4 md:p-6">
           {/* Header */}
           <div className="mb-4 sm:mb-6 lg:mb-8">
+            <div className="flex items-center gap-3 mb-3">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
+            </div>
             <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">Supplier Management</h1>
             <p className="text-gray-600 mt-1 sm:mt-2 text-sm sm:text-base">Manage your suppliers and track purchases</p>
           </div>
@@ -574,8 +640,12 @@ export default function SuppliersPage() {
                             <div className="text-xs lg:text-sm text-gray-500">Postbox: {supplier.postbox}</div>
                           </td>
                           <td className="px-4 lg:px-6 py-3 lg:py-4">
-                            <span className={`inline-flex px-2 lg:px-3 py-1 text-xs font-semibold rounded-full ${statusColors[supplier.status]}`}>
-                              {supplier.status}
+                            <span className={`inline-flex px-2 lg:px-3 py-1 text-xs font-semibold rounded-full ${
+                              supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active'
+                                ? statusColors['active']
+                                : statusColors['inactive']
+                            }`}>
+                              {supplier.status === 1 || supplier.status === '1' ? 'active' : supplier.status === 0 || supplier.status === '0' ? 'inactive' : supplier.status}
                             </span>
                             <div className="text-xs text-gray-400 mt-1">
                               Since {new Date(supplier.created_at).toLocaleDateString()}
@@ -601,12 +671,12 @@ export default function SuppliersPage() {
                                       <button 
                                         onClick={() => toggleSupplierStatus(supplier.id)}
                                         className={`text-xs lg:text-sm font-medium px-2 lg:px-3 py-1 rounded-lg transition-colors ${
-                                          supplier.status === 'active' 
+                                          (supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active')
                                             ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
                                             : 'text-green-600 hover:text-green-900 bg-green-50'
                                         }`}
                                       >
-                                        {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
+                                        {(supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active') ? 'Deactivate' : 'Activate'}
                                       </button>
                                     )}
                             </div>
@@ -636,8 +706,12 @@ export default function SuppliersPage() {
                               <div className="text-xs text-gray-500 mt-1">{supplier.supplier_type}</div>
                             </div>
                           </div>
-                          <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${statusColors[supplier.status]}`}>
-                            {supplier.status}
+                          <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${
+                            supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active'
+                              ? statusColors['active']
+                              : statusColors['inactive']
+                          }`}>
+                            {supplier.status === 1 || supplier.status === '1' ? 'active' : supplier.status === 0 || supplier.status === '0' ? 'inactive' : supplier.status}
                           </span>
                         </div>
 
@@ -693,12 +767,12 @@ export default function SuppliersPage() {
                               <button 
                                 onClick={() => toggleSupplierStatus(supplier.id)}
                                 className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
-                                  supplier.status === 'active' 
+                                  (supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active')
                                     ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
                                     : 'text-green-600 hover:text-green-900 bg-green-50'
                                 }`}
                               >
-                                {supplier.status === 'active' ? 'Deactivate' : 'Activate'}
+                                {(supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active') ? 'Deactivate' : 'Activate'}
                               </button>
                             )}
                         </div>
@@ -866,11 +940,13 @@ export default function SuppliersPage() {
             </div>
           )}
         </div>
+        </div>
 
         {/* Footer */}
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
-          </div>
   );
 }

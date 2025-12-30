@@ -10,14 +10,12 @@ import Sidebar from '../../components/sidebar';
 // Loading component for the main page
 function ReportsLoading() {
   return (
-    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50 to-cyan-50">
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <Header 
-          onMenuClick={() => {}}
-          title="Reports Dashboard"
-          subtitle="Access various reports and analytics for your business operations"
-        />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+    <div className="flex min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-cyan-50">
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="animate-pulse">
             {/* Breadcrumb skeleton */}
             <div className="mb-6 lg:mb-8">
@@ -51,9 +49,9 @@ function ReportsLoading() {
 // Stats Loading component
 function StatsLoading() {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-gray-200 rounded-2xl p-4 h-24 animate-pulse"></div>
+        <div key={i} className="bg-gray-200 rounded-xl sm:rounded-2xl p-4 sm:p-6 h-20 sm:h-24 animate-pulse"></div>
       ))}
     </div>
   );
@@ -93,18 +91,18 @@ function QuickStats({ stats, loading }) {
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
       {statCards.map((stat, index) => (
         <div
           key={index}
-          className={`${stat.color} rounded-2xl p-6 text-white shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
+          className={`${stat.color} rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
         >
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm font-medium">{stat.title}</p>
-              <p className="text-2xl font-bold mt-2">{stat.value}</p>
+              <p className="text-blue-100 text-xs sm:text-sm font-medium">{stat.title}</p>
+              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2">{stat.value}</p>
             </div>
-            <div className="text-3xl opacity-80">
+            <div className="text-2xl sm:text-3xl opacity-80">
               {stat.icon}
             </div>
           </div>
@@ -127,11 +125,11 @@ function ReportsGrid({ reports, loading, activeReport, onReportClick }) {
   }
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-6 mb-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
       {reports.map((report, index) => (
         <div
           key={index}
-          className={`${report.color} ${report.textColor} rounded-2xl p-6 shadow-lg transform transition-all duration-300 cursor-pointer ${
+          className={`${report.color} ${report.textColor} rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg transform transition-all duration-300 cursor-pointer ${
             activeReport === index 
               ? 'scale-95 ring-4 ring-opacity-50 ring-white' 
               : 'hover:scale-105 hover:shadow-xl'
@@ -139,10 +137,10 @@ function ReportsGrid({ reports, loading, activeReport, onReportClick }) {
           onClick={() => onReportClick(report.path, report.name, index)}
         >
           <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-4">
-              <div className="text-3xl">{report.icon}</div>
+            <div className="flex items-center justify-between mb-3 sm:mb-4">
+              <div className="text-2xl sm:text-3xl">{report.icon}</div>
               <svg 
-                className="w-6 h-6 opacity-80 transform transition-transform duration-300 group-hover:translate-x-1" 
+                className="w-5 h-5 sm:w-6 sm:h-6 opacity-80 transform transition-transform duration-300 group-hover:translate-x-1" 
                 fill="none" 
                 stroke="currentColor" 
                 viewBox="0 0 24 24"
@@ -150,9 +148,9 @@ function ReportsGrid({ reports, loading, activeReport, onReportClick }) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </div>
-            <h3 className="text-xl font-bold mb-2">{report.name}</h3>
-            <p className="text-sm opacity-90 flex-1">{report.description}</p>
-            <div className="mt-4 pt-4 border-t border-opacity-20">
+            <h3 className="text-lg sm:text-xl font-bold mb-2">{report.name}</h3>
+            <p className="text-xs sm:text-sm opacity-90 flex-1">{report.description}</p>
+            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-opacity-20">
               <span className="text-xs font-medium opacity-80">
                 Click to view report →
               </span>
@@ -167,8 +165,6 @@ function ReportsGrid({ reports, loading, activeReport, onReportClick }) {
 // Main component
 function ReportsContent() {
   const router = useRouter();
-  const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
   const [activeReport, setActiveReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -177,18 +173,6 @@ function ReportsContent() {
     invoice: { total: 0 },
     recharge: { total: 0 }
   });
-
-  // Detect mobile screen size
-  useEffect(() => {
-    const checkScreenSize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    checkScreenSize();
-    window.addEventListener('resize', checkScreenSize);
-    
-    return () => window.removeEventListener('resize', checkScreenSize);
-  }, []);
 
   // Fetch all reports stats
   useEffect(() => {
@@ -295,42 +279,28 @@ function ReportsContent() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-gray-50 via-blue-50 to-cyan-50">
-      {/* Sidebar */}
-      <div className={`fixed lg:static z-40 h-full transition-transform duration-300 ease-in-out ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-      }`}>
-        <Sidebar activePage="Reports" onClose={() => setSidebarOpen(false)} />
+      {/* Sidebar - Always visible, collapsible on mobile */}
+      <div className="flex-shrink-0">
+        <Sidebar activePage="Reports" />
       </div>
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <Header 
-          onMenuClick={() => setSidebarOpen(!sidebarOpen)}
-          title="Reports Dashboard"
-          subtitle="Access various reports and analytics for your business operations"
-        />
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        <main className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6">
           {/* Breadcrumb */}
-          <nav className="mb-6 lg:mb-8">
+          <nav className="mb-4 sm:mb-6 lg:mb-8">
             <button 
               onClick={handleBack} 
-              className="group flex items-center space-x-2 text-purple-600 hover:text-purple-800 font-medium transition-all duration-200 transform hover:-translate-x-1"
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
             >
-              <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-              </svg>
-              <span>Back to Dashboard</span>
+              ←
             </button>
           </nav>
 
@@ -350,7 +320,10 @@ function ReportsContent() {
           </Suspense>
         </main>
         
-        <Footer />
+        {/* Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

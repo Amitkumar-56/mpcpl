@@ -121,28 +121,29 @@ function DNCNContent() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
-      <div className="sticky top-0 h-screen">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1 w-full">
-        <div className="sticky top-0 z-10">
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex-shrink-0">
           <Header />
         </div>
 
-        <main className="flex-1 overflow-auto p-6">
-          <div className="flex items-center justify-between mb-6">
+        <main className="flex-1 overflow-auto p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 sm:mb-6">
             <div className="flex items-center">
               <button 
                 onClick={() => router.back()} 
-                className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
+                className="mr-3 sm:mr-4 text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
               >
-                <FiArrowLeft className="h-6 w-6" />
+                ←
               </button>
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Stock Requests</h1>
-                <nav className="text-sm text-gray-600 mt-1">
-                  <ol className="flex items-center space-x-2">
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Stock Requests</h1>
+                <nav className="text-xs sm:text-sm text-gray-600 mt-1">
+                  <ol className="flex flex-wrap items-center space-x-2">
                     <li><a href="/" className="hover:text-blue-600">Home</a></li>
                     {stockData?.transporter_id && (
                       <>
@@ -165,20 +166,23 @@ function DNCNContent() {
             </div>
             <a
               href={`/add_t_dncn?id=${supplyId}`}
-              className="fixed bottom-10 right-10 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105 z-50"
+              className="fixed bottom-6 right-6 sm:bottom-10 sm:right-10 bg-purple-600 hover:bg-purple-700 text-white px-4 py-3 sm:px-6 sm:py-3 rounded-full shadow-lg flex items-center gap-2 transition-all hover:scale-105 z-50 text-sm sm:text-base"
             >
               <FiPlus className="h-5 w-5" />
-              <span>Add Debit/Credit</span>
+              <span className="hidden sm:inline">Add Debit/Credit</span>
+              <span className="sm:hidden">Add</span>
             </a>
           </div>
 
           <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-            <div className="p-6">
-              <h2 className="text-lg font-semibold text-gray-800 mb-4">T_DNCN</h2>
+            <div className="p-4 sm:p-6">
+              <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-4">T_DNCN</h2>
               
               {dncnRecords.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
+                <>
+                  {/* Desktop Table */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full border-collapse">
                     <thead>
                       <tr className="bg-gray-50 border-b border-gray-200">
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider">#</th>
@@ -241,17 +245,84 @@ function DNCNContent() {
                       ))}
                     </tbody>
                   </table>
-                </div>
+                  </div>
+
+                  {/* Mobile Cards View */}
+                  <div className="block md:hidden space-y-4">
+                    {dncnRecords.map((row) => (
+                      <div key={row.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <h3 className="font-semibold text-gray-900">#{row.id}</h3>
+                            <p className="text-xs text-gray-500">Supply ID: {row.sup_id}</p>
+                          </div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                            row.type == 1 ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                          }`}>
+                            {getTypeLabel(row.type)}
+                          </span>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                          <div>
+                            <span className="text-gray-500">Amount:</span>
+                            <p className="font-semibold text-gray-900">₹{parseFloat(row.amount || 0).toFixed(2)}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Status:</span>
+                            <div className="mt-1">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(row.status)}`}>
+                                {getStatusLabel(row.status)}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Date:</span>
+                            <p className="text-gray-900 text-xs">
+                              {row.t_dncn_date ? new Date(row.t_dncn_date).toLocaleDateString('en-IN', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric'
+                              }) : '-'}
+                            </p>
+                          </div>
+                          {row.remarks && (
+                            <div className="col-span-2">
+                              <span className="text-gray-500">Remarks:</span>
+                              <p className="text-gray-900 text-xs">{row.remarks}</p>
+                            </div>
+                          )}
+                        </div>
+                        
+                        <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
+                          <a 
+                            href={`/stock/supply-details/${row.sup_id}`}
+                            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                          >
+                            View Supply →
+                          </a>
+                          <a 
+                            href={`/stock/supply-details/${row.id}`}
+                            className="text-blue-600 hover:text-blue-800"
+                            title="View Details"
+                          >
+                            <FiEye className="h-5 w-5" />
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <div className="text-center py-12">
-                  <p className="text-gray-500 text-lg">No T-DNCN found</p>
+                <div className="text-center py-8 sm:py-12">
+                  <p className="text-gray-500 text-base sm:text-lg">No T-DNCN found</p>
                 </div>
               )}
             </div>
           </div>
         </main>
 
-        <div className="sticky bottom-0">
+        <div className="flex-shrink-0">
           <Footer />
         </div>
       </div>

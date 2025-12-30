@@ -130,11 +130,10 @@ function TankerLogsContent() {
             <div className="flex items-center">
               <button
                 onClick={() => router.back()}
-                className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                className="mr-4 text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
               >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
+                ←
               </button>
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Activity Logs</h1>

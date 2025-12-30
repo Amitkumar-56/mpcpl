@@ -47,8 +47,15 @@ export async function POST(request) {
       );
     }
 
-    // Hash password using SHA-256
-    const hashedPassword = hashPassword(password);
+    // Hash password using SHA-256 (trim password first to match login behavior)
+    const trimmedPassword = password ? password.trim() : '';
+    if (!trimmedPassword) {
+      return NextResponse.json(
+        { error: 'Password cannot be empty' },
+        { status: 400 }
+      );
+    }
+    const hashedPassword = hashPassword(trimmedPassword);
 
     // Convert status string to integer (active = 1, inactive = 0)
     const statusValue = status === 'active' || status === 'Active' || status === 1 || status === '1' ? 1 : 0;
@@ -164,8 +171,11 @@ export async function PUT(request) {
 
     // Handle password separately (hash it if provided)
     if (updateData.password !== undefined && updateData.password !== null && updateData.password !== '') {
-      updateFields.push('password = ?');
-      updateValues.push(hashPassword(updateData.password));
+      const trimmedPassword = String(updateData.password).trim();
+      if (trimmedPassword) {
+        updateFields.push('password = ?');
+        updateValues.push(hashPassword(trimmedPassword));
+      }
       delete updateData.password;
     }
 

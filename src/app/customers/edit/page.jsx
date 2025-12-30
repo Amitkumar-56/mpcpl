@@ -4,6 +4,9 @@ import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { FiEdit, FiLoader, FiMapPin, FiPackage, FiSave, FiSettings, FiUser } from "react-icons/fi";
+import Sidebar from "@/components/sidebar";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
 
 function EditCustomerContent() {
   const searchParams = useSearchParams();
@@ -12,6 +15,7 @@ function EditCustomerContent() {
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [updatingDayLimit, setUpdatingDayLimit] = useState(false);
 
   const [form, setForm] = useState({
     id: "",
@@ -81,10 +85,21 @@ function EditCustomerContent() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        const [customerResponse, stationData, prodData] = await Promise.all([
+        
+        // Add timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Request timeout')), 30000)
+        );
+
+        const apiCallPromise = Promise.all([
           axios.get(`/api/customers/edit?id=${customerId}`),
           axios.get(`/api/stations`),
           axios.get(`/api/products`)
+        ]);
+
+        const [customerResponse, stationData, prodData] = await Promise.race([
+          apiCallPromise,
+          timeoutPromise
         ]);
 
         console.log('Customer Response:', customerResponse.data);
@@ -94,7 +109,22 @@ function EditCustomerContent() {
         setStations(stationData.data || []);
         setProductList(prodData.data || []);
 
-        const customer = customerResponse.data.data?.customer || customerResponse.data;
+        // Handle different response structures
+        let customer;
+        if (customerResponse.data?.success && customerResponse.data?.data?.customer) {
+          customer = customerResponse.data.data.customer;
+        } else if (customerResponse.data?.data) {
+          customer = customerResponse.data.data;
+        } else if (customerResponse.data?.customer) {
+          customer = customerResponse.data.customer;
+        } else {
+          customer = customerResponse.data;
+        }
+
+        if (!customer || !customer.id) {
+          throw new Error('Invalid customer data received');
+        }
+
         console.log('Customer Data:', customer);
         
         // Convert billing_type to string if it's a number
@@ -186,9 +216,22 @@ function EditCustomerContent() {
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
-        console.error('Error details:', err.response?.data);
-        alert('Error loading customer data: ' + (err.response?.data?.message || err.message));
+        const errorDetails = err?.response?.data;
+        const errorMessage = err?.message;
+        console.error('Error details:', errorDetails);
+        console.error('Error message:', errorMessage);
+        
+        // Set loading to false regardless of error
         setLoading(false);
+        
+        // Show error message
+        const errorMsg = errorDetails?.message || errorMessage || 'Failed to load customer data';
+        alert('Error loading customer data: ' + errorMsg);
+        
+        // Redirect back if customer not found
+        if (err?.response?.status === 404) {
+          router.push('/customers');
+        }
       }
     };
 
@@ -298,10 +341,23 @@ function EditCustomerContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center">
-          <FiLoader className="animate-spin text-4xl text-blue-600 mb-4" />
-          <p className="text-gray-600">Loading customer data...</p>
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
+            <div className="flex flex-col items-center">
+              <FiLoader className="animate-spin text-4xl text-blue-600 mb-4" />
+              <p className="text-gray-600">Loading customer data...</p>
+            </div>
+          </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
@@ -309,28 +365,57 @@ function EditCustomerContent() {
 
   if (!customerId) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">No Customer Selected</h2>
-          <p className="text-gray-600 mb-4">Please select a customer to edit</p>
-          <button
-            onClick={() => router.push("/customers")}
-            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
-          >
-            Go Back to Customers
-          </button>
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
+            <div className="text-center">
+              <h2 className="text-2xl font-bold text-gray-800 mb-2">No Customer Selected</h2>
+              <p className="text-gray-600 mb-4">Please select a customer to edit</p>
+              <button
+                onClick={() => router.push("/customers")}
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition flex items-center gap-2"
+              >
+                <span className="text-xl">←</span>
+                <span>Go Back to Customers</span>
+              </button>
+            </div>
+          </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        <main className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
               <div className="bg-blue-100 p-3 rounded-lg">
                 <FiEdit className="text-2xl text-blue-600" />
               </div>
@@ -566,58 +651,151 @@ function EditCustomerContent() {
                 {form.client_type === "3" && (
                   <div className="pt-4 border-t">
                     <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit Management</label>
-                    <div className="flex gap-2 items-center">
+                    <div className="flex gap-1 sm:gap-2 items-center">
                       <button
                         type="button"
+                        disabled={updatingDayLimit || (parseInt(form.day_limit) || 0) <= 0}
                         onClick={async () => {
-                          const newDayLimit = Math.max(0, (parseInt(form.day_limit) || 0) - 1);
-                          updateForm("day_limit", newDayLimit.toString());
+                          if (updatingDayLimit) return;
+                          
+                          const currentLimit = parseInt(form.day_limit) || 0;
+                          const newDayLimit = Math.max(0, currentLimit - 1);
+                          
+                          if (newDayLimit === currentLimit) {
+                            return;
+                          }
+
+                          setUpdatingDayLimit(true);
                           try {
-                            await axios.put(`/api/customers/edit`, {
+                            const response = await axios.put(`/api/customers/edit`, {
                               id: customerId,
                               day_limit: newDayLimit,
                               client_type: 3
                             });
-                            alert(`Day limit decreased to ${newDayLimit} days`);
+
+                            if (response.data.success) {
+                              updateForm("day_limit", newDayLimit.toString());
+                              // Refresh data
+                              const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
+                              if (balanceRes.data.success && balanceRes.data.customer) {
+                                updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
+                              }
+                            } else {
+                              alert('❌ Error: ' + (response.data.message || 'Update failed'));
+                            }
                           } catch (err) {
-                            alert('Error updating day limit: ' + (err.response?.data?.message || err.message));
+                            console.error('Error updating day limit:', err);
+                            alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
+                            // Revert on error
+                            updateForm("day_limit", currentLimit.toString());
+                          } finally {
+                            setUpdatingDayLimit(false);
                           }
                         }}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+                        className="px-2 sm:px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center min-w-[40px] sm:min-w-[50px] flex-shrink-0"
+                        title="Decrease"
                       >
-                        - Decrease
+                        {updatingDayLimit ? (
+                          <FiLoader className="animate-spin w-4 h-4" />
+                        ) : (
+                          <span className="text-lg sm:text-xl font-bold">−</span>
+                        )}
                       </button>
                       <input
                         type="number"
-                        className="flex-1 p-2 border border-gray-300 rounded-lg text-center font-semibold"
+                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 border border-gray-300 rounded-lg text-center text-base sm:text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                         value={form.day_limit || 0}
-                        onChange={(e) => updateForm("day_limit", e.target.value)}
+                        onChange={(e) => {
+                          const value = parseInt(e.target.value) || 0;
+                          if (value >= 0) {
+                            updateForm("day_limit", value.toString());
+                          }
+                        }}
+                        onBlur={async (e) => {
+                          const newValue = parseInt(e.target.value) || 0;
+                          const currentValue = parseInt(form.day_limit) || 0;
+                          
+                          if (newValue !== currentValue && newValue >= 0) {
+                            setUpdatingDayLimit(true);
+                            try {
+                              const response = await axios.put(`/api/customers/edit`, {
+                                id: customerId,
+                                day_limit: newValue,
+                                client_type: 3
+                              });
+
+                              if (response.data.success) {
+                                updateForm("day_limit", newValue.toString());
+                                // Refresh data
+                                const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
+                                if (balanceRes.data.success && balanceRes.data.customer) {
+                                  updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
+                                }
+                              } else {
+                                alert('❌ Error: ' + (response.data.message || 'Update failed'));
+                                updateForm("day_limit", currentValue.toString());
+                              }
+                            } catch (err) {
+                              console.error('Error updating day limit:', err);
+                              alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
+                              updateForm("day_limit", currentValue.toString());
+                            } finally {
+                              setUpdatingDayLimit(false);
+                            }
+                          }
+                        }}
                         min="0"
                         placeholder="Days"
+                        disabled={updatingDayLimit}
                       />
                       <button
                         type="button"
+                        disabled={updatingDayLimit}
                         onClick={async () => {
-                          const newDayLimit = (parseInt(form.day_limit) || 0) + 1;
-                          updateForm("day_limit", newDayLimit.toString());
+                          if (updatingDayLimit) return;
+                          
+                          const currentLimit = parseInt(form.day_limit) || 0;
+                          const newDayLimit = currentLimit + 1;
+
+                          setUpdatingDayLimit(true);
                           try {
-                            await axios.put(`/api/customers/edit`, {
+                            const response = await axios.put(`/api/customers/edit`, {
                               id: customerId,
                               day_limit: newDayLimit,
                               client_type: 3
                             });
-                            alert(`Day limit increased to ${newDayLimit} days`);
+
+                            if (response.data.success) {
+                              updateForm("day_limit", newDayLimit.toString());
+                              // Refresh data
+                              const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
+                              if (balanceRes.data.success && balanceRes.data.customer) {
+                                updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
+                              }
+                            } else {
+                              alert('❌ Error: ' + (response.data.message || 'Update failed'));
+                            }
                           } catch (err) {
-                            alert('Error updating day limit: ' + (err.response?.data?.message || err.message));
+                            console.error('Error updating day limit:', err);
+                            alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
+                            // Revert on error
+                            updateForm("day_limit", currentLimit.toString());
+                          } finally {
+                            setUpdatingDayLimit(false);
                           }
                         }}
-                        className="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"
+                        className="px-2 sm:px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center min-w-[40px] sm:min-w-[50px] flex-shrink-0"
+                        title="Increase"
                       >
-                        + Increase
+                        {updatingDayLimit ? (
+                          <FiLoader className="animate-spin w-4 h-4" />
+                        ) : (
+                          <span className="text-lg sm:text-xl font-bold">+</span>
+                        )}
                       </button>
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Admin can increase/decrease day limit for day_limit customers
+                    <p className="text-xs sm:text-sm text-gray-500 mt-2">
+                      Admin can increase/decrease day limit for day_limit customers. Changes are saved automatically.
                     </p>
                   </div>
                 )}
@@ -751,6 +929,11 @@ function EditCustomerContent() {
           </button>
         </div>
       </div>
+        </main>
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
+      </div>
     </div>
   );
 }
@@ -759,10 +942,23 @@ function EditCustomerContent() {
 export default function EditCustomerPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="flex flex-col items-center">
-          <FiLoader className="animate-spin text-4xl text-blue-600 mb-4" />
-          <p className="text-gray-600">Loading...</p>
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center">
+            <div className="flex flex-col items-center">
+              <FiLoader className="animate-spin text-4xl text-blue-600 mb-4" />
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     }>

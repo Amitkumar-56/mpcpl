@@ -167,6 +167,15 @@ function LRManagementContent() {
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
         {/* Header Section with Create LR Button */}
         <div className="mb-6">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">LR Management</h1>
@@ -373,16 +382,22 @@ function LRManagementContent() {
 // Main Component with Suspense
 export default function LRManagement() {
   return (
-    <div className="flex h-screen bg-gray-50">
-      <Sidebar />
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <Header />
-        <main className="flex-1 overflow-y-auto">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        <main className="flex-1 overflow-y-auto min-h-0">
           <Suspense fallback={<LoadingFallback />}>
             <LRManagementContent />
           </Suspense>
         </main>
-        <Footer />
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );

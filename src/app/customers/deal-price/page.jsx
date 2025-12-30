@@ -3,10 +3,11 @@
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 function SetupDealPriceContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const customerId = searchParams.get("id");
 
@@ -26,8 +27,14 @@ function SetupDealPriceContent() {
     const now = new Date();
     setScheduleDate(now.toISOString().split("T")[0]);
     setScheduleTime(now.toTimeString().slice(0, 5));
-    if (customerId) fetchExistingPrices();
   }, [customerId]);
+
+  // ✅ Fetch prices when date/time changes
+  useEffect(() => {
+    if (customerId && scheduleDate && scheduleTime) {
+      fetchExistingPrices();
+    }
+  }, [customerId, scheduleDate, scheduleTime]);
 
   const fetchSetupData = async () => {
     try {
@@ -45,8 +52,14 @@ function SetupDealPriceContent() {
   };
 
   const fetchExistingPrices = async () => {
+    if (!customerId || !scheduleDate || !scheduleTime) return;
+    
     try {
-      const res = await fetch(`/api/customers/deal-price?customer_id=${customerId}`);
+      // ✅ Fetch prices for specific Schedule_Date and Schedule_Time
+      const timeFormatted = scheduleTime ? `${scheduleTime}:00` : scheduleTime;
+      const res = await fetch(
+        `/api/customers/deal-price?customer_id=${customerId}&schedule_date=${scheduleDate}&schedule_time=${timeFormatted}`
+      );
       const result = await res.json();
 
       const data = Array.isArray(result) ? result : [];
@@ -71,10 +84,16 @@ function SetupDealPriceContent() {
     }));
   };
 
-  const priceExists = (stationId, subProductId) =>
-    existingPrices.find(
-      (p) => p.station_id === stationId && p.sub_product_id === subProductId
+  const priceExists = (stationId, subProductId) => {
+    const timeFormatted = scheduleTime ? `${scheduleTime}:00` : scheduleTime;
+    return existingPrices.find(
+      (p) => p.station_id === stationId && 
+             p.sub_product_id === subProductId &&
+             p.Schedule_Date === scheduleDate &&
+             (p.Schedule_Time === scheduleTime || p.Schedule_Time === timeFormatted || 
+              (p.Schedule_Time && p.Schedule_Time.slice(0, 5) === scheduleTime))
     );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -96,7 +115,7 @@ function SetupDealPriceContent() {
               sub_product_id: prod.sub_product_id,
               price: parseFloat(value),
               Schedule_Date: scheduleDate,
-              Schedule_Time: scheduleTime,
+              Schedule_Time: scheduleTime ? `${scheduleTime}:00` : null, // Convert HH:MM to HH:MM:SS
             };
             priceUpdates.push({
               type: exists ? "UPDATE" : "INSERT",
@@ -130,11 +149,54 @@ function SetupDealPriceContent() {
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto bg-gray-50 p-4">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
           <div className="bg-white p-4 rounded-lg shadow mb-4">
             <h1 className="text-xl font-bold text-gray-800">Setup Deal Price</h1>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 mb-4">
               Customer ID: <b>{customerId}</b>
             </p>
+            
+            {/* ✅ Schedule Date & Time Inputs */}
+            <div className="flex gap-4 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Schedule Date
+                </label>
+                <input
+                  type="date"
+                  value={scheduleDate}
+                  onChange={(e) => {
+                    setScheduleDate(e.target.value);
+                    setPrices({}); // Clear prices when date changes
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Schedule Time
+                </label>
+                <input
+                  type="time"
+                  value={scheduleTime}
+                  onChange={(e) => {
+                    setScheduleTime(e.target.value);
+                    setPrices({}); // Clear prices when time changes
+                  }}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  required
+                />
+              </div>
+            </div>
           </div>
 
           <div className="bg-white rounded-lg shadow overflow-x-auto">

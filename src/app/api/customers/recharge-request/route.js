@@ -59,29 +59,58 @@ export async function GET(request) {
 
     const customer = customerRows[0];
 
-    // Pending details: unpaid completed requests grouped by day
-    const pendingRows = await executeQuery(
+    // ✅ Get individual pending requests with completed_date for day limit calculation
+    const pendingRequests = await executeQuery(
       `SELECT 
+         fr.id,
+         fr.rid,
+         fr.vehicle_number,
+         fr.completed_date,
          DATE(fr.completed_date) AS day_date,
-         COUNT(*) AS transaction_count,
-         SUM(COALESCE(fr.totalamt, fr.price * fr.aqty)) AS day_total
+         COALESCE(fr.totalamt, fr.price * fr.aqty) AS amount,
+         fr.aqty,
+         fr.price,
+         p.pname AS product_name,
+         fs.station_name
        FROM filling_requests fr
+       LEFT JOIN products p ON fr.product = p.id
+       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
        WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
-       GROUP BY DATE(fr.completed_date)
-       ORDER BY DATE(fr.completed_date) ASC`,
+       ORDER BY fr.completed_date ASC`,
       [parseInt(id)]
+    );
+
+    // Group by day for day-wise breakdown
+    const dayWiseMap = {};
+    pendingRequests.forEach(req => {
+      const dayDate = req.day_date;
+      if (!dayWiseMap[dayDate]) {
+        dayWiseMap[dayDate] = {
+          day_date: dayDate,
+          transaction_count: 0,
+          day_total: 0,
+          requests: []
+        };
+      }
+      dayWiseMap[dayDate].transaction_count++;
+      dayWiseMap[dayDate].day_total += parseFloat(req.amount || 0);
+      dayWiseMap[dayDate].requests.push({
+        id: req.id,
+        rid: req.rid,
+        vehicle_number: req.vehicle_number,
+        completed_date: req.completed_date,
+        amount: parseFloat(req.amount || 0),
+        product_name: req.product_name,
+        station_name: req.station_name
+      });
+    });
+    
+    const pendingRows = Object.values(dayWiseMap).sort((a, b) => 
+      new Date(a.day_date) - new Date(b.day_date)
     );
 
     // Total unpaid amount
-    const totalUnpaidRows = await executeQuery(
-      `SELECT 
-         SUM(COALESCE(fr.totalamt, fr.price * fr.aqty)) AS total_amount
-       FROM filling_requests fr
-       WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0`,
-      [parseInt(id)]
-    );
-
-    const totalUnpaid = parseFloat(totalUnpaidRows[0]?.total_amount || 0);
+    const totalUnpaid = pendingRequests.reduce((sum, req) => sum + parseFloat(req.amount || 0), 0);
 
     // Calculate payment days pending based on oldest unpaid completed_date
     let paymentDaysPending = 0;
@@ -109,10 +138,17 @@ export async function GET(request) {
         total_day_amount: customer.total_day_amount || 0,
         day_remaining_amount: customer.day_remaining_amount || 0 // ✅ NEW: Extra payment amount
       },
+      balance: {
+        current_balance: customer.balance || 0,
+        total_day_amount: customer.total_day_amount || 0,
+        day_remaining_amount: customer.day_remaining_amount || 0
+      },
       pending: {
         total_amount: totalUnpaid,
         payment_days_pending: paymentDaysPending,
-        day_wise_breakdown: pendingRows || []
+        day_wise_breakdown: pendingRows || [],
+        request_count: pendingRequests.length, // Total pending requests
+        individual_requests: pendingRequests || [] // Individual requests with details
       }
     });
   } catch (error) {

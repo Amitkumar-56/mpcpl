@@ -3,6 +3,9 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 function StockLogsContent() {
   const router = useRouter();
@@ -95,67 +98,107 @@ function StockLogsContent() {
 
   if (!stockId && !stationId) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <p className="text-gray-600 mb-4">Stock ID or Station ID is required</p>
-          <button
-            onClick={() => router.back()}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md"
-          >
-            Go Back
-          </button>
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <main className="flex-1 overflow-auto flex items-center justify-center p-4">
+            <div className="text-center bg-white rounded-lg shadow-lg p-6 max-w-md w-full">
+              <p className="text-gray-600 mb-4 text-sm sm:text-base">Stock ID or Station ID is required</p>
+              <button
+                onClick={() => router.back()}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm sm:text-base flex items-center gap-2"
+              >
+                <span className="text-lg">←</span>
+                <span>Go Back</span>
+              </button>
+            </div>
+          </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-4">
-            <div className="flex items-center">
-              <button
-                onClick={() => router.back()}
-                className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
-              >
-                <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Stock Activity Logs</h1>
-                <p className="text-sm text-gray-600 mt-1">
-                  {stockId ? `Stock ID: ${stockId}` : `Station ID: ${stationId}${productId ? ` | Product ID: ${productId}` : ''}`}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-4">
-              <ExportButton 
-                data={logs} 
-                fileName={`stock_logs_${stockId || stationId || 'all'}`}
-                columns={[
-                  { field: 'created_at', header: 'Date & Time', formatter: (row) => new Date(row.created_at).toLocaleString() },
-                  { field: 'action_type', header: 'Action' },
-                  { field: 'user_name', header: 'User', formatter: (row) => `${row.user_name || (row.user_id ? `Employee ID: ${row.user_id}` : 'N/A')} ${row.user_id ? `(ID: ${row.user_id})` : ''}` },
-                  { field: 'quantity', header: 'Quantity' },
-                  { field: 'remarks', header: 'Remarks' }
-                ]}
-              />
-              <Link
-                href={`/stock-history`}
-                className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700"
-              >
-                Back to History
-              </Link>
-            </div>
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+
+      {/* Main Content */}
+      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+
+        {/* Scrollable Content */}
+        <main className="flex-1 overflow-auto">
+          {/* Page Header */}
+          <header className="bg-white shadow-sm border-b">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-4 gap-3">
+                <div className="flex items-center">
+                  <button
+                    onClick={() => router.back()}
+                    className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <svg className="w-5 h-5 sm:w-6 sm:h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                    </svg>
+                  </button>
+                  <div>
+                    <h1 className="text-lg sm:text-2xl font-bold text-gray-900">Stock Activity Logs</h1>
+                    <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                      {stockId ? `Stock ID: ${stockId}` : `Station ID: ${stationId}${productId ? ` | Product ID: ${productId}` : ''}`}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-4 w-full sm:w-auto">
+                  <button
+                    onClick={() => {
+                      const csvContent = [
+                        ['Date & Time', 'Action', 'User', 'Quantity', 'Remarks'],
+                        ...logs.map(log => [
+                          new Date(log.created_at).toLocaleString(),
+                          log.action_type,
+                          log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A'),
+                          log.quantity || '',
+                          log.remarks || ''
+                        ])
+                      ].map(row => row.join(',')).join('\n');
+                      const blob = new Blob([csvContent], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `stock_logs_${stockId || stationId || 'all'}.csv`;
+                      a.click();
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 text-sm sm:text-base text-center"
+                  >
+                    Export CSV
+                  </button>
+                  <Link
+                    href={`/stock-history`}
+                    className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 text-sm sm:text-base text-center"
+                  >
+                    Back to History
+                  </Link>
+                </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main Content */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-8">
         {/* Filter Buttons */}
         <div className="mb-6 bg-white p-4 rounded-lg shadow">
           <div className="flex flex-wrap gap-2">
@@ -176,24 +219,26 @@ function StockLogsContent() {
           </div>
         </div>
 
-        {/* Logs List */}
-        <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          {loading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading logs...</p>
-            </div>
-          ) : logs.length === 0 ? (
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No logs found</h3>
-              <p className="mt-1 text-sm text-gray-500">No activity logs available for this stock.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+          {/* Logs List */}
+          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+            {loading ? (
+              <div className="text-center py-12">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600 text-sm sm:text-base">Loading logs...</p>
+              </div>
+            ) : logs.length === 0 ? (
+              <div className="text-center py-12">
+                <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 className="mt-2 text-sm font-medium text-gray-900">No logs found</h3>
+                <p className="mt-1 text-sm text-gray-500">No activity logs available for this stock.</p>
+              </div>
+            ) : (
+              <>
+                {/* Desktop Table */}
+                <div className="hidden lg:block overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -253,12 +298,61 @@ function StockLogsContent() {
                       </td>
                     </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="lg:hidden divide-y divide-gray-200">
+                  {logs.map((log, index) => (
+                    <div key={log.id} className="p-4 space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${getActionColor(log.action_type)}`}>
+                              <span className="mr-1">{getActionIcon(log.action_type)}</span>
+                              {getActionLabel(log.action_type)}
+                            </span>
+                            <span className="text-xs text-gray-500">#{index + 1}</span>
+                          </div>
+                          <div className="space-y-1">
+                            <p className="text-sm font-medium text-gray-900">
+                              {log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A')}
+                            </p>
+                            {log.user_id && (
+                              <p className="text-xs text-gray-500">ID: {log.user_id}</p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500 mb-1">Date & Time</p>
+                          <p className="text-xs font-medium text-gray-900">{formatDateTime(log.created_at)}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-sm pt-2 border-t border-gray-100">
+                        <div>
+                          <span className="text-gray-600 text-xs">Quantity:</span>
+                          <p className="font-medium">{log.quantity || '-'}</p>
+                        </div>
+                        <div className="col-span-2">
+                          <span className="text-gray-600 text-xs">Remarks:</span>
+                          <p className="text-gray-900 text-sm">{log.remarks || <span className="text-gray-400 italic">No remarks</span>}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
         </div>
-      </main>
+        </main>
+
+        {/* Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
+      </div>
     </div>
   );
 }

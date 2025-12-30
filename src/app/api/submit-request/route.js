@@ -93,7 +93,15 @@ export async function POST(req) {
     }
 
     // Get current timestamp
-    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // ✅ FIX: Get current IST time directly (server timezone should be IST)
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const currentDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
 
     console.log('📝 CORRECTED - Inserting into filling_requests:', {
       rid: nextRID,

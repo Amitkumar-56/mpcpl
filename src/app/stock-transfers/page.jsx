@@ -93,21 +93,30 @@ function StockTransfersContent() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Fixed Header */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+        <div className="flex-shrink-0 bg-white shadow-sm">
           <Header />
         </div>
 
         {/* Scrollable Main Content */}
-        <main className="pt-16 lg:pt-20 flex-1 overflow-y-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 overflow-y-auto min-h-0 px-4 sm:px-6 lg:px-8 py-8">
+          <div className="flex items-center gap-3 mb-4">
+            <button
+              onClick={() => router.back()}
+              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+              title="Go Back"
+            >
+              ←
+            </button>
+          </div>
         {/* Floating Action Buttons */}
         <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-50">
           <Link

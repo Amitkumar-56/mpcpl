@@ -74,9 +74,10 @@ const ErrorBoundary = ({ error, onRetry }) => (
           <div className="space-x-4">
             <button
               onClick={() => window.history.back()}
-              className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+              className="bg-gray-600 text-white px-6 py-2 rounded-lg hover:bg-gray-700 transition-colors flex items-center gap-2"
             >
-              Go Back
+              <span className="text-lg">←</span>
+              <span>Go Back</span>
             </button>
             <button
               onClick={onRetry}
@@ -367,9 +368,10 @@ export default function CustomerDetailsClient() {
               </div>
               <button
                 onClick={() => router.back()}
-                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors"
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
               >
-                Go Back
+                <span className="text-lg">←</span>
+                <span>Go Back</span>
               </button>
             </div>
           </div>
@@ -397,25 +399,14 @@ export default function CustomerDetailsClient() {
             <div className="bg-white shadow-sm border-b">
               <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center py-4 space-y-4 sm:space-y-0">
-                  <div className="flex items-center space-x-4">
-                    <Link
-                      href="/customers"
-                      className="text-gray-600 hover:text-gray-900 transition-colors"
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => router.back()}
+                      className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                      title="Go Back"
                     >
-                      <svg
-                        className="w-6 h-6"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M10 19l-7-7m0 0l7-7m-7 7h18"
-                        />
-                      </svg>
-                    </Link>
+                      ←
+                    </button>
                     <h1 className="text-2xl font-bold text-gray-900">
                       Customer Details
                     </h1>

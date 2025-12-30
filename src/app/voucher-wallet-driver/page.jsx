@@ -87,24 +87,16 @@ function VoucherWalletDriverContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen w-64 bg-white shadow-lg z-30">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
+      <div className="flex-shrink-0">
         <Sidebar activePage="VoucherWallet" />
       </div>
-
-      {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 flex flex-col h-screen">
-        {/* Fixed Header */}
-        <div className="fixed top-0 right-0 left-0 lg:left-64 h-16 bg-white shadow-sm z-40 border-b">
-          <div className="h-full">
-            <Header />
-          </div>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Header />
         </div>
-
-        {/* Scrollable Content Area */}
-        <div className="flex-1 mt-16 mb-12 overflow-y-auto">
-          <div className="p-4 md:p-6">
+        <div className="flex-1 overflow-y-auto min-h-0">
+          <div className="p-4 md:p-6 max-w-full">
             {/* Title */}
             <div className="mb-6">
               <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-2">
@@ -134,10 +126,8 @@ function VoucherWalletDriverContent() {
                 onClick={goBack}
                 className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm flex items-center gap-2"
               >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back
+                <span className="text-lg">←</span>
+                <span>Back</span>
               </button>
               <Link 
                 href="/dashboard"
@@ -202,9 +192,9 @@ function VoucherWalletDriverContent() {
                 </div>
               </div>
 
-              {/* Table */}
+              {/* Desktop Table */}
               {vouchers.length > 0 ? (
-                <div className="overflow-x-auto">
+                <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-100">
                       <tr>
@@ -278,6 +268,91 @@ function VoucherWalletDriverContent() {
                     </tbody>
                   </table>
                 </div>
+              ) : null}
+
+              {/* Mobile Cards View */}
+              {vouchers.length > 0 ? (
+                <div className="block md:hidden space-y-4">
+                  {vouchers.map((voucher, idx) => (
+                    <div key={voucher.voucher_id || idx} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">#{voucher.voucher_no || 'N/A'}</h3>
+                          <p className="text-sm text-gray-600">{formatDate(voucher.exp_date)}</p>
+                        </div>
+                        <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded">#{idx + 1}</span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                        <div>
+                          <p className="text-gray-500 text-xs">Vehicle</p>
+                          <p className="font-medium text-gray-900">{voucher.vehicle_no || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Driver</p>
+                          {voucher.emp_id ? (
+                            <Link 
+                              href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
+                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                            >
+                              {voucher.emp_name || 'N/A'}
+                            </Link>
+                          ) : (
+                            <p className="font-medium text-gray-900">{voucher.emp_name || 'N/A'}</p>
+                          )}
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Phone</p>
+                          <p className="font-medium text-gray-900">{voucher.driver_phone || 'N/A'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Advance</p>
+                          <p className="font-medium text-gray-900">{formatCurrency(voucher.advance)}</p>
+                        </div>
+                      </div>
+                      
+                      <div className="border-t border-gray-200 pt-3 mt-3">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-600 text-sm">Total:</span>
+                          <span className="font-semibold text-gray-900">{formatCurrency(voucher.total_expense)}</span>
+                        </div>
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-gray-600 text-sm">Pending:</span>
+                          <span className={`font-semibold ${parseFloat(voucher.remaining_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                            {formatCurrency(voucher.remaining_amount)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-gray-600 text-sm">Reserve:</span>
+                          <span className="font-semibold text-purple-600">
+                            {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
+                          </span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex flex-col gap-2 mt-4 pt-3 border-t border-gray-200">
+                        <Link
+                          href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                          className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded text-sm text-center"
+                        >
+                          Edit
+                        </Link>
+                        <Link
+                          href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                          className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded text-sm text-center"
+                        >
+                          Items
+                        </Link>
+                        <Link
+                          href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                          className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded text-sm text-center"
+                        >
+                          Print
+                        </Link>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               ) : (
                 <div className="text-center py-12">
                   <div className="text-gray-500 text-lg mb-4">No vouchers found</div>
@@ -292,9 +367,7 @@ function VoucherWalletDriverContent() {
             </div>
           </div>
         </div>
-
-        {/* Fixed Footer - Always at bottom */}
-        <div className="fixed bottom-0 right-0 left-0 lg:left-64 h-12 bg-white border-t z-30">
+        <div className="flex-shrink-0">
           <Footer />
         </div>
       </div>

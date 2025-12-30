@@ -294,6 +294,15 @@ export default function EmployeeHistory() {
         <main className="flex-1 mt-16 overflow-y-auto">
           <div className="p-6">
             {/* Header Section */}
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
+            </div>
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Employee Management</h1>

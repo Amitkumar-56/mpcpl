@@ -140,6 +140,54 @@ export async function GET(request) {
        ORDER BY fr.completed_date ASC`,
       [cid]
     ).catch(() => []);
+
+    // ✅ Calculate payment statistics from filling_history
+    const paymentStats = await executeQuery(
+      `SELECT 
+         COUNT(DISTINCT CASE WHEN fh.trans_type = 'inward' AND fh.payment_status = 1 THEN fh.rid END) as paid_requests_count,
+         SUM(CASE WHEN fh.trans_type = 'inward' AND fh.payment_status = 1 THEN fh.amount ELSE 0 END) as total_paid_amount,
+         COUNT(DISTINCT CASE WHEN fh.trans_type = 'Outward' AND fh.payment_status = 0 THEN fh.rid END) as unpaid_requests_count,
+         SUM(CASE WHEN fh.trans_type = 'Outward' AND fh.payment_status = 0 THEN fh.amount ELSE 0 END) as total_unpaid_amount
+       FROM filling_history fh
+       WHERE fh.cl_id = ?`,
+      [cid]
+    ).catch(() => []);
+
+    const paidRequestsCount = paymentStats.length > 0 ? parseInt(paymentStats[0].paid_requests_count || 0) : 0;
+    const totalPaidAmount = paymentStats.length > 0 ? parseFloat(paymentStats[0].total_paid_amount || 0) : 0;
+    const unpaidRequestsCount = paymentStats.length > 0 ? parseInt(paymentStats[0].unpaid_requests_count || 0) : pendingTransactions.length;
+    const totalUnpaidAmountFromHistory = paymentStats.length > 0 ? parseFloat(paymentStats[0].total_unpaid_amount || 0) : 0;
+
+    // ✅ Calculate days open (kitne days ke requests unpaid hain)
+    let daysOpen = 0;
+    let overdueBalance = 0;
+    let overdueDetails = null;
+    
+    if (isDayLimitCustomer && dayLimit > 0 && pendingTransactions.length > 0) {
+      // Get oldest unpaid transaction
+      const oldestUnpaid = pendingTransactions[0];
+      if (oldestUnpaid.completed_date) {
+        const oldestUnpaidDate = new Date(oldestUnpaid.completed_date);
+        oldestUnpaidDate.setHours(0, 0, 0, 0);
+        const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
+        daysOpen = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+        
+        // Calculate overdue balance (only if days elapsed >= day limit)
+        if (daysOpen >= dayLimit) {
+          // Get all overdue transactions (completed before day limit exceeded)
+          overdueBalance = totalOutstandingAmount;
+          
+          overdueDetails = {
+            days_elapsed: daysOpen,
+            day_limit: dayLimit,
+            days_overdue: daysOpen - dayLimit,
+            overdue_amount: overdueBalance,
+            oldest_unpaid_date: oldestUnpaidDate.toISOString(),
+            total_unpaid_requests: pendingTransactions.length
+          };
+        }
+      }
+    }
     
     const balanceResult = await executeQuery(
       'SELECT balance, total_day_amount FROM customer_balances WHERE com_id = ?',
@@ -221,7 +269,18 @@ export async function GET(request) {
         pendingTransactions: enrichedPending || [],
         customerBalanceInfo: customerBalanceInfo.length > 0 ? customerBalanceInfo[0] : null,
         isCustomerOverdue: isCustomerOverdue,
-        totalOutstandingAmount: totalOutstandingAmount
+        totalOutstandingAmount: totalOutstandingAmount,
+        // ✅ NEW: Payment statistics from filling_history
+        paymentStats: {
+          paid_requests_count: paidRequestsCount,
+          total_paid_amount: totalPaidAmount,
+          unpaid_requests_count: unpaidRequestsCount,
+          total_unpaid_amount: totalUnpaidAmountFromHistory || totalOutstandingAmount
+        },
+        // ✅ NEW: Days open and overdue details
+        daysOpen: daysOpen,
+        overdueBalance: overdueBalance,
+        overdueDetails: overdueDetails
       }
     });
 
@@ -530,6 +589,9 @@ export async function PATCH(request) {
         transactionsByDay[day].day_total += parseFloat(transaction.amount || 0);
         transactionsByDay[day].transaction_ids.push(transaction.id);
       });
+      
+      // ✅ Track paid request IDs
+      const paidRequestIdsList = [];
 
       // Convert to array and sort by date
       const pendingTransactionsByDay = Object.values(transactionsByDay).sort((a, b) => 
@@ -561,6 +623,9 @@ export async function PATCH(request) {
             );
             invoicesPaid += transactionIds.length;
             totalPaidAmount += dayTotal;
+            
+            // ✅ Track paid request IDs
+            paidRequestIdsList.push(...transactionIds);
             
             // ✅ NEW: Use day_remaining_amount first, then payment amount
             if (currentDayRemainingAmount > 0 && usedRemainingAmount < currentDayRemainingAmount) {
@@ -681,7 +746,8 @@ export async function PATCH(request) {
           newIsActive,
           newBalance,
           newTotalDayAmount,
-          isDayLimit: true
+          isDayLimit: true,
+          paidRequestIds: paidRequestIdsList // ✅ IDs of requests that were paid
         };
       }
 
@@ -689,6 +755,83 @@ export async function PATCH(request) {
       throw new Error(`Unknown customer type: ${clientType}. Expected 1 (Prepaid), 2 (Postpaid), or 3 (Day Limit).`);
 
     });
+
+    // ✅ Get all requests (paid and unpaid) for day limit customers
+    let paidRequests = [];
+    let pendingRequests = [];
+    
+    if (result.customerType === 'day_limit' && result.paidRequestIds) {
+      // Get paid requests details
+      if (result.paidRequestIds.length > 0) {
+        const placeholders = result.paidRequestIds.map(() => '?').join(',');
+        paidRequests = await executeQuery(
+          `SELECT 
+            fr.id, fr.rid, fr.vehicle_number, fr.completed_date,
+            COALESCE(fr.totalamt, fr.price * fr.aqty) as amount,
+            p.pname AS product_name,
+            fs.station_name
+           FROM filling_requests fr
+           LEFT JOIN products p ON fr.product = p.id
+           LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+           WHERE fr.id IN (${placeholders})
+           ORDER BY fr.completed_date ASC`,
+          result.paidRequestIds
+        );
+      }
+      
+      // Get remaining unpaid requests
+      const unpaidPlaceholders = result.paidRequestIds.length > 0 
+        ? `AND fr.id NOT IN (${result.paidRequestIds.map(() => '?').join(',')})` 
+        : '';
+      const unpaidParams = result.paidRequestIds.length > 0 
+        ? [customerId, ...result.paidRequestIds] 
+        : [customerId];
+      
+      pendingRequests = await executeQuery(
+        `SELECT 
+          fr.id, fr.rid, fr.vehicle_number, fr.completed_date,
+          COALESCE(fr.totalamt, fr.price * fr.aqty) as amount,
+          p.pname AS product_name,
+          fs.station_name
+         FROM filling_requests fr
+         LEFT JOIN products p ON fr.product = p.id
+         LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+         WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
+         ${unpaidPlaceholders}
+         ORDER BY fr.completed_date ASC`,
+        unpaidParams
+      );
+    } else if (result.customerType === 'postpaid') {
+      // For postpaid, get paid and unpaid requests
+      paidRequests = await executeQuery(
+        `SELECT 
+          fr.id, fr.rid, fr.vehicle_number, fr.completed_date, fr.payment_date,
+          COALESCE(fr.totalamt, fr.price * fr.aqty) as amount,
+          p.pname AS product_name,
+          fs.station_name
+         FROM filling_requests fr
+         LEFT JOIN products p ON fr.product = p.id
+         LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+         WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 1
+           AND fr.payment_date >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)
+         ORDER BY fr.completed_date ASC`,
+        [customerId]
+      );
+      
+      pendingRequests = await executeQuery(
+        `SELECT 
+          fr.id, fr.rid, fr.vehicle_number, fr.completed_date,
+          COALESCE(fr.totalamt, fr.price * fr.aqty) as amount,
+          p.pname AS product_name,
+          fs.station_name
+         FROM filling_requests fr
+         LEFT JOIN products p ON fr.product = p.id
+         LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+         WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
+         ORDER BY fr.completed_date ASC`,
+        [customerId]
+      );
+    }
 
     // Build success message based on customer type
     let message = '';
@@ -748,17 +891,40 @@ export async function PATCH(request) {
       `);
       
       // Insert into customer_audit_log
-      await executeQuery(
-        `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-        [
-          customerId, 
-          'recharge', 
-          userId, 
-          userName || 'System', 
-          `${customerTypeName} Recharge: ₹${rechargeAmount}${result.invoicesPaid > 0 ? ` | ${result.invoicesPaid} invoice(s) paid` : ''}`, 
-          parseFloat(rechargeAmount)
-        ]
-      );
+          // ✅ ENSURE: Always fetch employee name if userId exists
+          let finalUserName = userName;
+          if (!finalUserName && userId) {
+            try {
+              const empResult = await executeQuery(
+                `SELECT name FROM employee_profile WHERE id = ?`,
+                [userId]
+              );
+              if (empResult.length > 0 && empResult[0].name) {
+                finalUserName = empResult[0].name;
+              }
+            } catch (empError) {
+              console.error('Error fetching employee name for audit log:', empError);
+            }
+          }
+          
+          // If still no name, use Employee ID format instead of 'System'
+          if (!finalUserName && userId) {
+            finalUserName = `Employee ID: ${userId}`;
+          } else if (!finalUserName) {
+            finalUserName = 'Unknown';
+          }
+          
+          await executeQuery(
+            `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              customerId, 
+              'recharge', 
+              userId, 
+              finalUserName, 
+              `${customerTypeName} Recharge: ₹${rechargeAmount}${result.invoicesPaid > 0 ? ` | ${result.invoicesPaid} invoice(s) paid` : ''}`, 
+              parseFloat(rechargeAmount)
+            ]
+          );
 
       // ✅ ALSO create comprehensive audit log using createAuditLog
       try {
@@ -813,7 +979,28 @@ export async function PATCH(request) {
       isOverdue: result.isOverdue || false,
       isActive: result.newIsActive !== undefined ? result.newIsActive : currentIsActive,
       newTotalDayAmount: result.newTotalDayAmount || 0,
-      remainingBalance: result.remainingBalance || 0
+      remainingBalance: result.remainingBalance || 0,
+      // ✅ Add paid and pending requests list
+      paidRequests: paidRequests.map(req => ({
+        id: req.id,
+        rid: req.rid,
+        vehicle_number: req.vehicle_number,
+        completed_date: req.completed_date,
+        amount: parseFloat(req.amount || 0),
+        product_name: req.product_name,
+        station_name: req.station_name,
+        payment_status: 'paid'
+      })),
+      pendingRequests: pendingRequests.map(req => ({
+        id: req.id,
+        rid: req.rid,
+        vehicle_number: req.vehicle_number,
+        completed_date: req.completed_date,
+        amount: parseFloat(req.amount || 0),
+        product_name: req.product_name,
+        station_name: req.station_name,
+        payment_status: 'pending'
+      }))
     });
 
   } catch (error) {
@@ -1035,7 +1222,8 @@ function formatDateForCSV(dateString) {
     return date.toLocaleDateString('en-IN', {
       day: '2-digit',
       month: '2-digit',
-      year: 'numeric'
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata'
     });
   } catch (error) {
     return dateString;

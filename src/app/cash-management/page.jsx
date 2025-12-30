@@ -54,38 +54,37 @@ function CashManagementContent() {
 
   return (
     <div className="flex h-screen bg-gray-50">
-      {/* Fixed Sidebar */}
-      <div className="fixed left-0 top-0 h-screen w-64 z-30">
+      {/* Sidebar */}
+      <div className="flex-shrink-0">
         <Sidebar activePage="CashManagement" />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col ml-64">
-        {/* Fixed Header */}
-        <div className="fixed top-0 right-0 left-64 z-20">
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
+        {/* Header */}
+        <div className="flex-shrink-0">
           <Header />
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 mt-16 overflow-auto">
-          <div className="p-6">
+        <div className="flex-1 overflow-y-auto">
+          <div className="p-4 sm:p-6">
             <div className="max-w-7xl mx-auto">
               <div className="bg-white shadow rounded-lg">
-                <div className="px-6 py-4 border-b border-gray-200">
+                <div className="px-4 sm:px-6 py-4 border-b border-gray-200">
                   <div className="flex items-center">
                     <button 
                       onClick={() => router.back()}
-                      className="mr-4 text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
+                      className="mr-3 sm:mr-4 text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100 text-xl sm:text-2xl"
+                      title="Go Back"
                     >
-                      <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                      </svg>
+                      ←
                     </button>
-                    <h1 className="text-2xl font-bold text-gray-900">Cash History</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Cash History</h1>
                   </div>
                 </div>
 
-                <div className="p-6">
+                <div className="p-4 sm:p-6">
                   {error && (
                     <div className="mb-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
                       {error}
@@ -238,8 +237,8 @@ function CashManagementContent() {
           </div>
         </div>
 
-        {/* Fixed Footer */}
-        <div className="fixed bottom-0 right-0 left-64 z-10">
+        {/* Footer */}
+        <div className="flex-shrink-0">
           <Footer />
         </div>
       </div>
