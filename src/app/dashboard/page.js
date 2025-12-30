@@ -493,8 +493,11 @@ export default function DashboardPage() {
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <Header user={sessionUser} />
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+        {/* ✅ Fixed Header on Mobile */}
+        <div className="flex-shrink-0">
+          <Header user={sessionUser} />
+        </div>
 
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           {/* Error Alert */}

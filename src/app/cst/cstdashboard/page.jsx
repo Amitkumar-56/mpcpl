@@ -151,105 +151,169 @@ export default function CustomerDashboardPage() {
   // 🔥 SIMPLIFIED SOCKET CONNECTION
   useEffect(() => {
     if (!user?.id) return;
+    
     setConnectionStatus('connecting');
+    let newSocket = null;
+    
     const initAndConnect = async () => {
       try {
-        await fetch('/api/socket');
-      } catch (e) {}
-      const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-      const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || origin;
-      const newSocket = io(socketUrl, {
-        path: '/api/socket',
-        transports: ['websocket', 'polling'],
-        reconnection: true,
-        reconnectionAttempts: 5,
-        reconnectionDelay: 1000,
-        withCredentials: true,
-      });
-      newSocket.on('connect', () => {
-        setConnectionStatus('connected');
-        newSocket.emit('customer_join', {
-          customerId: user.id.toString(),
-          customerName: user.name || 'Customer'
+        // ✅ Initialize socket endpoint first
+        try {
+          await fetch('/api/socket');
+        } catch (e) {
+          console.log('Socket endpoint initialization:', e);
+        }
+        
+        // ✅ Use window.location.origin for socket URL
+        const socketUrl = typeof window !== 'undefined' 
+          ? window.location.origin 
+          : (process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
+        
+        console.log('Connecting to socket:', socketUrl);
+        
+        newSocket = io(socketUrl, {
+          path: '/api/socket',
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 10,
+          reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
+          timeout: 20000,
+          withCredentials: true,
+          forceNew: false,
         });
-      });
-      newSocket.on('disconnect', () => {
-        setConnectionStatus('disconnected');
-      });
-      newSocket.on('connect_error', (err) => {
-        console.error('Socket connect_error:', err?.message || err);
-        setConnectionStatus('error');
-      });
-      newSocket.on('reconnect_attempt', () => {
-        setConnectionStatus('reconnecting');
-      });
-      newSocket.on('joined_success', () => {});
-      const mergeMessages = (prev, incoming) => {
-        const byId = incoming.id;
-        const byTemp = incoming.tempId;
-        const next = [];
-        let replaced = false;
-        for (const m of prev) {
-          if (byId && m.id === byId) {
-            next.push({ ...m, ...incoming });
-            replaced = true;
-          } else if (byTemp && m.tempId === byTemp) {
-            next.push({ ...m, ...incoming });
-            replaced = true;
-          } else {
-            next.push(m);
+        
+        newSocket.on('connect', () => {
+          console.log('✅ Socket connected successfully!', newSocket.id);
+          setConnectionStatus('connected');
+          // ✅ Emit customer_join after connection is established
+          newSocket.emit('customer_join', {
+            customerId: user.id.toString(),
+            customerName: user.name || 'Customer'
+          });
+        });
+        
+        newSocket.on('disconnect', (reason) => {
+          console.log('Socket disconnected:', reason);
+          setConnectionStatus('disconnected');
+          // ✅ Auto-reconnect on unexpected disconnect
+          if (reason === 'io server disconnect') {
+            newSocket.connect();
           }
-        }
-        if (!replaced) next.push(incoming);
-        // Deduplicate by id/tempId
-        const seen = new Set();
-        return next.filter(m => {
-          const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
-          if (seen.has(key)) return false;
-          seen.add(key);
-          return true;
         });
-      };
-
-      newSocket.on('new_message', (data) => {
-        const { message } = data;
-        setMessages(prev => mergeMessages(prev, message));
-        if (!showChat) {
-          setUnreadCount(prev => prev + 1);
-        }
-        scrollToBottom();
-      });
-      newSocket.on('message_sent', (data) => {
-        setMessages(prev => {
-          const updated = prev.map(msg =>
-            msg.tempId === data.tempId
-              ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
-              : msg
-          );
-          // Remove any duplicate entries that already have same id
+        
+        newSocket.on('connect_error', (err) => {
+          console.error('Socket connect_error:', err?.message || err);
+          setConnectionStatus('error');
+        });
+        
+        newSocket.on('reconnect_attempt', (attemptNumber) => {
+          console.log('Reconnection attempt:', attemptNumber);
+          setConnectionStatus('reconnecting');
+        });
+        
+        newSocket.on('reconnect', (attemptNumber) => {
+          console.log('✅ Socket reconnected after', attemptNumber, 'attempts');
+          setConnectionStatus('connected');
+          // ✅ Re-emit customer_join after reconnection
+          newSocket.emit('customer_join', {
+            customerId: user.id.toString(),
+            customerName: user.name || 'Customer'
+          });
+        });
+        
+        newSocket.on('reconnect_failed', () => {
+          console.error('Socket reconnection failed');
+          setConnectionStatus('error');
+        });
+        
+        newSocket.on('joined_success', (data) => {
+          console.log('✅ Joined customer room successfully:', data);
+        });
+        
+        newSocket.on('error', (error) => {
+          console.error('Socket error:', error);
+        });
+        
+        // ✅ Message handlers
+        const mergeMessages = (prev, incoming) => {
+          const byId = incoming.id;
+          const byTemp = incoming.tempId;
+          const next = [];
+          let replaced = false;
+          for (const m of prev) {
+            if (byId && m.id === byId) {
+              next.push({ ...m, ...incoming });
+              replaced = true;
+            } else if (byTemp && m.tempId === byTemp) {
+              next.push({ ...m, ...incoming });
+              replaced = true;
+            } else {
+              next.push(m);
+            }
+          }
+          if (!replaced) next.push(incoming);
+          // Deduplicate by id/tempId
           const seen = new Set();
-          return updated.filter(m => {
+          return next.filter(m => {
             const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
             if (seen.has(key)) return false;
             seen.add(key);
             return true;
           });
+        };
+
+        newSocket.on('new_message', (data) => {
+          const { message } = data;
+          setMessages(prev => mergeMessages(prev, message));
+          if (!showChat) {
+            setUnreadCount(prev => prev + 1);
+          }
+          scrollToBottom();
         });
-      });
-      newSocket.on('employee_typing', (data) => {
-        setIsTyping(data.typing);
-        setTypingEmployee(data.typing ? data.employeeName : "");
-      });
-      setSocket(newSocket);
-      return () => {
-        newSocket.disconnect();
-      };
+        
+        newSocket.on('message_sent', (data) => {
+          setMessages(prev => {
+            const updated = prev.map(msg =>
+              msg.tempId === data.tempId
+                ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
+                : msg
+            );
+            // Remove any duplicate entries that already have same id
+            const seen = new Set();
+            return updated.filter(m => {
+              const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+          });
+        });
+        
+        newSocket.on('employee_typing', (data) => {
+          setIsTyping(data.typing);
+          setTypingEmployee(data.typing ? data.employeeName : "");
+        });
+        
+        setSocket(newSocket);
+      } catch (error) {
+        console.error('Error initializing socket:', error);
+        setConnectionStatus('error');
+      }
     };
-    const cleanup = initAndConnect();
+    
+    initAndConnect();
+    
+    // ✅ Cleanup function
     return () => {
-      if (typeof cleanup === 'function') cleanup();
+      if (newSocket) {
+        console.log('Cleaning up socket connection');
+        newSocket.removeAllListeners();
+        newSocket.disconnect();
+        setSocket(null);
+      }
     };
-  }, [user?.id]);
+  }, [user?.id, user?.name]);
 
   // Load messages when chat opens
   useEffect(() => {

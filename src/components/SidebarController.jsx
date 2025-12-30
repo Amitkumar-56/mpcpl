@@ -29,10 +29,19 @@ export default function SidebarController() {
       if (!sidebar.classList.contains('main-sidebar-processed')) {
         sidebar.classList.add('main-sidebar', 'main-sidebar-processed');
         
-        // Modify existing blue toggle button to use sidebar context toggle
+        // ✅ Modify existing blue toggle button to use sidebar context toggle
+        // ✅ Find button by its style or class to ensure we get the right one
         const existingToggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
         if (existingToggleBtn && !existingToggleBtn.hasAttribute('data-toggle-modified')) {
           existingToggleBtn.setAttribute('data-toggle-modified', 'true');
+          
+          // ✅ Ensure button has fixed positioning on mobile to prevent position issues on refresh
+          if (window.innerWidth < 768) {
+            existingToggleBtn.style.position = 'fixed';
+            existingToggleBtn.style.zIndex = '50';
+            existingToggleBtn.style.top = '16px';
+            // Don't set left here, let sidebar component handle it
+          }
           
           // Store original onclick
           const originalOnClick = existingToggleBtn.onclick;
@@ -94,24 +103,39 @@ export default function SidebarController() {
         });
       }
 
-      // Handle mobile overlay
-      let overlay = document.querySelector('.sidebar-overlay-mobile');
-      if (!overlay) {
-        overlay = document.createElement('div');
-        overlay.className = 'sidebar-overlay sidebar-overlay-mobile md:hidden';
-        overlay.style.cssText = 'position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 35; transition: opacity 0.3s ease-in-out;';
-        overlay.onclick = closeSidebar;
-        document.body.appendChild(overlay);
-      }
+      // ✅ Handle mobile overlay - only on mobile
+      const isMobile = window.innerWidth < 768;
+      
+      if (isMobile) {
+        let overlay = document.querySelector('.sidebar-overlay-mobile');
+        if (!overlay) {
+          overlay = document.createElement('div');
+          overlay.className = 'sidebar-overlay sidebar-overlay-mobile';
+          overlay.style.cssText = 'position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); z-index: 35; transition: opacity 0.3s ease-in-out; pointer-events: none; opacity: 0;';
+          overlay.onclick = closeSidebar;
+          document.body.appendChild(overlay);
+        }
 
-      if (window.innerWidth < 768) {
+        // ✅ Ensure toggle button position is correct on mobile
+        const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
+        if (toggleBtn) {
+          toggleBtn.style.position = 'fixed';
+          toggleBtn.style.zIndex = '50';
+          toggleBtn.style.top = '16px';
+          // Position based on sidebar state
+          if (isSidebarOpen) {
+            toggleBtn.style.left = '260px';
+          } else {
+            toggleBtn.style.left = '4px';
+          }
+        }
         if (isSidebarOpen) {
           sidebar.classList.remove('sidebar-hidden');
           sidebar.classList.add('sidebar-visible');
           sidebar.style.transform = 'translateX(0)';
           sidebar.style.zIndex = '40';
           if (overlay) {
-            overlay.style.display = 'block';
+            overlay.style.pointerEvents = 'auto';
             overlay.style.opacity = '1';
           }
           // Show close button
@@ -119,12 +143,17 @@ export default function SidebarController() {
           if (closeBtn) {
             closeBtn.style.display = 'block';
           }
+          // ✅ Update toggle button position when sidebar opens
+          const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
+          if (toggleBtn) {
+            toggleBtn.style.left = '260px';
+          }
         } else {
           sidebar.classList.remove('sidebar-visible');
           sidebar.classList.add('sidebar-hidden');
           sidebar.style.transform = 'translateX(-100%)';
           if (overlay) {
-            overlay.style.display = 'none';
+            overlay.style.pointerEvents = 'none';
             overlay.style.opacity = '0';
           }
           // Hide close button
@@ -132,13 +161,20 @@ export default function SidebarController() {
           if (closeBtn) {
             closeBtn.style.display = 'none';
           }
+          // ✅ Update toggle button position when sidebar closes
+          const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
+          if (toggleBtn) {
+            toggleBtn.style.left = '4px';
+          }
         }
       } else {
-        // Desktop: always show sidebar
+        // Desktop: always show sidebar, hide overlay completely
         sidebar.classList.remove('sidebar-hidden', 'sidebar-visible');
         sidebar.style.transform = '';
         if (overlay) {
           overlay.style.display = 'none';
+          overlay.style.pointerEvents = 'none';
+          overlay.style.opacity = '0';
         }
         // Hide close button on desktop
         const closeBtn = sidebar.querySelector('.sidebar-close-btn-mobile');

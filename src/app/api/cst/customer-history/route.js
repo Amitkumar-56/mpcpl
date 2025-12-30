@@ -185,37 +185,33 @@ export async function GET(request) {
     const todayFormatted = today.toISOString().split('T')[0];
     const yesterdayFormatted = yesterday.toISOString().split('T')[0];
 
-    // Today's outstanding (transactions completed today with new_amount > 0)
+    // ✅ FIX: Today's outstanding (using completed_date only, not created_at)
     const todayOutstandingQuery = `
       SELECT COALESCE(SUM(fh.new_amount), 0) as total 
       FROM filling_history fh
       LEFT JOIN filling_requests fr ON fh.rid = fr.rid
       WHERE (fh.cl_id = ? OR fr.cid = ?)
         AND fh.new_amount > 0
-        AND (
-          DATE(fr.completed_date) = ? 
-          OR DATE(fh.created_at) = ?
-        )
+        AND fr.completed_date IS NOT NULL
+        AND DATE(fr.completed_date) = ?
     `;
     const todayOutstandingResult = await executeQuery(todayOutstandingQuery, [
-      customerId, customerId, todayFormatted, todayFormatted
+      customerId, customerId, todayFormatted
     ]).catch(() => [{ total: 0 }]);
     const todayOutstanding = parseFloat(todayOutstandingResult[0]?.total) || 0;
 
-    // Yesterday's outstanding (all transactions before today with new_amount > 0)
+    // ✅ FIX: Yesterday's outstanding (using completed_date only, not created_at)
     const yesterdayOutstandingQuery = `
       SELECT COALESCE(SUM(fh.new_amount), 0) as total 
       FROM filling_history fh
       LEFT JOIN filling_requests fr ON fh.rid = fr.rid
       WHERE (fh.cl_id = ? OR fr.cid = ?)
         AND fh.new_amount > 0
-        AND (
-          DATE(fr.completed_date) < ? 
-          OR DATE(fh.created_at) < ?
-        )
+        AND fr.completed_date IS NOT NULL
+        AND DATE(fr.completed_date) < ?
     `;
     const yesterdayOutstandingResult = await executeQuery(yesterdayOutstandingQuery, [
-      customerId, customerId, todayFormatted, todayFormatted
+      customerId, customerId, todayFormatted
     ]).catch(() => [{ total: 0 }]);
     const yesterdayOutstanding = parseFloat(yesterdayOutstandingResult[0]?.total) || 0;
 

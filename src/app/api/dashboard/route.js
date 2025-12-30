@@ -145,17 +145,18 @@ export async function GET(request) {
       totalClients = parseInt(totalClientsResult[0]?.count) || 0;
       console.log('✅ Total Clients (from customers table):', totalClients);
 
-      // ✅ 6. TOTAL TRANSACTIONS - Count from filling_requests table
+      // ✅ 6. TOTAL TRANSACTIONS - Count from filling_requests table (using completed_date)
       console.log('🔄 Counting total transactions from filling_requests...');
       const totalTransactionsQuery = `
         SELECT COUNT(*) as count 
         FROM filling_requests 
         WHERE cid IS NOT NULL
           AND status = 'Completed'
+          AND completed_date IS NOT NULL
       `;
       const totalTransactionsResult = await executeQuery(totalTransactionsQuery);
       totalTransactions = parseInt(totalTransactionsResult[0]?.count) || 0;
-      console.log('✅ Total Transactions (from filling_requests):', totalTransactions);
+      console.log('✅ Total Transactions (from filling_requests, using completed_date):', totalTransactions);
 
     } catch (error) {
       console.error('❌ Database query error:', error);
@@ -163,22 +164,26 @@ export async function GET(request) {
       // Ultimate fallback - use filling_history only
       console.log('🔄 Using ultimate fallback with filling_history only...');
       try {
+        // ✅ FIX: Use completed_date from filling_requests via JOIN
         const todaySimpleQuery = `
-          SELECT COALESCE(SUM(new_amount), 0) as total 
-          FROM filling_history 
-          WHERE DATE(created_at) = ?
-            AND new_amount > 0
-            AND cl_id IS NOT NULL
+          SELECT COALESCE(SUM(fh.new_amount), 0) as total 
+          FROM filling_history fh
+          LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+          WHERE DATE(fr.completed_date) = ?
+            AND fh.new_amount > 0
+            AND fh.cl_id IS NOT NULL
         `;
         const todaySimpleResult = await executeQuery(todaySimpleQuery, [todayFormatted]);
         clientTodayOutstanding = parseFloat(todaySimpleResult[0]?.total) || 0;
         
+        // ✅ FIX: Use completed_date from filling_requests via JOIN
         const yesterdaySimpleQuery = `
-          SELECT COALESCE(SUM(new_amount), 0) as total 
-          FROM filling_history 
-          WHERE DATE(created_at) < ?
-            AND new_amount > 0
-            AND cl_id IS NOT NULL
+          SELECT COALESCE(SUM(fh.new_amount), 0) as total 
+          FROM filling_history fh
+          LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+          WHERE DATE(fr.completed_date) < ?
+            AND fh.new_amount > 0
+            AND fh.cl_id IS NOT NULL
         `;
         const yesterdaySimpleResult = await executeQuery(yesterdaySimpleQuery, [todayFormatted]);
         clientYesterdayOutstanding = parseFloat(yesterdaySimpleResult[0]?.total) || 0;
@@ -226,23 +231,25 @@ export async function GET(request) {
     let pendingPayments = 0;
     let clearedPayments = 0;
     try {
-      // Count pending payments (Completed but not paid - payment_status 0 or 2 or NULL)
+      // ✅ FIX: Count pending payments using completed_date
       const pendingQuery = `
         SELECT COUNT(*) as count 
         FROM filling_requests 
         WHERE status = 'Completed'
           AND cid IS NOT NULL
+          AND completed_date IS NOT NULL
           AND (payment_status IS NULL OR payment_status IN (0, 2))
       `;
       const pendingResult = await executeQuery(pendingQuery);
       pendingPayments = parseInt(pendingResult[0]?.count) || 0;
       
-      // Count cleared payments (Completed and paid - payment_status = 1)
+      // ✅ FIX: Count cleared payments using completed_date
       const clearedQuery = `
         SELECT COUNT(*) as count 
         FROM filling_requests 
         WHERE status = 'Completed'
           AND cid IS NOT NULL
+          AND completed_date IS NOT NULL
           AND payment_status = 1
       `;
       const clearedResult = await executeQuery(clearedQuery);

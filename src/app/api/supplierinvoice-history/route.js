@@ -16,8 +16,8 @@ export async function GET(request) {
       );
     }
 
-    // Get supplier name
-    const supplierQuery = 'SELECT name FROM supplier WHERE id = ?';
+    // Get supplier name - FIX: Use correct table name 'suppliers'
+    const supplierQuery = 'SELECT name FROM suppliers WHERE id = ?';
     const supplierResult = await executeQuery(supplierQuery, [id]);
     
     if (supplierResult.length === 0) {
@@ -67,20 +67,21 @@ export async function GET(request) {
         paymentQuery += ' ORDER BY id DESC';
         const payments = await executeQuery(paymentQuery, paymentParams);
 
-        // DNCN records
-        let dncnQuery = 'SELECT * FROM dncn WHERE sup_id = ?';
+        // ✅ DNCN records - Get from dncn table where sup_id matches stock.id
+        let dncnQuery = 'SELECT id, sup_id, amount, type, dncn_date, remarks FROM dncn WHERE sup_id = ?';
         const dncnParams = [row.id];
         
         if (from_date) {
-          dncnQuery += ' AND dncn_date >= ?';
+          dncnQuery += ' AND DATE(dncn_date) >= ?';
           dncnParams.push(from_date);
         }
         
         if (to_date) {
-          dncnQuery += ' AND dncn_date <= ?';
+          dncnQuery += ' AND DATE(dncn_date) <= ?';
           dncnParams.push(to_date);
         }
         
+        dncnQuery += ' ORDER BY dncn_date DESC, id DESC';
         const dncns = await executeQuery(dncnQuery, dncnParams);
 
         return {

@@ -175,12 +175,15 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         }
       `}</style>
 
-      {/* Mobile Collapse Toggle */}
+      {/* Mobile Collapse Toggle - Fixed position to prevent refresh issues */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="md:hidden fixed top-4 left-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
+        className="md:hidden fixed top-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-all duration-300"
         title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        style={{ left: isCollapsed ? '4px' : '260px' }}
+        style={{ 
+          left: isCollapsed ? '4px' : '260px',
+          transition: 'left 0.3s ease-in-out'
+        }}
       >
         <FaBars className="w-5 h-5" />
       </button>

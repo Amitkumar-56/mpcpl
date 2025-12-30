@@ -75,6 +75,27 @@ export async function POST(request) {
       [newDncnValue, newDncnValue, stock_id]
     );
 
+    // ✅ INSERT INTO dncn table so it shows in supplier invoice history
+    const dncnTypeValue = dncn_type === 'Debit' ? 1 : 2; // 1 = Debit, 2 = Credit
+    try {
+      await executeQuery(
+        `INSERT INTO dncn (sup_id, amount, type, dncn_date, remarks, supplier_id) 
+         VALUES (?, ?, ?, NOW(), ?, ?)`,
+        [stock_id, amountValue, dncnTypeValue, remarks || '', supplier_id || null]
+      );
+    } catch (dncnError) {
+      // If dncn table doesn't have supplier_id column, insert without it
+      if (dncnError.message.includes('supplier_id') || dncnError.message.includes('Unknown column')) {
+        await executeQuery(
+          `INSERT INTO dncn (sup_id, amount, type, dncn_date, remarks) 
+           VALUES (?, ?, ?, NOW(), ?)`,
+          [stock_id, amountValue, dncnTypeValue, remarks || '']
+        );
+      } else {
+        throw dncnError;
+      }
+    }
+
     // Get station and product names for audit log
     const stationName = stock.station_name || 'N/A';
     const productName = stock.product_name || 'N/A';

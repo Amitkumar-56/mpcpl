@@ -43,16 +43,46 @@ export async function GET(request) {
 
     // Fetch supplier details
     const supplierQuery = `SELECT name FROM suppliers WHERE id = ?`;
-    const [supplierRows] = await executeQuery(supplierQuery, [id]);
+    const supplierRows = await executeQuery(supplierQuery, [id]);
     const supplierName = supplierRows.length > 0 ? supplierRows[0].name : 'Unknown Supplier';
 
     // Fetch invoice data
-    const [rows] = await executeQuery(query, params);
+    const rows = await executeQuery(query, params);
+
+    // ✅ Enrich each invoice with DNCN and payment data
+    const enrichedInvoices = await Promise.all(
+      (rows || []).map(async (invoice) => {
+        // Get DNCN records for this stock entry
+        const dncnQuery = `
+          SELECT id, sup_id, amount, type, dncn_date, remarks 
+          FROM dncn 
+          WHERE sup_id = ?
+          ORDER BY dncn_date DESC, id DESC
+        `;
+        const dncns = await executeQuery(dncnQuery, [invoice.id]);
+
+        // Get payment records
+        const paymentQuery = `
+          SELECT id, supply_id, v_invoice, payment, date, remarks, type, COALESCE(tds_deduction, 0) as tds_deduction 
+          FROM update_invoice 
+          WHERE type = 1 AND supply_id = ?
+          ORDER BY date DESC, id DESC
+        `;
+        const payments = await executeQuery(paymentQuery, [invoice.id]);
+
+        return {
+          ...invoice,
+          dncns: dncns || [],
+          payments: payments || []
+        };
+      })
+    );
 
     return NextResponse.json({
+      success: true,
       supplierName,
-      invoices: rows,
-      total: rows.length
+      invoices: enrichedInvoices,
+      total: enrichedInvoices.length
     });
 
   } catch (error) {
