@@ -5,7 +5,7 @@ import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Link from 'next/link';
-import { Fragment, Suspense, useEffect, useState } from 'react';
+import React, { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
 
 function FillingRequestsPage() {
   const [requests, setRequests] = useState([]);
@@ -16,20 +16,36 @@ function FillingRequestsPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  // Get customer ID from localStorage
+  // ✅ Get customer ID from localStorage - Safe SSR check
   useEffect(() => {
-    const savedUser = localStorage.getItem("customer");
-    if (savedUser) {
-      const user = JSON.parse(savedUser);
-      setCustomerId(user.id);
-      console.log("✅ Customer ID set:", user.id);
-    } else {
-      console.log("❌ No customer found in localStorage");
+    if (typeof window === 'undefined') return; // SSR safety
+    
+    try {
+      const savedUser = localStorage.getItem("customer");
+      if (savedUser) {
+        const user = JSON.parse(savedUser);
+        if (user && user.id) {
+          // ✅ Ensure customer ID is converted to string properly
+          const customerIdValue = String(user.id).trim();
+          if (customerIdValue) {
+            setCustomerId(customerIdValue);
+            console.log("✅ Customer ID set:", customerIdValue, "(type:", typeof customerIdValue + ")");
+          } else {
+            console.log("❌ Customer ID is empty");
+          }
+        } else {
+          console.log("❌ Invalid customer data in localStorage - missing ID:", user);
+        }
+      } else {
+        console.log("❌ No customer found in localStorage");
+      }
+    } catch (error) {
+      console.error("❌ Error reading from localStorage:", error);
     }
   }, []);
 
-  // Fetch filling requests
-  const fetchFillingRequests = async (filter = 'All') => {
+  // ✅ Fetch filling requests - wrapped in useCallback to prevent infinite loops
+  const fetchFillingRequests = React.useCallback(async (filter = 'All') => {
     if (!customerId) {
       console.log("❌ No customer ID available");
       return;
@@ -58,35 +74,68 @@ function FillingRequestsPage() {
       console.log('📍 Response ok:', response.ok);
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error('❌ HTTP error response:', errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
       
-      const data = await response.json();
-      console.log('📍 Fetched data:', data);
+      const responseText = await response.text();
+      console.log('📍 Raw response text:', responseText);
+      
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Failed to parse JSON:', parseError);
+        console.error('❌ Response text:', responseText);
+        throw new Error('Invalid JSON response from server');
+      }
+      
+      console.log('📍 Parsed data:', data);
+      console.log('📍 Data success:', data.success);
+      console.log('📍 Data requests:', data.requests);
+      console.log('📍 Requests count:', data.requests?.length);
+      console.log('📍 Requests type:', typeof data.requests);
+      console.log('📍 Is array:', Array.isArray(data.requests));
       
       if (data.success) {
-        setRequests(data.requests || []);
-        console.log('✅ Requests set:', data.requests?.length || 0);
+        const requestsArray = Array.isArray(data.requests) ? data.requests : [];
+        console.log('✅ Requests array:', requestsArray);
+        console.log('✅ Requests array length:', requestsArray.length);
+        
+        setRequests(requestsArray);
+        console.log('✅ Requests state set with:', requestsArray.length, 'items');
+        
+        // ✅ Log if no requests found
+        if (requestsArray.length === 0) {
+          console.log('⚠️ No requests found for customer:', customerId, 'with filter:', filter);
+          console.log('⚠️ Check server logs to verify if data exists in database');
+        } else {
+          console.log('✅ Successfully loaded', requestsArray.length, 'requests');
+          console.log('✅ First request:', requestsArray[0]);
+        }
       } else {
-        setError(data.message || 'Failed to fetch requests');
+        const errorMsg = data.message || data.error || 'Failed to fetch requests';
+        console.error('❌ API returned error:', errorMsg);
+        setError(errorMsg);
         setRequests([]);
       }
     } catch (err) {
       console.error('❌ Error fetching requests:', err);
-      setError(err.message);
+      setError(err.message || 'An error occurred while fetching requests');
       setRequests([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [customerId]);
 
-  // Fetch data when filter or customerId changes
+  // ✅ Fetch data when filter or customerId changes
   useEffect(() => {
     if (customerId) {
       console.log("🔄 Customer ID changed, fetching requests...");
       fetchFillingRequests(statusFilter);
     }
-  }, [statusFilter, customerId]);
+  }, [statusFilter, customerId, fetchFillingRequests]);
 
   // Map database status to display status
   const mapStatus = (status) => {
@@ -136,11 +185,13 @@ function FillingRequestsPage() {
     setStatusFilter(filter);
   };
 
-  // Handle retry
-  const handleRetry = () => {
+  // ✅ Handle retry - Fixed to use current statusFilter
+  const handleRetry = useCallback(() => {
     console.log("🔄 Retrying fetch...");
-    fetchFillingRequests(statusFilter);
-  };
+    if (customerId) {
+      fetchFillingRequests(statusFilter);
+    }
+  }, [customerId, statusFilter, fetchFillingRequests]);
 
   // Toggle sidebar
   const toggleSidebar = () => {
@@ -166,33 +217,63 @@ function FillingRequestsPage() {
     console.log("📊 State updated - Loading:", loading, "Error:", error, "Requests count:", requests.length);
   }, [loading, error, requests]);
 
-  if (!customerId) {
+  // ✅ Show loading while checking authentication
+  if (typeof window === 'undefined' || loading && !customerId) {
     return (
-      <div className="min-h-screen bg-gray-50 flex flex-col">
-        <CstHeader onMenuClick={toggleSidebar} />
-        <div className="flex flex-1">
-          <Sidebar isOpen={sidebarOpen} onClose={closeSidebar} />
-          <div className={`flex-1 transition-all duration-300 ${sidebarOpen ? 'ml-0 md:ml-64' : 'ml-0'}`}>
-            <main className="flex-1 p-8 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-red-600 text-lg mb-4">Customer not authenticated</div>
-                <Link 
-                  href="/cst/login"
-                  className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-                >
-                  Go to Login
-                </Link>
-              </div>
-            </main>
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <CstHeader onMenuClick={toggleSidebar} />
+          </div>
+          <main className="flex-1 overflow-y-auto flex items-center justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading...</p>
+            </div>
+          </main>
+          <div className="flex-shrink-0">
+            <Footer />
           </div>
         </div>
-        <Footer />
+      </div>
+    );
+  }
+
+  // ✅ Redirect to login if not authenticated
+  if (!customerId) {
+    return (
+      <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <div className="flex-shrink-0">
+          <Sidebar />
+        </div>
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <CstHeader onMenuClick={toggleSidebar} />
+          </div>
+          <main className="flex-1 overflow-y-auto flex items-center justify-center">
+            <div className="text-center">
+              <div className="text-red-600 text-lg mb-4">Customer not authenticated</div>
+              <Link 
+                href="/cst/login"
+                className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+              >
+                Go to Login
+              </Link>
+            </div>
+          </main>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-100 overflow-hidden">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
       <style jsx>{`
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
@@ -202,35 +283,21 @@ function FillingRequestsPage() {
           scrollbar-width: none;
         }
       `}</style>
-      {/* Fixed Sidebar */}
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+      {/* ✅ Fixed Sidebar - Using flex layout */}
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
-      {/* Mobile Sidebar */}
-      <div className={`lg:hidden fixed z-40 h-full transition-transform duration-300 ease-in-out ${
-        sidebarOpen ? "translate-x-0" : "-translate-x-full"
-      }`}>
-        <Sidebar />
-      </div>
-
-      {/* Mobile Overlay */}
-      {sidebarOpen && (
-        <div
-          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-30"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
-      
-      {/* Main Content Area */}
-      <div className="flex-1 lg:ml-64 w-full flex flex-col min-h-screen">
-        {/* Fixed Header */}
-        <div className="fixed top-0 left-0 lg:left-64 right-0 z-40 bg-white shadow-sm">
+      {/* ✅ Main Content Area - Fixed layout */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        {/* ✅ Fixed Header */}
+        <div className="flex-shrink-0">
           <CstHeader onMenuClick={toggleSidebar} />
         </div>
         
-        {/* Scrollable Main Content */}
-        <main className="pt-16 lg:pt-20 flex-1 p-4 md:p-8 overflow-auto">
+        {/* ✅ Scrollable Main Content */}
+        <main className="flex-1 overflow-y-auto bg-gray-100 min-h-0">
+        <div className="p-4 md:p-8">
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -510,10 +577,13 @@ function FillingRequestsPage() {
 
           {/* Empty State */}
           {!loading && !error && requests.length === 0 && (
-            <div className="text-center py-12">
-              <div className="text-gray-500 text-lg mb-4">No filling requests found</div>
-              <div className="text-gray-400 text-sm mb-4">
+            <div className="text-center py-12 bg-yellow-50 border border-yellow-200 rounded-lg p-8">
+              <div className="text-yellow-800 text-lg font-semibold mb-2">No filling requests found</div>
+              <div className="text-yellow-600 text-sm mb-4">
                 {statusFilter !== 'All' ? `No ${statusFilter.toLowerCase()} requests` : 'No requests yet'}
+              </div>
+              <div className="text-gray-500 text-xs mb-4">
+                Customer ID: {customerId} | Filter: {statusFilter}
               </div>
               <Link 
                 href="/cst/filling-requests/create-request"
@@ -523,9 +593,13 @@ function FillingRequestsPage() {
               </Link>
             </div>
           )}
+        </div>
         </main>
 
-        <Footer />
+        {/* ✅ Fixed Footer */}
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
       </div>
     </div>
   );
@@ -533,7 +607,14 @@ function FillingRequestsPage() {
 
 export default function Page() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <div className="flex h-screen bg-gray-100 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
       <FillingRequestsPage />
     </Suspense>
   );

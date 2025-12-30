@@ -22,6 +22,40 @@ export async function GET(request) {
       );
     }
 
+    // ✅ Convert customer ID to integer for proper matching
+    const customerIdInt = parseInt(cid, 10);
+    if (isNaN(customerIdInt) || customerIdInt <= 0) {
+      console.log("❌ API: Invalid Customer ID:", cid);
+      return NextResponse.json(
+        { success: false, message: 'Invalid Customer ID', requests: [] },
+        { status: 400 }
+      );
+    }
+
+    // ✅ First, check if customer exists and get count of requests
+    try {
+      const customerCheck = await executeQuery(
+        'SELECT id, name FROM customers WHERE id = ?',
+        [customerIdInt]
+      );
+      console.log("👤 API: Customer check result:", customerCheck);
+      
+      if (customerCheck.length === 0) {
+        console.log("⚠️ API: Customer not found with ID:", customerIdInt);
+      } else {
+        console.log("✅ API: Customer found:", customerCheck[0].name);
+      }
+
+      // ✅ Check total requests count for this customer (for debugging)
+      const countCheck = await executeQuery(
+        'SELECT COUNT(*) as total FROM filling_requests WHERE cid = ?',
+        [customerIdInt]
+      );
+      console.log("📊 API: Total requests in DB for customer:", countCheck[0]?.total || 0);
+    } catch (checkError) {
+      console.error("⚠️ API: Error checking customer:", checkError);
+    }
+
     // Build query based on filters
     let query = `
       SELECT fr.*, 
@@ -48,7 +82,7 @@ export async function GET(request) {
       WHERE fr.cid = ?
     `;
     
-    let params = [cid];
+    let params = [customerIdInt];
     let conditions = [];
 
     // Add status filter if provided and not 'All'
@@ -67,15 +101,42 @@ export async function GET(request) {
 
     console.log("📝 API: Executing query:", query);
     console.log("🔢 API: Query params:", params);
+    console.log("🔢 API: Customer ID (original):", cid, "(type:", typeof cid + ")");
+    console.log("🔢 API: Customer ID (converted):", customerIdInt, "(type:", typeof customerIdInt + ")");
     
-    // Execute query
-    const rows = await executeQuery(query, params);
-    console.log("✅ API: Found requests:", rows.length);
+    // Execute query with error handling
+    let rows = [];
+    try {
+      rows = await executeQuery(query, params);
+      console.log("✅ API: Query executed successfully");
+      
+      // ✅ Ensure rows is an array
+      if (!Array.isArray(rows)) {
+        console.error("❌ API: Query did not return an array:", typeof rows);
+        rows = [];
+      }
+      
+      console.log("✅ API: Found requests:", rows.length);
+    } catch (queryError) {
+      console.error("❌ API: Query execution error:", queryError);
+      console.error("❌ API: Error message:", queryError.message);
+      console.error("❌ API: Error stack:", queryError.stack);
+      
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: `Database error: ${queryError.message}`, 
+          requests: [],
+          error: queryError.message
+        }, 
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({ 
       success: true, 
-      requests: rows,
-      count: rows.length 
+      requests: rows || [],
+      count: rows?.length || 0 
     });
     
   } catch (error) {

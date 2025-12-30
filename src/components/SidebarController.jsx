@@ -103,11 +103,12 @@ export default function SidebarController() {
         });
       }
 
-      // ✅ Handle mobile overlay - only on mobile
+      // ✅ Handle mobile overlay - declare outside to fix scope issue
       const isMobile = window.innerWidth < 768;
+      let overlay = document.querySelector('.sidebar-overlay-mobile');
       
       if (isMobile) {
-        let overlay = document.querySelector('.sidebar-overlay-mobile');
+        // Create overlay if it doesn't exist (mobile only)
         if (!overlay) {
           overlay = document.createElement('div');
           overlay.className = 'sidebar-overlay sidebar-overlay-mobile';
@@ -116,19 +117,14 @@ export default function SidebarController() {
           document.body.appendChild(overlay);
         }
 
-        // ✅ Ensure toggle button position is correct on mobile
+        // ✅ Get toggle button once and reuse it
         const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
         if (toggleBtn) {
           toggleBtn.style.position = 'fixed';
           toggleBtn.style.zIndex = '50';
           toggleBtn.style.top = '16px';
-          // Position based on sidebar state
-          if (isSidebarOpen) {
-            toggleBtn.style.left = '260px';
-          } else {
-            toggleBtn.style.left = '4px';
-          }
         }
+        
         if (isSidebarOpen) {
           sidebar.classList.remove('sidebar-hidden');
           sidebar.classList.add('sidebar-visible');
@@ -144,7 +140,6 @@ export default function SidebarController() {
             closeBtn.style.display = 'block';
           }
           // ✅ Update toggle button position when sidebar opens
-          const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
           if (toggleBtn) {
             toggleBtn.style.left = '260px';
           }
@@ -162,7 +157,6 @@ export default function SidebarController() {
             closeBtn.style.display = 'none';
           }
           // ✅ Update toggle button position when sidebar closes
-          const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
           if (toggleBtn) {
             toggleBtn.style.left = '4px';
           }
@@ -171,10 +165,12 @@ export default function SidebarController() {
         // Desktop: always show sidebar, hide overlay completely
         sidebar.classList.remove('sidebar-hidden', 'sidebar-visible');
         sidebar.style.transform = '';
-        if (overlay) {
-          overlay.style.display = 'none';
-          overlay.style.pointerEvents = 'none';
-          overlay.style.opacity = '0';
+        // ✅ Query overlay again in else block (may not exist on desktop)
+        const desktopOverlay = document.querySelector('.sidebar-overlay-mobile');
+        if (desktopOverlay) {
+          desktopOverlay.style.display = 'none';
+          desktopOverlay.style.pointerEvents = 'none';
+          desktopOverlay.style.opacity = '0';
         }
         // Hide close button on desktop
         const closeBtn = sidebar.querySelector('.sidebar-close-btn-mobile');

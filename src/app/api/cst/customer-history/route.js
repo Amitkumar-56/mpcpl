@@ -57,10 +57,11 @@ export async function GET(request) {
     }
 
     // 2. Get customer balance from customer_balances table
+    // ✅ FIX: Remove day_amount column (doesn't exist in table)
     let customerBalanceData;
     try {
       customerBalanceData = await executeQuery(
-        'SELECT balance, amtlimit, cst_limit, day_limit, day_amount, total_day_amount FROM customer_balances WHERE com_id = ? AND is_active = 1',
+        'SELECT balance, amtlimit, cst_limit, day_limit, total_day_amount FROM customer_balances WHERE com_id = ? AND is_active = 1',
         [customerId]
       );
     } catch (error) {
@@ -72,7 +73,6 @@ export async function GET(request) {
     let amtLimit = 0;
     let totalLimit = 0;
     let dayLimit = 0;
-    let dayAmount = 0;
     let totalDayAmount = 0;
 
     if (customerBalanceData && customerBalanceData.length > 0) {
@@ -81,7 +81,6 @@ export async function GET(request) {
       amtLimit = balanceInfo.amtlimit || 0;
       totalLimit = balanceInfo.cst_limit || 0;
       dayLimit = balanceInfo.day_limit || 0;
-      dayAmount = balanceInfo.day_amount || 0;
       totalDayAmount = balanceInfo.total_day_amount || 0;
     }
 
@@ -277,7 +276,7 @@ export async function GET(request) {
       dayLimitInfo: {
         hasDayLimit: dayLimit > 0,
         dayLimit: dayLimit,
-        dayAmount: dayAmount,
+        dayAmount: 0, // ✅ Removed - column doesn't exist in database
         totalDayAmount: totalDayAmount
       },
       outstandings: {
