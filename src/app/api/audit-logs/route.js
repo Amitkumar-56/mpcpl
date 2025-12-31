@@ -163,6 +163,27 @@ export async function GET(request) {
             console.log(`  - ID: ${emp.id} => Name: ${emp.name}`);
           }
         });
+        
+        // ✅ FIX: For any user_id not found in batch, fetch individually (forcefully)
+        const foundIds = new Set(employees.map(e => e.id));
+        const missingIds = allUserIds.filter(id => !foundIds.has(id));
+        if (missingIds.length > 0) {
+          console.log(`🔍 [AuditLogs API] Forcefully fetching ${missingIds.length} missing employee names individually`);
+          for (const userId of missingIds) {
+            try {
+              const directQuery = await executeQuery(
+                `SELECT id, name FROM employee_profile WHERE id = ?`,
+                [userId]
+              );
+              if (directQuery.length > 0 && directQuery[0].name) {
+                employeeNamesMap.set(userId, directQuery[0].name);
+                console.log(`✅ [AuditLogs API] Forcefully fetched: ID ${userId} => ${directQuery[0].name}`);
+              }
+            } catch (err) {
+              console.error(`❌ [AuditLogs API] Error fetching name for ID ${userId}:`, err);
+            }
+          }
+        }
       } catch (err) {
         console.error('❌ [AuditLogs API] Error fetching employee names:', err);
       }
@@ -202,11 +223,12 @@ export async function GET(request) {
         };
       }
       
-      // ✅ FIX: Always prioritize employee name from employeeNamesMap (fetched from employee_profile)
-      // This ensures we always get the correct name based on user_id
+      // ✅ FIX: ALWAYS use name from employee_profile based on user_id (forcefully)
+      // This ensures we always get the correct name from employee_profile table
       let displayUserName = null;
       
-      // Step 1: If we have user_id, ALWAYS try to get from employeeNamesMap first
+      // Step 1: If we have user_id, ALWAYS use name from employeeNamesMap (from employee_profile)
+      // This map is populated from employee_profile table, so it's the source of truth
       if (log.user_id) {
         const fetchedName = employeeNamesMap.get(log.user_id);
         if (fetchedName) {
@@ -214,7 +236,7 @@ export async function GET(request) {
         }
       }
       
-      // Step 2: If not found in map, try employee_name from JOIN
+      // Step 2: If still not found, try employee_name from JOIN
       if (!displayUserName && log.employee_name) {
         // Only use if it's a valid name (not System, Unknown User, etc.)
         if (log.employee_name !== 'System' && 
@@ -258,16 +280,19 @@ export async function GET(request) {
         console.warn(`⚠️ [AuditLogs API] Employee not found in employee_profile for user_id ${log.user_id}`);
       }
       
-      // Step 8: Last resort - only use 'Unknown User' if no user_id at all
+      // Step 8: Last resort - show user_id if available, otherwise empty
       if (!displayUserName) {
-        displayUserName = 'Unknown User';
-        console.warn(`⚠️ [AuditLogs API] No user_id for log ${log.id}, using 'Unknown User'`);
+        if (log.user_id) {
+          displayUserName = `Employee ID: ${log.user_id}`;
+        } else {
+          displayUserName = ''; // Empty instead of 'Unknown User'
+        }
       }
       
       return {
         ...log,
-        user_name: displayUserName || 'Unknown User',
-        user_display_name: displayUserName || 'Unknown User', // Ensure both fields have the correct name
+        user_name: displayUserName || (log.user_id ? `Employee ID: ${log.user_id}` : ''),
+        user_display_name: displayUserName || (log.user_id ? `Employee ID: ${log.user_id}` : ''), // Ensure both fields have the correct name
         old_value: oldValue,
         new_value: newValue,
         creator_info: creatorInfo

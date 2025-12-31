@@ -102,12 +102,21 @@ export default function ActivityLogs({
       
       if (result.success) {
         const logsData = result.data || [];
+        
+        // ✅ FIX: Debug - log actions to see what we're getting
+        const actionsInData = logsData.map(log => log.action).filter(Boolean);
+        const uniqueActionsInData = [...new Set(actionsInData)];
+        console.log('🔍 [ActivityLogs] Actions received from API:', uniqueActionsInData);
+        if (logsData.length > 0) {
+          console.log('🔍 [ActivityLogs] Sample log actions:', logsData.slice(0, 5).map(log => ({ id: log.id, action: log.action, page: log.page })));
+        }
+        
         setLogs(logsData);
         setTotal(result.total || 0);
         setHasMore(result.hasMore || false);
         
         // Extract unique actions from logs
-        const uniqueActions = [...new Set(logsData.map(log => log.action).filter(Boolean))].sort();
+        const uniqueActions = [...new Set(actionsInData)].sort();
         setAvailableActions(uniqueActions);
       } else {
         setError(result.error || 'Failed to fetch activity logs');
@@ -312,71 +321,63 @@ export default function ActivityLogs({
             No activity logs found
           </div>
         ) : (
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unique Code</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value Change</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
+          <>
+            {/* Mobile Card View */}
+            <div className="md:hidden divide-y divide-gray-200">
               {logs.map((log) => (
-                <tr key={log.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                    {formatDateTime(log.action_date, log.action_time)}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                    {log.section || 'N/A'}
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">
-                    {log.unique_code || 'N/A'}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    <div className="flex flex-col">
-                      <span className="font-semibold text-gray-900">
-                        {log.user_name || log.user_display_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown')}
-                      </span>
+                <div key={log.id} className="p-4 bg-white hover:bg-gray-50">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold border ${getActionColor(log.action)} inline-flex items-center gap-1`}>
+                          <span className="text-sm">{getActionIcon(log.action)}</span>
+                          <span className="uppercase">{log.action || 'N/A'}</span>
+                        </span>
+                      </div>
+                      <div className="text-sm font-semibold text-gray-900 mb-1">
+                        {log.user_name || log.user_display_name || (log.user_id ? `Employee ID: ${log.user_id}` : '')}
+                      </div>
                       {log.user_id && (
-                        <span className="text-xs text-gray-500 mt-0.5">ID: {log.user_id}</span>
+                        <div className="text-xs text-gray-500">ID: {log.user_id}</div>
                       )}
-                      {/* Only show role for admin users */}
                       {isAdmin && log.creator_info?.role_name && (
-                        <span className="text-xs text-gray-400 mt-0.5">{log.creator_info.role_name}</span>
+                        <div className="text-xs text-gray-400 mt-0.5">{log.creator_info.role_name}</div>
                       )}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 whitespace-nowrap">
-                    <div className="flex items-center">
-                      <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${getActionColor(log.action)} inline-flex items-center gap-1.5`}>
-                        <span className="text-sm">{getActionIcon(log.action)}</span>
-                        <span className="uppercase tracking-wide">{log.action || 'N/A'}</span>
-                      </span>
+                    <div className="text-right text-xs text-gray-500">
+                      {formatDateTime(log.action_date, log.action_time)}
                     </div>
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+                  </div>
+                  
+                  <div className="space-y-2 text-sm">
+                    {log.section && (
+                      <div>
+                        <span className="text-xs text-gray-500">Section:</span>
+                        <span className="ml-2 text-gray-900">{log.section}</span>
+                      </div>
+                    )}
+                    {log.unique_code && (
+                      <div>
+                        <span className="text-xs text-gray-500">Code:</span>
+                        <span className="ml-2 text-gray-900 font-mono">{log.unique_code}</span>
+                      </div>
+                    )}
                     {log.old_value || log.new_value ? (
-                      <div className="text-xs">
-                        {log.field_name && (
-                          <div className="font-medium text-gray-700 mb-1">{log.field_name}:</div>
-                        )}
-                        <div className="text-gray-600 space-y-1">
+                      <div>
+                        <div className="text-xs text-gray-500 mb-1">
+                          {log.field_name ? `${log.field_name}:` : 'Value Change:'}
+                        </div>
+                        <div className="text-xs space-y-1 pl-2 border-l-2 border-gray-200">
                           {typeof log.old_value === 'object' && typeof log.new_value === 'object' ? (
-                            // Object comparison - show key-value changes
                             Object.keys({...log.old_value, ...log.new_value}).map(key => {
                               const oldVal = log.old_value?.[key];
                               const newVal = log.new_value?.[key];
-                              // Skip internal fields like created_by_employee_id, edited_by_employee_id, etc.
                               if (key.includes('created_by') || key.includes('edited_by') || key === 'employee_id') {
                                 return null;
                               }
                               if (oldVal !== newVal) {
                                 return (
-                                  <div key={key} className="border-l-2 border-gray-300 pl-2">
+                                  <div key={key} className="py-1">
                                     <span className="font-medium text-gray-700">{key}:</span>{' '}
                                     <span className="line-through text-red-600">{formatValue(oldVal)}</span>
                                     {' → '}
@@ -387,7 +388,6 @@ export default function ActivityLogs({
                               return null;
                             }).filter(Boolean)
                           ) : (
-                            // Simple value comparison
                             <>
                               <span className="line-through text-red-600">{formatValue(log.old_value)}</span>
                               {' → '}
@@ -396,26 +396,128 @@ export default function ActivityLogs({
                           )}
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-gray-400">-</span>
+                    ) : null}
+                    {log.remarks && (
+                      <div>
+                        <span className="text-xs text-gray-500">Remarks:</span>
+                        <div className="mt-1 text-sm italic text-gray-700">{log.remarks}</div>
+                      </div>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">
-                    <div className="space-y-1">
-                      {log.remarks && (
-                        <div className="italic">{log.remarks}</div>
-                      )}
-                      {log.record_type && (
-                        <div className="text-xs text-gray-500">
-                          Type: <span className="font-medium">{log.record_type}</span>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+                    {log.record_type && (
+                      <div>
+                        <span className="text-xs text-gray-500">Type:</span>
+                        <span className="ml-2 text-xs font-medium text-gray-700">{log.record_type}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+            
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unique Code</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value Change</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {logs.map((log) => (
+                    <tr key={log.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {formatDateTime(log.action_date, log.action_time)}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                        {log.section || 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">
+                        {log.unique_code || 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="flex flex-col">
+                      <span className="font-semibold text-gray-900">
+                        {log.user_name || log.user_display_name || (log.user_id ? `Employee ID: ${log.user_id}` : '')}
+                      </span>
+                          {log.user_id && (
+                            <span className="text-xs text-gray-500 mt-0.5">ID: {log.user_id}</span>
+                          )}
+                          {isAdmin && log.creator_info?.role_name && (
+                            <span className="text-xs text-gray-400 mt-0.5">{log.creator_info.role_name}</span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 whitespace-nowrap">
+                        <div className="flex items-center">
+                          <span className={`px-3 py-1.5 rounded-lg text-xs font-semibold border ${getActionColor(log.action)} inline-flex items-center gap-1.5`}>
+                            <span className="text-sm">{getActionIcon(log.action)}</span>
+                            <span className="uppercase tracking-wide">{log.action || 'N/A'}</span>
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900 max-w-xs">
+                        {log.old_value || log.new_value ? (
+                          <div className="text-xs">
+                            {log.field_name && (
+                              <div className="font-medium text-gray-700 mb-1">{log.field_name}:</div>
+                            )}
+                            <div className="text-gray-600 space-y-1">
+                              {typeof log.old_value === 'object' && typeof log.new_value === 'object' ? (
+                                Object.keys({...log.old_value, ...log.new_value}).map(key => {
+                                  const oldVal = log.old_value?.[key];
+                                  const newVal = log.new_value?.[key];
+                                  if (key.includes('created_by') || key.includes('edited_by') || key === 'employee_id') {
+                                    return null;
+                                  }
+                                  if (oldVal !== newVal) {
+                                    return (
+                                      <div key={key} className="border-l-2 border-gray-300 pl-2">
+                                        <span className="font-medium text-gray-700">{key}:</span>{' '}
+                                        <span className="line-through text-red-600">{formatValue(oldVal)}</span>
+                                        {' → '}
+                                        <span className="text-green-600 font-semibold">{formatValue(newVal)}</span>
+                                      </div>
+                                    );
+                                  }
+                                  return null;
+                                }).filter(Boolean)
+                              ) : (
+                                <>
+                                  <span className="line-through text-red-600">{formatValue(log.old_value)}</span>
+                                  {' → '}
+                                  <span className="text-green-600 font-semibold">{formatValue(log.new_value)}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-gray-400">-</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-600 max-w-xs">
+                        <div className="space-y-1">
+                          {log.remarks && (
+                            <div className="italic">{log.remarks}</div>
+                          )}
+                          {log.record_type && (
+                            <div className="text-xs text-gray-500">
+                              Type: <span className="font-medium">{log.record_type}</span>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </div>
 

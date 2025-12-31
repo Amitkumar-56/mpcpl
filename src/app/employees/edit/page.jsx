@@ -15,6 +15,7 @@ function EditEmployeeContent() {
   const [hasPermission, setHasPermission] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
   const [stations, setStations] = useState([]);
+  const [selectedStations, setSelectedStations] = useState([]);
   const [formData, setFormData] = useState(null);
   const [error, setError] = useState(null);
   const [permissions, setPermissions] = useState({
@@ -125,18 +126,35 @@ function EditEmployeeContent() {
 
   async function fetchData() {
     try {
+      setLoading(true);
+      setError(null);
+      
       // Get token from localStorage for Authorization header
       const authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
       
+      console.log('🔍 Fetching employee data for ID:', id);
+      
       const res = await fetch(`/api/employee/edit?id=${id}`, {
+        method: 'GET',
         credentials: 'include',
         cache: 'no-store',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
+        headers: {
+          'Content-Type': 'application/json',
+          ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
+        }
       });
       
+      console.log('🔍 Response status:', res.status, res.statusText);
+      
       if (!res.ok) {
-        const errorData = await res.json().catch(() => ({ error: 'Network error' }));
-        console.error('API Error:', errorData);
+        let errorData;
+        try {
+          errorData = await res.json();
+        } catch (e) {
+          errorData = { error: `HTTP ${res.status}: ${res.statusText}` };
+        }
+        console.error('❌ API Error:', errorData);
+        
         // If token is invalid, redirect to login
         if (res.status === 401) {
           if (typeof window !== 'undefined') {
@@ -148,7 +166,7 @@ function EditEmployeeContent() {
           window.location.href = '/login';
           return;
         }
-        setError(errorData.error || errorData.message || 'Failed to load employee data');
+        setError(errorData.error || errorData.message || `Failed to load employee data (${res.status})`);
         setLoading(false);
         return;
       }
@@ -164,7 +182,34 @@ function EditEmployeeContent() {
           setFormData(employeeData);
           setStations(stationsData);
           
+          // Initialize selected stations from fs_id
+          let fsIdArray = [];
+          if (employeeData.fs_id) {
+            if (Array.isArray(employeeData.fs_id)) {
+              fsIdArray = employeeData.fs_id.map(id => parseInt(id)).filter(id => !isNaN(id) && id > 0);
+            } else if (typeof employeeData.fs_id === 'string' && employeeData.fs_id.trim() !== '') {
+              // Split by comma and convert to integers
+              // Remove any extra spaces and filter out empty values
+              fsIdArray = employeeData.fs_id
+                .split(',')
+                .map(id => id.trim())
+                .filter(id => id !== '')
+                .map(id => parseInt(id))
+                .filter(id => !isNaN(id) && id > 0);
+            } else if (typeof employeeData.fs_id === 'number' && employeeData.fs_id > 0) {
+              fsIdArray = [parseInt(employeeData.fs_id)];
+            }
+          }
+          console.log('🔍 Loading employee stations:', { 
+            fs_id: employeeData.fs_id, 
+            type: typeof employeeData.fs_id,
+            parsed: fsIdArray,
+            count: fsIdArray.length 
+          });
+          setSelectedStations(fsIdArray);
+          
           // Set permissions if returned - merge with existing modules list
+          console.log('🔍 Loading employee permissions:', permissionsData);
           if (permissionsData && Object.keys(permissionsData).length > 0) {
             setPermissions(prev => {
               const updated = { ...prev };
@@ -179,6 +224,16 @@ function EditEmployeeContent() {
               });
               return updated;
             });
+          } else {
+            // If no permissions found, reset all to false
+            console.log('⚠️ No permissions found for employee, resetting all to false');
+            setPermissions(prev => {
+              const reset = {};
+              Object.keys(prev).forEach(module => {
+                reset[module] = { can_view: false, can_edit: false, can_create: false };
+              });
+              return reset;
+            });
           }
           setError(null);
         } else {
@@ -192,12 +247,27 @@ function EditEmployeeContent() {
         setError(errorMsg);
       }
     } catch (err) {
-      console.error("Fetch error:", err);
-      setError('Network error. Please try again.');
+      console.error("❌ Fetch error:", err);
+      console.error("Error details:", {
+        message: err.message,
+        stack: err.stack,
+        name: err.name
+      });
+      setError(`Network error: ${err.message || 'Please check if server is running and try again.'}`);
     } finally {
       setLoading(false);
     }
   }
+
+  const handleStationToggle = (stationId) => {
+    setSelectedStations(prev => {
+      if (prev.includes(stationId)) {
+        return prev.filter(id => id !== stationId);
+      } else {
+        return [...prev, stationId];
+      }
+    });
+  };
 
   const handlePermissionChange = (module, perm) => {
     setPermissions(prev => ({
@@ -222,6 +292,28 @@ function EditEmployeeContent() {
     
     // Add current employee data for comparison
     fd.append('current_data', JSON.stringify(formData));
+    
+    // Add station assignments (admin only) - send as array like in create page
+    if (isAdmin) {
+      // Remove any existing fs_id from form data
+      fd.delete('fs_id');
+      fd.delete('fs_id[]');
+      
+      // Always send fs_id[] array, even if empty (to allow removing all stations)
+      console.log('🔍 EDIT - Sending stations to backend:', selectedStations, 'Count:', selectedStations.length);
+      
+      if (selectedStations.length > 0) {
+        // Add selected stations as array
+        selectedStations.forEach(stationId => {
+          fd.append('fs_id[]', String(stationId));
+        });
+      } else {
+        // Send empty marker to indicate we want to clear all stations
+        // Backend will see this and set fs_id to empty string
+        fd.append('fs_id[]', ''); // Empty value indicates clear all
+        console.log('⚠️ EDIT - No stations selected, sending empty marker to clear fs_id');
+      }
+    }
     
     // Add permissions if admin (all modules)
     if (isAdmin) {
@@ -443,35 +535,60 @@ function EditEmployeeContent() {
                 {/* Stations - Only admin can assign */}
                 {isAdmin && stations.length > 0 && (
                   <div className="md:col-span-2">
-                    <label className="text-sm font-semibold text-gray-600 block mb-3">Assigned Filling Stations</label>
+                    <label className="text-sm font-semibold text-gray-600 block mb-3">
+                      Assigned Filling Stations 
+                      <span className="ml-2 text-xs text-gray-500 font-normal">
+                        ({selectedStations.length} of {stations.length} selected)
+                      </span>
+                    </label>
                     <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 bg-gray-50 p-4 rounded-xl border border-dashed border-gray-300 max-h-60 overflow-y-auto">
                       {stations.map(station => {
-                        let fsIdArray = [];
-                        if (formData.fs_id) {
-                          if (Array.isArray(formData.fs_id)) {
-                            fsIdArray = formData.fs_id;
-                          } else if (typeof formData.fs_id === 'string') {
-                            fsIdArray = formData.fs_id.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
-                          } else {
-                            fsIdArray = [parseInt(formData.fs_id)];
-                          }
-                        }
-                        const isChecked = fsIdArray.includes(parseInt(station.id));
+                        const stationId = parseInt(station.id);
+                        const isChecked = selectedStations.includes(stationId);
                         
                         return (
-                          <label key={station.id} className="flex items-center space-x-3 p-2 bg-white rounded-md shadow-sm cursor-pointer hover:bg-blue-50 transition">
-                            <input 
-                              type="checkbox" 
-                              name="fs_id" 
-                              value={station.id}
-                              defaultChecked={isChecked}
-                              className="w-4 h-4 text-blue-600 rounded" 
-                            />
-                            <span className="text-sm text-gray-700 font-medium">{station.station_name}</span>
+                          <label 
+                            key={station.id} 
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
+                              isChecked
+                                ? "bg-orange-50 border-2 border-orange-400 shadow-md"
+                                : "hover:bg-gray-50 border border-gray-200 bg-white"
+                            }`}
+                          >
+                            <div className="relative">
+                              <input 
+                                type="checkbox" 
+                                checked={isChecked}
+                                onChange={() => handleStationToggle(stationId)}
+                                className="sr-only"
+                              />
+                              <div className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
+                                isChecked
+                                  ? "bg-orange-600 border-orange-600"
+                                  : "border-gray-300 bg-white"
+                              }`}>
+                                {isChecked && (
+                                  <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            </div>
+                            <span className={`flex-1 font-medium ${
+                              isChecked ? "text-orange-700" : "text-gray-700"
+                            }`}>
+                              {station.station_name}
+                              {isChecked && <span className="ml-2 text-xs text-orange-600">✓ Active</span>}
+                            </span>
                           </label>
                         );
                       })}
                     </div>
+                    {selectedStations.length === 0 && (
+                      <p className="mt-2 text-sm text-amber-600 italic">
+                        ⚠️ No stations selected. Employee will have no station assignments.
+                      </p>
+                    )}
                   </div>
                 )}
 

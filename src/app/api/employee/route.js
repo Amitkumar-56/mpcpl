@@ -78,7 +78,11 @@ export async function POST(req) {
     let fs_id = '';
     if (isAdmin) {
       const fsIds = formData.getAll('fs_id[]');
-      fs_id = fsIds.length > 0 ? fsIds.join(',') : '';
+      
+      if (fsIds && fsIds.length > 0) {
+        // Simple: join all IDs with comma
+        fs_id = fsIds.filter(id => id && id !== '').join(',');
+      }
     }
 
     // Hash password
@@ -109,7 +113,7 @@ export async function POST(req) {
     // Begin transaction
     await conn.beginTransaction();
 
-    // Insert employee
+    // Insert employee - Simple and direct
     const [result] = await conn.execute(
       `INSERT INTO employee_profile 
       (emp_code, email, password, role, salary, name, address, city, region, country,
@@ -125,12 +129,16 @@ export async function POST(req) {
 
     // Save permissions - BOTH employee_id AND role
     const perms = isAdmin ? formData.get('permissions') : null;
+    console.log('🔍 CREATE Employee - Permissions received:', perms ? 'Yes' : 'No', isAdmin ? '(Admin)' : '(Not Admin)');
+    
     if (perms) {
       let permissionsObj = {};
       try {
         permissionsObj = JSON.parse(perms);
+        console.log('🔍 CREATE Employee - Parsed permissions:', Object.keys(permissionsObj).length, 'modules');
       } catch (e) {
-        console.error('Invalid permissions JSON', e);
+        console.error('❌ Invalid permissions JSON', e);
+        permissionsObj = {};
       }
 
       // First, delete any existing permissions for this employee
@@ -139,10 +147,16 @@ export async function POST(req) {
         [employeeId]
       );
 
-      // Insert new permissions
+      // Insert new permissions - Insert ALL modules, even if all permissions are false
+      let insertedCount = 0;
+      let errorCount = 0;
+      
       for (let moduleName in permissionsObj) {
-        const { can_view, can_edit, can_create } = permissionsObj[moduleName];
-        // Check if can_create column exists, if not use can_delete as fallback
+        const modulePerms = permissionsObj[moduleName];
+        const can_view = modulePerms.can_view === true || modulePerms.can_view === 1 || modulePerms.can_view === '1' ? 1 : 0;
+        const can_edit = modulePerms.can_edit === true || modulePerms.can_edit === 1 || modulePerms.can_edit === '1' ? 1 : 0;
+        const can_create = modulePerms.can_create === true || modulePerms.can_create === 1 || modulePerms.can_create === '1' ? 1 : 0;
+        
         try {
           await conn.execute(
             `INSERT INTO role_permissions 
@@ -152,32 +166,41 @@ export async function POST(req) {
               employeeId, 
               role,
               moduleName, 
-              can_view ? 1 : 0, 
-              can_edit ? 1 : 0, 
-              can_create ? 1 : 0
+              can_view, 
+              can_edit, 
+              can_create
             ]
           );
+          insertedCount++;
         } catch (err) {
+          errorCount++;
+          console.error(`❌ Error inserting permission for ${moduleName}:`, err.message);
           // If can_create column doesn't exist, try with can_delete
           if (err.message.includes('can_create')) {
-            await conn.execute(
-              `INSERT INTO role_permissions 
-                (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
-               VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-              [
-                employeeId, 
-                role,
-                moduleName, 
-                can_view ? 1 : 0, 
-                can_edit ? 1 : 0, 
-                can_create ? 1 : 0
-              ]
-            );
-          } else {
-            throw err;
+            try {
+              await conn.execute(
+                `INSERT INTO role_permissions 
+                  (employee_id, role, module_name, can_view, can_edit, can_delete, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, NOW())`,
+                [
+                  employeeId, 
+                  role,
+                  moduleName, 
+                  can_view, 
+                  can_edit, 
+                  can_create
+                ]
+              );
+              insertedCount++;
+              errorCount--;
+            } catch (err2) {
+              console.error(`❌ Error with can_delete fallback for ${moduleName}:`, err2.message);
+            }
           }
         }
       }
+      
+      console.log(`✅ CREATE Employee - Permissions inserted: ${insertedCount} modules, Errors: ${errorCount}`);
     }
 
     // Create audit log for employee creation

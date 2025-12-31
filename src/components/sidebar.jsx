@@ -173,17 +173,27 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           -ms-overflow-style: none;
           scrollbar-width: none;
         }
+        .sidebar-toggle-fixed {
+          position: fixed !important;
+          top: 20px !important;
+          right: 4.5rem !important;
+          z-index: 60 !important;
+          pointer-events: auto !important;
+          transform: none !important;
+          transition: background-color 0.2s ease !important;
+          left: auto !important;
+        }
       `}</style>
 
-      {/* Mobile Collapse Toggle - Fixed position to prevent refresh issues */}
+      {/* Mobile Toggle Button - Fixed in header, before profile icon */}
       <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="md:hidden fixed top-4 z-50 p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-all duration-300"
-        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-        style={{ 
-          left: isCollapsed ? '4px' : '260px',
-          transition: 'left 0.3s ease-in-out'
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsCollapsed(!isCollapsed);
         }}
+        className="sidebar-toggle-fixed md:hidden p-2 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700"
+        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
       >
         <FaBars className="w-5 h-5" />
       </button>

@@ -196,9 +196,12 @@ export default function CreateUserPage() {
       
       // Add station assignments (admin only)
       if (isAdmin) {
+        console.log('🔍 CREATE - Sending stations to backend:', selectedStations);
         selectedStations.forEach(stationId => {
-          form.append('fs_id[]', stationId);
+          // Ensure stationId is converted to string
+          form.append('fs_id[]', String(stationId));
         });
+        console.log('🔍 CREATE - Total stations being sent:', selectedStations.length);
       }
       
       // Format permissions for backend (admin only)

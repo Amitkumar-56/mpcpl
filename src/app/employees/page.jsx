@@ -341,8 +341,8 @@ export default function EmployeeHistory() {
               <div className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Total Employees</p>
-                    <p className="text-2xl font-bold">{employees.length}</p>
+                    <p className="text-base md:text-sm text-gray-600">Total Employees</p>
+                    <p className="text-3xl md:text-2xl font-bold">{employees.length}</p>
                   </div>
                   <div className="bg-blue-100 p-3 rounded-full">
                     <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -355,8 +355,8 @@ export default function EmployeeHistory() {
               <div className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Active</p>
-                    <p className="text-2xl font-bold text-green-600">
+                    <p className="text-base md:text-sm text-gray-600">Active</p>
+                    <p className="text-3xl md:text-2xl font-bold text-green-600">
                       {employees.filter(e => e.status === 1).length}
                     </p>
                   </div>
@@ -369,8 +369,8 @@ export default function EmployeeHistory() {
               <div className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Inactive</p>
-                    <p className="text-2xl font-bold text-red-600">
+                    <p className="text-base md:text-sm text-gray-600">Inactive</p>
+                    <p className="text-3xl md:text-2xl font-bold text-red-600">
                       {employees.filter(e => e.status === 0).length}
                     </p>
                   </div>
@@ -383,8 +383,8 @@ export default function EmployeeHistory() {
               <div className="bg-white border rounded-lg p-4 shadow-sm">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Admin Users</p>
-                    <p className="text-2xl font-bold text-purple-600">
+                    <p className="text-base md:text-sm text-gray-600">Admin Users</p>
+                    <p className="text-3xl md:text-2xl font-bold text-purple-600">
                       {employees.filter(e => e.role === 5).length}
                     </p>
                   </div>
@@ -433,50 +433,48 @@ export default function EmployeeHistory() {
                   )}
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">#</th>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Employee Details</th>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Role</th>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Salary</th>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Status</th>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Created</th>
-                        <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {employees.map((emp, idx) => (
-                        <tr key={emp.id} className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
-                          <td className="p-3 border-b">
-                            <div className="text-sm text-gray-900">{idx + 1}</div>
-                          </td>
-                          <td className="p-3 border-b">
-                            <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
-                                {emp.picture && emp.picture !== 'default.png' ? (
-                                  <img 
-                                    src={`/uploads/profiles/${emp.picture}`} 
-                                    alt={emp.name}
-                                    className="h-10 w-10 rounded-full object-cover"
-                                  />
-                                ) : (
-                                  <span className="text-blue-600 font-semibold">
-                                    {emp.name?.charAt(0).toUpperCase() || 'U'}
-                                  </span>
-                                )}
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900">{emp.name}</div>
-                                <div className="text-sm text-gray-600">{emp.email}</div>
-                                <div className="text-xs text-gray-500">Code: {emp.emp_code || 'N/A'}</div>
-                              </div>
+                <>
+                  {/* Mobile Card View */}
+                  <div className="md:hidden space-y-4">
+                    {employees.map((emp, idx) => (
+                      <div key={emp.id} className={`bg-white border rounded-lg shadow-sm p-4 ${emp.status === 0 ? 'bg-red-50 border-red-200' : ''}`}>
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex items-center space-x-3 flex-1">
+                            <div className="flex-shrink-0 h-12 w-12 bg-blue-100 rounded-full flex items-center justify-center">
+                              {emp.picture && emp.picture !== 'default.png' ? (
+                                <img 
+                                  src={`/uploads/profiles/${emp.picture}`} 
+                                  alt={emp.name}
+                                  className="h-12 w-12 rounded-full object-cover"
+                                />
+                              ) : (
+                                <span className="text-blue-600 font-semibold text-lg">
+                                  {emp.name?.charAt(0).toUpperCase() || 'U'}
+                                </span>
+                              )}
                             </div>
-                          </td>
-                          <td className="p-3 border-b">
+                            <div className="flex-1 min-w-0">
+                              <div className="font-semibold text-lg text-gray-900 truncate">{emp.name}</div>
+                              <div className="text-base text-gray-600 truncate">{emp.email}</div>
+                              <div className="text-sm text-gray-500">Code: {emp.emp_code || 'N/A'}</div>
+                            </div>
+                          </div>
+                          <div className="flex-shrink-0">
+                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                              emp.status === 1 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-red-100 text-red-800'
+                            }`}>
+                              {emp.status === 1 ? 'Active' : 'Inactive'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Role</div>
                             <div className="flex flex-col">
-                              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                              <span className={`px-2 py-1 rounded text-sm font-medium inline-block w-fit ${
                                 emp.role === 5 
                                   ? 'bg-purple-100 text-purple-800'
                                   : emp.role === 3 || emp.role === 2 || emp.role === 4
@@ -489,95 +487,231 @@ export default function EmployeeHistory() {
                                 <span className="text-xs text-gray-500 mt-1">{emp.role_name}</span>
                               )}
                             </div>
-                          </td>
-                          <td className="p-3 border-b">
-                            <div className="text-gray-900">₹{emp.salary?.toLocaleString('en-IN') || '0'}</div>
-                          </td>
-                          <td className="p-3 border-b">
-                            <div className="flex items-center">
-                              <span className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                emp.status === 1 
-                                  ? 'bg-green-100 text-green-800' 
-                                  : 'bg-red-100 text-red-800'
-                              }`}>
-                                {emp.status === 1 ? 'Active' : 'Inactive'}
-                              </span>
-                            </div>
-                          </td>
-                          <td className="p-3 border-b">
-                            <div className="text-sm text-gray-600">
-                              {formatDate(emp.created_at)}
-                            </div>
-                          </td>
-                          <td className="p-3 border-b">
-                            <div className="flex items-center space-x-2">
-                              {/* View Button */}
-                              {permissions.can_view && (
-                                <button
-                                  onClick={() => router.push(`/employees/view?id=${emp.id}`)}
-                                  className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
-                                  title="View Details"
-                                >
-                                  <FaEye className="w-4 h-4" />
-                                </button>
-                              )}
-                              
-                              {/* Edit Button */}
-                              {permissions.can_edit && (
-                                <button
-                                  onClick={() => router.push(`/employees/edit?id=${emp.id}`)}
-                                  className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
-                                  title="Edit Employee"
-                                >
-                                  <FaEdit className="w-4 h-4" />
-                                </button>
-                              )}
-                              
-                              {/* Password Change Button */}
-                              {(permissions.can_edit || isAdmin) && (
-                                <button
-                                  onClick={() => handlePasswordChange(emp.id)}
-                                  className="p-2 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors"
-                                  title="Change Password"
-                                >
-                                  <FaKey className="w-4 h-4" />
-                                </button>
-                              )}
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Salary</div>
+                            <div className="text-base font-semibold text-gray-900">₹{emp.salary?.toLocaleString('en-IN') || '0'}</div>
+                          </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <div className="text-xs text-gray-500 mb-1">Created</div>
+                          <div className="text-sm text-gray-600">{formatDate(emp.created_at)}</div>
+                        </div>
+                        
+                        <div className="flex items-center justify-between pt-3 border-t">
+                          <div className="flex items-center space-x-2">
+                            {/* View Button */}
+                            {permissions.can_view && (
+                              <button
+                                onClick={() => router.push(`/employees/view?id=${emp.id}`)}
+                                className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                title="View Details"
+                              >
+                                <FaEye className="w-5 h-5" />
+                              </button>
+                            )}
+                            
+                            {/* Edit Button */}
+                            {permissions.can_edit && (
+                              <button
+                                onClick={() => router.push(`/employees/edit?id=${emp.id}`)}
+                                className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                title="Edit Employee"
+                              >
+                                <FaEdit className="w-5 h-5" />
+                              </button>
+                            )}
+                            
+                            {/* Password Change Button */}
+                            {(permissions.can_edit || isAdmin) && (
+                              <button
+                                onClick={() => handlePasswordChange(emp.id)}
+                                className="p-2 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors"
+                                title="Change Password"
+                              >
+                                <FaKey className="w-5 h-5" />
+                              </button>
+                            )}
 
-                              {/* Status Toggle Button */}
-                              {(permissions.can_edit || isAdmin) && (
-                                <button
-                                  onClick={() => handleStatusToggle(emp.id, emp.status)}
-                                  disabled={updatingStatus[emp.id]}
-                                  className={`p-2 rounded-lg transition-colors ${
-                                    emp.status === 1
-                                      ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
-                                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                                  }`}
-                                  title={emp.status === 1 ? 'Deactivate' : 'Activate'}
-                                >
-                                  {updatingStatus[emp.id] ? (
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
-                                  ) : emp.status === 1 ? (
-                                    <FaToggleOn className="w-4 h-4" />
-                                  ) : (
-                                    <FaToggleOff className="w-4 h-4" />
-                                  )}
-                                </button>
-                              )}
-                              
-                              
-                              {/* No Actions Message */}
-                              {!permissions.can_view && !permissions.can_edit && (
-                                <span className="text-sm text-gray-400">No actions available</span>
-                              )}
-                            </div>
-                          </td>
+                            {/* Status Toggle Button */}
+                            {(permissions.can_edit || isAdmin) && (
+                              <button
+                                onClick={() => handleStatusToggle(emp.id, emp.status)}
+                                disabled={updatingStatus[emp.id]}
+                                className={`p-2 rounded-lg transition-colors ${
+                                  emp.status === 1
+                                    ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                }`}
+                                title={emp.status === 1 ? 'Deactivate' : 'Activate'}
+                              >
+                                {updatingStatus[emp.id] ? (
+                                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-current"></div>
+                                ) : emp.status === 1 ? (
+                                  <FaToggleOn className="w-5 h-5" />
+                                ) : (
+                                  <FaToggleOff className="w-5 h-5" />
+                                )}
+                              </button>
+                            )}
+                          </div>
+                          
+                          {!permissions.can_view && !permissions.can_edit && (
+                            <span className="text-sm text-gray-400">No actions</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  {/* Desktop Table View */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">#</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Employee Details</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Role</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Salary</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Status</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Created</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Actions</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {employees.map((emp, idx) => (
+                          <tr key={emp.id} className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
+                            <td className="p-3 border-b">
+                              <div className="text-sm text-gray-900">{idx + 1}</div>
+                            </td>
+                            <td className="p-3 border-b">
+                              <div className="flex items-center">
+                                <div className="flex-shrink-0 h-10 w-10 bg-blue-100 rounded-full flex items-center justify-center mr-3">
+                                  {emp.picture && emp.picture !== 'default.png' ? (
+                                    <img 
+                                      src={`/uploads/profiles/${emp.picture}`} 
+                                      alt={emp.name}
+                                      className="h-10 w-10 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <span className="text-blue-600 font-semibold text-sm">
+                                      {emp.name?.charAt(0).toUpperCase() || 'U'}
+                                    </span>
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="font-medium text-sm text-gray-900">{emp.name}</div>
+                                  <div className="text-sm text-gray-600">{emp.email}</div>
+                                  <div className="text-xs text-gray-500">Code: {emp.emp_code || 'N/A'}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="p-3 border-b">
+                              <div className="flex flex-col">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                  emp.role === 5 
+                                    ? 'bg-purple-100 text-purple-800'
+                                    : emp.role === 3 || emp.role === 2 || emp.role === 4
+                                    ? 'bg-green-100 text-green-800'
+                                    : 'bg-gray-100 text-gray-800'
+                                }`}>
+                                  {roleNames[emp.role] || `Role ${emp.role}`}
+                                </span>
+                                {emp.role_name && (
+                                  <span className="text-xs text-gray-500 mt-1">{emp.role_name}</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 border-b">
+                              <div className="text-sm text-gray-900">₹{emp.salary?.toLocaleString('en-IN') || '0'}</div>
+                            </td>
+                            <td className="p-3 border-b">
+                              <div className="flex items-center">
+                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                  emp.status === 1 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-red-100 text-red-800'
+                                }`}>
+                                  {emp.status === 1 ? 'Active' : 'Inactive'}
+                                </span>
+                              </div>
+                            </td>
+                            <td className="p-3 border-b">
+                              <div className="text-sm text-gray-600">
+                                {formatDate(emp.created_at)}
+                              </div>
+                            </td>
+                            <td className="p-3 border-b">
+                              <div className="flex items-center space-x-2">
+                                {/* View Button */}
+                                {permissions.can_view && (
+                                  <button
+                                    onClick={() => router.push(`/employees/view?id=${emp.id}`)}
+                                    className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition-colors"
+                                    title="View Details"
+                                  >
+                                    <FaEye className="w-4 h-4" />
+                                  </button>
+                                )}
+                                
+                                {/* Edit Button */}
+                                {permissions.can_edit && (
+                                  <button
+                                    onClick={() => router.push(`/employees/edit?id=${emp.id}`)}
+                                    className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition-colors"
+                                    title="Edit Employee"
+                                  >
+                                    <FaEdit className="w-4 h-4" />
+                                  </button>
+                                )}
+                                
+                                {/* Password Change Button */}
+                                {(permissions.can_edit || isAdmin) && (
+                                  <button
+                                    onClick={() => handlePasswordChange(emp.id)}
+                                    className="p-2 bg-purple-100 text-purple-600 rounded-lg hover:bg-purple-200 transition-colors"
+                                    title="Change Password"
+                                  >
+                                    <FaKey className="w-4 h-4" />
+                                  </button>
+                                )}
+
+                                {/* Status Toggle Button */}
+                                {(permissions.can_edit || isAdmin) && (
+                                  <button
+                                    onClick={() => handleStatusToggle(emp.id, emp.status)}
+                                    disabled={updatingStatus[emp.id]}
+                                    className={`p-2 rounded-lg transition-colors ${
+                                      emp.status === 1
+                                        ? 'bg-yellow-100 text-yellow-600 hover:bg-yellow-200'
+                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                    }`}
+                                    title={emp.status === 1 ? 'Deactivate' : 'Activate'}
+                                  >
+                                    {updatingStatus[emp.id] ? (
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+                                    ) : emp.status === 1 ? (
+                                      <FaToggleOn className="w-4 h-4" />
+                                    ) : (
+                                      <FaToggleOff className="w-4 h-4" />
+                                    )}
+                                  </button>
+                                )}
+                                
+                                
+                                {/* No Actions Message */}
+                                {!permissions.can_view && !permissions.can_edit && (
+                                  <span className="text-sm text-gray-400">No actions available</span>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
               )}
               
               {/* Table Footer */}

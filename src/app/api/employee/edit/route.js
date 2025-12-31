@@ -34,6 +34,25 @@ export async function GET(request) {
       );
     }
 
+    const employee = employeeResult[0];
+    
+    // Ensure fs_id is properly formatted (handle null, empty string, or comma-separated values)
+    if (employee.fs_id === null || employee.fs_id === undefined || employee.fs_id === '') {
+      employee.fs_id = '';
+    } else {
+      // Convert to string, trim, and remove any extra spaces
+      let fsIdStr = String(employee.fs_id).trim();
+      // Remove any extra spaces around commas (e.g., "1, 2, 3" -> "1,2,3")
+      fsIdStr = fsIdStr.replace(/\s*,\s*/g, ',');
+      employee.fs_id = fsIdStr;
+    }
+    
+    console.log('🔍 GET Employee - fs_id from DB:', { 
+      raw: employeeResult[0].fs_id, 
+      formatted: employee.fs_id,
+      type: typeof employee.fs_id 
+    });
+
     // Get permissions for this employee
     let permissionsQuery = `
       SELECT module_name, can_view, can_edit, can_create
@@ -52,14 +71,14 @@ export async function GET(request) {
       };
     });
 
-    // Get stations for this employee
+    // Get all stations
     const stationsQuery = `SELECT * FROM filling_stations ORDER BY station_name`;
     const stations = await executeQuery(stationsQuery);
 
     return NextResponse.json({
       success: true,
       data: {
-        employee: employeeResult[0],
+        employee: employee,
         permissions: permissionsObj,
         stations: stations || []
       }
@@ -83,8 +102,22 @@ export async function PUT(request) {
     const contentType = request.headers.get('content-type') || '';
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
+      
+      // Handle fs_id[] array separately (multiple checkboxes)
+      const fsIdArray = formData.getAll('fs_id[]');
+      console.log('🔍 EDIT Employee - Received fs_id[] from form:', fsIdArray, 'Count:', fsIdArray.length);
+      
+      // Always process fs_id[] if it exists (even if empty array)
+      // Empty array or array with empty string means clear all stations
+      // This allows removing all stations by unchecking them
+      updateData.fs_id = fsIdArray;
+      
       // Convert FormData to object
       for (const [key, value] of formData.entries()) {
+        // Skip fs_id[] as we already handled it above
+        if (key === 'fs_id[]') {
+          continue;
+        }
         if (key === 'permissions') {
           updateData[key] = value; // Keep as string, will parse later
         } else if (key === 'picture' && value instanceof File) {
@@ -253,22 +286,47 @@ export async function PUT(request) {
       roleForPermissions = updateData.role;
     }
 
-    // Handle fs_id (checkboxes)
+    // Handle fs_id (checkboxes) - ALWAYS process if provided (even if empty array)
     if (updateData.fs_id !== undefined) {
       // If it's an array (from checkboxes), join with comma
       let fsIdValue = updateData.fs_id;
       if (Array.isArray(fsIdValue)) {
-        fsIdValue = fsIdValue.filter(id => id).join(',');
+        // Filter out empty values and convert to strings for consistency
+        const validIds = fsIdValue
+          .filter(id => id && id !== '' && id !== 'undefined' && id !== 'null')
+          .map(id => String(id).trim());
+        fsIdValue = validIds.length > 0 ? validIds.join(',') : '';
+      } else if (typeof fsIdValue === 'string') {
+        fsIdValue = fsIdValue.trim();
+      } else {
+        fsIdValue = String(fsIdValue || '').trim();
       }
       
-      const oldFsId = oldEmployee.fs_id || '';
+      const oldFsId = (oldEmployee.fs_id || '').toString().trim();
       const newFsId = fsIdValue || '';
       
-      if (oldFsId !== newFsId) {
-        updateFields.push('fs_id = ?');
-        updateValues.push(newFsId);
-        changes.fs_id = { old: oldFsId, new: newFsId };
-      }
+      console.log('🔍 EDIT Employee - Updating fs_id:', { 
+        old: oldFsId, 
+        new: newFsId, 
+        wasArray: Array.isArray(updateData.fs_id),
+        oldCount: oldFsId ? oldFsId.split(',').length : 0,
+        newCount: newFsId ? newFsId.split(',').length : 0
+      });
+      
+      // Always update fs_id (even if same, to ensure consistency)
+      // This allows removing stations by unchecking them
+      // Ensure it's a string, not a number
+      const fs_id_string = String(newFsId || '');
+      console.log('🔍 EDIT Employee - Final fs_id string to update:', {
+        value: fs_id_string,
+        type: typeof fs_id_string,
+        length: fs_id_string.length,
+        contains_comma: fs_id_string.includes(',')
+      });
+      
+      updateFields.push('fs_id = ?');
+      updateValues.push(fs_id_string); // Explicitly send as string
+      changes.fs_id = { old: oldFsId, new: fs_id_string };
       delete updateData.fs_id;
     }
 
@@ -340,9 +398,40 @@ export async function PUT(request) {
       if (hasFieldsToUpdate) {
         updateValues.push(employeeId);
         // Update employee
+        // Note: fs_id column must be VARCHAR/TEXT type to store comma-separated values like "2,3,4,5,6,7"
+        // If column is INT, only first number will be stored
         const updateQuery = `UPDATE employee_profile SET ${updateFields.join(', ')} WHERE id = ?`;
+        
+        // Find fs_id value in updateValues for logging
+        const fsIdIndex = updateFields.findIndex(field => field.includes('fs_id'));
+        const fsIdValue = fsIdIndex >= 0 ? updateValues[fsIdIndex] : null;
+        
+        console.log('🔍 EDIT Employee - Executing update query:', {
+          query: updateQuery.substring(0, 200),
+          fs_id_value: fsIdValue,
+          fs_id_type: typeof fsIdValue,
+          fs_id_length: String(fsIdValue || '').length,
+          total_fields: updateFields.length
+        });
+        
         await executeQuery(updateQuery, updateValues);
         console.log('✅ Employee profile updated');
+        
+        // Verify fs_id was updated correctly
+        if (fsIdIndex >= 0) {
+          const [verify] = await executeQuery(
+            'SELECT fs_id, CAST(fs_id AS CHAR) as fs_id_string FROM employee_profile WHERE id = ?',
+            [employeeId]
+          );
+          console.log('✅ EDIT Employee - fs_id after update:', {
+            raw: verify[0]?.fs_id,
+            as_string: verify[0]?.fs_id_string,
+            type: typeof verify[0]?.fs_id,
+            length: String(verify[0]?.fs_id || '').length,
+            expected: fsIdValue,
+            match: String(verify[0]?.fs_id || '') === String(fsIdValue || '')
+          });
+        }
       }
 
       // Handle permissions if provided
