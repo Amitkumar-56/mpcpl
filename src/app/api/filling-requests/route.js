@@ -2,6 +2,7 @@ import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -17,6 +18,28 @@ export async function GET(request) {
     const stationId = searchParams.get('station_id') || '';
 
     console.log('📊 Filters:', { page, recordsPerPage, status, search, startDate, endDate, stationId });
+
+    // ✅ Get current user info for staff/incharge filtering
+    let currentUser = null;
+    let userRole = null;
+    let userFsId = null;
+    try {
+      currentUser = await getCurrentUser();
+      if (currentUser) {
+        userRole = currentUser.role;
+        // Get fs_id from employee_profile
+        const userResult = await executeQuery(
+          'SELECT fs_id FROM employee_profile WHERE id = ?',
+          [currentUser.userId]
+        );
+        if (userResult.length > 0 && userResult[0].fs_id) {
+          userFsId = userResult[0].fs_id;
+        }
+        console.log('✅ User info:', { userId: currentUser.userId, role: userRole, fs_id: userFsId });
+      }
+    } catch (err) {
+      console.log('⚠️ Could not get user info:', err);
+    }
 
     // ✅ FIX: Ensure offset and recordsPerPage are valid integers
     const safePage = parseInt(page) || 1;
@@ -140,12 +163,33 @@ export async function GET(request) {
     const params = [];
     const countParams = [];
 
-    if (status) {
+    // ✅ For staff (role 1) or incharge (role 2): Filter by assigned station and only show pending
+    // ✅ Team Leader (role 3) and above: Multi-branch access (no station filter)
+    if ((userRole === 1 || userRole === 2) && userFsId) {
+      // Parse fs_id (can be comma-separated like "1,2,3")
+      const fsIdArray = String(userFsId).split(',').map(id => id.trim()).filter(id => id && id !== '');
+      if (fsIdArray.length > 0) {
+        // Use FIND_IN_SET or IN clause for multiple stations
+        const placeholders = fsIdArray.map(() => '?').join(',');
+        query += ` AND (fr.fs_id IN (${placeholders}))`;
+        countQuery += ` AND (fr.fs_id IN (${placeholders}))`;
+        params.push(...fsIdArray.map(id => parseInt(id)));
+        countParams.push(...fsIdArray.map(id => parseInt(id)));
+      }
+      
+      // ✅ Only show pending requests for staff/incharge (ignore status filter from URL)
+      query += ' AND fr.status = ?';
+      countQuery += ' AND fr.status = ?';
+      params.push('Pending');
+      countParams.push('Pending');
+    } else if (status) {
+      // ✅ Team Leader (role 3) and above: Apply status filter from URL if provided
       query += ' AND fr.status = ?';
       countQuery += ' AND fr.status = ?';
       params.push(status);
       countParams.push(status);
     }
+    // ✅ Team Leader (role 3) and above: Can see all stations and all statuses (no filter if no status in URL)
 
     if (stationId) {
       query += ' AND fr.fs_id = ?';

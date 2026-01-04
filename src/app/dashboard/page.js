@@ -72,6 +72,7 @@ export default function DashboardPage() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [error, setError] = useState(null);
+  const [balance, setBalance] = useState(0);
 
   // Real-time Chat States
   const [socket, setSocket] = useState(null);
@@ -151,6 +152,14 @@ export default function DashboardPage() {
   // Fast dashboard data fetch
   const fetchDashboardData = useCallback(async () => {
     try {
+      const userRole = sessionUser?.role ? Number(sessionUser.role) : null;
+      
+      // ✅ For staff/incharge: Don't fetch anything (blank dashboard)
+      if (userRole === 1 || userRole === 2) {
+        return;
+      }
+      
+      // For other roles: Fetch full dashboard data
       const result = await apiRequest("/api/dashboard");
       if (result.success) {
         setStats(result.data);
@@ -163,7 +172,7 @@ export default function DashboardPage() {
       setError("Failed to fetch dashboard data");
       console.error("Dashboard data error:", err);
     }
-  }, [apiRequest]);
+  }, [apiRequest, sessionUser]);
 
   // Quick refresh
   const handleRefresh = async () => {
@@ -263,10 +272,16 @@ export default function DashboardPage() {
     }
   }, [sessionUser]);
 
-  // SINGLE Socket Connection Setup
+  // SINGLE Socket Connection Setup (Skip for Staff/Incharge)
   useEffect(() => {
     if (!sessionUser?.id) {
       console.log('Dashboard: No session user, skipping socket setup');
+      return;
+    }
+    
+    // ✅ Skip socket setup for Staff/Incharge (role 1 or 2)
+    if (sessionUser?.role === 1 || sessionUser?.role === 2) {
+      console.log('Dashboard: Skipping socket setup for Staff/Incharge');
       return;
     }
 
@@ -500,8 +515,8 @@ export default function DashboardPage() {
         </div>
 
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          {/* Error Alert */}
-          {error && (
+          {/* Error Alert (Hidden for Staff/Incharge) */}
+          {error && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
               <div className="flex items-center">
                 <BiError className="text-red-500 mr-2" />
@@ -513,21 +528,23 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Chat Notification - Top Right */}
-          <div className="fixed top-20 right-4 z-50">
-            <button
-              onClick={() => setShowChat(!showChat)}
-              className="bg-green-500 text-white rounded-full p-3 shadow-lg hover:bg-green-600 transition-all relative"
-              title="Open Chat"
-            >
-              <BiMessageRounded className="w-6 h-6" />
-              {notifCount > 0 && (
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse">
-                  {notifCount > 9 ? '9+' : notifCount}
-                </span>
-              )}
-            </button>
-          </div>
+          {/* Chat Notification - Top Right (Hidden for Staff/Incharge) */}
+          {!(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+            <div className="fixed top-20 right-4 z-50">
+              <button
+                onClick={() => setShowChat(!showChat)}
+                className="bg-green-500 text-white rounded-full p-3 shadow-lg hover:bg-green-600 transition-all relative"
+                title="Open Chat"
+              >
+                <BiMessageRounded className="w-6 h-6" />
+                {notifCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse">
+                    {notifCount > 9 ? '9+' : notifCount}
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
 
           {/* Welcome Section */}
           <div className="mb-6">
@@ -537,9 +554,11 @@ export default function DashboardPage() {
                   Welcome, {sessionUser?.name}!
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm">
-                  Real-time outstanding balances overview
+                  {((sessionUser?.role === 1 || sessionUser?.role === 2)) 
+                    ? "Dashboard" 
+                    : "Real-time outstanding balances overview"}
                 </p>
-                {lastUpdated && (
+                {lastUpdated && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
                   <p className="text-gray-500 text-xs mt-1">
                     Updated: {lastUpdated.toLocaleTimeString('en-IN')}
                     {socketConnected && (
@@ -549,167 +568,177 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              <div className="flex items-center space-x-2 mt-3 lg:mt-0">
-                <button
-                  onClick={handleRefresh}
-                  disabled={refreshing}
-                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
-                  title="Refresh"
-                >
-                  <BiRefresh className={refreshing ? "animate-spin" : ""} />
-                </button>
+              {!(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+                <div className="flex items-center space-x-2 mt-3 lg:mt-0">
+                  <button
+                    onClick={handleRefresh}
+                    disabled={refreshing}
+                    className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                    title="Refresh"
+                  >
+                    <BiRefresh className={refreshing ? "animate-spin" : ""} />
+                  </button>
 
-                <button
-                  onClick={() => setShowDetailedView(!showDetailedView)}
-                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
-                >
-                  {showDetailedView ? <BiHide /> : <BiShow />}
-                </button>
-              </div>
+                  <button
+                    onClick={() => setShowDetailedView(!showDetailedView)}
+                    className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  >
+                    {showDetailedView ? <BiHide /> : <BiShow />}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
-
-          {/* Outstanding Group */}
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Outstandings</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <a 
-                href="/customers/client-history"
-                className="block"
-              >
-                <StatCard
-                  title="Yesterday Outstanding"
-                  amount={stats.clientYesterdayOutstanding}
-                  icon={<BiDollar />}
-                  gradient="from-blue-500 to-blue-600"
-                  showDetails={false}
-                />
-              </a>
-
-              <a 
-                href="/customers/client-history"
-                className="block"
-              >
-                <StatCard
-                  title="Today Outstanding"
-                  amount={stats.clientTodayOutstanding}
-                  icon={<BiChart />}
-                  gradient="from-green-500 to-green-600"
-                  showDetails={false}
-                />
-              </a>
-          </div>
-        </div>
-
-        {/* Stock Group */}
-        {hasStockView && (
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Stock Management</h2>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <a href="/stock-history" className="block">
-                <InfoCard
-                  title="Stock History"
-                  value={stats.totalTransactions || 0}
-                  icon={<BiCalendar />}
-                  color="purple"
-                />
-              </a>
-              <a href="/all-stock" className="block">
-                <InfoCard
-                  title="All Stocks"
-                  value={stats.totalClients || 0}
-                  icon={<BiShoppingBag />}
-                  color="blue"
-                />
-              </a>
-              <a href="/stock-requests" className="block">
-                <InfoCard
-                  title="Stock Requests"
-                  value={stats.pendingPayments || 0}
-                  icon={<BiPackage />}
-                  color="yellow"
-                />
-              </a>
+          {/* ✅ For staff/incharge: Show nothing (blank dashboard with design only) */}
+          {(sessionUser?.role === 1 || sessionUser?.role === 2) ? (
+            <div className="mb-6">
+              {/* Empty dashboard - no content shown for Staff/Incharge */}
             </div>
-          </div>
-        )}
+          ) : (
+            <>
+              {/* Outstanding Group */}
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Outstandings</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <a 
+                    href="/customers/client-history"
+                    className="block"
+                  >
+                    <StatCard
+                      title="Yesterday Outstanding"
+                      amount={stats.clientYesterdayOutstanding}
+                      icon={<BiDollar />}
+                      gradient="from-blue-500 to-blue-600"
+                      showDetails={false}
+                    />
+                  </a>
 
-          {/* Quick Stats */}
-          <div className="mb-6">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-              <a href="/customers" className="block">
-                <InfoCard
-                  title="Total Clients"
-                  value={stats.totalClients}
-                  icon={<BiGroup />}
-                  color="purple"
-                />
-              </a>
-              <a href="/filling-requests" className="block">
-                <InfoCard
-                  title="Transactions"
-                  value={stats.totalTransactions}
-                  icon={<BiShoppingBag />}
-                  color="blue"
-                />
-              </a>
-              <a href="/stock" className="block">
-                <InfoCard
-                  title="Stock Management"
-                  value={stats.totalStockHistory || 0}
-                  icon={<BiPackage />}
-                  color="indigo"
-                />
-              </a>
-              <InfoCard
-                title="Pending"
-                value={stats.pendingPayments}
-                icon={<BiError />}
-                color="yellow"
-              />
-              <InfoCard
-                title="Cleared"
-                value={stats.clearedPayments}
-                icon={<BiCheckCircle />}
-                color="green"
-              />
-            </div>
-          </div>
+                  <a 
+                    href="/customers/client-history"
+                    className="block"
+                  >
+                    <StatCard
+                      title="Today Outstanding"
+                      amount={stats.clientTodayOutstanding}
+                      icon={<BiChart />}
+                      gradient="from-green-500 to-green-600"
+                      showDetails={false}
+                    />
+                  </a>
+                </div>
+              </div>
 
-          {/* Summary Card */}
-          <div className="bg-white rounded-xl shadow-lg p-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">Financial Summary</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Total Outstanding</p>
-                <p className="text-xl font-bold text-gray-900">
-                  {formatIndianRupees(stats.clientTodayOutstanding + stats.clientYesterdayOutstanding)}
-                </p>
+              {/* Stock Group */}
+              {hasStockView && (
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">Stock Management</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                    <a href="/stock-history" className="block">
+                      <InfoCard
+                        title="Stock History"
+                        value={stats.totalTransactions || 0}
+                        icon={<BiCalendar />}
+                        color="purple"
+                      />
+                    </a>
+                    <a href="/all-stock" className="block">
+                      <InfoCard
+                        title="All Stocks"
+                        value={stats.totalClients || 0}
+                        icon={<BiShoppingBag />}
+                        color="blue"
+                      />
+                    </a>
+                    <a href="/stock-requests" className="block">
+                      <InfoCard
+                        title="Stock Requests"
+                        value={stats.pendingPayments || 0}
+                        icon={<BiPackage />}
+                        color="yellow"
+                      />
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              {/* Quick Stats */}
+              <div className="mb-6">
+                <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <a href="/customers" className="block">
+                    <InfoCard
+                      title="Total Clients"
+                      value={stats.totalClients}
+                      icon={<BiGroup />}
+                      color="purple"
+                    />
+                  </a>
+                  <a href="/filling-requests" className="block">
+                    <InfoCard
+                      title="Transactions"
+                      value={stats.totalTransactions}
+                      icon={<BiShoppingBag />}
+                      color="blue"
+                    />
+                  </a>
+                  <a href="/stock" className="block">
+                    <InfoCard
+                      title="Stock Management"
+                      value={stats.totalStockHistory || 0}
+                      icon={<BiPackage />}
+                      color="indigo"
+                    />
+                  </a>
+                  <InfoCard
+                    title="Pending"
+                    value={stats.pendingPayments}
+                    icon={<BiError />}
+                    color="yellow"
+                  />
+                  <InfoCard
+                    title="Cleared"
+                    value={stats.clearedPayments}
+                    icon={<BiCheckCircle />}
+                    color="green"
+                  />
+                </div>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Efficiency</p>
-                <p className="text-xl font-bold text-blue-600">
-                  {stats.collectionEfficiency?.toFixed(1)}%
-                </p>
+
+              {/* Summary Card */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <h2 className="text-lg font-bold text-gray-800 mb-4">Financial Summary</h2>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Total Outstanding</p>
+                    <p className="text-xl font-bold text-gray-900">
+                      {formatIndianRupees(stats.clientTodayOutstanding + stats.clientYesterdayOutstanding)}
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Efficiency</p>
+                    <p className="text-xl font-bold text-blue-600">
+                      {stats.collectionEfficiency?.toFixed(1)}%
+                    </p>
+                  </div>
+                  <div className="text-center p-4 bg-gray-50 rounded-lg">
+                    <p className="text-sm text-gray-600 mb-1">Active</p>
+                    <p className="text-xl font-bold text-green-600">
+                      {stats.totalClients}
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <p className="text-sm text-gray-600 mb-1">Active</p>
-                <p className="text-xl font-bold text-green-600">
-                  {stats.totalClients}
-                </p>
-              </div>
-            </div>
-          </div>
+            </>
+          )}
         </main>
 
         <Footer />
         <PWAInstallBanner />
       </div>
 
-      {/* Chat Widget */}
-      {showChat && (
+      {/* Chat Widget (Hidden for Staff/Incharge) */}
+      {showChat && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
         <ChatWidget
           activeChats={activeChats}
           selectedCustomer={selectedCustomer}

@@ -110,49 +110,147 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     agent_management: "Agent Management", // ✅ FIX: Added missing mapping
   }), []);
 
-  // ✅ FIX: Enhanced permission filtering - only show items with can_view permission
+  // ✅ Role-based menu filtering with specific requirements
   const allowedMenu = useMemo(() => {
     if (!user) return [];
     
-    // ✅ Admin (role 5) gets full access - instant return
-    if (Number(user.role) === 5) {
+    const userRole = Number(user.role);
+    
+    // ✅ Head Operation (role 5) - All Accountant modules + everything
+    if (userRole === 5) {
       return menuItems;
     }
     
-    // ✅ Check if permissions exist - if not, return empty array (no menu items)
+    // ✅ Accountant (role 4) - Multi branch, Create request, Tanker movement (stock), Stock update, NB modules
+    if (userRole === 4) {
+      return menuItems.filter((item) => {
+        // Hide most history items, but keep Tanker History for movement tracking
+        const historyItems = ['history', 'stock_history', 'outstanding_history', 'deepo_history'];
+        if (historyItems.includes(item.module)) {
+          return false;
+        }
+        
+        // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer
+        const allowedModules = [
+          'dashboard', 'filling_requests', 'stock', 'nb_balance', 'nb_expenses', 'nb_stock',
+          'tanker_history', 'stock_transfers', 'loading_stations', 'products'
+        ];
+        return allowedModules.includes(item.module);
+      });
+    }
+    
+    // ✅ Team Leader (role 3) - Multi branch, Purchase request (full), Tanker movement, Attendance (branch team), Customer recharge, Stock update
+    if (userRole === 3) {
+      return menuItems.filter((item) => {
+        // Hide: NB modules, Users, Agent Management (admin only)
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management'];
+        if (hiddenModules.includes(item.module)) {
+          return false;
+        }
+        
+        // Show: Dashboard, Purchase Request (full), Stock, Tanker History, Customers (for recharge), etc.
+        // Filter by permissions if available
+        if (user.permissions && typeof user.permissions === 'object') {
+          const backendModuleName = moduleMapping[item.module];
+          if (backendModuleName) {
+            const modulePermission = user.permissions[backendModuleName];
+            if (modulePermission && typeof modulePermission === 'object') {
+              return modulePermission.can_view === true;
+            }
+          }
+        }
+        return true; // Default show if no permission check
+      });
+    }
+    
+    // ✅ Incharge (role 2) - Single branch, Purchase request (search only), NO history, Attendance (all)
+    if (userRole === 2) {
+      return menuItems.filter((item) => {
+        // Hide ALL history items
+        const historyItems = ['history', 'stock_history', 'outstanding_history', 'tanker_history', 'deepo_history'];
+        if (historyItems.includes(item.module)) {
+          return false;
+        }
+        
+        // Hide: NB modules, Users, Agent Management, Reports, etc.
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management', 'reports'];
+        if (hiddenModules.includes(item.module)) {
+          return false;
+        }
+        
+        // Show: Dashboard, Purchase Request, Stock (optional), Loading Stations
+        const allowedModules = ['dashboard', 'filling_requests', 'stock', 'loading_stations'];
+        if (allowedModules.includes(item.module)) {
+          // Check permissions if available
+          if (user.permissions && typeof user.permissions === 'object') {
+            const backendModuleName = moduleMapping[item.module];
+            if (backendModuleName) {
+              const modulePermission = user.permissions[backendModuleName];
+              if (modulePermission && typeof modulePermission === 'object') {
+                return modulePermission.can_view === true;
+              }
+            }
+          }
+          return true;
+        }
+        return false;
+      });
+    }
+    
+    // ✅ Staff (role 1) - Single branch, Purchase request (search only), Stock (optional), Attendance (all)
+    if (userRole === 1) {
+      return menuItems.filter((item) => {
+        // Hide: History items (except if needed for attendance), NB modules, Users, etc.
+        const historyItems = ['history', 'stock_history', 'outstanding_history', 'tanker_history', 'deepo_history'];
+        if (historyItems.includes(item.module)) {
+          return false;
+        }
+        
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management', 'reports', 'customers', 'employees', 'suppliers', 'transporters'];
+        if (hiddenModules.includes(item.module)) {
+          return false;
+        }
+        
+        // Show: Dashboard, Purchase Request, Stock (optional), Loading Stations
+        const allowedModules = ['dashboard', 'filling_requests', 'stock', 'loading_stations'];
+        if (allowedModules.includes(item.module)) {
+          // Check permissions if available
+          if (user.permissions && typeof user.permissions === 'object') {
+            const backendModuleName = moduleMapping[item.module];
+            if (backendModuleName) {
+              const modulePermission = user.permissions[backendModuleName];
+              if (modulePermission && typeof modulePermission === 'object') {
+                return modulePermission.can_view === true;
+              }
+            }
+          }
+          return true;
+        }
+        return false;
+      });
+    }
+    
+    // ✅ Default: Check permissions for other roles
     if (!user.permissions || typeof user.permissions !== 'object' || Object.keys(user.permissions).length === 0) {
       return [];
     }
     
     // ✅ Filter menu items based on can_view permission
     const filtered = menuItems.filter((item) => {
-      // ✅ Admin-only items - only show to admin
-      if (item.adminOnly && Number(user.role) !== 5) {
+      if (item.adminOnly && userRole !== 5) {
         return false;
       }
       
-      // ✅ Admin gets all items (including adminOnly items)
-      if (Number(user.role) === 5) {
-        return true;
-      }
-      
       const backendModuleName = moduleMapping[item.module];
-      
-      // If module mapping not found, hide the item
       if (!backendModuleName) {
         return false;
       }
       
-      // Check if user has permission for this module
       const modulePermission = user.permissions[backendModuleName];
-      
-      // If no permission record exists, hide the item
       if (!modulePermission || typeof modulePermission !== 'object') {
         return false;
       }
       
-      // ✅ CRITICAL: Only show if can_view is explicitly true (strict check)
-      // This ensures menu items only show when user has view permission
       return modulePermission.can_view === true;
     });
     

@@ -996,61 +996,63 @@ export default function StockRequest() {
                 </div>
               )}
 
-              {/* Quick Stats Section */}
-              <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="border rounded-lg p-4 bg-blue-100 text-blue-800 border-blue-200 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Total Stock</p>
-                        <p className="text-lg font-bold mt-1">
-                          {statsLoading ? '...' : stats.totalStock}
-                        </p>
-                      </div>
-                      <BsBox className="text-2xl opacity-70" />
-                    </div>
-                  </div>
-                  
-                  <Link href="/stock-history" className="block">
-                    <div className="border rounded-lg p-4 bg-indigo-100 text-indigo-800 border-indigo-200 shadow-sm hover:bg-indigo-200 transition-colors cursor-pointer">
+              {/* Quick Stats Section (Hidden for Staff/Incharge) */}
+              {!(user?.role === 1 || user?.role === 2) && (
+                <div className="mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div className="border rounded-lg p-4 bg-blue-100 text-blue-800 border-blue-200 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium">Stock History</p>
+                          <p className="text-sm font-medium">Total Stock</p>
                           <p className="text-lg font-bold mt-1">
-                            {statsLoading ? '...' : stats.totalStockHistory}
+                            {statsLoading ? '...' : stats.totalStock}
                           </p>
                         </div>
-                        <BiHistory className="text-2xl opacity-70" />
+                        <BsBox className="text-2xl opacity-70" />
                       </div>
                     </div>
-                  </Link>
-                  
-                  <div className="border rounded-lg p-4 bg-yellow-100 text-yellow-800 border-yellow-200 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Pending</p>
-                        <p className="text-lg font-bold mt-1">
-                          {statsLoading ? '...' : stats.pendingStock}
-                        </p>
+                    
+                    <Link href="/stock-history" className="block">
+                      <div className="border rounded-lg p-4 bg-indigo-100 text-indigo-800 border-indigo-200 shadow-sm hover:bg-indigo-200 transition-colors cursor-pointer">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-medium">Stock History</p>
+                            <p className="text-lg font-bold mt-1">
+                              {statsLoading ? '...' : stats.totalStockHistory}
+                            </p>
+                          </div>
+                          <BiHistory className="text-2xl opacity-70" />
+                        </div>
                       </div>
-                      <BsClockHistory className="text-2xl opacity-70" />
+                    </Link>
+                    
+                    <div className="border rounded-lg p-4 bg-yellow-100 text-yellow-800 border-yellow-200 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Pending</p>
+                          <p className="text-lg font-bold mt-1">
+                            {statsLoading ? '...' : stats.pendingStock}
+                          </p>
+                        </div>
+                        <BsClockHistory className="text-2xl opacity-70" />
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="border rounded-lg p-4 bg-green-100 text-green-800 border-green-200 shadow-sm">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium">Delivered</p>
-                        <p className="text-lg font-bold mt-1">
-                          {statsLoading ? '...' : stats.deliveredStock}
-                        </p>
+                    
+                    <div className="border rounded-lg p-4 bg-green-100 text-green-800 border-green-200 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium">Delivered</p>
+                          <p className="text-lg font-bold mt-1">
+                            {statsLoading ? '...' : stats.deliveredStock}
+                          </p>
+                        </div>
+                        <BsTruck className="text-2xl opacity-70" />
                       </div>
-                      <BsTruck className="text-2xl opacity-70" />
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               <StockTable
                 stockRequests={stockRequests} 

@@ -15,7 +15,7 @@ export default function RechargeRequestPage() {
   const [formData, setFormData] = useState({
     amount: "",
     payment_date: new Date().toISOString().split("T")[0],
-    payment_type: "2",
+    payment_type: "1", // Default to Cash
     transaction_id: "",
     utr_no: "",
     comments: "",
@@ -64,6 +64,10 @@ export default function RechargeRequestPage() {
       
       if (data.success) {
         setCustomerData(data);
+        // For non-billing customers, set payment_type to Cash (1) by default
+        if (data.customer?.billing_type === 2) {
+          setFormData(prev => ({ ...prev, payment_type: "1" }));
+        }
       } else {
         throw new Error(data.error || "Failed to fetch customer data");
       }
@@ -281,10 +285,12 @@ export default function RechargeRequestPage() {
         
         setSuccessMessage(message);
         setShowModal(false);
+        // ✅ For non-billing customers, keep payment_type as Cash (1), for others use RTGS (2)
+        const defaultPaymentType = customerData?.customer?.billing_type === 2 ? "1" : "2";
         setFormData({
           amount: "",
           payment_date: new Date().toISOString().split("T")[0],
-          payment_type: "2",
+          payment_type: defaultPaymentType,
           transaction_id: "",
           utr_no: "",
           comments: "",
@@ -871,26 +877,36 @@ export default function RechargeRequestPage() {
                   className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   disabled={loading}
                 >
-                  <option value="2">RTGS</option>
-                  <option value="3">NEFT</option>
-                  <option value="4">UPI</option>
-                  <option value="5">CHEQUE</option>
-                  <option value="1">Cash</option>
+                  {/* For non-billing customers (billing_type = 2), only show Cash */}
+                  {customerData?.customer?.billing_type === 2 ? (
+                    <option value="1">Cash</option>
+                  ) : (
+                    <>
+                      <option value="2">RTGS</option>
+                      <option value="3">NEFT</option>
+                      <option value="4">UPI</option>
+                      <option value="5">CHEQUE</option>
+                      <option value="1">Cash</option>
+                    </>
+                  )}
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Transaction/UTR Number</label>
-                <input
-                  type="text"
-                  name="transaction_id"
-                  value={formData.transaction_id}
-                  onChange={handleInputChange}
-                  className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="Optional"
-                  disabled={loading}
-                />
-              </div>
+              {/* Transaction/UTR Number - Hidden for non-billing customers (cash only) */}
+              {customerData?.customer?.billing_type !== 2 && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">Transaction/UTR Number</label>
+                  <input
+                    type="text"
+                    name="transaction_id"
+                    value={formData.transaction_id}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Optional"
+                    disabled={loading}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Remarks</label>

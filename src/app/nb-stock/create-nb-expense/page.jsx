@@ -241,30 +241,70 @@ function CreateExpenseForm() {
                   className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 bg-white text-sm sm:text-base"
                 >
                   <option value="">Select Station and Product</option>
-                  {stations.map((row) => (
-                    <option
-                      key={`${row.station_id}-${row.product_id}`}
-                      value={`${row.station_id}-${row.product_id}`}
-                    >
-                      {row.station_name} - {row.pname} (Stock: {row.stock})
-                    </option>
-                  ))}
+                  {stations.map((row) => {
+                    const stockValue = parseFloat(row.stock || 0);
+                    const stockDisplay = stockValue > 0 
+                      ? `${stockValue.toFixed(2)} Ltr` 
+                      : '0.00 Ltr (Out of Stock)';
+                    return (
+                      <option
+                        key={`${row.station_id}-${row.product_id}`}
+                        value={`${row.station_id}-${row.product_id}`}
+                        disabled={stockValue <= 0}
+                        style={{
+                          color: stockValue <= 0 ? '#999' : '#000',
+                          fontWeight: stockValue > 0 ? 'normal' : 'normal'
+                        }}
+                      >
+                        {row.station_name} - {row.pname} | Available Stock: {stockDisplay}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
               {/* Selected Station Info */}
               {selectedStationDetails && (
-                <div className="p-3 sm:p-4 bg-blue-50 rounded-lg sm:rounded-xl border border-blue-200">
+                <div className={`p-3 sm:p-4 rounded-lg sm:rounded-xl border ${
+                  parseFloat(selectedStationDetails.stock || 0) > 0 
+                    ? 'bg-blue-50 border-blue-200' 
+                    : 'bg-red-50 border-red-200'
+                }`}>
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h4 className="font-semibold text-blue-900 text-sm sm:text-base">Selected Item</h4>
-                      <p className="text-xs sm:text-sm text-blue-700 mt-1">
+                      <h4 className={`font-semibold text-sm sm:text-base ${
+                        parseFloat(selectedStationDetails.stock || 0) > 0 
+                          ? 'text-blue-900' 
+                          : 'text-red-900'
+                      }`}>
+                        Selected Item
+                      </h4>
+                      <p className={`text-xs sm:text-sm mt-1 ${
+                        parseFloat(selectedStationDetails.stock || 0) > 0 
+                          ? 'text-blue-700' 
+                          : 'text-red-700'
+                      }`}>
                         {selectedStationDetails.station_name} - {selectedStationDetails.pname}
                       </p>
                     </div>
                     <div className="text-left sm:text-right">
-                      <p className="text-xs sm:text-sm font-medium text-blue-900">Current Stock</p>
-                      <p className="text-lg sm:text-xl font-bold text-blue-700">{selectedStationDetails.stock}</p>
+                      <p className={`text-xs sm:text-sm font-medium ${
+                        parseFloat(selectedStationDetails.stock || 0) > 0 
+                          ? 'text-blue-900' 
+                          : 'text-red-900'
+                      }`}>
+                        Available Stock
+                      </p>
+                      <p className={`text-lg sm:text-xl font-bold ${
+                        parseFloat(selectedStationDetails.stock || 0) > 0 
+                          ? 'text-blue-700' 
+                          : 'text-red-700'
+                      }`}>
+                        {parseFloat(selectedStationDetails.stock || 0).toFixed(2)} Ltr
+                      </p>
+                      {parseFloat(selectedStationDetails.stock || 0) <= 0 && (
+                        <p className="text-xs text-red-600 mt-1">⚠️ Out of Stock</p>
+                      )}
                     </div>
                   </div>
                 </div>

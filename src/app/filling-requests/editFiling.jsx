@@ -314,7 +314,7 @@ const ExpandedDetails = ({ request, onClose }) => {
 };
 
 // Request Row Component
-const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false } }) => {
+const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -475,7 +475,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} />
+                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} userRole={userRole} />
                 </div>
               </div>
             </div>
@@ -487,7 +487,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
 };
 
 // Mobile Request Card Component
-const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false } }) => {
+const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -659,7 +659,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </svg>
             )}
           </button>
-          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} />
+          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} userRole={userRole} />
         </div>
       </div>
       
@@ -751,7 +751,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Actions */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} />
+              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} userRole={null} />
             </div>
           </div>
         </div>
@@ -763,8 +763,14 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
 // Quick Loading Component - REMOVED (no loading states)
 
 // StatusFilters Component
-const StatusFilters = ({ currentStatus, onStatusChange }) => {
+const StatusFilters = ({ currentStatus, onStatusChange, userRole = null }) => {
   const router = useRouter();
+
+  // ✅ For staff (role 1) or incharge (role 2): Hide status filters (only search bar should show)
+  // ✅ Team Leader (role 3) and above: Show full filters
+  if (userRole === 1 || userRole === 2) {
+    return null;
+  }
 
   const statusOptions = [
     { value: "", label: "All", color: "gray" },
@@ -1242,6 +1248,7 @@ export default function FillingRequests() {
   }, []);
 
   // Memoized components
+  const userRole = user ? Number(user.role) : null;
   const requestItems = useMemo(() =>
     requests.map((request, index) => (
       <RequestRow
@@ -1256,8 +1263,9 @@ export default function FillingRequests() {
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
         permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
+        userRole={userRole}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user]);
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user, userRole]);
 
   const mobileRequestItems = useMemo(() =>
     requests.map((request, index) => (
@@ -1273,8 +1281,9 @@ export default function FillingRequests() {
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
         permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
+        userRole={userRole}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user]);
+    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user, userRole]);
 
   // ✅ Show loading while checking authentication
   if (authLoading) {
@@ -1335,10 +1344,14 @@ export default function FillingRequests() {
 
           <div className="bg-white shadow-lg rounded-xl p-6 mb-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
-              <div className="flex flex-col md:flex-row md:items-center gap-4">
-                <StatusFilters currentStatus={statusFilter} onStatusChange={handleStatusChange} />
-              </div>
-              <div className="md:w-1/3">
+              {/* ✅ For Team Leader (role 3) and above: Show status filters */}
+              {userRole >= 3 && (
+                <div className="flex flex-col md:flex-row md:items-center gap-4">
+                  <StatusFilters currentStatus={statusFilter} onStatusChange={handleStatusChange} userRole={userRole} />
+                </div>
+              )}
+              {/* ✅ For Staff/Incharge: Only search bar, for Team Leader+: Search bar + filters */}
+              <div className={userRole >= 3 ? "md:w-1/3" : "w-full"}>
                 <SearchBar onSearch={handleSearch} initialValue={search} />
               </div>
             </div>
@@ -1358,16 +1371,19 @@ export default function FillingRequests() {
                 </select>
                 <span>entries</span>
               </div>
-              <button
-                onClick={handleExport}
-                className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1"
-                title="Export to CSV"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <span>Export</span>
-              </button>
+              {/* Export button - Hide for staff/incharge */}
+              {userRole !== 1 && userRole !== 2 && (
+                <button
+                  onClick={handleExport}
+                  className="px-3 py-1.5 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-1"
+                  title="Export to CSV"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <span>Export</span>
+                </button>
+              )}
             </div>
 
             <>
@@ -1542,8 +1558,9 @@ export default function FillingRequests() {
             </div>
           )}
 
-          {/* Create Button - Only show if user has can_create permission */}
-          {permissions.can_create && (
+          {/* Create Button - Show for Team Leader (role 3) and above with can_create permission */}
+          {/* Staff/Incharge cannot create requests */}
+          {permissions.can_create && userRole >= 3 && (
             <a
               href="/create-request"
               className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center"

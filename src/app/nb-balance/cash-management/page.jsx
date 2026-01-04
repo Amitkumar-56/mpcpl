@@ -236,12 +236,20 @@ function CashManagementContent() {
                     Clear Filters
                   </button>
                   {permissions.can_create && (
-                    <Link 
-                      href="/nb-balance/create-expense"
-                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
-                    >
-                      Create Expense
-                    </Link>
+                    <div className="flex gap-3">
+                      <Link 
+                        href="/nb-balance/recharge"
+                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
+                      >
+                        Add Recharge
+                      </Link>
+                      <Link 
+                        href="/nb-balance/create-expense"
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
+                      >
+                        Create Expense
+                      </Link>
+                    </div>
                   )}
                 </div>
               </div>
@@ -317,8 +325,11 @@ function CashManagementContent() {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {cashData.length > 0 ? (
-                          cashData.map((expense, index) => (
-                            <tr key={expense.id} className="hover:bg-gray-50 transition-colors">
+                          cashData.map((expense, index) => {
+                            const isRecharge = expense.title?.startsWith('[RECHARGE]') || expense.transaction_type === 'recharge';
+                            const displayTitle = isRecharge ? expense.title.replace('[RECHARGE]', '').trim() : expense.title;
+                            return (
+                            <tr key={expense.id} className={`hover:bg-gray-50 transition-colors ${isRecharge ? 'bg-green-50' : ''}`}>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {(pagination.currentPage - 1) * pagination.limit + index + 1}
                               </td>
@@ -326,7 +337,14 @@ function CashManagementContent() {
                                 {new Date(expense.payment_date).toLocaleDateString('en-IN')}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
-                                <div className="font-medium">{expense.title}</div>
+                                <div className="font-medium flex items-center gap-2">
+                                  {displayTitle}
+                                  {isRecharge && (
+                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                      Recharge
+                                    </span>
+                                  )}
+                                </div>
                                 {expense.details && (
                                   <div className="text-gray-500 text-xs mt-1">{expense.details}</div>
                                 )}
@@ -337,8 +355,8 @@ function CashManagementContent() {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {expense.reason || '-'}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-green-600">
-                                {formatIndianRupee(expense.amount)}
+                              <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isRecharge ? 'text-green-700' : 'text-green-600'}`}>
+                                {isRecharge ? '+' : ''}{formatIndianRupee(expense.amount)}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                 <div className="flex space-x-2">
@@ -351,7 +369,8 @@ function CashManagementContent() {
                                 </div>
                               </td>
                             </tr>
-                          ))
+                            );
+                          })
                         ) : (
                           <tr>
                             <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
@@ -366,19 +385,29 @@ function CashManagementContent() {
                   {/* Mobile Cards */}
                   <div className="md:hidden space-y-4">
                     {cashData.length > 0 ? (
-                      cashData.map((expense, index) => (
-                        <div key={expense.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
+                      cashData.map((expense, index) => {
+                        const isRecharge = expense.title?.startsWith('[RECHARGE]') || expense.transaction_type === 'recharge';
+                        const displayTitle = isRecharge ? expense.title.replace('[RECHARGE]', '').trim() : expense.title;
+                        return (
+                        <div key={expense.id} className={`border rounded-lg p-4 space-y-3 ${isRecharge ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}>
                           <div className="flex justify-between items-start">
                             <span className="text-sm font-medium text-gray-500">
                               #{(pagination.currentPage - 1) * pagination.limit + index + 1}
                             </span>
-                            <span className="text-lg font-semibold text-green-600">
-                              {formatIndianRupee(expense.amount)}
+                            <span className={`text-lg font-semibold ${isRecharge ? 'text-green-700' : 'text-green-600'}`}>
+                              {isRecharge ? '+' : ''}{formatIndianRupee(expense.amount)}
                             </span>
                           </div>
                           
                           <div>
-                            <h3 className="font-medium text-gray-900 text-lg">{expense.title}</h3>
+                            <h3 className="font-medium text-gray-900 text-lg flex items-center gap-2">
+                              {displayTitle}
+                              {isRecharge && (
+                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                                  Recharge
+                                </span>
+                              )}
+                            </h3>
                             {expense.details && (
                               <p className="text-sm text-gray-500 mt-1">{expense.details}</p>
                             )}
@@ -410,7 +439,8 @@ function CashManagementContent() {
                             </button>
                           </div>
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         No expenses found

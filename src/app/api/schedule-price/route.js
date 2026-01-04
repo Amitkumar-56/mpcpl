@@ -20,13 +20,20 @@ export async function GET(req) {
           pc.pcode as product_code,
           p.pname as product_name,
           c.name as customer_name,
-          c.id as customer_id
+          c.id as customer_id,
+          dp.Schedule_Date,
+          dp.Schedule_Time,
+          dp.status,
+          dp.is_applied,
+          dp.applied_at,
+          dp.updated_date
         FROM deal_price dp
         LEFT JOIN filling_stations s ON dp.station_id = s.id
         LEFT JOIN product_codes pc ON dp.sub_product_id = pc.id
         LEFT JOIN products p ON pc.product_id = p.id
         LEFT JOIN customers c ON dp.com_id = c.id
         WHERE dp.com_id IN (${placeholders})
+        AND dp.status IN ('scheduled', 'active')
       `;
       
       const params = [...customerIdArray];

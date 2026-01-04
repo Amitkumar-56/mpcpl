@@ -12,7 +12,7 @@ function SchedulePriceLogsContent() {
   const { user, loading: authLoading } = useSession();
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split("T")[0]);
+  const [filterDate, setFilterDate] = useState(""); // Empty = show all
   const [hasPermission, setHasPermission] = useState(false);
 
   useEffect(() => {
@@ -52,7 +52,10 @@ function SchedulePriceLogsContent() {
   const fetchLogs = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/schedule-price-logs?date=${filterDate}`);
+      const url = filterDate 
+        ? `/api/schedule-price-logs?date=${filterDate}`
+        : `/api/schedule-price-logs`;
+      const res = await fetch(url);
       const result = await res.json();
       
       if (result.success) {
@@ -107,20 +110,27 @@ function SchedulePriceLogsContent() {
           <div className="bg-white rounded-xl shadow-sm p-4 mb-4 border border-gray-200">
             <h1 className="text-xl font-bold text-gray-800 mb-4">Schedule Price Logs</h1>
             
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Filter by Date
-              </label>
-              <input
-                type="date"
-                value={filterDate}
-                onChange={(e) => setFilterDate(e.target.value)}
-                className="w-full md:w-auto p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
+            <div className="mb-4 flex flex-col sm:flex-row gap-4 items-end">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Filter by Date (Leave empty to show all)
+                </label>
+                <input
+                  type="date"
+                  value={filterDate}
+                  onChange={(e) => setFilterDate(e.target.value)}
+                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div className="text-sm text-gray-600">
+                Total Records: <span className="font-semibold">{logs.length}</span>
+              </div>
             </div>
 
             {logs.length === 0 ? (
-              <p className="text-gray-500">No logs found for this date.</p>
+              <p className="text-gray-500">
+                {filterDate ? `No logs found for ${filterDate}.` : "No scheduled prices found."}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full border-collapse">
@@ -133,7 +143,6 @@ function SchedulePriceLogsContent() {
                       <th className="px-4 py-3 border-b border-gray-200 text-left font-semibold text-gray-700">Product</th>
                       <th className="px-4 py-3 border-b border-gray-200 text-left font-semibold text-gray-700">Code</th>
                       <th className="px-4 py-3 border-b border-gray-200 text-center font-semibold text-gray-700">Price</th>
-                      <th className="px-4 py-3 border-b border-gray-200 text-left font-semibold text-gray-700">Action</th>
                       <th className="px-4 py-3 border-b border-gray-200 text-left font-semibold text-gray-700">Status</th>
                     </tr>
                   </thead>
@@ -148,15 +157,16 @@ function SchedulePriceLogsContent() {
                         <td className="px-4 py-3 border-b border-gray-200">{log.product_code || 'N/A'}</td>
                         <td className="px-4 py-3 border-b border-gray-200 text-center font-semibold">₹{parseFloat(log.price || 0).toFixed(2)}</td>
                         <td className="px-4 py-3 border-b border-gray-200">
-                          <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs">
-                            {log.action_type || 'Created'}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 border-b border-gray-200">
                           {log.is_applied ? (
                             <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Applied</span>
+                          ) : log.status === 'scheduled' ? (
+                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Scheduled</span>
+                          ) : log.status === 'active' ? (
+                            <span className="bg-green-100 text-green-800 px-2 py-1 rounded text-xs">Active</span>
+                          ) : log.status === 'expired' ? (
+                            <span className="bg-red-100 text-red-800 px-2 py-1 rounded text-xs">Expired</span>
                           ) : (
-                            <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded text-xs">Pending</span>
+                            <span className="bg-gray-100 text-gray-800 px-2 py-1 rounded text-xs">Pending</span>
                           )}
                         </td>
                       </tr>

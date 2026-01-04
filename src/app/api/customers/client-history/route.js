@@ -296,7 +296,7 @@ export async function GET(request) {
 export async function PATCH(request) {
   try {
     const body = await request.json();
-    const { customerId, rechargeAmount } = body;
+    const { customerId, rechargeAmount, payment_type, payment_date, remarks } = body;
 
     if (!customerId || !rechargeAmount) {
       return NextResponse.json(
@@ -313,9 +313,9 @@ export async function PATCH(request) {
       console.log('Could not get current user:', err);
     }
 
-    // Get customer details first
+    // Get customer details first (including billing_type)
     const customerDetails = await executeQuery(
-      'SELECT id, name, client_type FROM customers WHERE id = ?',
+      'SELECT id, name, client_type, billing_type FROM customers WHERE id = ?',
       [customerId]
     );
 
@@ -328,6 +328,11 @@ export async function PATCH(request) {
 
     const customer = customerDetails[0];
     const clientType = parseInt(customer.client_type) || 0; // 1=Prepaid, 2=Postpaid, 3=Day Limit
+    const billingType = parseInt(customer.billing_type) || 1; // 1=Billing, 2=Non-Billing
+    const isNonBilling = billingType === 2;
+    const isCashPayment = parseInt(payment_type) === 1; // 1=Cash
+    const paymentDate = payment_date || new Date().toISOString().split("T")[0];
+    const paymentRemarks = remarks || "";
 
     // Get current balance info before transaction (for reference outside transaction)
     // If balance record doesn't exist, create it

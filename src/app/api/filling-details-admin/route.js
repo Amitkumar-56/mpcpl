@@ -448,16 +448,18 @@ export async function POST(request) {
     } else if (status === 'Completed') {
       console.log('🔄 Handling Completed status...');
       
-      // Get customer type for balance update logic
+      // Get customer type and billing_type for balance update logic
       const customerTypeResult = await executeQuery(
-        'SELECT client_type FROM customers WHERE id = ?',
+        'SELECT client_type, billing_type FROM customers WHERE id = ?',
         [cl_id]
       );
       
       const isDayLimitCustomer = customerTypeResult.length > 0 && customerTypeResult[0].client_type === "3";
+      // ✅ Get billing_type from customer table (not formData) to ensure accuracy
+      const customerBillingType = customerTypeResult.length > 0 ? parseInt(customerTypeResult[0].billing_type) || 1 : 1;
       
       resultMessage = await handleCompletedStatus({
-        id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
+        id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type: customerBillingType,
         oldstock, credit_limit, available_balance, day_limit,
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
         isDayLimitCustomer

@@ -8,7 +8,9 @@ import { createAuditLog } from '@/lib/auditLog';
 export async function GET() {
   try {
     // Fetch all non-billing stocks with station and product names
-    // Show all records (even if stock is 0 or negative) for dropdown
+    // Show all records with stock quantity for dropdown
+    // Use SUM to aggregate stock if there are multiple records per station_id/product_id
+    // Show all items even if stock is 0, so user can see what's available
     const data = await executeQuery(
       `SELECT 
         n.station_id, 
@@ -19,8 +21,10 @@ export async function GET() {
        FROM non_billing_stocks n
        LEFT JOIN filling_stations f ON n.station_id = f.id
        LEFT JOIN products p ON n.product_id = p.id
+       WHERE f.station_name IS NOT NULL AND p.pname IS NOT NULL
        GROUP BY n.station_id, n.product_id, f.station_name, p.pname
-       ORDER BY f.station_name, p.pname`
+       HAVING COALESCE(SUM(n.stock), 0) >= 0
+       ORDER BY f.station_name, p.pname, COALESCE(SUM(n.stock), 0) DESC`
     );
     return NextResponse.json({ success: true, data });
   } catch (err) {

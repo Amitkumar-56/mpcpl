@@ -170,8 +170,8 @@ export default function NBBalance() {
     // Search filter
     if (searchTerm) {
       filtered = filtered.filter(record =>
-        record.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        record.comments?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.customer_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        record.remark?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         record.payment_type?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
@@ -225,8 +225,8 @@ export default function NBBalance() {
     setFormData({
       amount: record.amount?.toString() || '',
       payment_date: record.payment_date || '',
-      payment_type: record.payment_type || '',
-      comments: record.comments || ''
+      payment_type: record.payment_type || 'Cash',
+      comments: record.remark || ''
     });
     setShowEditModal(true);
   };
@@ -514,11 +514,11 @@ export default function NBBalance() {
                     <tr className="bg-gray-50">
                       <th 
                         className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100"
-                        onClick={() => handleSort('name')}
+                        onClick={() => handleSort('customer_name')}
                       >
                         <div className="flex items-center">
                           Customer Name
-                          <span className="ml-1">{getSortIcon('name')}</span>
+                          <span className="ml-1">{getSortIcon('customer_name')}</span>
                         </div>
                       </th>
                       <th 
@@ -560,7 +560,7 @@ export default function NBBalance() {
                     {filteredRecords.map((record) => (
                       <tr key={record.id} className="hover:bg-gray-50 transition-colors">
                         <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
-                          <div className="font-medium">{record.name || '-'}</div>
+                          <div className="font-medium">{record.customer_name || '-'}</div>
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm">
                           <span className="font-semibold text-green-600">
@@ -576,11 +576,11 @@ export default function NBBalance() {
                             record.payment_type === 'UPI' ? 'bg-purple-100 text-purple-800' :
                             'bg-blue-100 text-blue-800'
                           }`}>
-                            {record.payment_type || '-'}
+                            {record.payment_type || 'Cash'}
                           </span>
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
-                          {record.comments || '-'}
+                          {record.remark || '-'}
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm">
                           <div className="flex space-x-2">
@@ -631,14 +631,14 @@ export default function NBBalance() {
                           record.payment_type === 'UPI' ? 'bg-purple-100 text-purple-800' :
                           'bg-blue-100 text-blue-800'
                         }`}>
-                          {record.payment_type || '-'}
+                          {record.payment_type || 'Cash'}
                         </span>
                       </div>
                       
-                      {record.comments && (
+                      {record.remark && (
                         <div>
                           <p className="text-sm text-gray-700">
-                            <span className="font-medium">Remark:</span> {record.comments}
+                            <span className="font-medium">Remark:</span> {record.remark}
                           </p>
                         </div>
                       )}

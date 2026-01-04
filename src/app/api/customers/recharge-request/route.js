@@ -37,9 +37,9 @@ export async function GET(request) {
       console.log('day_remaining_amount column check:', alterError.message);
     }
 
-    // Fetch customer with balance info
+    // Fetch customer with balance info (including billing_type)
     const customerRows = await executeQuery(
-      `SELECT c.id, c.name, c.phone, c.client_type, 
+      `SELECT c.id, c.name, c.phone, c.client_type, c.billing_type,
               cb.day_limit, cb.amtlimit, cb.balance, 
               COALESCE(cb.total_day_amount, 0) as total_day_amount, 
               COALESCE(cb.day_remaining_amount, 0) as day_remaining_amount,
