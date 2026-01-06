@@ -472,6 +472,56 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                   </div>
                 )}
 
+                {/* Edited By - Show latest edit, same width as Completed By */}
+                {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Edited By</div>
+                    {(() => {
+                      // Get the latest edit log
+                      const latestEdit = request.edit_logs[0];
+                      const editedByName = latestEdit.edited_by_name || 
+                        (latestEdit.changes && typeof latestEdit.changes === 'string' ? (() => {
+                          try {
+                            const changes = JSON.parse(latestEdit.changes);
+                            return changes.edited_by_name;
+                          } catch (e) {
+                            return null;
+                          }
+                        })() : null) ||
+                        `Employee ID: ${latestEdit.edited_by || 'Unknown'}`;
+                      
+                      return (
+                        <>
+                          <div className="text-sm text-gray-900">
+                            {editedByName}
+                            {latestEdit.edited_by_code && (
+                              <span className="text-xs text-gray-500 ml-1">({latestEdit.edited_by_code})</span>
+                            )}
+                          </div>
+                          {latestEdit.edited_date && (
+                            <div className="text-xs text-gray-500 mt-1">
+                              {new Date(latestEdit.edited_date).toLocaleString("en-IN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: true,
+                                timeZone: "Asia/Kolkata"
+                              })}
+                            </div>
+                          )}
+                          {request.edit_logs.length > 1 && (
+                            <div className="text-xs text-gray-400 mt-1">
+                              +{request.edit_logs.length - 1} more edit{request.edit_logs.length - 1 > 1 ? 's' : ''}
+                            </div>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
+                )}
+
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
@@ -637,6 +687,40 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                   </p>
                 </div>
               )}
+              {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (() => {
+                const latestEdit = request.edit_logs[0];
+                const editedByName = latestEdit.edited_by_name || 
+                  (latestEdit.changes && typeof latestEdit.changes === 'string' ? (() => {
+                    try {
+                      const changes = JSON.parse(latestEdit.changes);
+                      return changes.edited_by_name;
+                    } catch (e) {
+                      return null;
+                    }
+                  })() : null) ||
+                  `Employee ID: ${latestEdit.edited_by || 'Unknown'}`;
+                
+                return (
+                  <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                    <p className="text-xs text-purple-700">
+                      <span className="font-medium">✏️ Edited:</span> {editedByName}
+                      {latestEdit.edited_date && (
+                        <span className="ml-2 text-gray-600">
+                          ({new Date(latestEdit.edited_date).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZone: "Asia/Kolkata"
+                          })})
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -677,6 +761,9 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               )}
               {request.status === "Completed" && request.completed_by_name && (
                 <div className="text-xs text-gray-600 mt-1">By: {request.completed_by_name}</div>
+              )}
+               {request.status === "Edited" && request.edited_by_name && (
+                <div className="text-xs text-gray-600 mt-1">By: {request.edited_by_name}</div>
               )}
             </div>
 
@@ -745,6 +832,56 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                     })}
                   </div>
                 )}
+              </div>
+            )}
+
+            {/* Edited By - Show latest edit, same style as Completed By */}
+            {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs font-medium text-gray-500 mb-1">Edited By</div>
+                {(() => {
+                  // Get the latest edit log
+                  const latestEdit = request.edit_logs[0];
+                  const editedByName = latestEdit.edited_by_name || 
+                    (latestEdit.changes && typeof latestEdit.changes === 'string' ? (() => {
+                      try {
+                        const changes = JSON.parse(latestEdit.changes);
+                        return changes.edited_by_name;
+                      } catch (e) {
+                        return null;
+                      }
+                    })() : null) ||
+                    `Employee ID: ${latestEdit.edited_by || 'Unknown'}`;
+                  
+                  return (
+                    <>
+                      <div className="text-sm text-gray-900">
+                        {editedByName}
+                        {latestEdit.edited_by_code && (
+                          <span className="text-xs text-gray-500 ml-1">({latestEdit.edited_by_code})</span>
+                        )}
+                      </div>
+                      {latestEdit.edited_date && (
+                        <div className="text-xs text-gray-500 mt-1">
+                          {new Date(latestEdit.edited_date).toLocaleString("en-IN", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                            hour12: true,
+                            timeZone: "Asia/Kolkata"
+                          })}
+                        </div>
+                      )}
+                      {request.edit_logs.length > 1 && (
+                        <div className="text-xs text-gray-400 mt-1">
+                          +{request.edit_logs.length - 1} more edit{request.edit_logs.length - 1 > 1 ? 's' : ''}
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             )}
 
@@ -1577,3 +1714,4 @@ export default function FillingRequests() {
     </div>
   );
 }
+

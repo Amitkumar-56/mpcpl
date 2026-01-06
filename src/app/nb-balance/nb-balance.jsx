@@ -551,9 +551,11 @@ export default function NBBalance() {
                       <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700">
                         Remark
                       </th>
-                      <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700">
-                        Actions
-                      </th>
+                      {(permissions.can_edit || permissions.can_delete) && (
+                        <th className="border border-gray-200 px-4 py-3 text-left text-sm font-medium text-gray-700">
+                          Actions
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -582,26 +584,28 @@ export default function NBBalance() {
                         <td className="border border-gray-200 px-4 py-3 text-sm text-gray-900">
                           {record.remark || '-'}
                         </td>
-                        <td className="border border-gray-200 px-4 py-3 text-sm">
-                          <div className="flex space-x-2">
-                            {permissions.can_edit && (
-                              <button
-                                onClick={() => handleEdit(record)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
-                              >
-                                <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        {(permissions.can_edit || permissions.can_delete) && (
+                          <td className="border border-gray-200 px-4 py-3 text-sm">
+                            <div className="flex space-x-2">
+                              {permissions.can_edit && (
+                                <button
+                                  onClick={() => handleEdit(record)}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm transition-colors flex items-center"
+                                >
+                                  <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                  </svg>
+                                  Edit
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                     {filteredRecords.length === 0 && (
                       <tr>
-                        <td colSpan="6" className="border border-gray-200 px-4 py-8 text-center text-gray-500">
+                        <td colSpan={(permissions.can_edit || permissions.can_delete) ? "6" : "5"} className="border border-gray-200 px-4 py-8 text-center text-gray-500">
                           {records.length === 0 ? 'No cash records found.' : 'No records match your filters.'}
                         </td>
                       </tr>

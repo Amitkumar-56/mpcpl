@@ -218,17 +218,14 @@ function ClientHistoryContent() {
     };
   };
 
-  // Payment Handlers - ONLY for day_limit customers
+  // Payment Handlers - For all customers
   const handleRechargeClick = () => {
-    if (!isDayLimitCustomer) return;
-    
     setShowPaymentModal(true);
     setRechargeAmount("");
     setPaymentResult(null);
   };
 
   const handleProcessPayment = async () => {
-    if (!isDayLimitCustomer) return;
     
     const amount = parseFloat(rechargeAmount);
     if (isNaN(amount) || amount <= 0) {
@@ -612,8 +609,8 @@ function ClientHistoryContent() {
                 </p>
               </div>
 
-              {/* Process Payment button - ONLY show for day_limit customers */}
-              {isDayLimitCustomer && customerBalanceInfo?.is_active !== 0 && (
+              {/* Process Payment button - Show for all customers */}
+              {customerBalanceInfo && (
                 <button
                   onClick={handleRechargeClick}
                   className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
@@ -631,7 +628,7 @@ function ClientHistoryContent() {
                       d="M12 6v6m0 0v6m0-6h6m-6 0H6"
                     />
                   </svg>
-                  <span>Process Payment</span>
+                  <span>Recharge / Process Payment</span>
                 </button>
               )}
 

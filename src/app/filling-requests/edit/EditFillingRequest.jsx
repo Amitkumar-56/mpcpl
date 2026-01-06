@@ -20,7 +20,8 @@ export default function EditFillingRequest() {
     driver_number: '',
     qty: '',
     aqty: '',
-    customer: ''
+    customer: '',
+    remark: ''
   });
 
   const [files, setFiles] = useState({ doc1: null, doc2: null, doc3: null });
@@ -53,7 +54,8 @@ export default function EditFillingRequest() {
           driver_number: req.driver_number || '',
           qty: req.qty || '',
           aqty: req.aqty || '',
-          customer: req.cid || ''
+          customer: req.cid || '',
+          remark: req.remark || ''
         });
       } catch (err) {
         console.error("EROR,DEEE",err);
@@ -139,11 +141,21 @@ export default function EditFillingRequest() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate form
+    if (!formData.aqty || parseFloat(formData.aqty) <= 0) {
+      alert('Please enter a valid actual quantity');
+      return;
+    }
+    
     setLoading(true);
 
     const submitData = new FormData();
     submitData.append('aqty', formData.aqty);
     submitData.append('id', id);
+    
+    // Add remark (always send, even if empty)
+    submitData.append('remark', formData.remark || '');
 
     Object.keys(files).forEach(key => {
       if (files[key]) submitData.append(key, files[key]);
@@ -151,18 +163,32 @@ export default function EditFillingRequest() {
 
     try {
       const res = await fetch('/api/filling-requests/edit', { method: 'POST', body: submitData });
-      const result = await res.json();
+      
+      let result;
+      try {
+        result = await res.json();
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        alert('Error: Invalid response from server');
+        setLoading(false);
+        return;
+      }
 
-      if (res.ok) {
-        alert('Record updated successfully!');
+      if (res.ok && result.success) {
+        alert('✅ Record updated successfully!');
         router.push('/filling-requests');
       } else {
-        console.log("resulet", result);
-        // alert(result.error || 'Error updating record');
+        console.error("Update failed:", {
+          status: res.status,
+          statusText: res.statusText,
+          result: result
+        });
+        const errorMsg = result?.error || result?.message || `Error updating record (Status: ${res.status})`;
+        alert(errorMsg);
       }
     } catch (err) {
-      console.error(err);
-      alert('Error updating record');
+      console.error('Submit error:', err);
+      alert('Error updating record: ' + (err.message || 'Network error'));
     } finally {
       setLoading(false);
     }
@@ -267,6 +293,16 @@ export default function EditFillingRequest() {
                     value={record?.customer_name || ''}
                     disabled
                     className="w-full p-2 border border-gray-300 rounded-md bg-gray-100"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2">Remarks</label>
+                  <textarea
+                    value={formData.remark}
+                    onChange={e => setFormData({ ...formData, remark: e.target.value })}
+                    className="w-full p-2 border border-gray-300 rounded-md"
+                    rows="3"
+                    placeholder="Enter remarks..."
                   />
                 </div>
                 {['doc1', 'doc2', 'doc3'].map((doc, index) => (

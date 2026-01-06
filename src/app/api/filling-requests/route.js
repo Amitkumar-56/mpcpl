@@ -279,6 +279,115 @@ if (requests && requests.length > 0) {
 
     console.log('✅ Processed requests:', processedRequests.length);
 
+    // ✅ Fetch edit logs for all requests
+    if (processedRequests.length > 0) {
+      try {
+        const rids = processedRequests.map(r => r.rid).filter(Boolean);
+        console.log('📝 Fetching edit logs for RIDs:', rids.slice(0, 5), '... (total:', rids.length, ')');
+        
+        if (rids.length > 0) {
+          // Also get numeric IDs for matching (in case request_id stores numeric id instead of rid)
+          const numericIds = processedRequests.map(r => r.id).filter(Boolean);
+          const allIds = [...rids, ...numericIds.map(String)].filter(Boolean);
+          
+          const placeholders = allIds.map(() => '?').join(',');
+          const editLogsQuery = `
+            SELECT 
+              el.*,
+              ep.name as edited_by_name,
+              ep.emp_code as edited_by_code
+            FROM edit_logs el
+            LEFT JOIN employee_profile ep ON el.edited_by = ep.id
+            WHERE el.request_id IN (${placeholders})
+            ORDER BY el.edited_date DESC
+          `;
+          console.log('📝 Querying edit logs with IDs:', allIds.slice(0, 10), '... (total:', allIds.length, ')');
+          const allEditLogs = await executeQuery(editLogsQuery, allIds);
+          
+          console.log('📝 Raw edit logs fetched:', allEditLogs.length, 'logs');
+          
+          // Group edit logs by request_id
+          const editLogsByRid = {};
+          allEditLogs.forEach(log => {
+            const rid = String(log.request_id); // Convert to string for consistency
+            if (!editLogsByRid[rid]) {
+              editLogsByRid[rid] = [];
+            }
+            // Parse changes JSON and add edited_by_name from changes if needed
+            try {
+              if (log.changes && typeof log.changes === 'string') {
+                const changes = JSON.parse(log.changes);
+                if (!log.edited_by_name && changes.edited_by_name) {
+                  log.edited_by_name = changes.edited_by_name;
+                  console.log('📝 Using edited_by_name from changes JSON:', changes.edited_by_name);
+                }
+                if (changes.edited_by_id) {
+                  log.edited_by_id = changes.edited_by_id;
+                }
+              }
+            } catch (e) {
+              console.warn('⚠️ Could not parse changes JSON for log:', log.id, e.message);
+            }
+            editLogsByRid[rid].push(log);
+          });
+          
+          console.log('📝 Edit logs grouped by RID:', Object.keys(editLogsByRid).length, 'requests have edit logs');
+          const sampleLogs = Object.entries(editLogsByRid).slice(0, 3).map(([rid, logs]) => ({
+            rid,
+            count: logs.length,
+            firstLog: logs[0] ? {
+              id: logs[0].id,
+              edited_by: logs[0].edited_by,
+              edited_by_name: logs[0].edited_by_name,
+              edited_date: logs[0].edited_date
+            } : null
+          }));
+          console.log('📝 Sample edit logs:', sampleLogs);
+          
+          // Add edit_logs to each request
+          processedRequests = processedRequests.map(request => {
+            const rid = String(request.rid); // Convert to string for matching
+            const id = String(request.id); // Also check numeric id
+            // Match by rid first, then by id (in case request_id stores numeric id)
+            const editLogs = editLogsByRid[rid] || editLogsByRid[id] || [];
+            
+            if (editLogs.length > 0) {
+              console.log('✅ Found edit logs for request:', {
+                rid: request.rid,
+                id: request.id,
+                matchedBy: editLogsByRid[rid] ? 'rid' : 'id',
+                logCount: editLogs.length
+              });
+            }
+            
+            return {
+              ...request,
+              edit_logs: editLogs
+            };
+          });
+          
+          const requestsWithLogs = processedRequests.filter(r => r.edit_logs && r.edit_logs.length > 0).length;
+          console.log('✅ Edit logs attached:', requestsWithLogs, 'out of', processedRequests.length, 'requests have edit logs');
+        } else {
+          console.warn('⚠️ No RIDs found to fetch edit logs');
+        }
+      } catch (editLogError) {
+        console.error('❌ Error fetching edit logs:', editLogError);
+        console.error('Error details:', {
+          message: editLogError.message,
+          sql: editLogError.sql,
+          code: editLogError.code
+        });
+        // Continue without edit logs - set empty array for all requests
+        processedRequests = processedRequests.map(request => ({
+          ...request,
+          edit_logs: []
+        }));
+      }
+    } else {
+      console.log('⚠️ No processed requests to fetch edit logs for');
+    }
+
     // Return the full response object that frontend expects
     // const responseData = {
     //   requests: processedRequests,

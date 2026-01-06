@@ -268,8 +268,40 @@ export async function GET(req) {
           ORDER BY el.edited_date DESC
         `;
         const editLogs = await executeQuery(editLogsQuery, [data.rid]);
-        data.edit_logs = editLogs || [];
+        
+        // Parse changes JSON and enhance with edited_by_name from changes if needed
+        const enhancedEditLogs = (editLogs || []).map(log => {
+          try {
+            if (log.changes && typeof log.changes === 'string') {
+              const changes = JSON.parse(log.changes);
+              // Use edited_by_name from changes as fallback if JOIN didn't return name
+              if (!log.edited_by_name && changes.edited_by_name) {
+                log.edited_by_name = changes.edited_by_name;
+              }
+              // Also add edited_by_id from changes for reference
+              if (changes.edited_by_id) {
+                log.edited_by_id = changes.edited_by_id;
+              }
+            }
+          } catch (e) {
+            console.warn('⚠️ Could not parse changes JSON for edit log:', e.message);
+          }
+          return log;
+        });
+        
+        data.edit_logs = enhancedEditLogs;
+        console.log('📝 Edit logs fetched:', { 
+          count: enhancedEditLogs.length, 
+          rid: data.rid,
+          logs: enhancedEditLogs.map(l => ({ 
+            id: l.id, 
+            edited_by: l.edited_by, 
+            edited_by_name: l.edited_by_name,
+            edited_date: l.edited_date 
+          }))
+        });
       } catch (editLogError) {
+        console.error('⚠️ Error fetching edit logs:', editLogError);
         console.log('⚠️ Edit logs table may not exist, skipping:', editLogError.message);
         data.edit_logs = [];
       }
@@ -406,31 +438,41 @@ export async function POST(request) {
       }
     }
 
-    // Track edit operation - create edit log entry (existing table)
+    // ✅ Track edit operation - ONLY create edit log when actual edits happen (aqty, remarks), NOT for status changes
     const now = getIndianTime();
     try {
       if (oldRecord) {
-        // Create edit log entry in edit_logs table (existing)
-        const editLogQuery = `
-          INSERT INTO edit_logs 
-          (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        const changes = JSON.stringify({
-          status: oldRecord.status !== status ? { from: oldRecord.status, to: status } : null,
-          aqty: oldRecord.aqty !== aqty ? { from: oldRecord.aqty, to: aqty } : null,
-          remarks: oldRecord.remark !== remarks ? { from: oldRecord.remark, to: remarks } : null
-        });
-        await executeQuery(editLogQuery, [
-          rid,
-          userId,
-          now,
-          oldRecord.status,
-          status,
-          oldRecord.aqty || 0,
-          aqty || 0,
-          changes
-        ]);
+        // Check if there are actual edits (not just status change)
+        const aqtyChanged = oldRecord.aqty !== aqty;
+        const remarksChanged = (oldRecord.remark || '') !== (remarks || '');
+        const hasActualEdits = aqtyChanged || remarksChanged;
+        
+        // Only create edit log if there are actual field edits (aqty or remarks changed)
+        if (hasActualEdits) {
+          const changes = JSON.stringify({
+            aqty: aqtyChanged ? { from: oldRecord.aqty, to: aqty } : null,
+            remarks: remarksChanged ? { from: oldRecord.remark, to: remarks } : null
+          });
+          
+          const editLogQuery = `
+            INSERT INTO edit_logs 
+            (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          `;
+          await executeQuery(editLogQuery, [
+            rid,
+            userId,
+            now,
+            oldRecord.status,
+            status,
+            oldRecord.aqty || 0,
+            aqty || 0,
+            changes
+          ]);
+          console.log('✅ Edit log created for actual edits:', { aqtyChanged, remarksChanged });
+        } else {
+          console.log('ℹ️ No edit log created - only status change, no field edits');
+        }
       }
     } catch (editLogError) {
       console.error('⚠️ Error creating edit log (non-critical):', editLogError);

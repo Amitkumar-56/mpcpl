@@ -18,6 +18,11 @@ function SchedulePriceContent() {
   const [scheduleData, setScheduleData] = useState({});
   const [loading, setLoading] = useState(false);
   const [scheduledPrices, setScheduledPrices] = useState([]);
+  const [priceHistory, setPriceHistory] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [customersWithPendingUpdates, setCustomersWithPendingUpdates] = useState(new Set());
+  const [bulkPrices, setBulkPrices] = useState({}); // Store bulk prices for each product-station combination
   const [requireApproval, setRequireApproval] = useState(true);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
   const [bulkUpdateSamePrice, setBulkUpdateSamePrice] = useState(true); // Enable bulk update by default
@@ -126,13 +131,24 @@ function SchedulePriceContent() {
   }, [hasPermission]);
 
   useEffect(() => {
+    // Only fetch if customers are selected
     if (selectedCustomers.length > 0) {
       fetchScheduledPrices(selectedCustomers);
     } else {
       setScheduledPrices([]);
       setScheduleData({});
+      setCustomersWithPendingUpdates(new Set());
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCustomers, viewMode, scheduleDate, scheduleTime]);
+
+  useEffect(() => {
+    if (selectedCustomers.length > 0) {
+      fetchPriceHistory(selectedCustomers);
+    } else {
+      setPriceHistory([]);
+    }
+  }, [selectedCustomers]);
 
   // Fetch setup data
   const fetchSetupData = async () => {
@@ -153,13 +169,111 @@ function SchedulePriceContent() {
     }
   };
 
+  // Fetch history of scheduled/active/expired prices for selected customers
+  const fetchPriceHistory = async (customerIds) => {
+    // Validate input
+    if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+      setPriceHistory([]);
+      setHistoryLoading(false);
+      return;
+    }
+    
+    try {
+      setHistoryLoading(true);
+      const customerIdsString = customerIds.filter(id => id != null).join(",");
+      
+      if (!customerIdsString) {
+        setPriceHistory([]);
+        setHistoryLoading(false);
+        return;
+      }
+      
+      const res = await fetch(`/api/schedule-price-logs?customer_ids=${customerIdsString}`);
+      
+      // Try to parse JSON even if status is not OK
+      let result;
+      try {
+        result = await res.json();
+      } catch (parseError) {
+        // If JSON parsing fails, create a default error response
+        console.error("Error parsing API response:", parseError);
+        result = {
+          success: false,
+          message: `API error: ${res.status} ${res.statusText}`,
+          data: []
+        };
+      }
+      
+      if (result.success) {
+        setPriceHistory(result.data || []);
+      } else {
+        console.warn("API returned error:", result.message);
+        setPriceHistory([]);
+        // Don't show alert for history fetch errors, just log them
+      }
+    } catch (err) {
+      console.error("Error fetching price history:", err);
+      setPriceHistory([]);
+      // Silently handle errors - don't disrupt user experience
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
   // Fetch scheduled prices
   const fetchScheduledPrices = async (customerIds) => {
+    // Validate input
+    if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+      setScheduledPrices([]);
+      setScheduleData({});
+      setCustomersWithPendingUpdates(new Set());
+      return;
+    }
+    
     try {
-      const res = await fetch(`/api/schedule-price?customer_ids=${customerIds.join(',')}`);
+      const customerIdsString = customerIds.filter(id => id != null).join(',');
+      if (!customerIdsString) {
+        setScheduledPrices([]);
+        setScheduleData({});
+        setCustomersWithPendingUpdates(new Set());
+        return;
+      }
+      
+      const res = await fetch(`/api/schedule-price?customer_ids=${customerIdsString}`);
+      
+      if (!res.ok) {
+        throw new Error(`API error: ${res.status} ${res.statusText}`);
+      }
+      
       let data = await res.json();
       
+      // Handle case where API returns error
+      if (data && data.success === false) {
+        console.error("API returned error:", data.message);
+        setScheduledPrices([]);
+        setScheduleData({});
+        setCustomersWithPendingUpdates(new Set());
+        return;
+      }
+      
       if (Array.isArray(data)) {
+        // Track customers with pending updates
+        const pendingCustomers = new Set();
+        const allData = [...data]; // Keep all data for tracking
+        
+        // Check which customers have pending (not applied) prices
+        allData.forEach(item => {
+          if (!item.is_applied && item.status === 'scheduled') {
+            pendingCustomers.add(item.customer_id);
+          }
+        });
+        
+        // Update pending customers list
+        setCustomersWithPendingUpdates(pendingCustomers);
+        
+        // DON'T auto-unselect here - keep all selected customers
+        // Auto-unselect will only happen when prices are applied (in handleApplyPrices)
+        
         // Filter based on view mode
         if (viewMode === "pending") {
           data = data.filter(item => !item.is_applied);
@@ -186,19 +300,39 @@ function SchedulePriceContent() {
         setScheduleData(initialData);
       } else {
         setScheduledPrices([]);
+        setCustomersWithPendingUpdates(new Set());
       }
     } catch (err) {
       console.error("Error fetching scheduled prices:", err);
+      // Don't show alert for empty selections, only for actual errors
+      if (customerIds && customerIds.length > 0) {
+        console.warn("Failed to fetch scheduled prices for customers:", customerIds);
+      }
       setScheduledPrices([]);
+      setScheduleData({});
+      setCustomersWithPendingUpdates(new Set());
     }
   };
 
   // Handle customer selection
   const handleCustomerSelect = (customerId) => {
+    // Check if customer has pending updates
+    const hasPending = customersWithPendingUpdates.has(customerId);
+    const isCurrentlySelected = selectedCustomers.includes(customerId);
+    
+    // If trying to unselect a customer with pending updates, prevent it
+    if (isCurrentlySelected && hasPending) {
+      alert("This customer has pending price updates. Cannot unselect until all prices are applied.");
+      return;
+    }
+    
+    // Toggle selection
     setSelectedCustomers(prev => {
       if (prev.includes(customerId)) {
+        // Unselect customer
         return prev.filter(id => id !== customerId);
       } else {
+        // Select customer - add to array
         return [...prev, customerId];
       }
     });
@@ -220,14 +354,18 @@ function SchedulePriceContent() {
   };
 
   // Group products by main product
-  const groupedProducts = products.reduce((acc, product) => {
-    if (!acc[product.product_id]) {
-      acc[product.product_id] = {
-        product_name: product.product_name,
-        sub_products: []
-      };
+  const groupedProducts = (products || []).reduce((acc, product) => {
+    if (product && product.product_id) {
+      if (!acc[product.product_id]) {
+        acc[product.product_id] = {
+          product_name: product.product_name || "Unknown Product",
+          sub_products: []
+        };
+      }
+      if (product.code_id) {
+        acc[product.product_id].sub_products.push(product);
+      }
     }
-    acc[product.product_id].sub_products.push(product);
     return acc;
   }, {});
 
@@ -292,7 +430,23 @@ function SchedulePriceContent() {
       if (result.success) {
         alert(`✅ ${result.message}`);
         setScheduleData({});
+        
+        // Immediately mark all selected customers as having pending updates
+        // This ensures they stay selected until prices are applied
+        setCustomersWithPendingUpdates(prev => {
+          const updated = new Set(prev);
+          selectedCustomers.forEach(customerId => {
+            updated.add(customerId);
+          });
+          return updated;
+        });
+        
+        // Refresh scheduled prices - customers will stay selected if they have pending updates
         fetchScheduledPrices(selectedCustomers);
+        // Refresh history if shown
+        if (showHistory) {
+          fetchPriceHistory(selectedCustomers);
+        }
       } else {
         alert("Error saving schedule: " + result.message);
       }
@@ -318,7 +472,45 @@ function SchedulePriceContent() {
       const result = await res.json();
       if (result.success) {
         alert(`✅ ${result.message}`);
-        fetchScheduledPrices(selectedCustomers);
+        
+        // Refresh scheduled prices first
+        const res2 = await fetch(`/api/schedule-price?customer_ids=${selectedCustomers.join(',')}`);
+        const data = await res2.json();
+        
+        if (Array.isArray(data)) {
+          // Check which customers still have pending updates
+          const stillPending = new Set();
+          data.forEach(item => {
+            if (!item.is_applied && item.status === 'scheduled') {
+              stillPending.add(item.customer_id);
+            }
+          });
+          
+          // Auto-unselect customers whose all prices are now applied
+          setSelectedCustomers(prev => {
+            return prev.filter(customerId => {
+              // Keep customer if they still have pending updates
+              return stillPending.has(customerId);
+            });
+          });
+          
+          // Update pending customers list
+          setCustomersWithPendingUpdates(stillPending);
+          
+          // Update scheduled prices display
+          let filteredData = data;
+          if (viewMode === "pending") {
+            filteredData = data.filter(item => !item.is_applied);
+          } else if (viewMode === "approved") {
+            filteredData = data.filter(item => item.is_applied);
+          }
+          setScheduledPrices(filteredData);
+        }
+        
+        // Refresh history if shown
+        if (showHistory) {
+          fetchPriceHistory(selectedCustomers);
+        }
       } else {
         alert("Error applying prices: " + result.message);
       }
@@ -400,31 +592,126 @@ function SchedulePriceContent() {
         <main className="flex-1 overflow-y-auto bg-gray-50 p-4">
           {/* Customer Selection */}
           <div className="bg-white rounded-xl shadow-sm p-4 mb-4 border border-gray-200">
-            <h1 className="text-xl font-bold mb-4">Schedule Prices - Multiple Customers</h1>
+            <div className="flex justify-between items-center mb-4">
+              <h1 className="text-xl font-bold">Schedule Prices - Multiple Customers</h1>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!showHistory) {
+                    if (selectedCustomers.length > 0) {
+                      setShowHistory(true);
+                      fetchPriceHistory(selectedCustomers);
+                    } else {
+                      alert("Please select at least one customer to view history.");
+                    }
+                  } else {
+                    setShowHistory(false);
+                  }
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  showHistory 
+                    ? "bg-blue-600 text-white shadow-md" 
+                    : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                }`}
+              >
+                {showHistory ? "📋 Hide History" : "📋 View History & Logs"}
+              </button>
+            </div>
             
             <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Multiple Customers ({selectedCustomers.length} selected)
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-3">
-                {customers.map((customer) => (
-                  <div key={customer.id} className="flex items-center">
-                    <input
-                      type="checkbox"
-                      id={`customer-${customer.id}`}
-                      checked={selectedCustomers.includes(customer.id)}
-                      onChange={() => handleCustomerSelect(customer.id)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                    <label
-                      htmlFor={`customer-${customer.id}`}
-                      className="ml-2 text-sm text-gray-700"
-                    >
-                      {customer.name}
-                    </label>
-                  </div>
-                ))}
+              <div className="flex items-center justify-between mb-2">
+                <label className="block text-sm font-medium text-gray-700">
+                  Select Multiple Customers ({selectedCustomers.length} selected)
+                  {customersWithPendingUpdates.size > 0 && (
+                    <span className="ml-2 text-xs text-yellow-600 font-normal">
+                      ({customersWithPendingUpdates.size} with pending updates)
+                    </span>
+                  )}
+                </label>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Select all customers that don't have pending updates
+                      const selectableCustomers = (customers || [])
+                        .filter(c => c && c.id && !customersWithPendingUpdates.has(c.id))
+                        .map(c => c.id);
+                      
+                      setSelectedCustomers(prev => {
+                        const newSelection = [...prev];
+                        selectableCustomers.forEach(id => {
+                          if (!newSelection.includes(id)) {
+                            newSelection.push(id);
+                          }
+                        });
+                        return newSelection;
+                      });
+                    }}
+                    className="px-3 py-1 bg-blue-600 text-white text-xs rounded-lg hover:bg-blue-700 transition-colors"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Deselect all customers that don't have pending updates
+                      setSelectedCustomers(prev => {
+                        return prev.filter(id => customersWithPendingUpdates.has(id));
+                      });
+                    }}
+                    className="px-3 py-1 bg-gray-600 text-white text-xs rounded-lg hover:bg-gray-700 transition-colors"
+                  >
+                    Deselect All
+                  </button>
+                </div>
               </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-3">
+                {(customers || []).map((customer) => {
+                  if (!customer || !customer.id) return null;
+                  
+                  const hasPending = customersWithPendingUpdates.has(customer.id);
+                  const isSelected = selectedCustomers.includes(customer.id);
+                  const isDisabled = hasPending && isSelected; // Disable only if selected AND has pending
+                  
+                  return (
+                    <div 
+                      key={customer.id} 
+                      className={`flex items-center ${hasPending && isSelected ? 'bg-yellow-50 p-1 rounded' : ''}`}
+                    >
+                      <input
+                        type="checkbox"
+                        id={`customer-${customer.id}`}
+                        checked={isSelected}
+                        onChange={() => {
+                          handleCustomerSelect(customer.id);
+                        }}
+                        disabled={isDisabled}
+                        className={`h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded ${
+                          isDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
+                        }`}
+                      />
+                      <label
+                        htmlFor={`customer-${customer.id}`}
+                        className={`ml-2 text-sm ${
+                          hasPending && isSelected 
+                            ? 'text-yellow-700 font-medium' 
+                            : 'text-gray-700'
+                        } ${isDisabled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}
+                      >
+                        {customer.name || "Unknown"}
+                        {hasPending && isSelected && (
+                          <span className="ml-1 text-xs text-yellow-600">⏳ Pending</span>
+                        )}
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              {customersWithPendingUpdates.size > 0 && (
+                <p className="mt-2 text-xs text-yellow-600">
+                  ⚠️ Customers with pending updates cannot be unselected until all prices are applied.
+                </p>
+              )}
             </div>
 
             {/* Bulk Update Setting */}
@@ -555,53 +842,146 @@ function SchedulePriceContent() {
               </div>
 
               <form onSubmit={handleSubmit}>
-                {stations.map((station) => (
+                {(stations || []).map((station) => (
                   <div key={station.id} className="mb-6 border-b border-gray-200 pb-6 last:border-b-0">
                     <h2 className="font-semibold text-lg mb-3 flex items-center">
                       <span className="mr-2">📍</span>
                       {station.station_name}
                     </h2>
                     
-                    {Object.entries(groupedProducts).map(([productId, group]) => (
-                      <div key={productId} className="mb-4">
-                        <h3 className="font-medium text-gray-800 mb-2">{group.product_name}</h3>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                          {group.sub_products.map((subProduct) => (
-                            <div 
-                              key={subProduct.code_id} 
-                              className="bg-gray-50 rounded-lg p-3 border border-gray-200"
-                            >
-                              <label className="block font-medium text-gray-700 mb-1">
-                                {subProduct.pcode}
-                              </label>
-                              
-                              {/* Price Input */}
+                    {Object.entries(groupedProducts || {}).map(([productId, group]) => {
+                      if (!group || !group.sub_products || group.sub_products.length === 0) {
+                        return null;
+                      }
+                      
+                      const bulkKey = `${station.id}_${productId}`;
+                      const bulkPrice = bulkPrices?.[bulkKey] || "";
+                      
+                      const applyBulkPrice = (price) => {
+                        if (!price || parseFloat(price) <= 0) {
+                          alert("Please enter a valid price greater than 0");
+                          return;
+                        }
+                        
+                        if (!selectedCustomers || selectedCustomers.length === 0) {
+                          alert("Please select at least one customer first");
+                          return;
+                        }
+                        
+                        if (!group || !group.sub_products || group.sub_products.length === 0) {
+                          return;
+                        }
+                        
+                        // Apply price to all sub-products for all selected customers
+                        selectedCustomers.forEach(customerId => {
+                          group.sub_products.forEach(subProduct => {
+                            if (subProduct && subProduct.code_id && subProduct.product_id) {
+                              handleChange(
+                                customerId,
+                                station.id,
+                                subProduct.code_id,
+                                subProduct.product_id,
+                                scheduleDate,
+                                scheduleTime,
+                                "price",
+                                price
+                              );
+                            }
+                          });
+                        });
+                        
+                        // Clear bulk price input
+                        setBulkPrices(prev => ({
+                          ...prev,
+                          [bulkKey]: ""
+                        }));
+                        
+                        alert(`✅ Price ₹${price} applied to all ${group.sub_products.length} sub-products of ${group.product_name} for ${selectedCustomers.length} customer(s)`);
+                      };
+                      
+                      return (
+                        <div key={productId} className="mb-4">
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
+                            <h3 className="font-medium text-gray-800">{group.product_name}</h3>
+                            <div className="flex items-center gap-2">
                               <input
                                 type="number"
-                                placeholder="Price"
+                                placeholder="Set same price for all"
                                 min="0"
                                 step="0.01"
+                                value={bulkPrice}
                                 onChange={(e) => {
-                                  selectedCustomers.forEach(customerId => {
-                                    handleChange(
-                                      customerId,
-                                      station.id, 
-                                      subProduct.code_id, 
-                                      subProduct.product_id,
-                                      scheduleDate,
-                                      scheduleTime,
-                                      "price", 
-                                      e.target.value
-                                    );
-                                  });
+                                  setBulkPrices(prev => ({
+                                    ...prev,
+                                    [bulkKey]: e.target.value
+                                  }));
                                 }}
-                                className="w-full px-2 py-1 border rounded-lg mb-2 text-sm"
+                                className="px-3 py-1 border border-gray-300 rounded-lg text-sm w-40 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                               />
+                              <button
+                                type="button"
+                                onClick={() => applyBulkPrice(bulkPrice)}
+                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors font-medium whitespace-nowrap"
+                              >
+                                Apply All
+                              </button>
                             </div>
-                          ))}
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                            {group.sub_products.map((subProduct) => {
+                              if (!subProduct || !subProduct.code_id) {
+                                return null;
+                              }
+                              
+                              // Get current price value for this sub-product
+                              const firstCustomerKey = selectedCustomers && selectedCustomers.length > 0 
+                                ? `${selectedCustomers[0]}_${station.id}_${subProduct.code_id}_${scheduleDate}_${scheduleTime}`
+                                : null;
+                              const currentValue = firstCustomerKey && scheduleData && scheduleData[firstCustomerKey] 
+                                ? scheduleData[firstCustomerKey].price || ""
+                                : "";
+                              
+                              return (
+                                <div 
+                                  key={subProduct.code_id} 
+                                  className="bg-gray-50 rounded-lg p-3 border border-gray-200"
+                                >
+                                  <label className="block font-medium text-gray-700 mb-1">
+                                    {subProduct.pcode || "N/A"}
+                                  </label>
+                                  
+                                  {/* Price Input */}
+                                  <input
+                                    type="number"
+                                    placeholder="Price"
+                                    min="0"
+                                    step="0.01"
+                                    value={currentValue}
+                                    onChange={(e) => {
+                                      if (selectedCustomers && selectedCustomers.length > 0) {
+                                        selectedCustomers.forEach(customerId => {
+                                          handleChange(
+                                            customerId,
+                                            station.id, 
+                                            subProduct.code_id, 
+                                            subProduct.product_id,
+                                            scheduleDate,
+                                            scheduleTime,
+                                            "price", 
+                                            e.target.value
+                                          );
+                                        });
+                                      }
+                                    }}
+                                    className="w-full px-2 py-1 border rounded-lg mb-2 text-sm"
+                                  />
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ))}
 
@@ -739,6 +1119,67 @@ function SchedulePriceContent() {
                     ))}
                   </div>
                 </>
+              )}
+            </div>
+          )}
+
+          {/* Price Change History */}
+          {showHistory && (
+            <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-200 mt-4">
+              <div className="flex justify-between items-center mb-3">
+                <h2 className="text-lg font-bold">Price Change History & Logs</h2>
+                {selectedCustomers.length > 0 && (
+                  <div className="text-sm text-gray-600">
+                    Total Records: <span className="font-semibold">{priceHistory.length}</span>
+                  </div>
+                )}
+              </div>
+
+              {selectedCustomers.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">
+                  Please select at least one customer to view their price history.
+                </p>
+              ) : historyLoading ? (
+                <p className="text-gray-500">Loading history...</p>
+              ) : priceHistory.length === 0 ? (
+                <p className="text-gray-500">No history found for the selected customers.</p>
+              ) : (
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <table className="w-full border-collapse min-w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b">
+                        <th className="px-3 py-2 border text-left">Status</th>
+                        <th className="px-3 py-2 border text-left">Customer</th>
+                        <th className="px-3 py-2 border text-left">Station</th>
+                        <th className="px-3 py-2 border text-left">Product</th>
+                        <th className="px-3 py-2 border text-left">Code</th>
+                        <th className="px-3 py-2 border text-right">Price</th>
+                        <th className="px-3 py-2 border text-left">Scheduled Date</th>
+                        <th className="px-3 py-2 border text-left">Scheduled Time</th>
+                        <th className="px-3 py-2 border text-left">Applied At</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {priceHistory.map((item, index) => (
+                        <tr key={index} className={index % 2 === 0 ? "bg-white" : "bg-gray-50"}>
+                          <td className="px-3 py-2 border">
+                            {getStatusBadge(item.status, item.is_applied)}
+                          </td>
+                          <td className="px-3 py-2 border">{item.customer_name || "-"}</td>
+                          <td className="px-3 py-2 border">{item.station_name || "-"}</td>
+                          <td className="px-3 py-2 border">{item.product_name || "-"}</td>
+                          <td className="px-3 py-2 border">{item.product_code || "-"}</td>
+                          <td className="px-3 py-2 border text-right">₹{parseFloat(item.price || 0).toFixed(2)}</td>
+                          <td className="px-3 py-2 border">{item.Schedule_Date || "-"}</td>
+                          <td className="px-3 py-2 border">{item.Schedule_Time || "-"}</td>
+                          <td className="px-3 py-2 border">
+                            {item.applied_at ? new Date(item.applied_at).toLocaleString() : "Not Applied"}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

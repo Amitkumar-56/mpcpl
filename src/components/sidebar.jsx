@@ -10,6 +10,7 @@ import {
   FaBox,
   FaBuilding,
   FaClipboard,
+  FaClock,
   FaCog,
   FaExchangeAlt,
   FaFileAlt,
@@ -60,6 +61,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Schedule Prices", icon: <FaMoneyBill />, module: "schedule_price", path: "/schedule-price" },
     { name: "Products", icon: <FaBox />, module: "products", path: "/products" },
     { name: "Employees", icon: <FaUserTie />, module: "employees", path: "/employees" },
+    { name: "Attendance", icon: <FaClock />, module: "attendance", path: "/attendance" },
     { name: "Suppliers", icon: <FaBuilding />, module: "suppliers", path: "/suppliers" },
     { name: "Transporters", icon: <FaTruck />, module: "transporters", path: "/transporters" },
     { name: "NB Accounts", icon: <FaClipboard />, module: "nb_balance", path: "/nb-balance" },
@@ -130,10 +132,10 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           return false;
         }
         
-        // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer
+        // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer, Attendance
         const allowedModules = [
           'dashboard', 'filling_requests', 'stock', 'nb_balance', 'nb_expenses', 'nb_stock',
-          'tanker_history', 'stock_transfers', 'loading_stations', 'products'
+          'tanker_history', 'stock_transfers', 'loading_stations', 'products', 'attendance'
         ];
         return allowedModules.includes(item.module);
       });
@@ -178,8 +180,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           return false;
         }
         
-        // Show: Dashboard, Purchase Request, Stock (optional), Loading Stations
-        const allowedModules = ['dashboard', 'filling_requests', 'stock', 'loading_stations'];
+        // Show: Dashboard, Purchase Request, Stock (optional), Loading Stations, Attendance
+        const allowedModules = ['dashboard', 'filling_requests', 'stock', 'loading_stations', 'attendance'];
         if (allowedModules.includes(item.module)) {
           // Check permissions if available
           if (user.permissions && typeof user.permissions === 'object') {
@@ -197,7 +199,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
       });
     }
     
-    // ✅ Staff (role 1) - Single branch, Purchase request (search only), Stock (optional), Attendance (all)
+    // ✅ Staff (role 1) - Single branch, Purchase request (search only), Stock (optional), NO Attendance access
     if (userRole === 1) {
       return menuItems.filter((item) => {
         // Hide: History items (except if needed for attendance), NB modules, Users, etc.
@@ -206,7 +208,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           return false;
         }
         
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management', 'reports', 'customers', 'employees', 'suppliers', 'transporters'];
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management', 'reports', 'customers', 'employees', 'suppliers', 'transporters', 'attendance'];
         if (hiddenModules.includes(item.module)) {
           return false;
         }
