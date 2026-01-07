@@ -43,7 +43,8 @@ export async function POST(request) {
       product_name,
       amount,
       quantity,
-      invoiceDate
+      invoiceDate,
+      fs_id
     } = await request.json();
 
     const missingFields = [];
@@ -52,9 +53,11 @@ export async function POST(request) {
     if (amount === undefined || amount === null || amount === '') missingFields.push('amount');
     if (quantity === undefined || quantity === null || quantity === '') missingFields.push('quantity');
     if (!invoiceDate) missingFields.push('invoiceDate');
+    if (!fs_id || fs_id === '' || fs_id === null || fs_id === undefined) missingFields.push('fs_id');
     const fieldErrors = {};
     const amountNum = parseFloat(amount);
     const quantityNum = parseFloat(quantity);
+    const fsIdNum = fs_id ? parseInt(fs_id) : null;
     if (!isNaN(amountNum) && amountNum <= 0) fieldErrors.amount = 'Amount must be greater than 0';
     if (!isNaN(quantityNum) && quantityNum <= 0) fieldErrors.quantity = 'Quantity must be greater than 0';
     if (missingFields.length > 0 || Object.keys(fieldErrors).length > 0) {
@@ -72,14 +75,15 @@ export async function POST(request) {
     // Insert into purchase_for_use table
     const result = await executeQuery(
       `INSERT INTO purchase_for_use 
-       (supplier_name, product_name, amount, quantity, invoice_date) 
-       VALUES (?, ?, ?, ?, ?)`,
+       (supplier_name, product_name, amount, quantity, invoice_date, fs_id) 
+       VALUES (?, ?, ?, ?, ?, ?)`,
       [
         supplier_name,
         product_name,
         amountNum,
         quantityNum,
-        invoiceDate
+        invoiceDate,
+        fsIdNum
       ]
     );
 
