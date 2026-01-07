@@ -433,8 +433,19 @@ function StockHistoryContent() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {data.rows.length > 0 ? (
-                    data.rows.map((row) => (
-                      <tr key={row.id} className="hover:bg-gray-50 transition-colors">
+                    data.rows.map((row) => {
+                      const isEdited = row.trans_type?.toLowerCase() === 'edited';
+                      const hasRid = row.rid && row.rid.trim() !== '';
+                      
+                      return (
+                      <tr 
+                        key={row.id} 
+                        className={`hover:bg-gray-50 transition-colors ${isEdited ? 'bg-purple-50 border-l-4 border-purple-500 cursor-pointer' : ''}`}
+                        onClick={isEdited && hasRid ? () => {
+                          // Redirect to filling requests page with search for the rid
+                          window.location.href = `/filling-requests?search=${encodeURIComponent(row.rid)}`;
+                        } : undefined}
+                      >
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                           #{row.id}
                         </td>
@@ -453,7 +464,7 @@ function StockHistoryContent() {
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap">
                           {(() => {
-                            // ✅ Show only Inward or Outward (not Add/Minus)
+                            // ✅ Show Inward, Outward, or Edited
                             const transType = row.trans_type?.toLowerCase() || '';
                             let typeText;
                             let badgeColor;
@@ -464,6 +475,9 @@ function StockHistoryContent() {
                             } else if (transType === 'outward') {
                               typeText = 'Outward';
                               badgeColor = 'bg-red-100 text-red-800';
+                            } else if (transType === 'edited') {
+                              typeText = 'Edited ✏️';
+                              badgeColor = 'bg-purple-100 text-purple-800 font-bold';
                             } else {
                               // Fallback: use stock_type if available
                               if (row.stock_type === 'extra') {
@@ -486,22 +500,65 @@ function StockHistoryContent() {
                           })()}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {/* Show vehicle number only for outward with rid (customer loading), blank for stock inward */}
-                          {row.trans_type?.toLowerCase() === 'outward' && row.rid
+                          {/* Show vehicle number for outward and edited with rid (customer loading) */}
+                          {(row.trans_type?.toLowerCase() === 'outward' || row.trans_type?.toLowerCase() === 'edited') && row.rid
                             ? (row.vehicle_number || '')
                             : ''
                           }
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
-                          {formatNumber(row.current_stock)}
+                          {isEdited ? (
+                            <div className="space-y-1">
+                              <div className="text-sm font-bold text-purple-800 bg-purple-50 px-2 py-1 rounded">
+                                Before: {formatNumber(row.current_stock || 0)}L
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Stock before edit
+                              </div>
+                            </div>
+                          ) : (
+                            formatNumber(row.current_stock)
+                          )}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                          {formatNumber(row.filling_qty)}
+                          {isEdited ? (
+                            <div className="space-y-1">
+                              <div className="text-sm font-bold text-purple-700 bg-purple-50 px-2 py-1 rounded">
+                                {(() => {
+                                  // Parse quantity change from remarks: "Qty was X L, now Y L"
+                                  let qtyChange = 0;
+                                  if (row.remarks) {
+                                    const qtyMatch = row.remarks.match(/Qty was ([\d,]+\.?\d*)\s*L,?\s*now ([\d,]+\.?\d*)\s*L/i);
+                                    if (qtyMatch) {
+                                      const oldQty = parseFloat(qtyMatch[1].replace(/,/g, ''));
+                                      const newQty = parseFloat(qtyMatch[2].replace(/,/g, ''));
+                                      qtyChange = oldQty - newQty; // Positive if decreased, negative if increased
+                                    }
+                                  }
+                                  // Fallback: calculate from stock change (stock increases when qty decreases)
+                                  if (qtyChange === 0) {
+                                    const stockChange = parseFloat(row.available_stock || 0) - parseFloat(row.current_stock || 0);
+                                    qtyChange = -stockChange; // Negative because stock change is opposite of qty change
+                                  }
+                                  return qtyChange > 0 
+                                    ? `-${formatNumber(qtyChange)}L` 
+                                    : qtyChange < 0 
+                                    ? `+${formatNumber(Math.abs(qtyChange))}L` 
+                                    : '0L';
+                                })()}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                Quantity change
+                              </div>
+                            </div>
+                          ) : (
+                            formatNumber(row.filling_qty)
+                          )}
                         </td>
                         <td className={`px-4 py-3 whitespace-nowrap text-sm font-medium ${
-                          // ✅ Show available_stock for both Inward and Outward
-                          // Red color for low stock (available_stock <= 0 or < 1000)
-                          parseFloat(row.available_stock || 0) <= 0 
+                          isEdited 
+                            ? 'text-purple-700 font-bold'
+                            : parseFloat(row.available_stock || 0) <= 0 
                             ? 'text-red-600 font-bold' 
                             : parseFloat(row.available_stock || 0) < 1000 
                             ? 'text-red-500' 
@@ -509,9 +566,27 @@ function StockHistoryContent() {
                         }`}>
                           {row.available_stock !== null && row.available_stock !== undefined ? (
                             <>
-                              {formatNumber(row.available_stock)}
-                              {parseFloat(row.available_stock || 0) <= 0 && (
-                                <span className="ml-2 text-xs text-red-600">(Low Stock)</span>
+                              {isEdited ? (
+                                <div className="space-y-1">
+                                  <div className="text-sm font-bold text-purple-800 bg-purple-50 px-2 py-1 rounded">
+                                    After: {formatNumber(row.available_stock)}L
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    Stock after edit
+                                  </div>
+                                  {row.remarks && (
+                                    <div className="text-xs text-purple-600 mt-1 italic">
+                                      {row.remarks}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
+                                <>
+                                  {formatNumber(row.available_stock)}
+                                  {parseFloat(row.available_stock || 0) <= 0 && (
+                                    <span className="ml-2 text-xs text-red-600">(Low Stock)</span>
+                                  )}
+                                </>
                               )}
                             </>
                           ) : (
@@ -556,7 +631,8 @@ function StockHistoryContent() {
                           </div>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan="11" className="px-6 py-12 text-center">

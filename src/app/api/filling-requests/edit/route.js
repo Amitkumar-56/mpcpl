@@ -314,7 +314,7 @@ export async function POST(request) {
     const oldAmount = parseFloat(oldRequest.totalamt ?? (price * oldQty)) || (price * oldQty);
     const newAmount = price * newQty;
     const deltaAmount = newAmount - oldAmount;
-    
+
     console.log('📊 Edit Request Data:', {
       id,
       oldQty,
@@ -338,7 +338,7 @@ export async function POST(request) {
     } catch (colError) {
       console.warn('Could not check remark column:', colError.message);
     }
-    
+
     const updateQuery = `
       UPDATE filling_requests
       SET doc1 = ?, doc2 = ?, doc3 = ?, aqty = ?, totalamt = ?${hasRemarkColumn ? ', remark = ?' : ''}
@@ -409,7 +409,9 @@ export async function POST(request) {
     const wasCompleted = String(oldRequest.status) === 'Completed';
     
     // ✅ Update balance, outstanding, and filling_history for completed requests
-    if (wasCompleted && aqty !== null && aqty !== undefined && deltaAmount !== 0) {
+    // Also create Edited transaction if there's any quantity change, even if deltaAmount is 0
+    const hasQtyChange = aqty !== null && aqty !== undefined && oldQty !== newQty;
+    if (wasCompleted && hasQtyChange) {
       try {
         const cid = parseInt(oldRequest.cid);
         
@@ -495,9 +497,10 @@ export async function POST(request) {
           });
         }
         
-        // ✅ Update filling_history for the transaction
+        // ✅ Get the original outward transaction to get stock info
         const historyRow = await executeQuery(
-          `SELECT id, new_amount, remaining_limit, amount FROM filling_history 
+          `SELECT id, new_amount, remaining_limit, amount, current_stock, available_stock, fs_id, product_id 
+           FROM filling_history 
            WHERE rid = ? AND trans_type = 'Outward' 
            ORDER BY filling_date DESC, id DESC LIMIT 1`,
           [oldRequest.rid]
@@ -507,6 +510,8 @@ export async function POST(request) {
           const h = historyRow[0];
           const prevAmount = parseFloat(h.amount || oldAmount) || oldAmount;
           const prevNewAmount = parseFloat(h.new_amount || 0) || 0;
+          const oldStockBefore = parseFloat(h.current_stock || 0) || 0;
+          const oldStockAfter = parseFloat(h.available_stock || 0) || 0;
           
           // Calculate new values
           // new_amount represents cumulative amount after this transaction
@@ -523,42 +528,251 @@ export async function POST(request) {
             );
             updatedRemaining = afterBalance.length ? parseFloat(afterBalance[0].amtlimit || 0) : null;
           } else if (isDayLimitCustomer && dayLimit > 0) {
-            // For day limit customers, remaining_limit might be day_limit related
-            // Check if there's a day_limit field we should use
             updatedRemaining = dayLimit;
           }
           
-          await executeQuery(
-            `UPDATE filling_history 
-             SET filling_qty = ?, amount = ?, new_amount = ?, remaining_limit = ? 
-             WHERE id = ?`,
-            [newQty, updatedAmount, updatedNewAmount, updatedRemaining, h.id]
-          );
+          // ✅ Update filling_station_stocks
+          const fsId = h.fs_id || oldRequest.fs_id;
+          const productId = h.product_id || oldRequest.product;
           
-          console.log('📝 Filling history updated:', {
-            historyId: h.id,
-            rid: oldRequest.rid,
-            oldQty: oldQty,
-            newQty: newQty,
-            oldAmount: prevAmount,
-            newAmount: updatedAmount,
-            oldNewAmount: prevNewAmount,
-            updatedNewAmount: updatedNewAmount,
-            updatedRemaining: updatedRemaining,
-            isDayLimitCustomer,
-            isNonBilling
-          });
+          if (fsId && productId) {
+            // Get current stock
+            const currentStockRows = await executeQuery(
+              `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+              [fsId, productId]
+            );
+            
+            const currentStock = currentStockRows.length > 0 ? parseFloat(currentStockRows[0].stock || 0) : 0;
+            
+            // Calculate stock change: oldQty was deducted, newQty should be deducted
+            // So we need to add back oldQty and deduct newQty
+            const stockDelta = oldQty - newQty; // Positive if qty decreased (stock increases), negative if qty increased (stock decreases)
+            const newStock = currentStock + stockDelta;
+            
+            if (currentStockRows.length > 0) {
+              await executeQuery(
+                `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+                [Math.max(0, newStock), fsId, productId]
+              );
+            } else {
+              await executeQuery(
+                `INSERT INTO filling_station_stocks (fs_id, product, stock, msg, remark, created_at) 
+                 VALUES (?, ?, ?, ?, ?, NOW())`,
+                [fsId, productId, Math.max(0, newStock), `Stock adjusted from edit`, `Edit: ${oldQty}L → ${newQty}L`,]
+              );
+            }
+            
+            console.log('📦 Stock updated:', {
+              fsId,
+              productId,
+              oldStock: currentStock,
+              stockDelta,
+              newStock: Math.max(0, newStock),
+              oldQty,
+              newQty
+            });
+            
+          }
+          
+          // ✅ UPDATE the existing "Outward" transaction to "Edited" instead of creating new one
+          // Stock before edit = stock after original transaction (oldStockAfter)
+          // Stock after edit = oldStockAfter + oldQty - newQty (we reverse old, apply new)
+          const stockBeforeEdit = oldStockAfter; // Stock after original transaction (before edit)
+          const stockAfterEdit = Math.max(0, oldStockAfter + (oldQty - newQty)); // Stock after edit
+          // updatedNewAmount is already calculated above (line 520)
+          
+          // Check columns for filling_history
+          const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+          const colSet = new Set(colsInfo.map(r => r.Field || r.field));
+          
+          // Build UPDATE query
+          const updateFields = [];
+          const updateValues = [];
+          
+          // Always update these fields
+          updateFields.push('trans_type = ?');
+          updateValues.push('Edited');
+          updateFields.push('filling_qty = ?');
+          updateValues.push(newQty); // New quantity after edit
+          updateFields.push('amount = ?');
+          updateValues.push(newAmount);
+          updateFields.push('new_amount = ?');
+          updateValues.push(updatedNewAmount);
+          
+          // Update optional columns if they exist
+          if (colSet.has('remaining_limit')) {
+            updateFields.push('remaining_limit = ?');
+            updateValues.push(updatedRemaining);
+          }
+          if (colSet.has('current_stock')) {
+            // Update current_stock to show stock before edit (pehle kitna tha)
+            // This is the stock after the original transaction, before this edit
+            updateFields.push('current_stock = ?');
+            updateValues.push(stockBeforeEdit);
+          }
+          if (colSet.has('available_stock')) {
+            // Update available_stock to show stock after edit (ab kitna hua)
+            updateFields.push('available_stock = ?');
+            updateValues.push(stockAfterEdit);
+          }
+          if (colSet.has('remarks')) {
+            updateFields.push('remarks = ?');
+            updateValues.push(`Edited: Qty was ${oldQty}L, now ${newQty}L. Stock was ${stockBeforeEdit}L, now ${stockAfterEdit}L. Amount was ₹${oldAmount.toFixed(2)}, now ₹${newAmount.toFixed(2)}`);
+          }
+          
+          // Add WHERE clause
+          updateValues.push(h.id);
+          
+          const updateSql = `UPDATE filling_history SET ${updateFields.join(', ')} WHERE id = ?`;
+          
+          try {
+            const updateResult = await executeQuery(updateSql, updateValues);
+            
+            console.log('✅ Updated "Outward" to "Edited" transaction in filling_history:', {
+              affectedRows: updateResult?.affectedRows,
+              changedRows: updateResult?.changedRows,
+              historyId: h.id,
+              rid: oldRequest.rid,
+              trans_type: 'Edited',
+              cl_id: cid,
+              oldQty,
+              newQty,
+              oldAmount,
+              newAmount,
+              prevNewAmount,
+              updatedNewAmount,
+              stockBefore: oldStockAfter,
+              stockAfter: oldStockAfter + (oldQty - newQty)
+            });
+            
+            // Verify the update
+            const verifyResult = await executeQuery(
+              `SELECT id, trans_type, filling_qty, amount, new_amount, current_stock, available_stock FROM filling_history WHERE id = ?`,
+              [h.id]
+            );
+            if (verifyResult.length > 0) {
+              console.log('✅ Verified "Edited" transaction updated:', verifyResult[0]);
+              if (verifyResult[0].trans_type !== 'Edited') {
+                console.error('❌ Transaction type was not updated to "Edited"! Current type:', verifyResult[0].trans_type);
+              }
+            } else {
+              console.error('❌ "Edited" transaction was not found after update!');
+            }
+          } catch (updateErr) {
+            console.error('❌ Failed to update "Outward" to "Edited" transaction:', updateErr);
+            console.error('SQL:', updateSql);
+            console.error('Values:', updateValues);
+            throw updateErr; // Re-throw to be caught by outer catch
+          }
         } else {
           console.warn('⚠️ No filling_history record found for rid:', oldRequest.rid);
+          // Try to create Edited transaction even without original history
+          try {
+            const cid = parseInt(oldRequest.cid);
+            const fsId = oldRequest.fs_id;
+            const productId = oldRequest.product;
+            
+            // Get customer info
+            const clientRows = await executeQuery(`SELECT client_type, billing_type FROM customers WHERE id = ?`, [cid]);
+            const clientType = clientRows.length ? parseInt(clientRows[0].client_type) : null;
+            const isDayLimitCustomer = clientType === 3;
+            
+          let updatedRemaining = null;
+            if (!isDayLimitCustomer) {
+            const afterBalance = await executeQuery(
+              `SELECT amtlimit FROM customer_balances WHERE com_id = ? LIMIT 1`,
+              [cid]
+            );
+            updatedRemaining = afterBalance.length ? parseFloat(afterBalance[0].amtlimit || 0) : null;
+          }
+            
+            // Get latest new_amount
+            const latestHistory = await executeQuery(
+              `SELECT new_amount FROM filling_history 
+               WHERE cl_id = ? AND trans_type IN ('Outward', 'Edited')
+               ORDER BY filling_date DESC, id DESC LIMIT 1`,
+              [cid]
+            );
+            
+            const previousNewAmount = latestHistory.length > 0 
+              ? parseFloat(latestHistory[0].new_amount || 0) 
+              : 0;
+            
+            // Check columns
+            const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+            const colSet = new Set(colsInfo.map(r => r.Field || r.field));
+            
+            const baseCols = ['rid', 'fs_id', 'product_id', 'trans_type', 'filling_qty', 'amount', 'new_amount', 'filling_date', 'cl_id', 'created_by'];
+            const baseVals = [
+              oldRequest.rid,
+              fsId,
+              productId,
+              'Edited',
+              newQty,
+              newAmount,
+              previousNewAmount + newAmount,
+              new Date(),
+              cid,
+              userId || 1
+            ];
+            
+            if (colSet.has('sub_product_id')) {
+              baseCols.push('sub_product_id');
+              baseVals.push(oldRequest.fl_id || null);
+            }
+            if (colSet.has('remaining_limit')) {
+              baseCols.push('remaining_limit');
+              baseVals.push(updatedRemaining);
+            }
+            if (colSet.has('payment_status')) {
+              baseCols.push('payment_status');
+              baseVals.push(isDayLimitCustomer ? 0 : 1);
+            }
+            if (colSet.has('remarks')) {
+              baseCols.push('remarks');
+              baseVals.push(`Edited: Qty changed from ${oldQty}L to ${newQty}L, Amount changed from ₹${oldAmount.toFixed(2)} to ₹${newAmount.toFixed(2)}`);
+            }
+            
+            const placeholders = baseCols.map(() => '?').join(', ');
+            const insertSql = `INSERT INTO filling_history (${baseCols.join(',')}) VALUES (${placeholders})`;
+            const insertResult = await executeQuery(insertSql, baseVals);
+            
+            console.log('✅ Created "Edited" transaction (no original history found):', {
+              insertId: insertResult?.insertId,
+              rid: oldRequest.rid
+            });
+          } catch (createErr) {
+            console.error('⚠️ Failed to create Edited transaction (fallback):', createErr);
+          }
         }
         
       } catch (finErr) {
         console.error('⚠️ Financial update error:', finErr);
         console.error('Error stack:', finErr.stack);
+        console.error('Error details:', {
+          message: finErr.message,
+          code: finErr.code,
+          sql: finErr.sql,
+          wasCompleted,
+          hasQtyChange,
+          oldQty,
+          newQty,
+          deltaAmount
+        });
         // Don't fail the entire request, but log the error
       }
-    } else if (wasCompleted) {
+    } else if (wasCompleted && !hasQtyChange) {
       console.log('ℹ️ No quantity change, skipping balance update');
+    } else if (!wasCompleted) {
+      console.log('ℹ️ Request not completed, skipping filling_history update. Status:', oldRequest.status);
+    } else {
+      console.log('ℹ️ Skipping filling_history update. Conditions:', {
+        wasCompleted,
+        hasQtyChange,
+        aqty: aqty !== null && aqty !== undefined,
+        oldQty,
+        newQty
+      });
     }
 
     let userId = null;
@@ -571,12 +785,12 @@ export async function POST(request) {
         if (decoded) {
           userId = decoded.userId || decoded.id;
           if (userId) {
-            const users = await executeQuery(
-              `SELECT id, name FROM employee_profile WHERE id = ?`,
-              [userId]
-            );
-            if (users.length > 0) {
-              userName = users[0].name;
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
               console.log('👤 User info fetched:', { userId, userName });
             } else {
               console.warn('⚠️ User not found in employee_profile:', userId);
@@ -620,14 +834,49 @@ export async function POST(request) {
         const finalUserId = userId || 1; // Use 1 as fallback if userId is null
         const finalUserName = userName || `Employee ID: ${finalUserId}`;
         
-        const changes = JSON.stringify({
+        // Get stock information for edit log
+        let stockInfo = null;
+        if (hasAqtyChange && wasCompleted) {
+          try {
+            const stockHistoryRow = await executeQuery(
+              `SELECT current_stock, available_stock FROM filling_history 
+               WHERE rid = ? AND trans_type = 'Outward' 
+               ORDER BY filling_date DESC, id DESC LIMIT 1`,
+              [oldRequest.rid]
+            );
+            if (stockHistoryRow.length > 0) {
+              const h = stockHistoryRow[0];
+              const stockBeforeOriginal = parseFloat(h.current_stock || 0) || 0;
+              const stockAfterOriginal = parseFloat(h.available_stock || 0) || 0;
+              // Stock before edit = stock after original transaction (pehle kitna tha)
+              // Stock after edit = stock after original + oldQty - newQty (ab kitna hua)
+              // We reverse the old transaction (add back oldQty) and apply new (deduct newQty)
+              const stockBeforeEdit = stockAfterOriginal; // Stock pehle edit se pehle
+              const stockAfterEdit = Math.max(0, stockAfterOriginal + (oldQty - newQty)); // Stock edit ke baad
+              stockInfo = {
+                before: stockBeforeEdit,
+                after: stockAfterEdit,
+                oldQty: oldQty,
+                newQty: newQty,
+                stockBeforeOriginal: stockBeforeOriginal, // Stock original transaction se pehle
+                stockAfterOriginal: stockAfterOriginal // Stock original transaction ke baad
+              };
+              console.log('📦 Stock info for edit log:', stockInfo);
+            }
+          } catch (stockErr) {
+            console.warn('⚠️ Could not fetch stock info for edit log:', stockErr);
+          }
+        }
+        
+      const changes = JSON.stringify({
           edited_by_id: finalUserId,
           edited_by_name: finalUserName,
           aqty: hasAqtyChange ? { from: oldRequest.aqty, to: newQty } : null,
           remarks: hasRemarksChange ? { from: oldRequest.remark, to: remarks } : null,
           doc1: hasDoc1Change ? { to: doc1Path } : null,
           doc2: hasDoc2Change ? { to: doc2Path } : null,
-          doc3: hasDoc3Change ? { to: doc3Path } : null
+          doc3: hasDoc3Change ? { to: doc3Path } : null,
+          stock: stockInfo
         });
         
         console.log('📝 Creating edit log (changes detected):', {
@@ -666,8 +915,8 @@ export async function POST(request) {
         
         // Insert edit log
         const insertResult = await executeQuery(
-          `INSERT INTO edit_logs (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
-           VALUES (?, ?, NOW(), ?, ?, ?, ?, ?)`,
+        `INSERT INTO edit_logs (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
+         VALUES (?, ?, NOW(), ?, ?, ?, ?, ?)`,
           [requestId, finalUserId, oldRequest.status, oldRequest.status, oldRequest.aqty || 0, newQty || 0, changes]
         );
         
@@ -701,7 +950,7 @@ export async function POST(request) {
           console.warn('⚠️ Could not verify edit log:', verifyErr.message);
         }
         
-      } catch (logErr) {
+    } catch (logErr) {
         editLogCreated = false;
         editLogError = logErr.message;
         console.error('❌ Edit log insert failed:', logErr);

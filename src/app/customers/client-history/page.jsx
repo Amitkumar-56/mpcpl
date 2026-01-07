@@ -352,13 +352,17 @@ function ClientHistoryContent() {
     const styles = {
       outward: "bg-red-100 text-red-800 border-red-200",
       inward: "bg-green-100 text-green-800 border-green-200",
+      edited: "bg-purple-100 text-purple-800 border-purple-200 font-bold",
     };
 
     const style =
       styles[type?.toLowerCase()] ||
       "bg-gray-100 text-gray-800 border-gray-200";
     const displayText =
-      type === "outward" ? "outward" : type === "inward" ? "inward" : type;
+      type?.toLowerCase() === "outward" ? "Outward" : 
+      type?.toLowerCase() === "inward" ? "Inward" : 
+      type?.toLowerCase() === "edited" ? "Edited ✏️" : 
+      type;
 
     return (
       <span
@@ -372,9 +376,10 @@ function ClientHistoryContent() {
   // Mobile Card View
   const TransactionCard = ({ transaction }) => {
     const statusInfo = getEnhancedTransactionStatus(transaction);
+    const isEdited = transaction.trans_type?.toLowerCase() === 'edited';
 
     return (
-      <div className="bg-white rounded-lg shadow-sm border p-4 mb-3 hover:shadow-md transition-shadow">
+      <div className={`bg-white rounded-lg shadow-sm border p-4 mb-3 hover:shadow-md transition-shadow ${isEdited ? 'border-l-4 border-purple-500 bg-purple-50' : ''}`}>
         <div className="grid grid-cols-2 gap-3 text-sm">
           <div>
             <p className="text-gray-500 text-xs font-medium">ID</p>
@@ -995,10 +1000,11 @@ function ClientHistoryContent() {
                       displayTransactions.map((transaction) => {
                         const statusInfo = getEnhancedTransactionStatus(transaction);
 
+                        const isEdited = transaction.trans_type?.toLowerCase() === 'edited';
                         return (
                           <tr
                             key={transaction.id}
-                            className="hover:bg-gray-50 transition-colors"
+                            className={`hover:bg-gray-50 transition-colors ${isEdited ? 'bg-purple-50 border-l-4 border-purple-500' : ''}`}
                           >
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">
                               {transaction.id}

@@ -472,53 +472,109 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                   </div>
                 )}
 
-                {/* Edited By - Show latest edit, same width as Completed By */}
+                {/* Edited By - Show all edit logs with details */}
                 {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <div className="text-xs font-medium text-gray-500 mb-1">Edited By</div>
-                    {(() => {
-                      // Get the latest edit log
-                      const latestEdit = request.edit_logs[0];
-                      const editedByName = latestEdit.edited_by_name || 
-                        (latestEdit.changes && typeof latestEdit.changes === 'string' ? (() => {
+                    <div className="text-xs font-medium text-gray-500 mb-2">
+                      Edited By ({request.edit_logs.length} {request.edit_logs.length === 1 ? 'time' : 'times'})
+                    </div>
+                    <div className="space-y-3 max-h-64 overflow-y-auto">
+                      {request.edit_logs.map((editLog, index) => {
+                        const editedByName = editLog.edited_by_name || 
+                          (editLog.changes && typeof editLog.changes === 'string' ? (() => {
+                            try {
+                              const changes = JSON.parse(editLog.changes);
+                              return changes.edited_by_name;
+                            } catch (e) {
+                              return null;
+                            }
+                          })() : null) ||
+                          `Employee ID: ${editLog.edited_by || 'Unknown'}`;
+                        
+                        // Check if this is a different employee from previous edit
+                        const prevEdit = index > 0 ? request.edit_logs[index - 1] : null;
+                        const prevEmployeeId = prevEdit?.edited_by || (prevEdit?.changes ? (() => {
                           try {
-                            const changes = JSON.parse(latestEdit.changes);
-                            return changes.edited_by_name;
+                            const prevChanges = JSON.parse(prevEdit.changes);
+                            return prevChanges.edited_by_id;
                           } catch (e) {
                             return null;
                           }
-                        })() : null) ||
-                        `Employee ID: ${latestEdit.edited_by || 'Unknown'}`;
-                      
-                      return (
-                        <>
-                          <div className="text-sm text-gray-900">
-                            {editedByName}
-                            {latestEdit.edited_by_code && (
-                              <span className="text-xs text-gray-500 ml-1">({latestEdit.edited_by_code})</span>
-                            )}
+                        })() : null);
+                        const currentEmployeeId = editLog.edited_by || (editLog.changes ? (() => {
+                          try {
+                            const changes = JSON.parse(editLog.changes);
+                            return changes.edited_by_id;
+                          } catch (e) {
+                            return null;
+                          }
+                        })() : null);
+                        const isDifferentEmployee = prevEdit && prevEmployeeId !== currentEmployeeId;
+                        
+                        // Parse changes
+                        let changesData = null;
+                        if (editLog.changes && typeof editLog.changes === 'string') {
+                          try {
+                            changesData = JSON.parse(editLog.changes);
+                          } catch (e) {
+                            // Ignore parse errors
+                          }
+                        }
+                        
+                        return (
+                          <div key={index} className={`bg-purple-50 border rounded p-2 ${isDifferentEmployee ? 'border-purple-400 border-l-4' : 'border-purple-200'}`}>
+                            <div className="flex items-center justify-between mb-1">
+                              <div className="text-xs font-semibold text-purple-800">
+                                ✏️ Edit #{request.edit_logs.length - index}: {editedByName}
+                                {editLog.edited_by_code && (
+                                  <span className="text-gray-600 ml-1">({editLog.edited_by_code})</span>
+                                )}
+                                {isDifferentEmployee && (
+                                  <span className="ml-2 text-xs bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">Different Employee</span>
+                                )}
+                              </div>
+                              {editLog.edited_date && (
+                                <div className="text-xs text-gray-600">
+                                  {new Date(editLog.edited_date).toLocaleString("en-IN", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    year: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                    hour12: true,
+                                    timeZone: "Asia/Kolkata"
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                            
+                            {/* Show changes */}
+                            <div className="text-xs text-purple-700 space-y-1 mt-1">
+                              {changesData?.aqty && changesData.aqty.from !== undefined && changesData.aqty.to !== undefined && (
+                                <div>
+                                  📦 Qty: <span className="font-medium">{changesData.aqty.from}L</span> → <span className="font-medium">{changesData.aqty.to}L</span>
+                                </div>
+                              )}
+                              {changesData?.stock && changesData.stock.before !== undefined && changesData.stock.after !== undefined && (
+                                <div>
+                                  📊 Stock: <span className="font-medium">{changesData.stock.before}L</span> → <span className="font-medium">{changesData.stock.after}L</span>
+                                </div>
+                              )}
+                              {changesData?.remarks && changesData.remarks.from && changesData.remarks.to && (
+                                <div>
+                                  📝 Remarks: <span className="font-medium">"{changesData.remarks.from}"</span> → <span className="font-medium">"{changesData.remarks.to}"</span>
+                                </div>
+                              )}
+                              {(editLog.old_aqty !== undefined && editLog.new_aqty !== undefined) && !changesData?.aqty && (
+                                <div>
+                                  📦 Qty: <span className="font-medium">{editLog.old_aqty}L</span> → <span className="font-medium">{editLog.new_aqty}L</span>
+                                </div>
+                              )}
+                            </div>
                           </div>
-                          {latestEdit.edited_date && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {new Date(latestEdit.edited_date).toLocaleString("en-IN", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: true,
-                                timeZone: "Asia/Kolkata"
-                              })}
-                            </div>
-                          )}
-                          {request.edit_logs.length > 1 && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              +{request.edit_logs.length - 1} more edit{request.edit_logs.length - 1 > 1 ? 's' : ''}
-                            </div>
-                          )}
-                        </>
-                      );
-                    })()}
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
 
@@ -656,7 +712,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
         )}
 
         {/* Activity Logs */}
-        {(request.created_by_name || request.processing_by_name || request.completed_by_name) && (
+        {(request.created_by_name || request.processing_by_name || request.completed_by_name || (request.edit_logs && request.edit_logs.length > 0)) && (
           <div className="mt-2 pt-2 border-t border-gray-200">
             <div className="font-medium text-gray-600 text-xs mb-1">Activity Logs</div>
             <div className="space-y-1">
@@ -687,26 +743,36 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                   </p>
                 </div>
               )}
-              {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (() => {
-                const latestEdit = request.edit_logs[0];
-                const editedByName = latestEdit.edited_by_name || 
-                  (latestEdit.changes && typeof latestEdit.changes === 'string' ? (() => {
+              {/* Show all edit logs */}
+              {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && request.edit_logs.map((editLog, index) => {
+                const editedByName = editLog.edited_by_name || 
+                  (editLog.changes && typeof editLog.changes === 'string' ? (() => {
                     try {
-                      const changes = JSON.parse(latestEdit.changes);
+                      const changes = JSON.parse(editLog.changes);
                       return changes.edited_by_name;
                     } catch (e) {
                       return null;
                     }
                   })() : null) ||
-                  `Employee ID: ${latestEdit.edited_by || 'Unknown'}`;
+                  `Employee ID: ${editLog.edited_by || 'Unknown'}`;
+                
+                // Parse changes
+                let changesData = null;
+                if (editLog.changes && typeof editLog.changes === 'string') {
+                  try {
+                    changesData = JSON.parse(editLog.changes);
+                  } catch (e) {
+                    // Ignore parse errors
+                  }
+                }
                 
                 return (
-                  <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
+                  <div key={index} className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
                     <p className="text-xs text-purple-700">
-                      <span className="font-medium">✏️ Edited:</span> {editedByName}
-                      {latestEdit.edited_date && (
+                      <span className="font-medium">✏️ Edited ({index + 1}):</span> {editedByName}
+                      {editLog.edited_date && (
                         <span className="ml-2 text-gray-600">
-                          ({new Date(latestEdit.edited_date).toLocaleString("en-IN", {
+                          ({new Date(editLog.edited_date).toLocaleString("en-IN", {
                             day: "2-digit",
                             month: "2-digit",
                             year: "numeric",
@@ -718,9 +784,29 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                         </span>
                       )}
                     </p>
+                    {changesData?.aqty && changesData.aqty.from !== undefined && changesData.aqty.to !== undefined && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        📦 Qty: <span className="font-medium">{changesData.aqty.from}L</span> → <span className="font-medium">{changesData.aqty.to}L</span>
+                      </p>
+                    )}
+                    {changesData?.stock && changesData.stock.before !== undefined && changesData.stock.after !== undefined && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        📊 Stock: <span className="font-medium">{changesData.stock.before}L</span> → <span className="font-medium">{changesData.stock.after}L</span>
+                      </p>
+                    )}
+                    {changesData?.remarks && changesData.remarks.from && changesData.remarks.to && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        📝 Remarks: <span className="font-medium">"{changesData.remarks.from}"</span> → <span className="font-medium">"{changesData.remarks.to}"</span>
+                      </p>
+                    )}
+                    {(editLog.old_aqty !== undefined && editLog.new_aqty !== undefined) && !changesData?.aqty && (
+                      <p className="text-xs text-purple-600 mt-1">
+                        📦 Qty: <span className="font-medium">{editLog.old_aqty}L</span> → <span className="font-medium">{editLog.new_aqty}L</span>
+                      </p>
+                    )}
                   </div>
                 );
-              })()}
+              })}
             </div>
           </div>
         )}
@@ -835,53 +921,109 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </div>
             )}
 
-            {/* Edited By - Show latest edit, same style as Completed By */}
+            {/* Edited By - Show all edit logs with details */}
             {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (
               <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <div className="text-xs font-medium text-gray-500 mb-1">Edited By</div>
-                {(() => {
-                  // Get the latest edit log
-                  const latestEdit = request.edit_logs[0];
-                  const editedByName = latestEdit.edited_by_name || 
-                    (latestEdit.changes && typeof latestEdit.changes === 'string' ? (() => {
+                <div className="text-xs font-medium text-gray-500 mb-2">
+                  Edited By ({request.edit_logs.length} {request.edit_logs.length === 1 ? 'time' : 'times'})
+                </div>
+                <div className="space-y-3 max-h-64 overflow-y-auto">
+                  {request.edit_logs.map((editLog, index) => {
+                    const editedByName = editLog.edited_by_name || 
+                      (editLog.changes && typeof editLog.changes === 'string' ? (() => {
+                        try {
+                          const changes = JSON.parse(editLog.changes);
+                          return changes.edited_by_name;
+                        } catch (e) {
+                          return null;
+                        }
+                      })() : null) ||
+                      `Employee ID: ${editLog.edited_by || 'Unknown'}`;
+                    
+                    // Check if this is a different employee from previous edit
+                    const prevEdit = index > 0 ? request.edit_logs[index - 1] : null;
+                    const prevEmployeeId = prevEdit?.edited_by || (prevEdit?.changes ? (() => {
                       try {
-                        const changes = JSON.parse(latestEdit.changes);
-                        return changes.edited_by_name;
+                        const prevChanges = JSON.parse(prevEdit.changes);
+                        return prevChanges.edited_by_id;
                       } catch (e) {
                         return null;
                       }
-                    })() : null) ||
-                    `Employee ID: ${latestEdit.edited_by || 'Unknown'}`;
-                  
-                  return (
-                    <>
-                      <div className="text-sm text-gray-900">
-                        {editedByName}
-                        {latestEdit.edited_by_code && (
-                          <span className="text-xs text-gray-500 ml-1">({latestEdit.edited_by_code})</span>
-                        )}
+                    })() : null);
+                    const currentEmployeeId = editLog.edited_by || (editLog.changes ? (() => {
+                      try {
+                        const changes = JSON.parse(editLog.changes);
+                        return changes.edited_by_id;
+                      } catch (e) {
+                        return null;
+                      }
+                    })() : null);
+                    const isDifferentEmployee = prevEdit && prevEmployeeId !== currentEmployeeId;
+                    
+                    // Parse changes
+                    let changesData = null;
+                    if (editLog.changes && typeof editLog.changes === 'string') {
+                      try {
+                        changesData = JSON.parse(editLog.changes);
+                      } catch (e) {
+                        // Ignore parse errors
+                      }
+                    }
+                    
+                    return (
+                      <div key={index} className={`bg-purple-50 border rounded p-2 ${isDifferentEmployee ? 'border-purple-400 border-l-4' : 'border-purple-200'}`}>
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="text-xs font-semibold text-purple-800">
+                            ✏️ Edit #{request.edit_logs.length - index}: {editedByName}
+                            {editLog.edited_by_code && (
+                              <span className="text-gray-600 ml-1">({editLog.edited_by_code})</span>
+                            )}
+                            {isDifferentEmployee && (
+                              <span className="ml-2 text-xs bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">Different Employee</span>
+                            )}
+                          </div>
+                          {editLog.edited_date && (
+                            <div className="text-xs text-gray-600">
+                              {new Date(editLog.edited_date).toLocaleString("en-IN", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                                hour12: true,
+                                timeZone: "Asia/Kolkata"
+                              })}
+                            </div>
+                          )}
+                        </div>
+                        
+                        {/* Show changes */}
+                        <div className="text-xs text-purple-700 space-y-1 mt-1">
+                          {changesData?.aqty && changesData.aqty.from !== undefined && changesData.aqty.to !== undefined && (
+                            <div>
+                              📦 Qty: <span className="font-medium">{changesData.aqty.from}L</span> → <span className="font-medium">{changesData.aqty.to}L</span>
+                            </div>
+                          )}
+                          {changesData?.stock && changesData.stock.before !== undefined && changesData.stock.after !== undefined && (
+                            <div>
+                              📊 Stock: <span className="font-medium">{changesData.stock.before}L</span> → <span className="font-medium">{changesData.stock.after}L</span>
+                            </div>
+                          )}
+                          {changesData?.remarks && changesData.remarks.from && changesData.remarks.to && (
+                            <div>
+                              📝 Remarks: <span className="font-medium">"{changesData.remarks.from}"</span> → <span className="font-medium">"{changesData.remarks.to}"</span>
+                            </div>
+                          )}
+                          {(editLog.old_aqty !== undefined && editLog.new_aqty !== undefined) && !changesData?.aqty && (
+                            <div>
+                              📦 Qty: <span className="font-medium">{editLog.old_aqty}L</span> → <span className="font-medium">{editLog.new_aqty}L</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      {latestEdit.edited_date && (
-                        <div className="text-xs text-gray-500 mt-1">
-                          {new Date(latestEdit.edited_date).toLocaleString("en-IN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                            timeZone: "Asia/Kolkata"
-                          })}
-                        </div>
-                      )}
-                      {request.edit_logs.length > 1 && (
-                        <div className="text-xs text-gray-400 mt-1">
-                          +{request.edit_logs.length - 1} more edit{request.edit_logs.length - 1 > 1 ? 's' : ''}
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
+                    );
+                  })}
+                </div>
               </div>
             )}
 

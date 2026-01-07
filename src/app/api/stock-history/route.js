@@ -32,21 +32,36 @@ export async function GET(request) {
       console.log('⚠️ Could not check stock_type column:', colError.message);
     }
 
+    // ✅ Check if remarks column exists
+    let hasRemarks = false;
+    try {
+      const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+      const colSet = new Set(colsInfo.map(r => r.Field || r.field));
+      hasRemarks = colSet.has('remarks');
+      console.log('✅ remarks column exists:', hasRemarks);
+    } catch (colError) {
+      console.log('⚠️ Could not check remarks column:', colError.message);
+    }
+
     // ✅ Fetch specific fields from filling_history table
     // ✅ Ensure created_by name is fetched from employee_profile table properly
+    // ✅ Include "Edited" transactions in stock history
     const stockTypeField = hasStockType ? 'fh.stock_type,' : '';
+    const remarksField = hasRemarks ? 'fh.remarks,' : '';
     let sql = `
       SELECT 
         fh.id,
         fh.fs_id,
         fh.product_id,
         fh.trans_type,
+        fh.rid,
         ${stockTypeField}
         fh.current_stock,
         fh.filling_qty,
         fh.available_stock,
         fh.filling_date,
         fh.created_by,
+        ${remarksField}
         COALESCE(p.pname, 'Unknown Product') AS pname, 
         COALESCE(fr.vehicle_number, '') AS vehicle_number,
         COALESCE(fs.station_name, 'Unknown Station') AS station_name,
@@ -65,11 +80,13 @@ export async function GET(request) {
       LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id AND fh.created_by IS NOT NULL AND fh.created_by > 0
-      WHERE fh.trans_type IN ('Inward', 'Outward')
+      WHERE fh.trans_type IN ('Inward', 'Outward', 'Edited')
         AND (
           (fh.trans_type = 'Inward' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
           OR
           (fh.trans_type = 'Outward')
+          OR
+          (fh.trans_type = 'Edited' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
         )
     `;
 
