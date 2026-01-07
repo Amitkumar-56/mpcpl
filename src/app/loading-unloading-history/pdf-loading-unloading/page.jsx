@@ -1,3 +1,6 @@
+
+
+
 'use client';
 
 import { useSearchParams } from 'next/navigation';
@@ -21,7 +24,7 @@ function PdfLoadingUnloadingContent() {
   const fetchShipmentData = async () => {
     try {
       setLoading(true);
-      const response = await fetch(`/api/loading-unloading/pdf-loading-unloading?shipment_id=${shipmentId}`);
+      const response = await fetch(`/api/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipmentId}`);
       const result = await response.json();
 
       if (result.success) {
@@ -49,31 +52,114 @@ function PdfLoadingUnloadingContent() {
       return;
     }
     
-    // Dynamically import html2pdf only when needed (client-side only)
+    // Dynamically import PDF libs and render single-page image
     try {
-      const html2pdf = (await import('html2pdf.js')).default;
-      
-      const opt = {
-        margin: 5,
-        filename: `shipment-details-${shipmentId}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          scrollY: 0,
-          logging: true
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import('html2canvas'),
+        import('jspdf')
+      ]);
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'fixed';
+      tempContainer.style.left = '-10000px';
+      tempContainer.style.top = '0';
+      tempContainer.style.width = '793px';
+      tempContainer.style.minHeight = '1123px';
+      tempContainer.style.padding = '57px';
+      tempContainer.style.backgroundColor = '#ffffff';
+      tempContainer.style.boxSizing = 'border-box';
+      tempContainer.style.zIndex = '9999';
+      tempContainer.style.opacity = '1';
+      tempContainer.className = 'pdf-safe';
+      const safeStyle = document.createElement('style');
+      safeStyle.textContent = `
+        .pdf-safe, .pdf-safe * { color: #1f2937 !important; background: #ffffff !important; }
+        .pdf-safe .border, .pdf-safe table, .pdf-safe td, .pdf-safe th { border-color: #d1d5db !important; }
+      `;
+      tempContainer.appendChild(safeStyle);
+      const contentToCopy = element.cloneNode(true);
+      const buttons = contentToCopy.querySelector('.print\\:hidden');
+      if (buttons) { buttons.remove(); }
+      contentToCopy.querySelectorAll('iframe, embed, object').forEach(el => el.remove());
+      const allImgs = Array.from(contentToCopy.querySelectorAll('img'));
+      allImgs.forEach(img => {
+        try {
+          const url = new URL(img.src, window.location.origin);
+          if (url.origin !== window.location.origin) {
+            img.style.display = 'none';
+          } else {
+            img.crossOrigin = img.crossOrigin || 'anonymous';
+          }
+        } catch {
+          img.crossOrigin = img.crossOrigin || 'anonymous';
         }
-      };
-      
-      html2pdf().set(opt).from(element).save();
+      });
+      tempContainer.appendChild(contentToCopy);
+      document.body.appendChild(tempContainer);
+      const imgs = Array.from(tempContainer.querySelectorAll('img'));
+      await Promise.all(imgs.map(img => {
+        return new Promise(resolve => {
+          if (img.complete) return resolve();
+          img.crossOrigin = img.crossOrigin || 'anonymous';
+          img.onload = resolve;
+          img.onerror = resolve;
+        });
+      }));
+      if (document.fonts && document.fonts.ready) {
+        try { await document.fonts.ready; } catch {}
+      }
+      await new Promise(r => setTimeout(r, 50));
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff',
+        scrollY: 0,
+        logging: false
+      });
+
+      const pdf = new jsPDF('portrait', 'mm', 'a4');
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 5;
+
+      let imgWidth = pageWidth - margin * 2;
+      let imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      if (imgHeight > pageHeight - margin * 2) {
+        const scale = (pageHeight - margin * 2) / imgHeight;
+        imgHeight = pageHeight - margin * 2;
+        imgWidth = imgWidth * scale;
+      }
+
+      const x = (pageWidth - imgWidth) / 2;
+      const y = (pageHeight - imgHeight) / 2;
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+      pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
+      pdf.save(`shipment-details-${shipmentId}.pdf`);
+      document.body.removeChild(tempContainer);
     } catch (error) {
-      console.error('Error generating PDF:', error);
-      alert('Failed to generate PDF. Please try again.');
+      console.error('Error generating PDF (single-page):', error);
+      try {
+        const html2pdf = (await import('html2pdf.js')).default;
+        const opt = {
+          margin: 5,
+          filename: `shipment-details-${shipmentId}.pdf`,
+          image: { type: 'jpeg', quality: 0.98 },
+          html2canvas: { 
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff',
+            scrollY: 0,
+            logging: false
+          },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: 'avoid-all' }
+        };
+        await html2pdf().set(opt).from(element).save();
+      } catch (fallbackError) {
+        console.error('Fallback PDF generation failed:', fallbackError);
+        alert('Failed to generate PDF. Please try again.');
+      }
     }
   };
 

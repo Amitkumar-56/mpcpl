@@ -87,7 +87,14 @@ function PurchaseForUseForm() {
         resetForm();
         router.push('/stock/purchase-for-use-history');
       } else {
-        alert(`Error: ${result.message || 'Failed to submit purchase data'}`);
+        const missing = Array.isArray(result?.missingFields) && result.missingFields.length > 0
+          ? `Missing fields: ${result.missingFields.join(', ')}`
+          : '';
+        const fieldErrs = result?.fieldErrors
+          ? Object.entries(result.fieldErrors).map(([k, v]) => `${k}: ${v}`).join(', ')
+          : '';
+        const combined = [result?.message, missing, fieldErrs].filter(Boolean).join(' | ');
+        alert(`Error: ${combined || 'Failed to submit purchase data'}`);
       }
     } catch (error) {
       console.error('Error submitting purchase:', error);

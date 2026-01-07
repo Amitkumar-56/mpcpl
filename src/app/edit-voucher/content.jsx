@@ -16,6 +16,7 @@ export default function EditVoucherContent() {
   const [advance, setAdvance] = useState(0);
   const [remaining, setRemaining] = useState(0);
   const [saving, setSaving] = useState(false);
+  const formatINR = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(n || 0));
 
   useEffect(() => {
     if (voucher_id) {
@@ -158,6 +159,7 @@ export default function EditVoucherContent() {
               onChange={(e) => setTotalExpense(parseFloat(e.target.value) || 0)}
               className="w-full border px-3 py-2 rounded"
             />
+            <div className="text-xs text-gray-500 mt-1">{formatINR(totalExpense)}</div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Advance</label>
@@ -167,6 +169,7 @@ export default function EditVoucherContent() {
               onChange={(e) => setAdvance(parseFloat(e.target.value) || 0)}
               className="w-full border px-3 py-2 rounded"
             />
+            <div className="text-xs text-gray-500 mt-1">{formatINR(advance)}</div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Remaining</label>
@@ -176,6 +179,9 @@ export default function EditVoucherContent() {
               disabled 
               className={`w-full border px-3 py-2 rounded bg-gray-100 font-bold ${(advance - totalExpense) < 0 ? 'text-red-600' : 'text-green-600'}`}
             />
+            <div className={`text-xs mt-1 ${(advance - totalExpense) < 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {formatINR(Math.abs(advance - totalExpense))}
+            </div>
           </div>
         </div>
 

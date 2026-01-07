@@ -20,7 +20,12 @@ export default function PurchaseForUseHistory() {
         setError(null);
         setLoading(true);
         
-        const res = await fetch('/api/purchase-for-use-history');
+        let res;
+        try {
+          res = await fetch('/api/purchase-for-use-history', { cache: 'no-store' });
+        } catch (networkErr) {
+          throw new Error('Failed to fetch purchase history (primary).');
+        }
         
         if (!res.ok) {
           throw new Error(`Failed to fetch data: ${res.status} ${res.statusText}`);
@@ -34,7 +39,23 @@ export default function PurchaseForUseHistory() {
         } else if (data && Array.isArray(data)) {
           setHistoryData(data);
         } else {
-          throw new Error('Invalid data format from API');
+          // Fallback to alternate endpoint
+          try {
+            const altRes = await fetch('/api/purchases-for-use', { cache: 'no-store' });
+            if (!altRes.ok) {
+              throw new Error(`Fallback failed: ${altRes.status} ${altRes.statusText}`);
+            }
+            const altData = await altRes.json();
+            if (altData && altData.success && Array.isArray(altData.data)) {
+              setHistoryData(altData.data);
+            } else if (Array.isArray(altData)) {
+              setHistoryData(altData);
+            } else {
+              throw new Error('Invalid data format from fallback API');
+            }
+          } catch (fbErr) {
+            throw new Error('Failed to fetch purchase history (fallback).');
+          }
         }
       } catch (error) {
         console.error('Error fetching purchase history:', error);

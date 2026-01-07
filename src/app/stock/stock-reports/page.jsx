@@ -45,8 +45,15 @@ function FillingHistory() {
     'current_stock',
     'filling_qty',
     'available_stock',
+    'amount',
+    'new_amount',
+    'remaining_limit',
     'filling_date',
-    'created_by_name'
+    'created_by_name',
+    'edited_by_name',
+    'edited_at',
+    'edited_delta_qty',
+    'edited_delta_amount'
   ];
 
   const fetchHistory = async (filterParams = {}) => {
@@ -271,18 +278,22 @@ function FillingHistory() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     S No
                   </th>
-                  {columns.map((column) => (
-                    <th
-                      key={column}
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      {column === 'created_by_name' 
-                        ? 'Created By' 
-                        : column.split('_').map(word => 
-                            word.charAt(0).toUpperCase() + word.slice(1)
-                          ).join(' ')}
-                    </th>
-                  ))}
+                      {columns.map((column) => (
+                        <th
+                          key={column}
+                          className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
+                        >
+                          {column === 'created_by_name' 
+                            ? 'Created By' 
+                            : column === 'edited_by_name'
+                            ? 'Edited By'
+                            : column === 'edited_at'
+                            ? 'Edited At'
+                            : column.split('_').map(word => 
+                                word.charAt(0).toUpperCase() + word.slice(1)
+                              ).join(' ')}
+                        </th>
+                      ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -316,6 +327,46 @@ function FillingHistory() {
                               })
                             : column === 'created_by_name'
                             ? row[column] || 'N/A'
+                            : column === 'edited_at'
+                            ? (row[column] ? new Date(row[column]).toLocaleString('en-IN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                                hour12: true
+                              }) : '—')
+                            : column === 'edited_by_name'
+                            ? (row[column] ? (
+                                <span className="inline-flex items-center">
+                                  <span className="mr-2 inline-block w-2 h-2 rounded-full bg-yellow-500"></span>
+                                  {row[column]}
+                                </span>
+                              ) : '—')
+                            : column === 'amount' || column === 'new_amount'
+                            ? (row[column] !== null && row[column] !== undefined
+                                ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(row[column]))
+                                : '—')
+                            : column === 'remaining_limit'
+                            ? (row[column] !== null && row[column] !== undefined
+                                ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(row[column]))
+                                : '—')
+                            : column === 'edited_delta_qty'
+                            ? (row[column] === null || row[column] === undefined
+                                ? '—'
+                                : (
+                                  <span className={row[column] > 0 ? 'text-red-600' : (row[column] < 0 ? 'text-green-600' : 'text-gray-600')}>
+                                    {row[column] > 0 ? '+' : ''}{row[column]}
+                                  </span>
+                                ))
+                            : column === 'edited_delta_amount'
+                            ? (row[column] === null || row[column] === undefined
+                                ? '—'
+                                : (
+                                  <span className={row[column] > 0 ? 'text-red-600' : (row[column] < 0 ? 'text-green-600' : 'text-gray-600')}>
+                                    {row[column] > 0 ? '+' : ''}{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(Number(row[column]))}
+                                  </span>
+                                ))
                             : row[column]}
                         </td>
                       ))}

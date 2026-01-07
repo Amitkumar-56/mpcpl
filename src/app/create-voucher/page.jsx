@@ -61,8 +61,8 @@ function CreateVoucherContent() {
     }
 
     // Check cached permissions
-    if (user.permissions && user.permissions['Vouchers']) {
-      const voucherPerms = user.permissions['Vouchers'];
+    if (user.permissions && user.permissions['Voucher']) {
+      const voucherPerms = user.permissions['Voucher'];
       if (voucherPerms.can_create) {
         setHasPermission(true);
         setCheckingPermission(false);
@@ -72,7 +72,7 @@ function CreateVoucherContent() {
     }
 
     // Check cache
-    const cacheKey = `perms_${user.id}_Vouchers`;
+    const cacheKey = `perms_${user.id}_Voucher`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const cachedPerms = JSON.parse(cached);
@@ -85,7 +85,7 @@ function CreateVoucherContent() {
     }
 
     try {
-      const moduleName = 'Vouchers';
+      const moduleName = 'Voucher';
       const createRes = await fetch(
         `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
       );
@@ -253,22 +253,82 @@ function CreateVoucherContent() {
     return null;
   }
 
+  // Show loading while checking permissions
+  if (checkingPermission) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar activePage="CreateVoucher" />
+        </div>
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <p className="text-gray-600">Checking permissions...</p>
+            </div>
+          </div>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Access denied state
+  if (!hasPermission) {
+    return (
+      <div className="flex h-screen overflow-hidden bg-gray-50">
+        <div className="flex-shrink-0">
+          <Sidebar activePage="CreateVoucher" />
+        </div>
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-shrink-0">
+            <Header />
+          </div>
+          <div className="flex-1 overflow-y-auto min-h-0 flex items-center justify-center p-4">
+            <div className="text-center bg-white rounded-lg shadow-lg p-6 sm:p-8 max-w-md w-full">
+              <div className="text-red-500 text-5xl mb-4">🚫</div>
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Access Denied</h2>
+              <p className="text-gray-600 mb-6 text-sm sm:text-base">
+                Aapke paas voucher create karne ka permission nahi hai.
+              </p>
+              <button
+                onClick={() => router.push('/voucher-wallet-driver')}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors text-sm sm:text-base flex items-center gap-2"
+              >
+                <span className="text-lg">←</span>
+                <span>Wallet par wapas jao</span>
+              </button>
+            </div>
+          </div>
+          <div className="flex-shrink-0">
+            <Footer />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen flex bg-gray-50">
+    <div className="flex h-screen overflow-hidden bg-gray-50">
       {/* Sidebar */}
       <div className="hidden lg:block fixed left-0 top-0 h-screen w-64 z-30">
         <Sidebar activePage="CreateVoucher" />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col lg:ml-64">
+      <div className="flex-1 flex flex-col lg:ml-64 min-h-0 overflow-hidden">
         {/* Header */}
         <div className="sticky top-0 z-20 bg-white shadow-sm">
           <Header />
         </div>
 
         {/* Scrollable Content */}
-        <div className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <div className="p-3 sm:p-4 lg:p-6">
             <div className="max-w-7xl mx-auto">
               <div className="bg-white shadow rounded-lg">

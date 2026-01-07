@@ -111,27 +111,9 @@ export async function POST(request) {
       }
     }
 
-    // Get user info for audit log
-    const currentUser = await getCurrentUser();
-    const userId = currentUser?.userId || null;
-    // Ensure userName is fetched from employee_profile
-    let userName = currentUser?.userName;
-    if (!userName && currentUser?.userId) {
-      const users = await executeQuery(
-        `SELECT name FROM employee_profile WHERE id = ?`,
-        [currentUser.userId]
-      );
-      if (users.length > 0 && users[0].name) {
-        userName = users[0].name;
-      }
-    }
-
     if (id) {
-      // Get old value for audit log
-      const [existingRecord] = await executeQuery('SELECT * FROM shipment WHERE id = ?', [id]);
-
       // Update existing record
-      const result = await executeQuery(
+      await executeQuery(
         `UPDATE shipment SET 
         lr_id=?, mobile=?, email=?, pan=?, gst=?, lr_date=?, consigner=?, address_1=?, consignee=?, address_2=?, 
         from_location=?, to_location=?, tanker_no=?, gst_no=?, products=?, boe_no=?, wt_type=?, 
@@ -143,29 +125,9 @@ export async function POST(request) {
           gross_wt, vessel, tare_wt, invoice_no, net_wt, gp_no, remarks, id
         ]
       );
-
-      // Create Audit Log
-      try {
-        await createAuditLog({
-          page: 'LR Management',
-          uniqueCode: lr_id,
-          section: 'LR',
-          userId: userId,
-          userName: userName,
-          action: 'edit',
-          remarks: 'LR updated',
-          oldValue: existingRecord,
-          newValue: formData,
-          recordType: 'lr',
-          recordId: id
-        });
-      } catch (auditError) {
-        console.error('Error creating audit log:', auditError);
-      }
-
     } else {
       // Insert new record
-      const result = await executeQuery(
+      await executeQuery(
         `INSERT INTO shipment 
         (lr_id, mobile, email, pan, gst, lr_date, consigner, address_1, consignee, address_2, 
         from_location, to_location, tanker_no, gst_no, products, boe_no, wt_type, gross_wt, 
@@ -177,27 +139,6 @@ export async function POST(request) {
           gross_wt, vessel, tare_wt, invoice_no, net_wt, gp_no, remarks
         ]
       );
-      
-      const newId = result.insertId;
-
-      // Create Audit Log
-      try {
-        await createAuditLog({
-          page: 'LR Management',
-          uniqueCode: lr_id,
-          section: 'LR',
-          userId: userId,
-          userName: userName,
-          action: 'create',
-          remarks: 'New LR created',
-          oldValue: null,
-          newValue: formData,
-          recordType: 'lr',
-          recordId: newId
-        });
-      } catch (auditError) {
-        console.error('Error creating audit log:', auditError);
-      }
     }
 
     return NextResponse.json({ 
@@ -208,7 +149,7 @@ export async function POST(request) {
     console.error('Error saving LR data:', error);
     
     // Handle duplicate entry error from MySQL
-    if (error.code === 'ER_DUP_ENTRY') {
+    if (error.code === 'ER_DUP_ENTRY' || error.message?.includes('duplicate')) {
       return NextResponse.json(
         { error: 'LR number already exists' },
         { status: 400 }
@@ -216,7 +157,7 @@ export async function POST(request) {
     }
     
     return NextResponse.json(
-      { error: 'Failed to save LR data' },
+      { error: 'Failed to save LR data: ' + error.message },
       { status: 500 }
     );
   }

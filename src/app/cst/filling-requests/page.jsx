@@ -220,21 +220,21 @@ function FillingRequestsPage() {
   // ✅ Show loading while checking authentication
   if (typeof window === 'undefined' || loading && !customerId) {
     return (
-      <div className="flex h-screen bg-gray-100 overflow-hidden">
-        <div className="flex-shrink-0">
+      <div className="flex min-h-screen bg-gray-100">
+        <div className="hidden md:block fixed left-0 top-0 h-screen z-50">
           <Sidebar />
         </div>
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          <div className="flex-shrink-0">
+        <div className="flex flex-col flex-1 md:ml-64 min-w-0 min-h-screen">
+          <div className="fixed top-0 left-0 md:left-64 right-0 z-40 bg-white">
             <CstHeader onMenuClick={toggleSidebar} />
           </div>
-          <main className="flex-1 overflow-y-auto flex items-center justify-center">
+          <main className="pt-16 flex-1 overflow-y-auto flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600">Loading...</p>
             </div>
           </main>
-          <div className="flex-shrink-0">
+          <div className="fixed bottom-0 left-0 md:left-64 right-0 bg-white z-40">
             <Footer />
           </div>
         </div>
@@ -245,15 +245,15 @@ function FillingRequestsPage() {
   // ✅ Redirect to login if not authenticated
   if (!customerId) {
     return (
-      <div className="flex h-screen bg-gray-100 overflow-hidden">
-        <div className="flex-shrink-0">
+      <div className="flex min-h-screen bg-gray-100">
+        <div className="hidden md:block fixed left-0 top-0 h-screen z-50">
           <Sidebar />
         </div>
-        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          <div className="flex-shrink-0">
+        <div className="flex flex-col flex-1 md:ml-64 min-w-0 min-h-screen">
+          <div className="fixed top-0 left-0 md:left-64 right-0 z-40 bg-white">
             <CstHeader onMenuClick={toggleSidebar} />
           </div>
-          <main className="flex-1 overflow-y-auto flex items-center justify-center">
+          <main className="pt-16 flex-1 overflow-y-auto flex items-center justify-center">
             <div className="text-center">
               <div className="text-red-600 text-lg mb-4">Customer not authenticated</div>
               <Link 
@@ -264,7 +264,7 @@ function FillingRequestsPage() {
               </Link>
             </div>
           </main>
-          <div className="flex-shrink-0">
+          <div className="fixed bottom-0 left-0 md:left-64 right-0 bg-white z-40">
             <Footer />
           </div>
         </div>
@@ -273,7 +273,7 @@ function FillingRequestsPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
+    <div className="flex min-h-screen bg-gray-100">
       <style jsx>{`
         .scrollbar-hide::-webkit-scrollbar {
           display: none;
@@ -283,21 +283,17 @@ function FillingRequestsPage() {
           scrollbar-width: none;
         }
       `}</style>
-      {/* ✅ Fixed Sidebar - Using flex layout */}
-      <div className="flex-shrink-0">
+      <div className="hidden md:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
       </div>
 
-      {/* ✅ Main Content Area - Fixed layout */}
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        {/* ✅ Fixed Header */}
-        <div className="flex-shrink-0">
+      <div className="flex flex-col flex-1 md:ml-64 min-w-0 min-h-screen">
+        <div className="fixed top-0 left-0 md:left-64 right-0 z-40 bg-white">
           <CstHeader onMenuClick={toggleSidebar} />
         </div>
         
-        {/* ✅ Scrollable Main Content */}
-        <main className="flex-1 overflow-y-auto bg-gray-100 min-h-0">
-        <div className="p-4 md:p-8">
+        <main className="pt-16 flex-1 overflow-y-auto bg-gray-100 min-h-0">
+        <div className="p-4 md:p-8 pb-20">
           {/* Header Section */}
           <div className="mb-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -596,8 +592,7 @@ function FillingRequestsPage() {
         </div>
         </main>
 
-        {/* ✅ Fixed Footer */}
-        <div className="flex-shrink-0">
+        <div className="fixed bottom-0 left-0 md:left-64 right-0 bg-white z-40">
           <Footer />
         </div>
       </div>

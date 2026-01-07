@@ -4,200 +4,246 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
+    console.log('🔍 Loading-Unloading History API Called');
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('user_id');
-    const role = searchParams.get('role');
+    const userRole = searchParams.get('role');
 
-    // Check if user is authenticated (you'll need to implement proper auth)
+    const shipmentIdFilter = searchParams.get('shipment_id');
+    console.log('📊 Request Params:', { userId, userRole, shipmentIdFilter });
+
+    // Check if user is authenticated
     if (!userId) {
+      console.log('❌ No user_id provided');
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Get shipment records - handle both id and shipment_id columns
+    // ✅ FIX: Get user's role from employee_profile
+    const userQuery = `SELECT id, role FROM employee_profile WHERE id = ?`;
+    const userResult = await executeQuery(userQuery, [userId]);
+    
+    if (userResult.length === 0) {
+      console.log('❌ User not found in employee_profile:', userId);
+      return NextResponse.json({ error: 'User not found' }, { status: 404 });
+    }
+    
+    const employeeId = userResult[0].id;
+    const employeeRole = userResult[0].role;
+    console.log('👤 User Details:', { employeeId, employeeRole });
+
+    // ✅ FIX: SIMPLIFIED Permission check
+    let finalPermissions = { can_view: 0, can_edit: 0, can_create: 0 };
+
+    // Admin (role 5) has full access
+    if (employeeRole == 5) {
+      console.log('👑 Admin access granted');
+      finalPermissions = { can_view: 1, can_edit: 1, can_create: 1 };
+    } else {
+      // Check permissions for Loading modules
+      const moduleNames = ['Loading and Unloading', 'Loading & Unloading', 'Loading History', 'Loading'];
+      
+      for (const moduleName of moduleNames) {
+        console.log(`🔍 Checking permissions for: ${moduleName}`);
+        
+        // Try multiple permission queries
+        const queries = [
+          // Query 1: Exact match with employee_id and role
+          `SELECT can_view, can_edit, can_create 
+           FROM role_permissions 
+           WHERE module_name = ? AND employee_id = ? AND role = ?`,
+          
+          // Query 2: Role only permission
+          `SELECT can_view, can_edit, can_create 
+           FROM role_permissions 
+           WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)`,
+          
+          // Query 3: Employee only permission
+          `SELECT can_view, can_edit, can_create 
+           FROM role_permissions 
+           WHERE module_name = ? AND employee_id = ?`,
+          
+          // Query 4: Module name contains Loading
+          `SELECT can_view, can_edit, can_create 
+           FROM role_permissions 
+           WHERE module_name LIKE '%Loading%' AND (employee_id = ? OR role = ?)`
+        ];
+        
+        for (const query of queries) {
+          try {
+            let params;
+            if (query.includes('LIKE')) {
+              params = [employeeId, employeeRole];
+            } else if (query.includes('employee_id = ? AND role = ?')) {
+              params = [moduleName, employeeId, employeeRole];
+            } else if (query.includes('role = ?')) {
+              params = [moduleName, employeeRole];
+            } else if (query.includes('employee_id = ?')) {
+              params = [moduleName, employeeId];
+            }
+            
+            const perms = await executeQuery(query, params || [moduleName, employeeId, employeeRole]);
+            
+            if (perms.length > 0) {
+              console.log(`✅ Found permissions with query:`, perms[0]);
+              finalPermissions = {
+                can_view: perms[0].can_view || 0,
+                can_edit: perms[0].can_edit || 0,
+                can_create: perms[0].can_create || 0
+              };
+              break;
+            }
+          } catch (queryErr) {
+            console.log(`Query error: ${queryErr.message}`);
+          }
+        }
+        
+        if (finalPermissions.can_view == 1 || finalPermissions.can_edit == 1 || finalPermissions.can_create == 1) {
+          break;
+        }
+      }
+    }
+
+    // Check if user has any permission
+    const isAllowed = finalPermissions.can_view == 1 || 
+                     finalPermissions.can_edit == 1 || 
+                     finalPermissions.can_create == 1;
+    
+    console.log('🔐 Permission Result:', {
+      employeeId,
+      employeeRole,
+      finalPermissions,
+      isAllowed
+    });
+
+    if (!isAllowed && employeeRole != 5) {
+      console.log('❌ Access denied');
+      return NextResponse.json({ 
+        error: 'You do not have permission to access this page.',
+        details: 'Please contact administrator for access rights.'
+      }, { status: 403 });
+    }
+
+    // ✅ Get shipment records - SIMPLIFIED QUERY
     let shipmentResult = [];
     try {
-      const shipmentQuery = `
+      console.log('📦 Fetching shipment records...');
+      
+      let shipmentQuery = `
         SELECT 
-          COALESCE(shipment_id, id) as id,
-          tanker, tanker_number,
-          driver, driver_name,
-          dispatch, dispatch_from,
+          shipment_id as id,
+          shipment_id,
+          tanker,
+          driver,
+          dispatch,
           driver_mobile,
+          consignee,
           empty_weight_loading,
-          loaded_weight_loading, loaded_weight,
-          net_weight_loading, net_weight,
+          loaded_weight_loading,
+          net_weight_loading,
           final_loading_datetime,
           entered_by_loading,
-          seal1_loading,
-          seal2_loading,
-          seal_datetime_loading,
-          sealed_by_loading,
-          density_loading,
-          temperature_loading,
-          timing_loading,
-          consignee, customer_name,
           empty_weight_unloading,
           loaded_weight_unloading,
           net_weight_unloading,
           final_unloading_datetime,
-          entered_by_unloading,
-          seal1_unloading,
-          seal2_unloading,
-          seal_datetime_unloading,
-          sealed_by_unloading,
-          density_unloading,
-          temperature_unloading,
-          timing_unloading,
-          created_at,
-          updated_at
-        FROM shipment_records 
-        ORDER BY created_at DESC
+          created_at
+        FROM shipment_records
       `;
-      shipmentResult = await executeQuery(shipmentQuery) || [];
+      const params = [];
+      if (shipmentIdFilter) {
+        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT 100`;
+        params.push(parseInt(shipmentIdFilter));
+      } else {
+        shipmentQuery += ` ORDER BY created_at DESC LIMIT 100`;
+      }
+      shipmentResult = await executeQuery(shipmentQuery, params) || [];
+      console.log(`✅ Found ${shipmentResult.length} shipment records`);
+      
+      // If no results, try basic query
+      if (shipmentResult.length === 0) {
+        const basicQuery = `SELECT * FROM shipment_records LIMIT 100`;
+        shipmentResult = await executeQuery(basicQuery) || [];
+      }
     } catch (err) {
-      console.error('Error fetching shipment records:', err);
-      // Return empty array if query fails, but log the error
+      console.error('❌ Error in shipment query:', err);
       shipmentResult = [];
     }
 
-    // ✅ FIX: Get user's role from employee_profile first
-    const userQuery = `SELECT role FROM employee_profile WHERE id = ?`;
-    const userResult = await executeQuery(userQuery, [userId]);
-    
-    if (userResult.length === 0) {
-      return NextResponse.json({ error: 'User not found' }, { status: 404 });
-    }
-    
-    const userRole = userResult[0].role;
-
-    // ✅ FIX: Use exact module name as stored in database: "Loading History"
-    const moduleName = 'Loading History';
-    
-    // ✅ FIX: Check permissions with employee_id AND role (as per database structure)
-    // First check for employee-specific permissions
-    let permissionQuery = `
-      SELECT module_name, can_view, can_edit, can_create 
-      FROM role_permissions 
-      WHERE employee_id = ? AND module_name = ?
-    `;
-    let permissionResult = await executeQuery(permissionQuery, [userId, moduleName]);
-
-    // If no employee-specific permission found, check role-based permissions
-    if (permissionResult.length === 0) {
-      permissionQuery = `
-        SELECT module_name, can_view, can_edit, can_create 
-        FROM role_permissions 
-        WHERE role = ? AND module_name = ? AND (employee_id IS NULL OR employee_id = 0)
-      `;
-      permissionResult = await executeQuery(permissionQuery, [userRole, moduleName]);
-    }
-
-    // ✅ FIX: Also check if employee_id matches AND role matches
-    if (permissionResult.length === 0) {
-      permissionQuery = `
-        SELECT module_name, can_view, can_edit, can_create 
-        FROM role_permissions 
-        WHERE employee_id = ? AND role = ? AND module_name = ?
-      `;
-      permissionResult = await executeQuery(permissionQuery, [userId, userRole, moduleName]);
-    }
-
-    // Admin (role 5) has full access
-    if (userRole === 5) {
-      permissionResult = [{
-        module_name: moduleName,
-        can_view: 1,
-        can_edit: 1,
-        can_create: 1
-      }];
-    }
-
-    // Check view permission
-    if (permissionResult.length === 0 || permissionResult[0].can_view !== 1) {
-      console.log('❌ Access denied - No permission for Loading History module', {
-        userId,
-        role: userRole,
-        moduleName,
-        permissionFound: permissionResult.length > 0
-      });
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
-
-    // Get summary data - wrap in try-catch for each query
-    let totalResult = [{ total: 0 }];
-    let completedResult = [{ completed: 0 }];
-    let pendingResult = [{ pending: 0 }];
-    let driversResult = [{ drivers: 0 }];
+    // Get summary data
+    const summary = { total: 0, completed: 0, pending: 0, drivers: 0 };
 
     try {
       const totalQuery = "SELECT COUNT(*) as total FROM shipment_records";
-      totalResult = await executeQuery(totalQuery) || [{ total: 0 }];
+      const totalResult = await executeQuery(totalQuery);
+      if (totalResult && totalResult.length > 0) {
+        summary.total = parseInt(totalResult[0].total) || 0;
+      }
     } catch (err) {
-      console.error('Error fetching total count:', err);
+      console.error('Error in total count:', err);
     }
 
     try {
-      // Handle both net_weight_loading and net_weight columns
       const completedQuery = `
         SELECT COUNT(*) as completed 
         FROM shipment_records 
-        WHERE (net_weight_loading > 0 OR net_weight > 0)
+        WHERE net_weight_loading > 0 OR net_weight_unloading > 0
       `;
-      completedResult = await executeQuery(completedQuery) || [{ completed: 0 }];
+      const completedResult = await executeQuery(completedQuery);
+      if (completedResult && completedResult.length > 0) {
+        summary.completed = parseInt(completedResult[0].completed) || 0;
+      }
     } catch (err) {
-      console.error('Error fetching completed count:', err);
+      console.error('Error in completed count:', err);
     }
 
     try {
       const pendingQuery = `
         SELECT COUNT(*) as pending 
         FROM shipment_records 
-        WHERE (net_weight_loading = 0 OR net_weight_loading IS NULL)
-          AND (net_weight = 0 OR net_weight IS NULL)
+        WHERE (net_weight_loading = 0 OR net_weight_loading IS NULL) 
+          AND (net_weight_unloading = 0 OR net_weight_unloading IS NULL)
       `;
-      pendingResult = await executeQuery(pendingQuery) || [{ pending: 0 }];
+      const pendingResult = await executeQuery(pendingQuery);
+      if (pendingResult && pendingResult.length > 0) {
+        summary.pending = parseInt(pendingResult[0].pending) || 0;
+      }
     } catch (err) {
-      console.error('Error fetching pending count:', err);
+      console.error('Error in pending count:', err);
     }
 
     try {
-      // Handle both driver and driver_name columns
       const driversQuery = `
-        SELECT COUNT(DISTINCT COALESCE(driver, driver_name, '')) as drivers 
+        SELECT COUNT(DISTINCT driver) as drivers 
         FROM shipment_records 
-        WHERE (driver IS NOT NULL AND driver != '') 
-           OR (driver_name IS NOT NULL AND driver_name != '')
+        WHERE driver IS NOT NULL AND driver != ''
       `;
-      driversResult = await executeQuery(driversQuery) || [{ drivers: 0 }];
+      const driversResult = await executeQuery(driversQuery);
+      if (driversResult && driversResult.length > 0) {
+        summary.drivers = parseInt(driversResult[0].drivers) || 0;
+      }
     } catch (err) {
-      console.error('Error fetching drivers count:', err);
+      console.error('Error in drivers count:', err);
     }
 
-    console.log('✅ Loading-Unloading History Data:', {
+    console.log('📊 Final Response:', {
       shipmentsCount: shipmentResult.length,
-      total: totalResult[0]?.total || 0,
-      completed: completedResult[0]?.completed || 0,
-      pending: pendingResult[0]?.pending || 0,
-      drivers: driversResult[0]?.drivers || 0
+      summary,
+      permissions: finalPermissions
     });
 
     return NextResponse.json({
-      shipments: shipmentResult || [],
-      permissions: permissionResult[0] || { can_view: 0, can_edit: 0, can_create: 0 },
-      summary: {
-        total: parseInt(totalResult[0]?.total) || 0,
-        completed: parseInt(completedResult[0]?.completed) || 0,
-        pending: parseInt(pendingResult[0]?.pending) || 0,
-        drivers: parseInt(driversResult[0]?.drivers) || 0
-      }
+      success: true,
+      shipments: shipmentResult,
+      permissions: finalPermissions,
+      summary: summary
     });
 
   } catch (error) {
-    console.error('❌ Loading-Unloading History API Error:', error);
-    console.error('❌ Error Stack:', error.stack);
+    console.error('❌ API Error:', error);
     return NextResponse.json({ 
-      error: error.message || 'Internal Server Error',
-      details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      success: false,
+      error: 'Internal Server Error',
+      message: error.message
     }, { status: 500 });
   }
 }

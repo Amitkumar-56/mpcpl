@@ -1,11 +1,11 @@
 'use client';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
+import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
-import { useSession } from '@/context/SessionContext';
-import Sidebar from '@/components/sidebar';
-import Header from '@/components/Header';
-import Footer from '@/components/Footer';
 
 // Loading Component
 function LoadingFallback() {
@@ -155,19 +155,31 @@ function CreateLRContent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    setFormData(prev => {
+      const newData = { ...prev, [name]: value };
+      
+      // Auto-calculate Net Weight
+      if (name === 'gross_wt' || name === 'tare_wt') {
+        const gross = parseFloat(name === 'gross_wt' ? value : prev.gross_wt) || 0;
+        const tare = parseFloat(name === 'tare_wt' ? value : prev.tare_wt) || 0;
+        // Only calculate if both values are present, or allow 0
+        if (gross >= 0 && tare >= 0) {
+            const net = gross - tare;
+            newData.net_wt = net >= 0 ? net.toString() : ''; // Avoid negative weight
+        }
+      }
+      
+      return newData;
+    });
   };
 
   if (checkingPermission || authLoading) {
     return (
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
         <div className="flex-shrink-0">
           <Sidebar />
         </div>
-        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex flex-col flex-1 h-screen overflow-hidden">
           <div className="flex-shrink-0">
             <Header />
           </div>
@@ -187,11 +199,11 @@ function CreateLRContent() {
 
   if (!hasPermission) {
     return (
-      <div className="flex min-h-screen bg-gray-50">
+      <div className="flex h-screen bg-gray-50 overflow-hidden">
         <div className="flex-shrink-0">
           <Sidebar />
         </div>
-        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="flex flex-col flex-1 h-screen overflow-hidden">
           <div className="flex-shrink-0">
             <Header />
           </div>
@@ -233,29 +245,31 @@ function CreateLRContent() {
         }),
       });
 
+      const result = await response.json();
+
       if (response.ok) {
         alert('Record saved successfully');
         router.push('/lr-list');
       } else {
-        throw new Error('Failed to save record');
+        throw new Error(result.error || 'Failed to save record');
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error saving record');
+      alert(error.message || 'Error saving record');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Sidebar */}
       <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
       {/* Main Content */}
-      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+      <div className="flex flex-col flex-1 h-screen overflow-hidden">
         {/* Header */}
         <div className="flex-shrink-0">
           <Header />

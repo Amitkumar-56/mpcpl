@@ -46,12 +46,24 @@ export async function POST(request) {
       invoiceDate
     } = await request.json();
 
-    // Validate required fields
-    if (!supplier_name || !product_name || !amount || !quantity || !invoiceDate) {
+    const missingFields = [];
+    if (!supplier_name) missingFields.push('supplier_name');
+    if (!product_name) missingFields.push('product_name');
+    if (amount === undefined || amount === null || amount === '') missingFields.push('amount');
+    if (quantity === undefined || quantity === null || quantity === '') missingFields.push('quantity');
+    if (!invoiceDate) missingFields.push('invoiceDate');
+    const fieldErrors = {};
+    const amountNum = parseFloat(amount);
+    const quantityNum = parseFloat(quantity);
+    if (!isNaN(amountNum) && amountNum <= 0) fieldErrors.amount = 'Amount must be greater than 0';
+    if (!isNaN(quantityNum) && quantityNum <= 0) fieldErrors.quantity = 'Quantity must be greater than 0';
+    if (missingFields.length > 0 || Object.keys(fieldErrors).length > 0) {
       return NextResponse.json(
-        { 
+        {
           success: false,
-          message: 'All fields are required' 
+          message: 'Validation failed',
+          missingFields,
+          fieldErrors
         },
         { status: 400 }
       );
@@ -65,8 +77,8 @@ export async function POST(request) {
       [
         supplier_name,
         product_name,
-        parseFloat(amount),
-        parseFloat(quantity),
+        amountNum,
+        quantityNum,
         invoiceDate
       ]
     );

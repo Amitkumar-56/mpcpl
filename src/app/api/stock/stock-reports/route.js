@@ -40,6 +40,9 @@ export async function GET(request) {
              fh.filling_qty, 
              fh.available_stock, 
              fh.filling_date,
+             fh.amount,
+             fh.new_amount,
+             fh.remaining_limit,
              COALESCE(ep.name, NULL) AS created_by_name,
              fh.created_by,
              fh.filling_date AS transaction_date,
@@ -80,15 +83,76 @@ export async function GET(request) {
     
     console.log('Query results:', results);
 
+    // Enhance with last edited info from audit_log
+    const enhancedResults = [];
+    for (const row of results) {
+      let editedByName = null;
+      let editedAt = null;
+      let editedDeltaQty = null;
+      let editedDeltaAmount = null;
+      try {
+        const rid = row?.rid;
+        if (rid) {
+          const editLogs = await executeQuery(
+            `
+              SELECT al.*, COALESCE(ep.name, al.user_name) AS edited_by_name
+              FROM audit_log al
+              LEFT JOIN employee_profile ep ON al.user_id = ep.id
+              WHERE (al.unique_code LIKE ? OR al.remarks LIKE ?)
+                AND al.action IN ('edit','update')
+              ORDER BY al.created_at DESC, al.action_date DESC, al.action_time DESC
+              LIMIT 1
+            `,
+            [`%${rid}%`, `%${rid}%`]
+          );
+          if (editLogs.length > 0) {
+            const log = editLogs[0];
+            editedByName = log.edited_by_name || log.user_name || null;
+            // Prefer created_at; fallback to action_date + action_time
+            if (log.created_at) {
+              editedAt = log.created_at;
+            } else if (log.action_date && log.action_time) {
+              editedAt = `${log.action_date} ${log.action_time}`;
+            }
+            try {
+              const oldVal = log.old_value ? JSON.parse(log.old_value) : null;
+              const newVal = log.new_value ? JSON.parse(log.new_value) : null;
+              const oldQty = oldVal ? (parseFloat(oldVal.aqty ?? oldVal.qty ?? 0) || 0) : null;
+              const newQty = newVal ? (parseFloat(newVal.aqty ?? newVal.qty ?? 0) || 0) : null;
+              const oldAmt = oldVal ? (parseFloat(oldVal.totalamt ?? oldVal.amount ?? 0) || 0) : null;
+              const newAmt = newVal ? (parseFloat(newVal.totalamt ?? newVal.amount ?? 0) || 0) : null;
+              if (oldQty !== null && newQty !== null) {
+                editedDeltaQty = parseFloat((newQty - oldQty).toFixed(2));
+              }
+              if (oldAmt !== null && newAmt !== null) {
+                editedDeltaAmount = parseFloat((newAmt - oldAmt).toFixed(2));
+              }
+            } catch (parseErr) {
+              // ignore parse errors
+            }
+          }
+        }
+      } catch (e) {
+        console.log('Edited info fetch failed for row:', row?.rid, e?.message);
+      }
+      enhancedResults.push({ 
+        ...row, 
+        edited_by_name: editedByName, 
+        edited_at: editedAt,
+        edited_delta_qty: editedDeltaQty,
+        edited_delta_amount: editedDeltaAmount
+      });
+    }
+
     // Handle export request
     if (exportData === 'true') {
-      return generateCSV(results);
+      return generateCSV(enhancedResults);
     }
 
     return NextResponse.json({
       success: true,
-      data: results || [],
-      total: results ? results.length : 0
+      data: enhancedResults || [],
+      total: enhancedResults ? enhancedResults.length : 0
     });
 
   } catch (error) {
