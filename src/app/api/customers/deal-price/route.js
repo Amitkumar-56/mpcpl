@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(req) {
   try {
@@ -36,6 +38,58 @@ export async function POST(req) {
         );
         if (result.affectedRows > 0) updated++;
       }
+    }
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
+    // Create audit log for each update
+    try {
+      for (const update of priceUpdates) {
+        const { type, data } = update;
+        const { com_id, station_id, product_id, sub_product_id, price } = data;
+
+        // Get customer, station, and product names
+        const customerInfo = await executeQuery(`SELECT name FROM customers WHERE id = ?`, [com_id]);
+        const stationInfo = await executeQuery(`SELECT station_name FROM filling_stations WHERE id = ?`, [station_id]);
+        const productInfo = await executeQuery(`SELECT pname FROM products WHERE id = ?`, [product_id]);
+        const subProductInfo = await executeQuery(`SELECT pcode FROM product_codes WHERE id = ?`, [sub_product_id]);
+
+        const customerName = customerInfo.length > 0 ? customerInfo[0].name : `Customer ID: ${com_id}`;
+        const stationName = stationInfo.length > 0 ? stationInfo[0].station_name : `Station ID: ${station_id}`;
+        const productName = productInfo.length > 0 ? productInfo[0].pname : `Product ID: ${product_id}`;
+        const subProductName = subProductInfo.length > 0 ? subProductInfo[0].pcode : `Sub-Product ID: ${sub_product_id}`;
+
+        await createAuditLog({
+          page: 'Customer Management',
+          uniqueCode: `DEAL-PRICE-${com_id}-${station_id}-${product_id}-${sub_product_id}`,
+          section: 'Deal Price',
+          userId: userId,
+          userName: userName || (userId ? `Employee ID: ${userId}` : null),
+          action: type === "INSERT" ? 'add' : 'edit',
+          remarks: `Deal price ${type === "INSERT" ? 'created' : 'updated'} for ${customerName} at ${stationName}: ${productName} - ${subProductName} = ₹${price}`,
+          oldValue: type === "UPDATE" ? { price: null } : null,
+          newValue: { com_id, station_id, product_id, sub_product_id, price },
+          recordType: 'deal_price',
+          recordId: com_id
+        });
+      }
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
     }
 
     return NextResponse.json({

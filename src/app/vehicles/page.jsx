@@ -5,7 +5,9 @@ import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import Link from "next/link";
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 export default function VehiclesPage() {
   const router = useRouter();
@@ -14,6 +16,14 @@ export default function VehiclesPage() {
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [totalCount, setTotalCount] = useState(0);
+  const [expandedVehicles, setExpandedVehicles] = useState({});
+  
+  const toggleVehicleLogs = (vehicleId) => {
+    setExpandedVehicles(prev => ({
+      ...prev,
+      [vehicleId]: !prev[vehicleId]
+    }));
+  };
 
   const fetchVehicles = async (page = 1) => {
     try {
@@ -187,6 +197,9 @@ export default function VehiclesPage() {
                       <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
                         Actions
                       </th>
+                      <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-medium text-gray-700 uppercase tracking-wider">
+                        Logs
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -220,7 +233,7 @@ export default function VehiclesPage() {
                     ) : vehicles.length === 0 ? (
                       // Empty state
                       <tr>
-                        <td colSpan="7" className="px-4 sm:px-6 py-12 text-center">
+                        <td colSpan="8" className="px-4 sm:px-6 py-12 text-center">
                           <div className="flex flex-col items-center justify-center">
                             <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
                               <span className="text-3xl">🚗</span>
@@ -243,7 +256,8 @@ export default function VehiclesPage() {
                     ) : (
                       // Data rows
                       vehicles.map((v, index) => (
-                        <tr key={v.id} className="hover:bg-gray-50 transition-colors">
+                        <React.Fragment key={v.id}>
+                        <tr className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {startItem + index}
                           </td>
@@ -296,7 +310,38 @@ export default function VehiclesPage() {
                               </Link>
                             </div>
                           </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <button
+                              onClick={() => toggleVehicleLogs(v.id)}
+                              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                              title="View Activity Logs"
+                            >
+                              {expandedVehicles[v.id] ? (
+                                <>
+                                  <BiChevronUp size={18} />
+                                  <span className="ml-1 text-xs">Hide</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BiChevronDown size={18} />
+                                  <span className="ml-1 text-xs">Logs</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
                         </tr>
+                        {/* Expandable Logs Row */}
+                        {expandedVehicles[v.id] && (
+                          <tr className="bg-gray-50">
+                            <td colSpan="8" className="px-4 sm:px-6 py-4">
+                              <div className="max-w-4xl">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {v.vehicle_name || `Vehicle #${v.id}`}</h3>
+                                <EntityLogs entityType="vehicle" entityId={v.id} />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))
                     )}
                   </tbody>

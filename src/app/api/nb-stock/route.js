@@ -25,7 +25,7 @@ export async function GET() {
 
     // Step 2: Fetch data with logs - GROUP BY to get aggregated stock
     console.log('🔄 Fetching stock data with logs...');
-    // Use IFNULL for updated_at in case column doesn't exist - fallback to created_at
+    // ✅ Also fetch count of non-billing customers who took stock from this station/product
     const query = `
       SELECT 
         n.station_id,
@@ -36,7 +36,18 @@ export async function GET() {
         MAX(n.created_by) as created_by,
         IFNULL(MAX(n.updated_by), MAX(n.created_by)) as updated_by,
         ep_created.name as created_by_name,
-        IFNULL(ep_updated.name, ep_created.name) as updated_by_name
+        IFNULL(ep_updated.name, ep_created.name) as updated_by_name,
+        (
+          SELECT COUNT(DISTINCT c.id)
+          FROM filling_history fh
+          LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+          LEFT JOIN customers c ON fr.cid = c.id
+          WHERE fh.fs_id = n.station_id 
+            AND fh.product_id = n.product_id
+            AND fh.trans_type = 'Outward'
+            AND c.billing_type = 2
+            AND c.id IS NOT NULL
+        ) as customer_count
       FROM non_billing_stocks n
       LEFT JOIN employee_profile ep_created ON n.created_by = ep_created.id
       LEFT JOIN employee_profile ep_updated ON n.updated_by = ep_updated.id
@@ -72,7 +83,8 @@ export async function GET() {
           ...row,
           station_name: station ? station.station_name : `Station ${row.station_id}`,
           pname: product ? product.pname : `Product ${row.product_id}`,
-          stock: parseFloat(row.stock) || 0
+          stock: parseFloat(row.stock) || 0,
+          customer_count: parseInt(row.customer_count || 0)
         };
       });
     }

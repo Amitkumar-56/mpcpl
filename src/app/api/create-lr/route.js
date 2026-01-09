@@ -1,5 +1,7 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 // Helper function to generate LR number
 async function generateLRNumber() {
@@ -96,6 +98,37 @@ export async function POST(request) {
       remarks
     } = formData;
 
+    // Get old LR data before update (for edit case)
+    let oldLR = null;
+    if (id) {
+      const oldLRResult = await executeQuery('SELECT * FROM shipment WHERE id = ?', [id]);
+      if (oldLRResult.length > 0) {
+        oldLR = oldLRResult[0];
+      }
+    }
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      userName = currentUser?.userName || null;
+      
+      // Fetch employee name from employee_profile
+      if (userId) {
+        const empResult = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (empResult.length > 0 && empResult[0].name) {
+          userName = empResult[0].name;
+        }
+      }
+    } catch (authError) {
+      console.warn('Auth check failed, continuing without user info:', authError.message);
+    }
+
     // Check for duplicate LR number when creating new record
     if (!id) {
       const existingLR = await executeQuery(
@@ -111,6 +144,7 @@ export async function POST(request) {
       }
     }
 
+    let lrId = id;
     if (id) {
       // Update existing record
       await executeQuery(
@@ -127,7 +161,7 @@ export async function POST(request) {
       );
     } else {
       // Insert new record
-      await executeQuery(
+      const result = await executeQuery(
         `INSERT INTO shipment 
         (lr_id, mobile, email, pan, gst, lr_date, consigner, address_1, consignee, address_2, 
         from_location, to_location, tanker_no, gst_no, products, boe_no, wt_type, gross_wt, 
@@ -139,6 +173,34 @@ export async function POST(request) {
           gross_wt, vessel, tare_wt, invoice_no, net_wt, gp_no, remarks
         ]
       );
+      lrId = result.insertId;
+    }
+
+    // Get new LR data after update/insert
+    const newLRResult = await executeQuery('SELECT * FROM shipment WHERE id = ?', [lrId]);
+    const newLR = newLRResult.length > 0 ? newLRResult[0] : null;
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'LR Management',
+        uniqueCode: `LR-${lr_id}`,
+        section: id ? 'Edit LR' : 'Create LR',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: id ? 'edit' : 'add',
+        remarks: id 
+          ? `LR record updated: ${lr_id}, Consigner: ${consigner}, Consignee: ${consignee}, From: ${from_location}, To: ${to_location}`
+          : `LR record created: ${lr_id}, Consigner: ${consigner}, Consignee: ${consignee}, From: ${from_location}, To: ${to_location}`,
+        oldValue: oldLR,
+        newValue: newLR,
+        recordType: 'lr',
+        recordId: lrId
+      });
+      console.log('✅ Audit log created for LR:', { userId, userName, lrId, lr_id, action: id ? 'edit' : 'add' });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+      // Don't fail the main operation
     }
 
     return NextResponse.json({ 

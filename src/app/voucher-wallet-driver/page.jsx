@@ -6,7 +6,90 @@ import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+
+// Component to fetch and display voucher logs
+function VoucherLogs({ voucherId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!voucherId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`/api/audit-logs?record_type=voucher&record_id=${voucherId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+          // API returns data array
+          setLogs(result.data || []);
+        } else {
+          setError(result.error || 'Failed to load logs');
+        }
+      } catch (error) {
+        console.error('Error fetching voucher logs:', error);
+        setError('Failed to load logs. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLogs();
+  }, [voucherId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-sm text-red-600 p-4 bg-red-50 rounded border border-red-200">
+        {error}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this voucher.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-2 sm:p-3 text-xs sm:text-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-1 sm:ml-2 text-gray-900 break-words">{log.user_name || log.user_display_name || log.userName || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown User')}</span>
+            </div>
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1 sm:mt-2 break-words">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Simple Loading component
 function VoucherWalletLoading() {
@@ -24,9 +107,17 @@ function VoucherWalletDriverContent() {
   const [permissions, setPermissions] = useState(null);
   const [driverName, setDriverName] = useState(null);
   const [error, setError] = useState(null);
+  const [expandedVouchers, setExpandedVouchers] = useState({});
   
   const searchParams = useSearchParams();
   const emp_id = searchParams.get('emp_id');
+  
+  const toggleVoucherLogs = (voucherId) => {
+    setExpandedVouchers(prev => ({
+      ...prev,
+      [voucherId]: !prev[voucherId]
+    }));
+  };
 
   useEffect(() => {
     fetchVouchers();
@@ -220,11 +311,13 @@ function VoucherWalletDriverContent() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Pending</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reserve</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Logs</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {vouchers.map((voucher, idx) => (
-                        <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50">
+                        <React.Fragment key={voucher.voucher_id || idx}>
+                        <tr className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">{idx + 1}</td>
                           <td className="px-4 py-3 text-sm font-medium text-gray-900">{voucher.voucher_no || 'N/A'}</td>
                           <td className="px-4 py-3 text-sm text-gray-900">{formatDate(voucher.exp_date)}</td>
@@ -274,7 +367,40 @@ function VoucherWalletDriverContent() {
                               </Link>
                             </div>
                           </td>
+                          <td className="px-3 sm:px-4 py-3 text-sm">
+                            <button
+                              onClick={() => toggleVoucherLogs(voucher.voucher_id || idx)}
+                              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                              title="View Activity Logs"
+                            >
+                              {expandedVouchers[voucher.voucher_id || idx] ? (
+                                <>
+                                  <BiChevronUp size={18} className="sm:inline" />
+                                  <span className="ml-1 text-xs hidden sm:inline">Hide</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BiChevronDown size={18} className="sm:inline" />
+                                  <span className="ml-1 text-xs hidden sm:inline">Logs</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
                         </tr>
+                        {/* Expandable Logs Row */}
+                        {expandedVouchers[voucher.voucher_id || idx] && (
+                          <tr className="bg-gray-50">
+                            <td colSpan="12" className="px-3 sm:px-4 py-4">
+                              <div className="max-w-full sm:max-w-4xl">
+                                <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for Voucher #{voucher.voucher_no || voucher.voucher_id}</h3>
+                                <div className="overflow-x-auto">
+                                  <VoucherLogs voucherId={voucher.voucher_id} />
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -360,6 +486,26 @@ function VoucherWalletDriverContent() {
                         >
                           Print
                         </Link>
+                      </div>
+                      
+                      {/* Mobile Logs Section */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <button
+                          onClick={() => toggleVoucherLogs(voucher.voucher_id || idx)}
+                          className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                        >
+                          <span className="text-sm font-medium">Activity Logs</span>
+                          {expandedVouchers[voucher.voucher_id || idx] ? (
+                            <BiChevronUp size={20} />
+                          ) : (
+                            <BiChevronDown size={20} />
+                          )}
+                        </button>
+                        {expandedVouchers[voucher.voucher_id || idx] && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <VoucherLogs voucherId={voucher.voucher_id} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}

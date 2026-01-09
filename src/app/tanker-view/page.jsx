@@ -7,6 +7,7 @@ import { Suspense, useEffect, useState } from 'react';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
+import AuditLogs from '@/components/AuditLogs';
 
 // Loading components
 function LoadingSpinner() {
@@ -472,6 +473,7 @@ function TankerViewContent() {
   
   const [tankerData, setTankerData] = useState({});
   const [items, setItems] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -491,6 +493,7 @@ function TankerViewContent() {
       if (result.success) {
         setTankerData(result.data.tanker);
         setItems(result.data.items);
+        setAuditLogs(result.data.audit_logs || []);
       } else {
         setError(result.message);
       }
@@ -514,7 +517,19 @@ function TankerViewContent() {
     return <ErrorDisplay error={error} onRetry={handleRetry} />;
   }
 
-  return <PDFContent tankerData={tankerData} items={items} />;
+  return (
+    <div className="space-y-6">
+      <PDFContent tankerData={tankerData} items={items} />
+      
+      {/* Audit Logs Section */}
+      {auditLogs && auditLogs.length > 0 && (
+        <div className="bg-white rounded-lg shadow-lg p-6 max-w-4xl mx-auto">
+          <h2 className="text-xl font-bold text-gray-900 mb-4">Activity Logs</h2>
+          <AuditLogs logs={auditLogs} title="Activity Logs" recordType="tanker" />
+        </div>
+      )}
+    </div>
+  );
 }
 
 // Main component with Suspense boundary

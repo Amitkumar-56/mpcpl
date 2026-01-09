@@ -1,5 +1,7 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -27,6 +29,47 @@ export async function POST(request) {
       'INSERT INTO remarks (remarks_name, price, image_path) VALUES (?, ?, ?)',
       [remarks_name, price, image_path]
     );
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Remarks Management',
+        uniqueCode: `REMARK-${result.insertId}`,
+        section: 'Create Remark',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: 'add',
+        remarks: `Remark created: ${remarks_name}, Price: ₹${price}`,
+        oldValue: null,
+        newValue: {
+          id: result.insertId,
+          remarks_name,
+          price,
+          image_path
+        },
+        recordType: 'remark',
+        recordId: result.insertId
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+    }
 
     return NextResponse.json({
       success: true,

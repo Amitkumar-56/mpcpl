@@ -144,6 +144,39 @@ export async function POST(req) {
         throw updateError;
       }
     }
+    
+    // ✅ Create filling_history entry for NB stock expense (Inward - stock deducted)
+    try {
+      const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+      const colSet = new Set(colsInfo.map(r => r.Field));
+      const hasStockType = colSet.has('stock_type');
+      const hasRemarks = colSet.has('remarks');
+      
+      const fields = ['fs_id', 'product_id', 'trans_type', 'current_stock', 'filling_qty', 'available_stock', 'filling_date', 'created_by'];
+      const values = [station_id, product_id, 'Inward', oldStock, amount, newStock, new Date(), user_id];
+      
+      if (hasStockType) {
+        fields.push('stock_type');
+        values.push('NB Stock');
+      }
+      if (hasRemarks) {
+        fields.push('remarks');
+        values.push(`NB Expense: ${title} - ${reason || 'N/A'}`);
+      }
+      if (colSet.has('amount')) {
+        fields.push('amount');
+        values.push(amount);
+      }
+      
+      const placeholders = fields.map(() => '?').join(', ');
+      const insertQuery = `INSERT INTO filling_history (${fields.join(', ')}) VALUES (${placeholders})`;
+      
+      await executeQuery(insertQuery, values);
+      console.log('✅ Filling history entry created for NB stock expense (inward)');
+    } catch (historyError) {
+      console.error('❌ Error creating filling_history entry for NB stock expense:', historyError);
+      // Continue even if history insert fails
+    }
 
     // Get station and product names, and user role for audit log
     let stationName = `Station ${station_id}`;

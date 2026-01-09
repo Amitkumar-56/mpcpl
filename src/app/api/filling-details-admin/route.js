@@ -1438,7 +1438,7 @@ async function handleCompletedStatus(data) {
 
     // Handle non-billing stocks if needed
     if (billing_type == 2) {
-      await handleNonBillingStocks(fs_id, product_id, aqty, userId);
+      await handleNonBillingStocks(fs_id, product_id, aqty, userId, rid);
     }
 
   // Update wallet history - using same logic as filling_history
@@ -1597,7 +1597,7 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
   }
 }
 
-async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
+async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1, rid = null) {
   try {
     // ✅ FIX: Fetch employee name from employee_profile
     let employeeName = null;
@@ -1630,6 +1630,39 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
         `UPDATE non_billing_stocks SET stock = ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`,
         [updatedStock, userId, station_id, product_id]
       );
+      
+      // ✅ Create filling_history entry for NB stock transaction
+      try {
+        const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+        const colSet = new Set(colsInfo.map(r => r.Field));
+        const hasStockType = colSet.has('stock_type');
+        const hasRemarks = colSet.has('remarks');
+        
+        const fields = ['fs_id', 'product_id', 'trans_type', 'current_stock', 'filling_qty', 'available_stock', 'filling_date', 'created_by'];
+        const values = [station_id, product_id, 'Outward', existingStock, aqty, updatedStock, now, userId];
+        
+        if (hasStockType) {
+          fields.push('stock_type');
+          values.push('NB Stock');
+        }
+        if (hasRemarks) {
+          fields.push('remarks');
+          values.push('Non-billing customer filling request completed');
+        }
+        if (rid) {
+          fields.push('rid');
+          values.push(rid);
+        }
+        
+        const placeholders = fields.map(() => '?').join(', ');
+        const insertQuery = `INSERT INTO filling_history (${fields.join(', ')}) VALUES (${placeholders})`;
+        
+        await executeQuery(insertQuery, values);
+        console.log('✅ Filling history entry created for NB stock (outward)');
+      } catch (historyError) {
+        console.error('❌ Error creating filling_history entry for NB stock:', historyError);
+        // Continue even if history insert fails
+      }
       
       // ✅ FIX: Create log entry with employee name and date/time
       try {
@@ -1667,6 +1700,39 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
         `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)`,
         [station_id, product_id, aqty, userId]
       );
+      
+      // ✅ Create filling_history entry for new NB stock
+      try {
+        const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+        const colSet = new Set(colsInfo.map(r => r.Field));
+        const hasStockType = colSet.has('stock_type');
+        const hasRemarks = colSet.has('remarks');
+        
+        const fields = ['fs_id', 'product_id', 'trans_type', 'current_stock', 'filling_qty', 'available_stock', 'filling_date', 'created_by'];
+        const values = [station_id, product_id, 'Outward', 0, aqty, aqty, now, userId];
+        
+        if (hasStockType) {
+          fields.push('stock_type');
+          values.push('NB Stock');
+        }
+        if (hasRemarks) {
+          fields.push('remarks');
+          values.push('New non-billing stock created - Filling request completed');
+        }
+        if (rid) {
+          fields.push('rid');
+          values.push(rid);
+        }
+        
+        const placeholders = fields.map(() => '?').join(', ');
+        const insertQuery = `INSERT INTO filling_history (${fields.join(', ')}) VALUES (${placeholders})`;
+        
+        await executeQuery(insertQuery, values);
+        console.log('✅ Filling history entry created for new NB stock (outward)');
+      } catch (historyError) {
+        console.error('❌ Error creating filling_history entry for new NB stock:', historyError);
+        // Continue even if history insert fails
+      }
       
       // ✅ FIX: Create log entry for new stock with employee name and date/time
       try {

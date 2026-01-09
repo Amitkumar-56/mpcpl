@@ -1,6 +1,7 @@
 'use client';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import EntityLogs from "@/components/EntityLogs";
 
 export default function StationViewClient() {
   const searchParams = useSearchParams();
@@ -328,6 +329,17 @@ export default function StationViewClient() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Activity Logs Section */}
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
+          <div className="px-6 py-4 border-b border-gray-200">
+            <h2 className="text-xl font-semibold text-gray-900">Activity Logs</h2>
+            <p className="text-sm text-gray-600 mt-1">View all activity history for this station</p>
+          </div>
+          <div className="p-6">
+            <EntityLogs entityType="station" entityId={stationId} />
           </div>
         </div>
 

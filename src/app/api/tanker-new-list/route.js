@@ -1,5 +1,7 @@
 import { executeQuery, executeTransaction } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - Fetch data for the form including previous tanker data
 export async function GET(request) {
@@ -219,6 +221,58 @@ export async function POST(request) {
 
       return { tanker_history_id };
     });
+
+    // Create audit log using createAuditLog (like filling requests)
+    try {
+      let userId = null;
+      let userName = null;
+      try {
+        const currentUser = await getCurrentUser();
+        userId = currentUser?.userId || currentUser?.id || null;
+        userName = currentUser?.userName || null;
+        
+        // Fetch employee name from employee_profile
+        if (userId) {
+          const empResult = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (empResult.length > 0 && empResult[0].name) {
+            userName = empResult[0].name;
+          }
+        }
+      } catch (authError) {
+        console.warn('Auth check failed, continuing without user info:', authError.message);
+      }
+
+      await createAuditLog({
+        page: 'Tanker Management',
+        uniqueCode: `TANKER-${result.tanker_history_id}`,
+        section: 'Create Tanker',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: 'add',
+        remarks: `Tanker record created: Licence ${licence_plate}, Driver: ${first_driver}, Opening Station: ${opening_station}, Closing Station: ${closing_station}`,
+        oldValue: null,
+        newValue: {
+          tanker_id: result.tanker_history_id,
+          licence_plate,
+          first_driver,
+          first_mobile,
+          opening_station,
+          closing_station,
+          diesel_ltr,
+          opening_meter,
+          closing_meter
+        },
+        recordType: 'tanker',
+        recordId: result.tanker_history_id
+      });
+      console.log('✅ Audit log created for tanker:', { userId, userName, tankerId: result.tanker_history_id });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+      // Don't fail the main operation
+    }
 
     return NextResponse.json({
       success: true,

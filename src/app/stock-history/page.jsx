@@ -594,7 +594,7 @@ function StockHistoryContent() {
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-900">
-                          {row.user_name || row.created_by_name || (row.created_by ? `Employee ID: ${row.created_by}` : 'System')}
+                          {row.created_by_name || row.user_name || (row.created_by ? `Employee ID: ${row.created_by}` : '-')}
                         </td>
                         <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-2">

@@ -6,6 +6,7 @@ import fs from 'fs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import path from 'path';
+import { createEntityLog } from '@/lib/entityLogs';
 
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -203,10 +204,12 @@ export async function PUT(request) {
     delete updateData.id;
 
     // Handle password separately (hash it)
+    let passwordChanged = false;
     if (updateData.password !== undefined && updateData.password !== null && updateData.password !== '') {
       updateFields.push('password = ?');
       updateValues.push(hashPassword(updateData.password));
       changes.password = { old: '***', new: '***' }; // Don't log actual password
+      passwordChanged = true;
       delete updateData.password;
     }
 
@@ -517,14 +520,18 @@ export async function PUT(request) {
       }
 
       // Create audit log
+      const remarks = passwordChanged 
+        ? `Employee password changed: ${oldEmployee.name || oldEmployee.emp_code}`
+        : `Employee ${oldEmployee.name || oldEmployee.emp_code} updated by ${currentUserName}`;
+
       await createAuditLog({
         page: 'Employee Management',
         uniqueCode: `EMPLOYEE-${employeeId}`,
         section: 'Edit Employee',
         userId: currentUserId,
         userName: currentUserName,
-        action: 'edit',
-        remarks: `Employee ${oldEmployee.name || oldEmployee.emp_code} updated by ${currentUserName}`,
+        action: passwordChanged ? 'password_change' : 'edit',
+        remarks: remarks,
         oldValue: oldEmployee,
         newValue: { ...oldEmployee, ...updateData },
         changes: changes,
@@ -533,6 +540,52 @@ export async function PUT(request) {
       });
 
       console.log('📝 Audit log created');
+
+      // ✅ Send notification to admins if password was changed
+      if (passwordChanged) {
+        try {
+          const io = global._io;
+          if (io) {
+            io.to('role_5').emit('password_change_notification', {
+              type: 'employee_password_changed',
+              employeeId: parseInt(employeeId),
+              employeeName: oldEmployee.name || oldEmployee.emp_code,
+              employeeCode: oldEmployee.emp_code || '',
+              changedBy: {
+                id: currentUserId,
+                name: currentUserName || 'Unknown'
+              },
+              timestamp: Date.now(),
+              message: `Employee password changed: ${oldEmployee.name || oldEmployee.emp_code} (${oldEmployee.emp_code || employeeId}) by ${currentUserName || 'Unknown'}`
+            });
+            console.log('✅ Employee password change notification sent to admins');
+          }
+        } catch (notifError) {
+          console.error('⚠️ Error sending password change notification:', notifError);
+        }
+      }
+
+      // ✅ Create entity-specific log (similar to filling_logs) for update
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+        await createEntityLog({
+          entityType: 'employee',
+          entityId: employeeId,
+          createdBy: null, // Will use existing if log exists
+          updatedBy: currentUserId,
+          updatedDate: currentDateTime
+        });
+      } catch (logError) {
+        console.error('⚠️ Error creating employee log:', logError);
+      }
 
       return NextResponse.json({
         success: true,

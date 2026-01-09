@@ -5,8 +5,9 @@ import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { BiEdit, BiHistory, BiShow } from "react-icons/bi";
+import React, { useEffect, useState } from 'react';
+import { BiEdit, BiHistory, BiShow, BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 export default function LoadingStations() {
   const [stations, setStations] = useState([]);
@@ -17,8 +18,16 @@ export default function LoadingStations() {
     can_edit: false,
     can_delete: false
   });
+  const [expandedStations, setExpandedStations] = useState({}); // Track which stations have logs expanded
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
+
+  const toggleStationLogs = (stationId) => {
+    setExpandedStations(prev => ({
+      ...prev,
+      [stationId]: !prev[stationId]
+    }));
+  };
 
   // Check permissions first
   useEffect(() => {
@@ -193,41 +202,73 @@ export default function LoadingStations() {
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
                       <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
                     {stations.length > 0 ? (
                       stations.map((station) => (
-                        <tr key={station.id} className="hover:bg-gray-50">
-                          <td className="px-6 py-4 whitespace-nowrap">{station.id}</td>
-                          <td className="px-6 py-4 whitespace-nowrap font-medium">{station.station_name}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">{station.manager}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">{station.phone}</td>
-                          <td className="px-6 py-4 whitespace-nowrap">
-                            {station.map_link ? (
-                              <a href={station.map_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">
-                                View on Map
+                        <React.Fragment key={station.id}>
+                          <tr className="hover:bg-gray-50">
+                            <td className="px-6 py-4 whitespace-nowrap">{station.id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap font-medium">{station.station_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{station.manager}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">{station.phone}</td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {station.map_link ? (
+                                <a href={station.map_link} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800 underline">
+                                  View on Map
+                                </a>
+                              ) : (
+                                <span className="text-gray-400">No map link</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap flex space-x-3">
+                              <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
+                                <BiEdit size={20} />
                               </a>
-                            ) : (
-                              <span className="text-gray-400">No map link</span>
-                            )}
-                          </td>
-                          <td className="px-6 py-4 whitespace-nowrap flex space-x-3">
-                            <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
-                              <BiEdit size={20} />
-                            </a>
-                            <a href={`/loading-stations/view?id=${station.id}`} className="text-blue-600 hover:text-blue-800">
-                              <BiShow size={20} />
-                            </a>
-                           <a
-  href={`/stock-history?id=${station.id}`}
-  className="text-red-600 hover:text-red-800"
->
-  <BiHistory size={20} />
-</a>
-
-                          </td>
-                        </tr>
+                              <a href={`/loading-stations/view?id=${station.id}`} className="text-blue-600 hover:text-blue-800">
+                                <BiShow size={20} />
+                              </a>
+                              <a
+                                href={`/stock-history?id=${station.id}`}
+                                className="text-red-600 hover:text-red-800"
+                              >
+                                <BiHistory size={20} />
+                              </a>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => toggleStationLogs(station.id)}
+                                className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                                title="View Activity Logs"
+                              >
+                                {expandedStations[station.id] ? (
+                                  <>
+                                    <BiChevronUp size={20} />
+                                    <span className="ml-1 text-sm">Hide Logs</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BiChevronDown size={20} />
+                                    <span className="ml-1 text-sm">Show Logs</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                          </tr>
+                          {/* Expandable Logs Row */}
+                          {expandedStations[station.id] && (
+                            <tr className="bg-gray-50">
+                              <td colSpan="7" className="px-6 py-4">
+                                <div className="max-w-4xl">
+                                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {station.station_name}</h3>
+                                  <EntityLogs entityType="station" entityId={station.id} />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))
                     ) : (
                       <tr>
@@ -271,18 +312,37 @@ export default function LoadingStations() {
                       </div>
 
                       <div className="mt-4 flex justify-around pt-3 border-t border-gray-100">
-                       <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
-  <BiEdit size={20} />
-</a>
-
-                        <a href={`/station-view/${station.id}`} className="flex flex-col items-center text-blue-600">
+                        <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
+                          <BiEdit size={20} />
+                        </a>
+                        <a href={`/loading-stations/view?id=${station.id}`} className="flex flex-col items-center text-blue-600">
                           <BiShow size={24} />
                           <span className="text-xs mt-1">View</span>
                         </a>
-                        <a href={`/stock-history/${station.id}`} className="flex flex-col items-center text-red-600">
+                        <a href={`/stock-history?id=${station.id}`} className="flex flex-col items-center text-red-600">
                           <BiHistory size={24} />
                           <span className="text-xs mt-1">History</span>
                         </a>
+                      </div>
+
+                      {/* Mobile Logs Section */}
+                      <div className="mt-4 pt-3 border-t border-gray-100">
+                        <button
+                          onClick={() => toggleStationLogs(station.id)}
+                          className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                        >
+                          <span className="text-sm font-medium">Activity Logs</span>
+                          {expandedStations[station.id] ? (
+                            <BiChevronUp size={20} />
+                          ) : (
+                            <BiChevronDown size={20} />
+                          )}
+                        </button>
+                        {expandedStations[station.id] && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <EntityLogs entityType="station" entityId={station.id} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))

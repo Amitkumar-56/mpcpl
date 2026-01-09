@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
+import { createEntityLog } from '@/lib/entityLogs';
 
 export async function PUT(request) {
   try {
@@ -126,6 +127,28 @@ export async function PUT(request) {
       recordType: 'station',
       recordId: parseInt(id)
     });
+
+    // ✅ Create entity-specific log (similar to filling_logs) for update
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+      await createEntityLog({
+        entityType: 'station',
+        entityId: id,
+        createdBy: null, // Will use existing if log exists
+        updatedBy: userId,
+        updatedDate: currentDateTime
+      });
+    } catch (logError) {
+      console.error('⚠️ Error creating station log:', logError);
+    }
 
     return NextResponse.json({
       success: true,

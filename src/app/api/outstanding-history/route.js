@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
+    console.log('📊 Fetching outstanding history...');
+    
     // Get all stock entries with supplier, product, station, and transporter info
     const query = `
       SELECT 
@@ -32,16 +34,28 @@ export async function GET(request) {
     `;
 
     const rows = await executeQuery(query);
+    
+    console.log(`✅ Fetched ${rows?.length || 0} outstanding invoices`);
 
     return NextResponse.json({
       success: true,
-      data: rows
+      data: rows || []
     });
 
   } catch (error) {
-    console.error('Error fetching outstanding history:', error);
+    console.error('❌ Error fetching outstanding history:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    
     return NextResponse.json(
-      { success: false, error: 'Internal server error' },
+      { 
+        success: false, 
+        error: error.message || 'Internal server error',
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      },
       { status: 500 }
     );
   }

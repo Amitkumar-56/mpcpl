@@ -180,6 +180,54 @@ export async function POST(request) {
       
       if (updatedPassword === hashedPassword) {
         console.log('✅ Password successfully updated and verified!');
+
+        // ✅ Send notification to all admins about password change
+        try {
+          const io = global._io;
+          if (io) {
+            // Get admin name who changed the password
+            const adminName = adminUser.name || 'Admin';
+            
+            // Emit notification to all admins (role 5)
+            io.to('role_5').emit('password_change_notification', {
+              type: 'employee_password_changed',
+              employeeId: employeeCheck[0].id,
+              employeeName: employeeCheck[0].name,
+              employeeCode: employeeCheck[0].emp_code || '',
+              changedBy: {
+                id: userId,
+                name: adminName
+              },
+              timestamp: Date.now(),
+              message: `Employee password changed: ${employeeCheck[0].name} (${employeeCheck[0].emp_code || employeeCheck[0].id}) by ${adminName}`
+            });
+            console.log('✅ Password change notification sent to admins');
+          }
+        } catch (notifError) {
+          console.error('⚠️ Error sending password change notification:', notifError);
+          // Don't fail the request if notification fails
+        }
+
+        // ✅ Create audit log for password change
+        try {
+          const { createAuditLog } = await import('@/lib/auditLog');
+          await createAuditLog({
+            page: 'Change Password',
+            uniqueCode: `PASS-CHANGE-EMP-${employeeCheck[0].id}`,
+            section: 'Password Management',
+            userId: userId,
+            userName: adminUser.name,
+            action: 'edit',
+            remarks: `Password changed for employee: ${employeeCheck[0].name} (${employeeCheck[0].emp_code || employeeCheck[0].id})`,
+            oldValue: { password: '***' },
+            newValue: { password: '***' },
+            recordType: 'employee',
+            recordId: employeeCheck[0].id
+          });
+        } catch (auditError) {
+          console.error('⚠️ Error creating audit log:', auditError);
+        }
+
         return NextResponse.json({
           success: true,
           message: `Password updated successfully for employee ${employeeCheck[0].name}`,

@@ -177,21 +177,35 @@ export async function PUT(request) {
       if ((aqty !== undefined || qty !== undefined) && wasCompleted) {
         try {
           const cid = parseInt(oldRequest.cid);
-          const clientRows = await executeQuery(`SELECT client_type FROM customers WHERE id = ?`, [cid]);
+          const clientRows = await executeQuery(`SELECT client_type, billing_type FROM customers WHERE id = ?`, [cid]);
           const clientType = clientRows.length ? parseInt(clientRows[0].client_type) : null;
+          const billingType = clientRows.length ? parseInt(clientRows[0].billing_type) : null;
+          const isNonBilling = billingType === 2; // Non-billing (prepaid) customers
+          const isDayLimitCustomer = clientType === 3; // Day limit customers
+          
           const balanceRows = await executeQuery(
-            `SELECT amtlimit, balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
+            `SELECT amtlimit, balance, day_limit FROM customer_balances WHERE com_id = ? LIMIT 1`,
             [cid]
           );
           const prevAmtLimit = balanceRows.length ? parseFloat(balanceRows[0].amtlimit || 0) : 0;
           const prevUsed = balanceRows.length ? parseFloat(balanceRows[0].balance || 0) : 0;
+          const dayLimit = balanceRows.length ? parseFloat(balanceRows[0].day_limit || 0) : 0;
 
-          if (clientType === 3) {
+          if (isDayLimitCustomer) {
+            // Day limit customers: Only update balance (outstanding)
             await executeQuery(
               `UPDATE customer_balances SET balance = COALESCE(balance, 0) + ? WHERE com_id = ?`,
               [deltaAmount, cid]
             );
+          } else if (isNonBilling) {
+            // Prepaid (non-billing): Update balance only
+            const newBalance = prevUsed + oldAmount - newAmount; // Reverse old, apply new
+            await executeQuery(
+              `UPDATE customer_balances SET balance = ? WHERE com_id = ?`,
+              [Math.max(0, newBalance), cid]
+            );
           } else {
+            // Postpaid (billing): Update both amtlimit and balance
             const nextAmtLimit = Math.max(0, prevAmtLimit - deltaAmount);
             const nextUsed = prevUsed + deltaAmount;
             await executeQuery(
@@ -200,26 +214,67 @@ export async function PUT(request) {
             );
           }
 
+          // Check for both 'Outward' (first time) and 'Edited' (already edited before)
           const historyRow = await executeQuery(
-            `SELECT id, new_amount, remaining_limit FROM filling_history WHERE rid = ? ORDER BY filling_date DESC, id DESC LIMIT 1`,
+            `SELECT id, new_amount, remaining_limit, filling_qty, amount 
+             FROM filling_history 
+             WHERE rid = ? AND trans_type IN ('Outward', 'Edited') 
+             ORDER BY filling_date DESC, id DESC LIMIT 1`,
             [oldRequest.rid]
           );
           if (historyRow.length) {
             const h = historyRow[0];
-            const prevNewAmount = parseFloat(h.new_amount || oldAmount) || oldAmount;
-            const updatedNewAmount = prevNewAmount + deltaAmount;
+            // Use filling_qty from history if available (more accurate than oldRequest.aqty/qty)
+            const historyQty = parseFloat(h.filling_qty || oldRequest.aqty || oldRequest.qty || 0) || 0;
+            const actualOldQty = historyQty > 0 ? historyQty : oldQty;
+            // Recalculate deltaAmount based on actual history qty if different
+            const actualOldAmount = historyQty > 0 && historyQty !== oldQty 
+              ? (parseFloat(h.amount || oldAmount) || oldAmount)
+              : oldAmount;
+            const actualDeltaAmount = newAmount - actualOldAmount;
+            
+            const prevNewAmount = parseFloat(h.new_amount || 0) || 0;
+            // Calculate updatedNewAmount: reverse the old transaction amount and add new
+            const updatedNewAmount = prevNewAmount - actualOldAmount + newAmount;
+            
+            // Get updated remaining limit
+            // For postpaid (billing): remaining_limit = amtlimit (credit limit)
+            // For prepaid (non-billing): remaining_limit = balance (prepaid balance)
+            // For day limit: remaining_limit = day_limit
             let updatedRemaining = null;
-            if (clientType !== 3) {
+            if (isDayLimitCustomer && dayLimit > 0) {
+              updatedRemaining = dayLimit;
+            } else if (!isDayLimitCustomer && !isNonBilling) {
+              // Postpaid (billing) customers: use amtlimit (credit limit)
               const afterBalance = await executeQuery(
                 `SELECT amtlimit FROM customer_balances WHERE com_id = ? LIMIT 1`,
                 [cid]
               );
               updatedRemaining = afterBalance.length ? parseFloat(afterBalance[0].amtlimit || 0) : null;
+            } else if (isNonBilling) {
+              // Prepaid (non-billing) customers: use balance (prepaid balance)
+              const afterBalance = await executeQuery(
+                `SELECT balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
+                [cid]
+              );
+              updatedRemaining = afterBalance.length ? parseFloat(afterBalance[0].balance || 0) : null;
             }
+            
             await executeQuery(
               `UPDATE filling_history SET filling_qty = ?, amount = ?, new_amount = ?, remaining_limit = ? WHERE id = ?`,
               [newQty, newAmount, updatedNewAmount, updatedRemaining, h.id]
             );
+            
+            console.log('✅ Updated filling_history in PUT method:', {
+              historyId: h.id,
+              oldQty: actualOldQty,
+              newQty: newQty,
+              oldAmount: actualOldAmount,
+              newAmount: newAmount,
+              prevNewAmount,
+              updatedNewAmount,
+              updatedRemaining
+            });
           }
         } catch (finErr) {
           console.error('⚠️ Financial update error:', finErr);
@@ -497,11 +552,12 @@ export async function POST(request) {
           });
         }
         
-        // ✅ Get the original outward transaction to get stock info
+        // ✅ Get the original outward/edited transaction to get stock info
+        // Check for both 'Outward' (first time) and 'Edited' (already edited before)
         const historyRow = await executeQuery(
-          `SELECT id, new_amount, remaining_limit, amount, current_stock, available_stock, fs_id, product_id 
+          `SELECT id, new_amount, remaining_limit, amount, current_stock, available_stock, fs_id, product_id, trans_type
            FROM filling_history 
-           WHERE rid = ? AND trans_type = 'Outward' 
+           WHERE rid = ? AND trans_type IN ('Outward', 'Edited') 
            ORDER BY filling_date DESC, id DESC LIMIT 1`,
           [oldRequest.rid]
         );
@@ -519,16 +575,27 @@ export async function POST(request) {
           const updatedAmount = newAmount; // New transaction amount
           const updatedNewAmount = prevNewAmount - prevAmount + newAmount; // Reverse old, add new
           
-          // Get updated remaining limit (should match updated amtlimit)
+          // Get updated remaining limit
+          // For postpaid (billing): remaining_limit = amtlimit (credit limit)
+          // For prepaid (non-billing): remaining_limit = balance (prepaid balance)
+          // For day limit: remaining_limit = day_limit
           let updatedRemaining = null;
-          if (!isDayLimitCustomer && !isNonBilling) {
+          if (isDayLimitCustomer && dayLimit > 0) {
+            updatedRemaining = dayLimit;
+          } else if (!isDayLimitCustomer && !isNonBilling) {
+            // Postpaid (billing) customers: use amtlimit (credit limit)
             const afterBalance = await executeQuery(
               `SELECT amtlimit FROM customer_balances WHERE com_id = ? LIMIT 1`,
               [cid]
             );
             updatedRemaining = afterBalance.length ? parseFloat(afterBalance[0].amtlimit || 0) : null;
-          } else if (isDayLimitCustomer && dayLimit > 0) {
-            updatedRemaining = dayLimit;
+          } else if (isNonBilling) {
+            // Prepaid (non-billing) customers: use balance (prepaid balance)
+            const afterBalance = await executeQuery(
+              `SELECT balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
+              [cid]
+            );
+            updatedRemaining = afterBalance.length ? parseFloat(afterBalance[0].balance || 0) : null;
           }
           
           // ✅ Update filling_station_stocks

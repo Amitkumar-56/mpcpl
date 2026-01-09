@@ -5,7 +5,69 @@ import Sidebar from '@/components/sidebar';
 import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
+
+// Component to fetch and display shipment logs
+function ShipmentLogs({ shipmentId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        // Fetch audit logs for this shipment
+        const response = await fetch(`/api/audit-logs?record_type=shipment&record_id=${shipmentId}`);
+        const result = await response.json();
+        if (result.success && result.logs) {
+          setLogs(result.logs);
+        }
+      } catch (error) {
+        console.error('Error fetching shipment logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (shipmentId) {
+      fetchLogs();
+    }
+  }, [shipmentId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this shipment.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-3 text-sm">
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-2 text-gray-900">{log.user_name || log.userName || 'Unknown User'}</span>
+            </div>
+            <span className="text-xs text-gray-500">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Loading Component
 function LoadingFallback() {
@@ -71,7 +133,15 @@ function LRManagementContent() {
   const [permissions, setPermissions] = useState({ can_view: 0, can_edit: 0, can_create: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [expandedShipments, setExpandedShipments] = useState({});
   const searchParams = useSearchParams();
+  
+  const toggleShipmentLogs = (shipmentId) => {
+    setExpandedShipments(prev => ({
+      ...prev,
+      [shipmentId]: !prev[shipmentId]
+    }));
+  };
 
   // Check authentication and fetch data
   useEffect(() => {
@@ -250,12 +320,14 @@ function LRManagementContent() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker No</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {shipments.length > 0 ? (
                   shipments.map((shipment) => (
-                    <tr key={shipment.id} className="hover:bg-gray-50 transition duration-150">
+                    <React.Fragment key={shipment.id}>
+                    <tr className="hover:bg-gray-50 transition duration-150">
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.id}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{shipment.lr_id}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consigner}</td>
@@ -288,11 +360,42 @@ function LRManagementContent() {
                           {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
                         </div>
                       </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => toggleShipmentLogs(shipment.id)}
+                          className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                          title="View Activity Logs"
+                        >
+                          {expandedShipments[shipment.id] ? (
+                            <>
+                              <BiChevronUp size={18} />
+                              <span className="ml-1 text-xs">Hide</span>
+                            </>
+                          ) : (
+                            <>
+                              <BiChevronDown size={18} />
+                              <span className="ml-1 text-xs">Logs</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
                     </tr>
+                    {/* Expandable Logs Row */}
+                    {expandedShipments[shipment.id] && (
+                      <tr className="bg-gray-50">
+                        <td colSpan="9" className="px-6 py-4">
+                          <div className="max-w-4xl">
+                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for LR #{shipment.lr_id}</h3>
+                            <ShipmentLogs shipmentId={shipment.id} />
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" className="px-6 py-12 text-center">
+                    <td colSpan="9" className="px-6 py-12 text-center">
                       <div className="text-gray-500">
                         <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -368,6 +471,26 @@ function LRManagementContent() {
                       <span className="font-medium">Tanker No:</span>
                       <p>{shipment.tanker_no}</p>
                     </div>
+                  </div>
+                  
+                  {/* Mobile Logs Section */}
+                  <div className="mt-3 pt-3 border-t border-gray-200">
+                    <button
+                      onClick={() => toggleShipmentLogs(shipment.id)}
+                      className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                    >
+                      <span className="text-sm font-medium">Activity Logs</span>
+                      {expandedShipments[shipment.id] ? (
+                        <BiChevronUp size={20} />
+                      ) : (
+                        <BiChevronDown size={20} />
+                      )}
+                    </button>
+                    {expandedShipments[shipment.id] && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <ShipmentLogs shipmentId={shipment.id} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

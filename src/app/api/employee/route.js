@@ -6,6 +6,7 @@ import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 import path from 'path';
 import { createAuditLog } from '@/lib/auditLog';
+import { createEntityLog } from '@/lib/entityLogs';
 
 export async function GET() {
   try {
@@ -248,6 +249,27 @@ export async function POST(req) {
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
       // Don't fail the main operation
+    }
+
+    // ✅ Create entity-specific log (similar to filling_logs)
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+      await createEntityLog({
+        entityType: 'employee',
+        entityId: employeeId,
+        createdBy: currentUserId,
+        createdDate: currentDateTime
+      });
+    } catch (logError) {
+      console.error('⚠️ Error creating employee log:', logError);
     }
 
     // Commit transaction

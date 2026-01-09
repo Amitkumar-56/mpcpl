@@ -6,6 +6,9 @@ import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import React from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 export default function SuppliersPage() {
   const router = useRouter();
@@ -26,6 +29,14 @@ export default function SuppliersPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [submitting, setSubmitting] = useState(false);
+  const [expandedSuppliers, setExpandedSuppliers] = useState({});
+  
+  const toggleSupplierLogs = (supplierId) => {
+    setExpandedSuppliers(prev => ({
+      ...prev,
+      [supplierId]: !prev[supplierId]
+    }));
+  };
 
   // Check permissions first
   useEffect(() => {
@@ -613,11 +624,13 @@ export default function SuppliersPage() {
                         <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
                         <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                         <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {filteredSuppliers.map((supplier) => (
-                        <tr key={supplier.id} className="hover:bg-gray-50 transition-colors">
+                        <React.Fragment key={supplier.id}>
+                        <tr className="hover:bg-gray-50 transition-colors">
                           <td className="px-4 lg:px-6 py-3 lg:py-4">
                             <div className="flex items-center">
                               <div className="flex-shrink-0 h-10 w-10 lg:h-12 lg:w-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs lg:text-sm">
@@ -681,7 +694,38 @@ export default function SuppliersPage() {
                                     )}
                             </div>
                           </td>
+                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                            <button
+                              onClick={() => toggleSupplierLogs(supplier.id)}
+                              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                              title="View Activity Logs"
+                            >
+                              {expandedSuppliers[supplier.id] ? (
+                                <>
+                                  <BiChevronUp size={18} />
+                                  <span className="ml-1 text-xs">Hide</span>
+                                </>
+                              ) : (
+                                <>
+                                  <BiChevronDown size={18} />
+                                  <span className="ml-1 text-xs">Logs</span>
+                                </>
+                              )}
+                            </button>
+                          </td>
                         </tr>
+                        {/* Expandable Logs Row */}
+                        {expandedSuppliers[supplier.id] && (
+                          <tr className="bg-gray-50">
+                            <td colSpan="6" className="px-4 lg:px-6 py-4">
+                              <div className="max-w-4xl">
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {supplier.name}</h3>
+                                <EntityLogs entityType="supplier" entityId={supplier.id} />
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                        </React.Fragment>
                       ))}
                     </tbody>
                   </table>
@@ -775,6 +819,26 @@ export default function SuppliersPage() {
                                 {(supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active') ? 'Deactivate' : 'Activate'}
                               </button>
                             )}
+                        </div>
+                        
+                        {/* Mobile Logs Section */}
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <button
+                            onClick={() => toggleSupplierLogs(supplier.id)}
+                            className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                          >
+                            <span className="text-sm font-medium">Activity Logs</span>
+                            {expandedSuppliers[supplier.id] ? (
+                              <BiChevronUp size={20} />
+                            ) : (
+                              <BiChevronDown size={20} />
+                            )}
+                          </button>
+                          {expandedSuppliers[supplier.id] && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <EntityLogs entityType="supplier" entityId={supplier.id} />
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

@@ -8,6 +8,9 @@ import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Suspense, useEffect, useState, useMemo } from "react";
+import React from "react";
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 
 // ✅ Component for displaying the table content
@@ -18,6 +21,15 @@ function StocksTable({ permissions = { can_view: true, can_edit: true, can_delet
   const [searchTerm, setSearchTerm] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [expandedStocks, setExpandedStocks] = useState({});
+  
+  const toggleStockLogs = (stationId, productId) => {
+    const key = `${stationId}-${productId}`;
+    setExpandedStocks(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
 
   useEffect(() => {
     const fetchStocks = async () => {
@@ -139,15 +151,21 @@ function StocksTable({ permissions = { can_view: true, can_edit: true, can_delet
                   <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">
                     Stock
                   </th>
+                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b border-gray-200">
+                    Non-Billing Customers
+                  </th>
                   <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 border-b border-gray-200">
                     Action
+                  </th>
+                  <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 border-b border-gray-200">
+                    Logs
                   </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {paginatedStocks.map((row) => (
+                  <React.Fragment key={`${row.station_id}-${row.product_id}`}>
                   <tr
-                    key={`${row.station_id}-${row.product_id}`}
                     className="hover:bg-gray-50 transition-colors"
                   >
                     <td className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200">
@@ -157,13 +175,22 @@ function StocksTable({ permissions = { can_view: true, can_edit: true, can_delet
                       {row.pname}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200">
-                      {row.stock}
+                      <span className="font-semibold">{parseFloat(row.stock || 0).toFixed(2)} Ltr</span>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-900 border-b border-gray-200">
+                      <Link
+                        href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
+                        className="text-blue-600 hover:text-blue-800 underline text-xs"
+                        title="View Non-Billing Customers"
+                      >
+                        View Customers ({row.customer_count || 0})
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-center border-b border-gray-200">
                       <Link
                         href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
-                        className="inline-flex items-center justify-center text-orange-600 hover:text-orange-700"
-                        title="View Details"
+                        className="inline-flex items-center justify-center text-orange-600 hover:text-orange-700 mr-2"
+                        title="View History"
                       >
                         <svg
                           className="w-5 h-5"
@@ -179,8 +206,45 @@ function StocksTable({ permissions = { can_view: true, can_edit: true, can_delet
                           />
                         </svg>
                       </Link>
+                      <button
+                        onClick={() => toggleStockLogs(row.station_id, row.product_id)}
+                        className="ml-2 inline-flex items-center justify-center text-blue-600 hover:text-blue-800 transition-colors"
+                        title="View Activity Logs"
+                      >
+                        {expandedStocks[`${row.station_id}-${row.product_id}`] ? (
+                          <>
+                            <BiChevronUp size={18} />
+                            <span className="ml-1 text-xs">Hide</span>
+                          </>
+                        ) : (
+                          <>
+                            <BiChevronDown size={18} />
+                            <span className="ml-1 text-xs">Logs</span>
+                          </>
+                        )}
+                      </button>
                     </td>
                   </tr>
+                  {/* Expandable Logs Row */}
+                  {expandedStocks[`${row.station_id}-${row.product_id}`] && (
+                    <tr className="bg-gray-50">
+                      <td colSpan="6" className="px-4 py-4">
+                        <div className="max-w-4xl">
+                          <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {row.station_name} - {row.pname}</h3>
+                          <div className="text-sm text-gray-600 p-4 bg-white rounded border">
+                            <p>Stock activity logs for this station-product combination are available in the history section.</p>
+                            <Link
+                              href={`/nb-stock/history?station_id=${row.station_id}&product_id=${row.product_id}`}
+                              className="text-blue-600 hover:text-blue-800 underline mt-2 inline-block"
+                            >
+                              View Complete History →
+                            </Link>
+                          </div>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>

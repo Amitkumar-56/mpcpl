@@ -2,6 +2,7 @@
 import { executeTransaction } from "@/lib/db";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
+import { createEntityLog } from "@/lib/entityLogs";
 
 export async function POST(req) {
   try {
@@ -205,6 +206,30 @@ export async function POST(req) {
         });
       } catch (auditError) {
         console.error('Error creating audit log:', auditError);
+      }
+
+      // ✅ Create entity-specific log (similar to filling_logs)
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const seconds = String(now.getSeconds()).padStart(2, '0');
+        const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+        const currentUser = await getCurrentUser();
+        const userId = currentUser?.userId || null;
+
+        await createEntityLog({
+          entityType: 'customer',
+          entityId: newCustomerId,
+          createdBy: userId,
+          createdDate: currentDateTime
+        });
+      } catch (logError) {
+        console.error('⚠️ Error creating customer log:', logError);
       }
 
       try {

@@ -1,5 +1,7 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -71,8 +73,40 @@ export async function POST(request) {
       items
     } = formData;
 
+    // Get old deepo data before update (for edit case)
+    let oldDeepo = null;
+    if (id) {
+      const oldDeepoResult = await executeQuery('SELECT * FROM deepo_history WHERE id = ?', [id]);
+      if (oldDeepoResult.length > 0) {
+        oldDeepo = oldDeepoResult[0];
+      }
+    }
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      userName = currentUser?.userName || null;
+      
+      // Fetch employee name from employee_profile
+      if (userId) {
+        const empResult = await executeQuery(
+          `SELECT name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (empResult.length > 0 && empResult[0].name) {
+          userName = empResult[0].name;
+        }
+      }
+    } catch (authError) {
+      console.warn('Auth check failed, continuing without user info:', authError.message);
+    }
+
     await executeQuery('START TRANSACTION');
 
+    let deepoId = id;
     try {
       if (id) {
         // Update existing record
@@ -113,6 +147,7 @@ export async function POST(request) {
             remarks
           ]
         );
+        deepoId = result.insertId;
       }
 
       // Process items
@@ -160,10 +195,37 @@ export async function POST(request) {
 
       await executeQuery('COMMIT');
 
+      // Get new deepo data after update/insert
+      const newDeepoResult = await executeQuery('SELECT * FROM deepo_history WHERE id = ?', [deepoId]);
+      const newDeepo = newDeepoResult.length > 0 ? newDeepoResult[0] : null;
+
+      // Create audit log
+      try {
+        await createAuditLog({
+          page: 'Deepo Management',
+          uniqueCode: `DEPOO-${deepoId}`,
+          section: id ? 'Edit Deepo' : 'Create Deepo',
+          userId: userId,
+          userName: userName || (userId ? `Employee ID: ${userId}` : null),
+          action: id ? 'edit' : 'add',
+          remarks: id 
+            ? `Deepo record updated: Licence ${licence_plate}, Driver: ${first_driver}, Opening Station: ${opening_station}, Closing Station: ${closing_station}`
+            : `Deepo record created: Licence ${licence_plate}, Driver: ${first_driver}, Opening Station: ${opening_station}, Closing Station: ${closing_station}`,
+          oldValue: oldDeepo,
+          newValue: newDeepo,
+          recordType: 'deepo',
+          recordId: deepoId
+        });
+        console.log('✅ Audit log created for deepo:', { userId, userName, deepoId, action: id ? 'edit' : 'add' });
+      } catch (auditError) {
+        console.error('❌ Audit log creation failed (non-critical):', auditError);
+        // Don't fail the main operation
+      }
+
       return NextResponse.json({
         success: true,
         message: id ? 'Deepo details updated successfully' : 'Deepo details saved successfully',
-        id: id || result.insertId
+        id: deepoId
       });
 
     } catch (error) {

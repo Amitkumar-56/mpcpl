@@ -65,21 +65,14 @@ export async function GET(request) {
         COALESCE(p.pname, 'Unknown Product') AS pname, 
         COALESCE(fr.vehicle_number, '') AS vehicle_number,
         COALESCE(fs.station_name, 'Unknown Station') AS station_name,
-        CASE 
-          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 AND ep.id IS NOT NULL THEN ep.name
-          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 THEN CONCAT('Employee ID: ', fh.created_by)
-          ELSE NULL
-        END AS created_by_name,
-        CASE 
-          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 AND ep.id IS NOT NULL THEN ep.name
-          WHEN fh.created_by IS NOT NULL AND fh.created_by > 0 THEN CONCAT('Employee ID: ', fh.created_by)
-          ELSE NULL
-        END AS user_name
+        ep.name AS created_by_name,
+        ep.id AS created_by_employee_id,
+        ep.emp_code AS created_by_emp_code
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
       LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
-      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id AND fh.created_by IS NOT NULL AND fh.created_by > 0
+      LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE fh.trans_type IN ('Inward', 'Outward', 'Edited')
         AND (
           (fh.trans_type = 'Inward' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
@@ -89,6 +82,13 @@ export async function GET(request) {
           (fh.trans_type = 'Edited' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
         )
     `;
+    
+    // Add condition to include NB Stock entries
+    if (hasStockType) {
+      sql += ` AND (fh.cl_id IS NULL OR fh.stock_type = 'NB Stock')`;
+    } else {
+      sql += ` AND fh.cl_id IS NULL`;
+    }
 
     const params = [];
     const conditions = [];
@@ -125,11 +125,82 @@ export async function GET(request) {
     const rows = await executeQuery(sql, params);
 
     console.log('✅ Stock History Rows Count:', rows?.length || 0);
+    
+    // ✅ Debug: Check first few rows for created_by info
+    if (rows && rows.length > 0) {
+      console.log('🔍 Sample rows created_by info:', rows.slice(0, 3).map(r => ({
+        id: r.id,
+        created_by: r.created_by,
+        created_by_name: r.created_by_name,
+        created_by_employee_id: r.created_by_employee_id,
+        created_by_emp_code: r.created_by_emp_code
+      })));
+    }
+
+    // ✅ Collect unique employee IDs that need name lookup
+    const missingEmployeeIds = new Set();
+    rows.forEach((row) => {
+      if (!row.created_by_name && row.created_by && row.created_by > 0) {
+        missingEmployeeIds.add(row.created_by);
+      }
+    });
+
+    // ✅ Fetch all missing employee names in one query (better performance)
+    let employeeNameMap = {};
+    if (missingEmployeeIds.size > 0) {
+      try {
+        const employeeIds = Array.from(missingEmployeeIds);
+        const placeholders = employeeIds.map(() => '?').join(',');
+        const empResult = await executeQuery(
+          `SELECT id, name, emp_code FROM employee_profile WHERE id IN (${placeholders})`,
+          employeeIds
+        );
+        empResult.forEach(emp => {
+          employeeNameMap[emp.id] = {
+            name: emp.name,
+            emp_code: emp.emp_code
+          };
+        });
+        console.log(`✅ Fetched ${empResult.length} employee names for stock history`);
+      } catch (fetchError) {
+        console.error('⚠️ Error fetching employee names:', fetchError);
+      }
+    }
+
+    // ✅ Format created_by_name - always show employee name or ID, never "System"
+    const formattedRows = rows.map((row) => {
+      let displayName = null;
+      
+      if (row.created_by_name) {
+        // Employee name found in employee_profile JOIN
+        displayName = row.created_by_name;
+      } else if (row.created_by && row.created_by > 0) {
+        // Employee ID exists but name not found in JOIN - use fetched data
+        const empData = employeeNameMap[row.created_by];
+        if (empData && empData.name) {
+          displayName = empData.name;
+        } else {
+          // Employee ID exists but not found in employee_profile
+          if (row.created_by_emp_code) {
+            displayName = `Employee ID: ${row.created_by} (${row.created_by_emp_code})`;
+          } else {
+            displayName = `Employee ID: ${row.created_by}`;
+          }
+        }
+      }
+      // If created_by is null or 0, displayName remains null (will be handled in UI)
+      
+      return {
+        ...row,
+        created_by_name: displayName || row.created_by_name,
+        user_name: displayName || row.created_by_name // For backward compatibility
+      };
+    });
 
     const filling_stations = {};
     const productsSet = new Set();
 
-    rows.forEach((row) => {
+    formattedRows.forEach((row) => {
       if (row.fs_id && row.station_name) {
         filling_stations[row.fs_id] = row.station_name;
       }
@@ -151,7 +222,7 @@ export async function GET(request) {
       data: {
         filling_stations,
         products,
-        rows: rows || [],
+        rows: formattedRows || [],
         filters: {
           pname: pname || "",
           from_date: from_date || "",

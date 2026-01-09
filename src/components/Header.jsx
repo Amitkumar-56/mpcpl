@@ -93,6 +93,23 @@ export default function Header({ onMenuToggle }) {
           status: 'new_customer',
         }, ...list].slice(0, 20));
       });
+      
+      // ✅ Listen for password change notifications
+      s.on('password_change_notification', (data) => {
+        console.log('🔐 Password change notification received:', data);
+        setNotifCount((c) => c + 1);
+        setNotifications((list) => [{
+          id: `password_change_${data.type}_${data.employeeId || data.customerId}_${Date.now()}`,
+          employeeId: data.employeeId,
+          customerId: data.customerId,
+          employeeName: data.employeeName,
+          customerName: data.customerName,
+          text: data.message || `Password changed for ${data.employeeName || data.customerName}`,
+          timestamp: data.timestamp || Date.now(),
+          status: 'password_change',
+          changedBy: data.changedBy
+        }, ...list].slice(0, 20));
+      });
       s.on('chat_assigned', (data) => {
         setNotifications((list) => [{
           id: `assigned-${data.customerId}`,

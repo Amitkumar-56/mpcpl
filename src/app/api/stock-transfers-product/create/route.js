@@ -1,7 +1,7 @@
+import { createAuditLog } from "@/lib/auditLog";
+import { getCurrentUser } from "@/lib/auth";
 import { executeQuery, executeTransaction } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
-import { createAuditLog } from "@/lib/auditLog";
 
 export async function GET() {
   try {
@@ -33,16 +33,16 @@ export async function POST(request) {
       station_from,
       station_to,
       product_id,
-      product_to, // For same station transfer
+      product_to,
       transfer_quantity,
       remarks,
       status = "pending"
     } = data;
 
     // Validate required fields
-    if (!station_from || !station_to || !product_id || !transfer_quantity) {
+    if (!station_from || !station_to || !transfer_quantity) {
       return NextResponse.json(
-        { error: "All required fields must be filled" },
+        { error: "Station From, Station To and Quantity are required" },
         { status: 400 }
       );
     }
@@ -55,59 +55,54 @@ export async function POST(request) {
       );
     }
 
-    // Convert to numbers for comparison
+    // Convert to numbers
     const stationFromNum = parseInt(station_from);
     const stationToNum = parseInt(station_to);
-    const productIdNum = parseInt(product_id);
-    const productToNum = product_to ? parseInt(product_to) : null;
     
-    // Check if same station transfer (Industrial Oil 40 <-> 60)
-    const isSameStationTransfer = stationFromNum === stationToNum && productToNum;
+    // Check if same station transfer
+    const isSameStationTransfer = stationFromNum === stationToNum;
     
     console.log("🔍 Transfer details:", {
       station_from: stationFromNum,
       station_to: stationToNum,
-      product_id: productIdNum,
-      product_to: productToNum,
+      product_id,
+      product_to,
       isSameStationTransfer,
       quantity
     });
     
     if (isSameStationTransfer) {
-      // Validate product_to is required for same station transfer
-      if (!product_to) {
+      // Same station transfer requires BOTH products
+      if (!product_id || !product_to) {
         return NextResponse.json(
-          { error: "Product To is required for same station transfer" },
+          { error: "Product From and Product To are required for same station transfer" },
           { status: 400 }
         );
       }
       
-      // Validate it's Industrial Oil 40 or 60
-      if ((productIdNum != 2 && productIdNum != 3) || (productToNum != 2 && productToNum != 3)) {
-        return NextResponse.json(
-          { error: "Same station transfer is only allowed between Industrial Oil 40 (ID: 2) and Industrial Oil 60 (ID: 3)" },
-          { status: 400 }
-        );
-      }
+      const productIdNum = parseInt(product_id);
+      const productToNum = parseInt(product_to);
       
-      // Product from and to should be different
+      // Validate products are different
       if (productIdNum === productToNum) {
         return NextResponse.json(
           { error: "Product From and Product To must be different" },
           { status: 400 }
         );
       }
-    } else if (stationFromNum === stationToNum) {
-      return NextResponse.json(
-        { error: "For same station transfer, Product To is required (Industrial Oil 40 ↔ Industrial Oil 60)" },
-        { status: 400 }
-      );
+    } else {
+      // Different station transfer requires only product_id
+      if (!product_id) {
+        return NextResponse.json(
+          { error: "Product is required for transfer between different stations" },
+          { status: 400 }
+        );
+      }
     }
 
     // Get current user
     const currentUser = await getCurrentUser();
     const userId = currentUser?.userId || null;
-    // Ensure userName is fetched from employee_profile if not available
     let userName = currentUser?.userName;
     if (!userName && currentUser?.userId) {
       const users = await executeQuery(
@@ -121,12 +116,11 @@ export async function POST(request) {
 
     console.log("🔄 Starting transaction...");
     const result = await executeTransaction(async (connection) => {
-      // Use numeric values
-      const isSameStationTransfer = stationFromNum === stationToNum && productToNum;
-      console.log("📍 Transfer type:", isSameStationTransfer ? "Same Station" : "Different Station");
-      
       if (isSameStationTransfer) {
-        // Same station transfer: Transfer between products in filling_stations_stock
+        // Same station transfer
+        const productIdNum = parseInt(product_id);
+        const productToNum = parseInt(product_to);
+        
         // Check source product stock
         const sourceStockQuery = `
           SELECT stock FROM filling_station_stocks 
@@ -136,7 +130,7 @@ export async function POST(request) {
         const [sourceStock] = await connection.execute(sourceStockQuery, [stationFromNum, productIdNum]);
         
         if (sourceStock.length === 0) {
-          throw new Error(`No stock found for product ${product_id} at station ${station_from}`);
+          throw new Error(`No stock found for source product at station`);
         }
 
         const availableStock = parseFloat(sourceStock[0].stock) || 0;
@@ -144,23 +138,23 @@ export async function POST(request) {
           throw new Error(`Insufficient stock. Available: ${availableStock}, Required: ${quantity}`);
         }
 
-        // Update source product stock (subtract)
+        // Update source product stock
         const newSourceStock = availableStock - quantity;
         const updateSourceQuery = `
           UPDATE filling_station_stocks 
-          SET stock = ?, msg = ?, remark = ?, created_at = NOW()
+          SET stock = ?, msg = ?, remark = ?
           WHERE fs_id = ? AND product = ?
         `;
         await connection.execute(updateSourceQuery, [
           newSourceStock,
-          `Product transfer to ${productToNum} (same station)`,
-          remarks || `Transferred ${quantity} from product ${productIdNum} to product ${productToNum}`,
+          `Transferred to product ${productToNum}`,
+          remarks || `Transferred ${quantity} units to product ${productToNum}`,
           stationFromNum,
           productIdNum
         ]);
-        console.log("✅ Source product stock updated:", { old: availableStock, new: newSourceStock });
+        console.log("✅ Source product stock updated");
 
-        // Check destination product stock (same station, different product)
+        // Check destination product stock
         const destStockQuery = `
           SELECT stock FROM filling_station_stocks 
           WHERE fs_id = ? AND product = ?
@@ -169,8 +163,10 @@ export async function POST(request) {
         const [destStock] = await connection.execute(destStockQuery, [stationToNum, productToNum]);
         
         let newDestStock;
+        let oldDestStock = 0;
+        
         if (destStock.length === 0) {
-          // Insert new stock record for destination product
+          // Insert new stock record
           const insertDestQuery = `
             INSERT INTO filling_station_stocks (fs_id, product, stock, msg, remark, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
@@ -179,31 +175,31 @@ export async function POST(request) {
             stationToNum,
             productToNum,
             quantity,
-            `Product transfer from ${productIdNum} (same station)`,
-            remarks || `Received ${quantity} from product ${productIdNum}`
+            `Transferred from product ${productIdNum}`,
+            remarks || `Received ${quantity} units from product ${productIdNum}`
           ]);
           newDestStock = quantity;
-          console.log("✅ Destination product stock inserted:", newDestStock);
+          console.log("✅ Destination product stock inserted");
         } else {
-          // Update existing stock (add)
-          const currentDestStock = parseFloat(destStock[0].stock) || 0;
-          newDestStock = currentDestStock + quantity;
+          // Update existing stock
+          oldDestStock = parseFloat(destStock[0].stock) || 0;
+          newDestStock = oldDestStock + quantity;
           const updateDestQuery = `
             UPDATE filling_station_stocks 
-            SET stock = ?, msg = ?, remark = ?, created_at = NOW()
+            SET stock = ?, msg = ?, remark = ?
             WHERE fs_id = ? AND product = ?
           `;
           await connection.execute(updateDestQuery, [
             newDestStock,
-            `Product transfer from ${productIdNum} (same station)`,
-            remarks || `Received ${quantity} from product ${productIdNum}`,
+            `Transferred from product ${productIdNum}`,
+            remarks || `Received ${quantity} units from product ${productIdNum}`,
             stationToNum,
             productToNum
           ]);
-          console.log("✅ Destination product stock updated:", { old: currentDestStock, new: newDestStock });
+          console.log("✅ Destination product stock updated");
         }
 
-        // Insert into filling_history for source product (Outward)
+        // Insert history for source product
         const sourceHistoryQuery = `
           INSERT INTO filling_history 
           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
@@ -213,31 +209,76 @@ export async function POST(request) {
           stationFromNum,
           productIdNum,
           availableStock,
-          -quantity, // Negative for outward
+          -quantity,
           newSourceStock,
           userId
         ]);
-        console.log("✅ Source product history created");
 
-        // Insert into filling_history for destination product (Inward)
+        // Insert history for destination product
         const destHistoryQuery = `
           INSERT INTO filling_history 
           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
           VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())
         `;
-        const oldDestStock = destStock.length > 0 ? parseFloat(destStock[0].stock) || 0 : 0;
         await connection.execute(destHistoryQuery, [
           stationToNum,
           productToNum,
           oldDestStock,
-          quantity, // Positive for inward
+          quantity,
           newDestStock,
           userId
         ]);
-        console.log("✅ Destination product history created");
+
+        // Insert into product_transfers table
+        const insertTransferQuery = `
+          INSERT INTO product_transfers (
+            station_from, station_to, product_id, product_to, transfer_quantity, 
+            status, remarks, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        `;
+        const [transferResult] = await connection.execute(insertTransferQuery, [
+          stationFromNum,
+          stationToNum,
+          productIdNum,
+          productToNum,
+          quantity,
+          status,
+          remarks || null,
+          userId
+        ]);
+
+        const transferId = transferResult.insertId;
+
+        // Create audit log
+        await createAuditLog({
+          page: 'Product Transfers',
+          uniqueCode: `PROD-TRANSFER-${transferId}`,
+          section: 'Same Station Transfer',
+          userId: userId,
+          userName: userName,
+          action: 'create',
+          remarks: `Same station product transfer: ${quantity} units`,
+          oldValue: null,
+          newValue: {
+            station: stationFromNum,
+            product_from: productIdNum,
+            product_to: productToNum,
+            transfer_quantity: quantity,
+            source_stock_before: availableStock,
+            source_stock_after: newSourceStock,
+            dest_stock_before: oldDestStock,
+            dest_stock_after: newDestStock
+          },
+          recordType: 'product_transfer',
+          recordId: transferId
+        });
+
+        return { transferId, success: true };
 
       } else {
-        // Different station transfer: Regular transfer between stations
+        // Different station transfer
+        const productIdNum = parseInt(product_id);
+        
         // Check source station stock
         const sourceStockQuery = `
           SELECT stock FROM filling_station_stocks 
@@ -251,26 +292,24 @@ export async function POST(request) {
         }
 
         const availableStock = parseFloat(sourceStock[0].stock) || 0;
-        console.log("📊 Source stock available:", availableStock);
         if (availableStock < quantity) {
           throw new Error(`Insufficient stock. Available: ${availableStock}, Required: ${quantity}`);
         }
 
-        // Update source station stock (subtract)
+        // Update source station stock
         const newSourceStock = availableStock - quantity;
         const updateSourceQuery = `
           UPDATE filling_station_stocks 
-          SET stock = ?, msg = ?, remark = ?, created_at = NOW()
+          SET stock = ?, msg = ?, remark = ?
           WHERE fs_id = ? AND product = ?
         `;
         await connection.execute(updateSourceQuery, [
           newSourceStock,
-          `Product transfer to station ${stationToNum}`,
-          remarks || `Transferred ${quantity} to another station`,
+          `Transferred to station ${stationToNum}`,
+          remarks || `Transferred ${quantity} units to another station`,
           stationFromNum,
           productIdNum
         ]);
-        console.log("✅ Source stock updated:", { old: availableStock, new: newSourceStock });
 
         // Check destination station stock
         const destStockQuery = `
@@ -281,8 +320,10 @@ export async function POST(request) {
         const [destStock] = await connection.execute(destStockQuery, [stationToNum, productIdNum]);
         
         let newDestStock;
+        let oldDestStock = 0;
+        
         if (destStock.length === 0) {
-          // Insert new stock record for destination
+          // Insert new stock record
           const insertDestQuery = `
             INSERT INTO filling_station_stocks (fs_id, product, stock, msg, remark, created_at)
             VALUES (?, ?, ?, ?, ?, NOW())
@@ -291,31 +332,29 @@ export async function POST(request) {
             stationToNum,
             productIdNum,
             quantity,
-            `Product transfer from station ${stationFromNum}`,
-            remarks || `Received ${quantity} from another station`
+            `Transferred from station ${stationFromNum}`,
+            remarks || `Received ${quantity} units from another station`
           ]);
           newDestStock = quantity;
-          console.log("✅ Destination stock inserted:", newDestStock);
         } else {
-          // Update existing stock (add)
-          const currentDestStock = parseFloat(destStock[0].stock) || 0;
-          newDestStock = currentDestStock + quantity;
+          // Update existing stock
+          oldDestStock = parseFloat(destStock[0].stock) || 0;
+          newDestStock = oldDestStock + quantity;
           const updateDestQuery = `
             UPDATE filling_station_stocks 
-            SET stock = ?, msg = ?, remark = ?, created_at = NOW()
+            SET stock = ?, msg = ?, remark = ?
             WHERE fs_id = ? AND product = ?
           `;
           await connection.execute(updateDestQuery, [
             newDestStock,
-            `Product transfer from station ${stationFromNum}`,
-            remarks || `Received ${quantity} from another station`,
+            `Transferred from station ${stationFromNum}`,
+            remarks || `Received ${quantity} units from another station`,
             stationToNum,
             productIdNum
           ]);
-          console.log("✅ Destination stock updated:", { old: currentDestStock, new: newDestStock });
         }
 
-        // Insert into filling_history for source (Outward)
+        // Insert history for source
         const sourceHistoryQuery = `
           INSERT INTO filling_history 
           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
@@ -325,127 +364,73 @@ export async function POST(request) {
           stationFromNum,
           productIdNum,
           availableStock,
-          -quantity, // Negative for outward
+          -quantity,
           newSourceStock,
           userId
         ]);
-        console.log("✅ Source history created");
 
-        // Insert into filling_history for destination (Inward)
+        // Insert history for destination
         const destHistoryQuery = `
           INSERT INTO filling_history 
           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
           VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())
         `;
-        const oldDestStock = destStock.length > 0 ? parseFloat(destStock[0].stock) || 0 : 0;
         await connection.execute(destHistoryQuery, [
           stationToNum,
           productIdNum,
           oldDestStock,
-          quantity, // Positive for inward
+          quantity,
           newDestStock,
           userId
         ]);
-        console.log("✅ Destination history created");
-      }
 
-      // Insert into product_transfers table
-      const insertTransferQuery = `
-        INSERT INTO product_transfers (
-          station_from, station_to, product_id, product_to, transfer_quantity, 
-          status, remarks, created_by, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
-      `;
-      console.log("📝 Inserting into product_transfers:", {
-        station_from: stationFromNum,
-        station_to: stationToNum,
-        product_id: productIdNum,
-        product_to: productToNum,
-        quantity,
-        status
-      });
-      const [transferResult] = await connection.execute(insertTransferQuery, [
-        stationFromNum,
-        stationToNum,
-        productIdNum,
-        productToNum || null, // For same station transfer
-        quantity,
-        status,
-        remarks || null,
-        userId
-      ]);
+        // Insert into product_transfers table - added updated_at here
+        const insertTransferQuery = `
+          INSERT INTO product_transfers (
+            station_from, station_to, product_id, transfer_quantity, 
+            status, remarks, created_by, created_at, updated_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())
+        `;
+        const [transferResult] = await connection.execute(insertTransferQuery, [
+          stationFromNum,
+          stationToNum,
+          productIdNum,
+          quantity,
+          status,
+          remarks || null,
+          userId
+        ]);
 
-      const transferId = transferResult.insertId;
+        const transferId = transferResult.insertId;
 
-      // Insert into filling_history for source (Outward)
-      const sourceHistoryQuery = `
-        INSERT INTO filling_history 
-        (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
-        VALUES (?, ?, 'Outward', ?, ?, ?, NOW(), ?, NOW())
-      `;
-      await connection.execute(sourceHistoryQuery, [
-        stationFromNum,
-        productIdNum,
-        availableStock,
-        -quantity, // Negative for outward
-        newSourceStock,
-        userId
-      ]);
-      console.log("✅ Source history created");
-
-      // Insert into filling_history for destination (Inward)
-      const destHistoryQuery = `
-        INSERT INTO filling_history 
-        (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
-        VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())
-      `;
-      const oldDestStock = destStock.length > 0 ? parseFloat(destStock[0].stock) || 0 : 0;
-      await connection.execute(destHistoryQuery, [
-        stationToNum,
-        productIdNum,
-        oldDestStock,
-        quantity, // Positive for inward
-        newDestStock,
-        userId
-      ]);
-      console.log("✅ Destination history created");
-
-      // Create audit log
-      try {
+        // Create audit log
         await createAuditLog({
           page: 'Product Transfers',
           uniqueCode: `PROD-TRANSFER-${transferId}`,
-          section: 'Product Transfer',
+          section: 'Different Station Transfer',
           userId: userId,
           userName: userName,
           action: 'create',
-          remarks: isSameStationTransfer 
-            ? `Product transfer created: ${quantity} units from product ${productIdNum} to product ${productToNum} (same station ${stationFromNum})`
-            : `Product transfer created: ${quantity} units from station ${stationFromNum} to ${stationToNum}`,
+          remarks: `Product transfer: ${quantity} units`,
           oldValue: null,
           newValue: {
             station_from: stationFromNum,
             station_to: stationToNum,
             product_id: productIdNum,
-            product_to: productToNum,
             transfer_quantity: quantity,
-            status,
-            remarks
+            source_stock_before: availableStock,
+            source_stock_after: newSourceStock,
+            dest_stock_before: oldDestStock,
+            dest_stock_after: newDestStock
           },
           recordType: 'product_transfer',
           recordId: transferId
         });
-        console.log("✅ Audit log created");
-      } catch (auditError) {
-        console.log("⚠️ Audit log creation failed (non-critical):", auditError.message);
-        // Don't fail the transaction if audit log fails
-      }
 
-      console.log("✅ Transaction completed successfully, transfer ID:", transferId);
-      return { transferId, success: true };
+        return { transferId, success: true };
+      }
     });
 
-    console.log("✅ Product transfer created successfully");
     return NextResponse.json({
       success: true,
       message: "Product transfer created successfully",
@@ -454,14 +439,11 @@ export async function POST(request) {
 
   } catch (error) {
     console.error("❌ Error creating product transfer:", error);
-    console.error("Error stack:", error.stack);
     return NextResponse.json(
       { 
-        error: error.message || "Failed to create product transfer",
-        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        error: error.message || "Failed to create product transfer"
       },
       { status: 500 }
     );
   }
 }
-

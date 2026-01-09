@@ -3,6 +3,8 @@ import { executeQuery } from '@/lib/db';
 import { writeFile } from 'fs/promises';
 import { NextResponse } from 'next/server';
 import path from 'path';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -61,6 +63,47 @@ export async function POST(request) {
       'INSERT INTO items (item_name, price, image_path) VALUES (?, ?, ?)',
       [item_name, price, image_path]
     );
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Items Management',
+        uniqueCode: `ITEM-${result.insertId}`,
+        section: 'Create Item',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: 'add',
+        remarks: `Item created: ${item_name}, Price: ₹${price}`,
+        oldValue: null,
+        newValue: {
+          id: result.insertId,
+          item_name,
+          price,
+          image_path
+        },
+        recordType: 'item',
+        recordId: result.insertId
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+    }
 
     return NextResponse.json({
       success: true,

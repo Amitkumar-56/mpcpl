@@ -3,6 +3,7 @@ import { executeQuery } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
 
 // GET - Fetch role permissions
 export async function GET(request) {
@@ -176,6 +177,37 @@ export async function POST(request) {
           [roleNumber, moduleName, can_view, can_edit, can_create]
         );
       }
+    }
+
+    // Get user name for audit log
+    const userInfo = await executeQuery(
+      `SELECT name FROM employee_profile WHERE id = ?`,
+      [userId]
+    );
+    const userName = userInfo.length > 0 ? userInfo[0].name : (userId ? `Employee ID: ${userId}` : 'Admin');
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Role Management',
+        uniqueCode: `ROLE-PERMISSIONS-${roleNumber}`,
+        section: 'Permissions',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Permissions updated for role: ${role}. Modules: ${Object.keys(modules).filter(m => modules[m]).join(', ')}. Permissions: View=${can_view}, Edit=${can_edit}, Create=${can_create}`,
+        oldValue: null,
+        newValue: {
+          role: roleNumber,
+          role_name: role,
+          modules: Object.keys(modules).filter(m => modules[m]),
+          permissions: { can_view, can_edit, can_create }
+        },
+        recordType: 'role_permissions',
+        recordId: roleNumber
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
     }
 
     return NextResponse.json({

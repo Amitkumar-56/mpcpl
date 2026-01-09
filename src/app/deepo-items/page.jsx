@@ -6,7 +6,91 @@ import Sidebar from '@/components/sidebar';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
+
+// Component to fetch and display remark logs
+function RemarkLogs({ remarkId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!remarkId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`/api/audit-logs?record_type=remark&record_id=${remarkId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+          // API returns data array
+          setLogs(result.data || []);
+        } else {
+          setError(result.error || 'Failed to load logs');
+        }
+      } catch (error) {
+        console.error('Error fetching remark logs:', error);
+        setError('Failed to load logs. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLogs();
+  }, [remarkId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-sm text-red-600 p-4 bg-red-50 rounded border border-red-200">
+        {error}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this remark.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-2 sm:p-3 text-xs sm:text-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-1 sm:ml-2 text-gray-900 break-words">{log.user_name || log.user_display_name || log.userName || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown User')}</span>
+            </div>
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1 sm:mt-2 break-words">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Inner component that uses useSearchParams
 function DeepoItemsContent() {
@@ -26,6 +110,14 @@ function DeepoItemsContent() {
   const [error, setError] = useState('');
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
+  const [expandedRemarks, setExpandedRemarks] = useState({});
+  
+  const toggleRemarkLogs = (remarkId) => {
+    setExpandedRemarks(prev => ({
+      ...prev,
+      [remarkId]: !prev[remarkId]
+    }));
+  };
 
   useEffect(() => {
     if (!authLoading) {
@@ -258,12 +350,16 @@ function DeepoItemsContent() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Action
                     </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Logs
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {remarks.length > 0 ? (
                     remarks.map((remark, index) => (
-                      <tr key={remark.id} className="hover:bg-gray-50">
+                      <React.Fragment key={remark.id}>
+                      <tr className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {(pagination.currentPage - 1) * pagination.limit + index + 1}
                         </td>
@@ -302,11 +398,44 @@ function DeepoItemsContent() {
                             )}
                           </div>
                         </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => toggleRemarkLogs(remark.id)}
+                            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors text-sm"
+                            title="View Activity Logs"
+                          >
+                            {expandedRemarks[remark.id] ? (
+                              <>
+                                <BiChevronUp size={18} className="sm:inline" />
+                                <span className="ml-1 text-xs hidden sm:inline">Hide</span>
+                              </>
+                            ) : (
+                              <>
+                                <BiChevronDown size={18} className="sm:inline" />
+                                <span className="ml-1 text-xs hidden sm:inline">Logs</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
                       </tr>
+                      {/* Expandable Logs Row */}
+                      {expandedRemarks[remark.id] && (
+                        <tr className="bg-gray-50">
+                          <td colSpan="6" className="px-4 sm:px-6 py-4">
+                            <div className="max-w-full sm:max-w-4xl">
+                              <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for {remark.remarks_name}</h3>
+                              <div className="overflow-x-auto">
+                                <RemarkLogs remarkId={remark.id} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">
+                      <td colSpan="6" className="px-6 py-8 text-center text-sm text-gray-500">
                         No remarks found. <Link href="/add-remarks" className="text-purple-600 hover:text-purple-500">Add your first remark</Link>
                       </td>
                     </tr>
@@ -357,6 +486,26 @@ function DeepoItemsContent() {
                           </div>
                         )}
                       </div>
+                    </div>
+                    
+                    {/* Mobile Logs Section */}
+                    <div className="mt-3 pt-3 border-t border-gray-200">
+                      <button
+                        onClick={() => toggleRemarkLogs(remark.id)}
+                        className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                      >
+                        <span className="text-sm font-medium">Activity Logs</span>
+                        {expandedRemarks[remark.id] ? (
+                          <BiChevronUp size={20} />
+                        ) : (
+                          <BiChevronDown size={20} />
+                        )}
+                      </button>
+                      {expandedRemarks[remark.id] && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <RemarkLogs remarkId={remark.id} />
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

@@ -4,6 +4,8 @@ import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function PATCH(request) {
   try {
@@ -74,6 +76,34 @@ export async function PATCH(request) {
       );
     }
 
+    // Get employee and station names for audit log
+    const employeeInfo = await executeQuery(
+      `SELECT name, emp_code FROM employee_profile WHERE id = ?`,
+      [existing[0].employee_id]
+    );
+    const stationInfo = await executeQuery(
+      `SELECT station_name FROM filling_stations WHERE id = ?`,
+      [existing[0].station_id]
+    );
+    const employeeName = employeeInfo.length > 0 ? employeeInfo[0].name : `Employee ID: ${existing[0].employee_id}`;
+    const stationName = stationInfo.length > 0 ? stationInfo[0].station_name : `Station ID: ${existing[0].station_id}`;
+
+    // Get current user name for audit log
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      const userId = currentUser?.userId || currentUser?.id || currentUserId;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
     // Update attendance record
     const updateQuery = `
       UPDATE attendance 
@@ -94,6 +124,31 @@ export async function PATCH(request) {
       currentUserId,
       id
     ]);
+
+    // Get updated attendance data
+    const newAttendance = await executeQuery(
+      `SELECT * FROM attendance WHERE id = ?`,
+      [id]
+    );
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Attendance',
+        uniqueCode: `ATTENDANCE-${id}`,
+        section: 'Edit Attendance',
+        userId: currentUserId,
+        userName: userName || (currentUserId ? `Employee ID: ${currentUserId}` : null),
+        action: 'edit',
+        remarks: `Attendance updated for ${employeeName} at ${stationName} on ${existing[0].attendance_date}. Status: ${status || existing[0].status}`,
+        oldValue: existing[0],
+        newValue: newAttendance.length > 0 ? newAttendance[0] : null,
+        recordType: 'attendance',
+        recordId: parseInt(id)
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+    }
 
     return NextResponse.json({
       success: true,

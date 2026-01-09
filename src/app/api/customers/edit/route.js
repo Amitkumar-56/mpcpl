@@ -5,6 +5,7 @@ import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
+import { createEntityLog } from '@/lib/entityLogs';
 
 // Helper function for password hashing
 function hashPassword(password) {
@@ -107,11 +108,14 @@ export async function PUT(request) {
       updateValues.push(phone || null);
     }
 
+    // Track password change separately
+    let passwordChanged = false;
     if (password !== undefined && password !== null && password !== '') {
       // Hash password before storing
       const hashedPassword = hashPassword(password);
       updateFields.push('password = ?');
       updateValues.push(hashedPassword);
+      passwordChanged = true;
     }
 
     if (address !== undefined && address !== null) {
@@ -315,22 +319,83 @@ export async function PUT(request) {
       }
 
       const { createAuditLog } = await import('@/lib/auditLog');
+      
+      // Check if password was changed (already tracked above)
+      const remarks = passwordChanged 
+        ? `Customer password changed: ${customer.name || `ID ${id}`}`
+        : 'Customer details updated';
+
       await createAuditLog({
         page: 'Customers',
         uniqueCode: id.toString(),
         section: 'Customer Management',
         userId: userId,
         userName: userName,
-        action: 'edit',
-        remarks: 'Customer details updated',
+        action: passwordChanged ? 'password_change' : 'edit',
+        remarks: remarks,
         oldValue: existingCustomers[0],
         newValue: customer,
         recordType: 'customer',
         recordId: id
       });
+
+      // ✅ Send notification to admins if password was changed
+      if (passwordChanged) {
+        try {
+          const io = global._io;
+          if (io) {
+            io.to('role_5').emit('password_change_notification', {
+              type: 'customer_password_changed',
+              customerId: id,
+              customerName: customer.name || `Customer ID: ${id}`,
+              changedBy: {
+                id: userId,
+                name: userName || 'Unknown'
+              },
+              timestamp: Date.now(),
+              message: `Customer password changed: ${customer.name || `ID ${id}`} by ${userName || 'Unknown'}`
+            });
+            console.log('✅ Customer password change notification sent to admins');
+          }
+        } catch (notifError) {
+          console.error('⚠️ Error sending password change notification:', notifError);
+        }
+      }
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
       // Don't fail the request if audit logging fails
+    }
+
+    // ✅ Create entity-specific log (similar to filling_logs) for update
+    try {
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      let userId = null;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+        }
+      }
+
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+      await createEntityLog({
+        entityType: 'customer',
+        entityId: id,
+        createdBy: null, // Will use existing if log exists
+        updatedBy: userId,
+        updatedDate: currentDateTime
+      });
+    } catch (logError) {
+      console.error('⚠️ Error creating customer log:', logError);
     }
     
     // Fetch product names for the product IDs

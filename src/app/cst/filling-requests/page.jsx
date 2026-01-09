@@ -27,22 +27,15 @@ function FillingRequestsPage() {
         if (user && user.id) {
           // ✅ Ensure customer ID is converted to string properly
           const customerIdValue = String(user.id).trim();
-          if (customerIdValue) {
+          if (customerIdValue && customerIdValue !== customerId) {
             setCustomerId(customerIdValue);
-            console.log("✅ Customer ID set:", customerIdValue, "(type:", typeof customerIdValue + ")");
-          } else {
-            console.log("❌ Customer ID is empty");
           }
-        } else {
-          console.log("❌ Invalid customer data in localStorage - missing ID:", user);
         }
-      } else {
-        console.log("❌ No customer found in localStorage");
       }
     } catch (error) {
       console.error("❌ Error reading from localStorage:", error);
     }
-  }, []);
+  }, [customerId]); // Add customerId to prevent unnecessary updates
 
   // ✅ Fetch filling requests - wrapped in useCallback to prevent infinite loops
   const fetchFillingRequests = React.useCallback(async (filter = 'All') => {
@@ -60,8 +53,6 @@ function FillingRequestsPage() {
         url += `&status=${filter}`;
       }
       
-      console.log('📍 Fetching from URL:', url);
-      
       const response = await fetch(url, {
         method: 'GET',
         cache: 'no-store',
@@ -70,58 +61,28 @@ function FillingRequestsPage() {
         },
       });
       
-      console.log('📍 Response status:', response.status);
-      console.log('📍 Response ok:', response.ok);
-      
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('❌ HTTP error response:', errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
       
       const responseText = await response.text();
-      console.log('📍 Raw response text:', responseText);
-      
       let data;
       try {
         data = JSON.parse(responseText);
       } catch (parseError) {
-        console.error('❌ Failed to parse JSON:', parseError);
-        console.error('❌ Response text:', responseText);
         throw new Error('Invalid JSON response from server');
       }
       
-      console.log('📍 Parsed data:', data);
-      console.log('📍 Data success:', data.success);
-      console.log('📍 Data requests:', data.requests);
-      console.log('📍 Requests count:', data.requests?.length);
-      console.log('📍 Requests type:', typeof data.requests);
-      console.log('📍 Is array:', Array.isArray(data.requests));
-      
       if (data.success) {
         const requestsArray = Array.isArray(data.requests) ? data.requests : [];
-        console.log('✅ Requests array:', requestsArray);
-        console.log('✅ Requests array length:', requestsArray.length);
-        
         setRequests(requestsArray);
-        console.log('✅ Requests state set with:', requestsArray.length, 'items');
-        
-        // ✅ Log if no requests found
-        if (requestsArray.length === 0) {
-          console.log('⚠️ No requests found for customer:', customerId, 'with filter:', filter);
-          console.log('⚠️ Check server logs to verify if data exists in database');
-        } else {
-          console.log('✅ Successfully loaded', requestsArray.length, 'requests');
-          console.log('✅ First request:', requestsArray[0]);
-        }
       } else {
         const errorMsg = data.message || data.error || 'Failed to fetch requests';
-        console.error('❌ API returned error:', errorMsg);
         setError(errorMsg);
         setRequests([]);
       }
     } catch (err) {
-      console.error('❌ Error fetching requests:', err);
       setError(err.message || 'An error occurred while fetching requests');
       setRequests([]);
     } finally {
@@ -129,13 +90,12 @@ function FillingRequestsPage() {
     }
   }, [customerId]);
 
-  // ✅ Fetch data when filter or customerId changes
+  // ✅ Fetch data when filter or customerId changes - optimized to prevent excessive calls
   useEffect(() => {
-    if (customerId) {
-      console.log("🔄 Customer ID changed, fetching requests...");
+    if (customerId && !loading) {
       fetchFillingRequests(statusFilter);
     }
-  }, [statusFilter, customerId, fetchFillingRequests]);
+  }, [statusFilter, customerId]); // Removed fetchFillingRequests to prevent infinite loops
 
   // Map database status to display status
   const mapStatus = (status) => {
@@ -181,13 +141,11 @@ function FillingRequestsPage() {
 
   // Handle filter change
   const handleFilterChange = (filter) => {
-    console.log("🎛️ Filter changed to:", filter);
     setStatusFilter(filter);
   };
 
   // ✅ Handle retry - Fixed to use current statusFilter
   const handleRetry = useCallback(() => {
-    console.log("🔄 Retrying fetch...");
     if (customerId) {
       fetchFillingRequests(statusFilter);
     }
@@ -212,10 +170,10 @@ function FillingRequestsPage() {
     });
   };
 
-  // Debug: Log state changes
-  useEffect(() => {
-    console.log("📊 State updated - Loading:", loading, "Error:", error, "Requests count:", requests.length);
-  }, [loading, error, requests]);
+  // Debug: Log state changes - removed to improve performance
+  // useEffect(() => {
+  //   console.log("📊 State updated - Loading:", loading, "Error:", error, "Requests count:", requests.length);
+  // }, [loading, error, requests]);
 
   // ✅ Show loading while checking authentication
   if (typeof window === 'undefined' || loading && !customerId) {

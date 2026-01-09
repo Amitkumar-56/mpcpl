@@ -7,6 +7,91 @@ import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import React from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
+
+// Component to fetch and display deepo logs
+function DeepoLogs({ deepoId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!deepoId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`/api/audit-logs?record_type=deepo&record_id=${deepoId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+          // API returns data array
+          setLogs(result.data || []);
+        } else {
+          setError(result.error || 'Failed to load logs');
+        }
+      } catch (error) {
+        console.error('Error fetching deepo logs:', error);
+        setError('Failed to load logs. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLogs();
+  }, [deepoId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-sm text-red-600 p-4 bg-red-50 rounded border border-red-200">
+        {error}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this deepo.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-2 sm:p-3 text-xs sm:text-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-1 sm:ml-2 text-gray-900 break-words">{log.user_name || log.user_display_name || log.userName || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown User')}</span>
+            </div>
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1 sm:mt-2 break-words">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Main component content
 function DeepoHistoryContent() {
@@ -22,6 +107,15 @@ function DeepoHistoryContent() {
     can_delete: false
   });
   const [hasPermission, setHasPermission] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [expandedDeepos, setExpandedDeepos] = useState({});
+  
+  const toggleDeepoLogs = (deepoId) => {
+    setExpandedDeepos(prev => ({
+      ...prev,
+      [deepoId]: !prev[deepoId]
+    }));
+  };
 
   useEffect(() => {
     if (!authLoading) {
@@ -119,6 +213,25 @@ function DeepoHistoryContent() {
       }
     } catch (error) {
       console.error('Permission check error:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Permission check timeout, using cached permissions if available');
+        // Try to use cached permissions on timeout
+        const cacheKey = `perms_${user.id}_Deepo History`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const cachedPerms = JSON.parse(cached);
+            if (cachedPerms.can_view) {
+              setHasPermission(true);
+              setPermissions(cachedPerms);
+              fetchDeepoHistory();
+              return;
+            }
+          } catch (e) {
+            // Invalid cache
+          }
+        }
+      }
       setHasPermission(false);
       setLoading(false);
     }
@@ -127,17 +240,34 @@ function DeepoHistoryContent() {
   const fetchDeepoHistory = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/deepo-history');
+      
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch('/api/deepo-history', {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      clearTimeout(timeoutId);
       const result = await response.json();
 
       if (result.success) {
-        setDeepos(result.data);
+        setDeepos(result.data || []);
       } else {
-        showMessage(result.message, 'error');
+        showMessage(result.message || 'Failed to fetch deepo history', 'error');
       }
     } catch (error) {
-      showMessage('Error fetching deepo history', 'error');
-      console.error('Error:', error);
+      if (error.name === 'AbortError') {
+        showMessage('Request timeout. Please try again.', 'error');
+      } else {
+        showMessage('Error fetching deepo history', 'error');
+        console.error('Error:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -306,180 +436,391 @@ function DeepoHistoryContent() {
 
         {/* Deepo Table */}
         <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
+          <div className="overflow-x-auto max-w-full">
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto">
+            <table className="w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     ID
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Licence Plate
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                     First Driver
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                     First Mobile
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                     Start Date
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                     Opening Station
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                     Diesel LTR
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Closing Station
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Closing Date
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Expand
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Approved By
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Created At
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Status
-                  </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
+                  <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Logs
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {deepos.map((deepo) => (
-                  <tr key={deepo.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.id}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.licence_plate}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.first_driver}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.first_mobile}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(deepo.first_start_date)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.opening_station}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.diesel_ltr}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.closing_station}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDate(deepo.closing_date)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {deepo.approved_name || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                      {formatDateTime(deepo.created_at)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full cursor-pointer whitespace-nowrap ${
-                        deepo.status === 'approved' 
-                          ? 'bg-green-100 text-green-800 status-approved' 
-                          : 'bg-yellow-100 text-yellow-800 status-pending'
-                      }`}>
-                        {deepo.status === 'approved' ? 'Trip Closed' : 'Trip Open'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                      <div className="flex flex-wrap gap-1">
-                        {/* View Button - visible if can_view */}
-                        {permissions.can_view && (
-                          <Link
-                            href={`/deepo-view?id=${deepo.id}`}
-                            className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                          >
-                            View
-                          </Link>
-                        )}
-                        {/* Edit Button - visible only if can_edit */}
-                        {permissions.can_edit && (
-                          <Link
-                            href={`/edit-deepo-list?id=${deepo.id}`}
-                            className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                          >
-                            Edit
-                          </Link>
-                        )}
-                        <Link
-                          href={`/deepo-logs?deepo_id=${deepo.id}`}
-                          className="inline-block text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer"
+                  <React.Fragment key={deepo.id}>
+                    <tr className="hover:bg-gray-50">
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {deepo.id}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {deepo.licence_plate}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                        {deepo.first_driver}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                        {deepo.first_mobile}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                        {formatDate(deepo.first_start_date)}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                        {deepo.opening_station}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden xl:table-cell">
+                        {deepo.diesel_ltr}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {deepo.closing_station}
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <button
+                          onClick={() => {
+                            const newExpanded = new Set(expandedRows);
+                            if (newExpanded.has(deepo.id)) {
+                              newExpanded.delete(deepo.id);
+                            } else {
+                              newExpanded.add(deepo.id);
+                            }
+                            setExpandedRows(newExpanded);
+                          }}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                          title={expandedRows.has(deepo.id) ? "Collapse" : "Expand"}
+                        >
+                          {expandedRows.has(deepo.id) ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          )}
+                        </button>
+                      </td>
+                      <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                        <button
+                          onClick={() => toggleDeepoLogs(deepo.id)}
+                          className="flex items-center text-blue-600 hover:text-blue-800 transition-colors text-sm"
                           title="View Activity Logs"
                         >
-                          📋 Logs
-                        </Link>
+                          {expandedDeepos[deepo.id] ? (
+                            <>
+                              <BiChevronUp size={18} className="sm:inline" />
+                              <span className="ml-1 text-xs hidden sm:inline">Hide</span>
+                            </>
+                          ) : (
+                            <>
+                              <BiChevronDown size={18} className="sm:inline" />
+                              <span className="ml-1 text-xs hidden sm:inline">Logs</span>
+                            </>
+                          )}
+                        </button>
+                      </td>
+                    </tr>
+                    {expandedRows.has(deepo.id) && (
+                      <tr className="bg-blue-50 border-t-2 border-blue-200">
+                        <td colSpan="10" className="px-4 sm:px-6 py-4">
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Closing Date</div>
+                              <div className="text-sm text-gray-900">{formatDate(deepo.closing_date)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Approved By</div>
+                              <div className="text-sm text-gray-900">{deepo.approved_name || '-'}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Created At</div>
+                              <div className="text-sm text-gray-900">{formatDateTime(deepo.created_at)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
+                              <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
+                                deepo.status === 'approved' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {deepo.status === 'approved' ? 'Trip Closed' : 'Trip Open'}
+                              </span>
+                            </div>
+                            <div>
+                              <div className="text-xs font-medium text-gray-500 mb-1">Actions</div>
+                              <div className="flex flex-wrap gap-1">
+                                {/* View Button - visible if can_view */}
+                                {permissions.can_view && (
+                                  <Link
+                                    href={`/deepo-view?id=${deepo.id}`}
+                                    className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                  >
+                                    View
+                                  </Link>
+                                )}
+                                {/* Edit Button - visible only if can_edit */}
+                                {permissions.can_edit && (
+                                  <Link
+                                    href={`/edit-deepo-list?id=${deepo.id}`}
+                                    className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                  >
+                                    Edit
+                                  </Link>
+                                )}
+                                <Link
+                                  href={`/deepo-logs?deepo_id=${deepo.id}`}
+                                  className="inline-block text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer"
+                                  title="View Activity Logs"
+                                >
+                                  📋 Logs
+                                </Link>
 
-                        {/* Approve button - only if can_edit */}
-                        {deepo.status !== 'approved' && permissions.can_edit && (
-                          <button
-                            onClick={() => handleApprove(deepo.id)}
-                            className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                          >
-                            Approve
-                          </button>
-                        )}
-                        {deepo.status === 'approved' && (
-                          <>
-                            <button
-                              onClick={() => handleDownloadPDF(deepo.id)}
-                              className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                              title="Download PDF"
-                            >
-                              <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                              </svg>
-                              PDF
-                            </button>
-                            <Link
-                              href={`/deepo-new-list?id=${deepo.id}`}
-                              className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                            >
-                              New
-                            </Link>
-                          </>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
+                                {/* Approve button - only if can_edit */}
+                                {deepo.status !== 'approved' && permissions.can_edit && (
+                                  <button
+                                    onClick={() => handleApprove(deepo.id)}
+                                    className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                  >
+                                    Approve
+                                  </button>
+                                )}
+                                {deepo.status === 'approved' && (
+                                  <>
+                                    <button
+                                      onClick={() => handleDownloadPDF(deepo.id)}
+                                      className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                      title="Download PDF"
+                                    >
+                                      <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                      </svg>
+                                      PDF
+                                    </button>
+                                    <Link
+                                      href={`/deepo-new-list?id=${deepo.id}`}
+                                      className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                    >
+                                      New
+                                    </Link>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                    {/* Logs Row */}
+                    {expandedDeepos[deepo.id] && (
+                      <tr className="bg-gray-50">
+                        <td colSpan="10" className="px-3 sm:px-6 py-4">
+                          <div className="max-w-full sm:max-w-4xl">
+                            <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for Deepo #{deepo.id}</h3>
+                            <div className="overflow-x-auto">
+                              <DeepoLogs deepoId={deepo.id} />
+                            </div>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
               </tbody>
             </table>
-          </div>
+            </div>
 
-          {deepos.length === 0 && (
-            <div className="text-center py-12">
-              <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <h3 className="mt-2 text-sm font-medium text-gray-900">No deepos found</h3>
-              <p className="mt-1 text-sm text-gray-500">Get started by creating a new deepo record.</p>
-              {permissions.can_edit && (
-                <div className="mt-6">
-                  <Link
-                    href="/deepo-list"
-                    className="inline-flex items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                  >
-                    Create Deepo Detail
-                  </Link>
+            {/* Mobile Cards View */}
+            <div className="block md:hidden p-4 space-y-4">
+              {deepos.length > 0 ? (
+                deepos.map((deepo) => (
+                  <div key={deepo.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4 shadow-sm">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <h3 className="font-semibold text-gray-900">Deepo #{deepo.id}</h3>
+                        <p className="text-sm text-gray-600">{deepo.licence_plate}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => {
+                            const newExpanded = new Set(expandedRows);
+                            if (newExpanded.has(deepo.id)) {
+                              newExpanded.delete(deepo.id);
+                            } else {
+                              newExpanded.add(deepo.id);
+                            }
+                            setExpandedRows(newExpanded);
+                          }}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                        >
+                          {expandedRows.has(deepo.id) ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                            </svg>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => toggleDeepoLogs(deepo.id)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                        >
+                          {expandedDeepos[deepo.id] ? (
+                            <BiChevronUp size={20} />
+                          ) : (
+                            <BiChevronDown size={20} />
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                      <div>
+                        <p className="text-gray-500 text-xs">Driver</p>
+                        <p className="text-gray-900 font-medium">{deepo.first_driver || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Mobile</p>
+                        <p className="text-gray-900 font-medium">{deepo.first_mobile || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Start Date</p>
+                        <p className="text-gray-900 font-medium">{formatDate(deepo.first_start_date)}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Opening Station</p>
+                        <p className="text-gray-900 font-medium">{deepo.opening_station || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Diesel LTR</p>
+                        <p className="text-gray-900 font-medium">{deepo.diesel_ltr || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 text-xs">Closing Station</p>
+                        <p className="text-gray-900 font-medium">{deepo.closing_station || '-'}</p>
+                      </div>
+                    </div>
+
+                    {/* Expanded Details Mobile */}
+                    {expandedRows.has(deepo.id) && (
+                      <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <p className="text-gray-500">Closing Date</p>
+                            <p className="text-gray-900 font-medium">{formatDate(deepo.closing_date)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Approved By</p>
+                            <p className="text-gray-900 font-medium">{deepo.approved_name || '-'}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Created At</p>
+                            <p className="text-gray-900 font-medium text-xs">{formatDateTime(deepo.created_at)}</p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Status</p>
+                            <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                              deepo.status === 'approved' 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {deepo.status === 'approved' ? 'Trip Closed' : 'Trip Open'}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="flex flex-wrap gap-2 pt-2">
+                          {permissions.can_view && (
+                            <Link
+                              href={`/deepo-view?id=${deepo.id}`}
+                              className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium"
+                            >
+                              View
+                            </Link>
+                          )}
+                          {permissions.can_edit && (
+                            <Link
+                              href={`/edit-deepo-list?id=${deepo.id}`}
+                              className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium"
+                            >
+                              Edit
+                            </Link>
+                          )}
+                          {deepo.status !== 'approved' && permissions.can_edit && (
+                            <button
+                              onClick={() => handleApprove(deepo.id)}
+                              className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium"
+                            >
+                              Approve
+                            </button>
+                          )}
+                          {deepo.status === 'approved' && (
+                            <>
+                              <button
+                                onClick={() => handleDownloadPDF(deepo.id)}
+                                className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium"
+                              >
+                                PDF
+                              </button>
+                              <Link
+                                href={`/deepo-new-list?id=${deepo.id}`}
+                                className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium"
+                              >
+                                New
+                              </Link>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Mobile Logs Section */}
+                    {expandedDeepos[deepo.id] && (
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <h3 className="text-xs font-semibold text-gray-700 mb-2">Activity Logs for Deepo #{deepo.id}</h3>
+                        <DeepoLogs deepoId={deepo.id} />
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <h3 className="mt-2 text-sm font-medium text-gray-900">No deepos found</h3>
                 </div>
               )}
             </div>
-          )}
+          </div>
         </div>
       </main>
     </div>

@@ -1,5 +1,7 @@
 import db from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function POST(request) {
   try {
@@ -95,6 +97,49 @@ export async function POST(request) {
 
           await connection.commit();
 
+          // Get customer name for audit log
+          const [customerInfo] = await connection.execute(
+            `SELECT name FROM customers WHERE id = ?`,
+            [customerId]
+          );
+          const customerName = customerInfo.length > 0 ? customerInfo[0].name : `Customer ID: ${customerId}`;
+
+          // Get current user for audit log
+          let userId = null;
+          let userName = null;
+          try {
+            const currentUser = await getCurrentUser();
+            userId = currentUser?.userId || currentUser?.id || null;
+            const [empResult] = await connection.execute(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (empResult.length > 0 && empResult[0].name) {
+              userName = empResult[0].name;
+            }
+          } catch (authError) {
+            console.warn('Auth check failed:', authError.message);
+          }
+
+          // Create audit log
+          try {
+            await createAuditLog({
+              page: 'Customer Management',
+              uniqueCode: `CUSTOMER-${customerId}`,
+              section: 'Day Limit',
+              userId: userId,
+              userName: userName || (userId ? `Employee ID: ${userId}` : null),
+              action: adjustType === 'increase' ? 'add' : 'edit',
+              remarks: `Day limit ${adjustType === 'increase' ? 'increased' : 'decreased'} for ${customerName}: ${adjustType === 'increase' ? '+' : '-'}${parsedDays} day(s). Reason: ${reason}`,
+              oldValue: { day_limit: currentDayLimit },
+              newValue: { day_limit: newDayLimit, adjust_type: adjustType, days: parsedDays, reason },
+              recordType: 'customer',
+              recordId: parseInt(customerId)
+            });
+          } catch (auditError) {
+            console.error('❌ Audit log creation failed (non-critical):', auditError);
+          }
+
           return NextResponse.json({
             message: `Day limit ${adjustType === 'increase' ? 'increased' : 'decreased'} successfully`,
             previousLimit: currentDayLimit,
@@ -153,6 +198,49 @@ export async function POST(request) {
           }
 
           await connection.commit();
+
+          // Get customer name for audit log
+          const [customerInfo] = await connection.execute(
+            `SELECT name FROM customers WHERE id = ?`,
+            [customerId]
+          );
+          const customerName = customerInfo.length > 0 ? customerInfo[0].name : `Customer ID: ${customerId}`;
+
+          // Get current user for audit log
+          let userId = null;
+          let userName = null;
+          try {
+            const currentUser = await getCurrentUser();
+            userId = currentUser?.userId || currentUser?.id || null;
+            const [empResult] = await connection.execute(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (empResult.length > 0 && empResult[0].name) {
+              userName = empResult[0].name;
+            }
+          } catch (authError) {
+            console.warn('Auth check failed:', authError.message);
+          }
+
+          // Create audit log
+          try {
+            await createAuditLog({
+              page: 'Customer Management',
+              uniqueCode: `CUSTOMER-${customerId}`,
+              section: 'Day Limit',
+              userId: userId,
+              userName: userName || (userId ? `Employee ID: ${userId}` : null),
+              action: 'edit',
+              remarks: `Day limit reset for ${customerName}: Daily usage reset to 0`,
+              oldValue: null,
+              newValue: { day_amount: 0, reset_date: new Date().toISOString() },
+              recordType: 'customer',
+              recordId: parseInt(customerId)
+            });
+          } catch (auditError) {
+            console.error('❌ Audit log creation failed (non-critical):', auditError);
+          }
 
           return NextResponse.json({
             message: 'Daily usage reset successfully'

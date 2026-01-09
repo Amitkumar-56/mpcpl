@@ -3,6 +3,7 @@
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
+import AuditLogs from "@/components/AuditLogs";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -898,32 +899,46 @@ function HistoryTab({ customer }) {
 
 function ActivityTab({ customer }) {
   return (
-    <div className="p-6">
-      <h3 className="text-lg font-semibold text-gray-900 mb-6">
-        Activity Logs
-      </h3>
-
-      <div className="space-y-6">
-        {Object.entries(customer.logs).map(([action, log]) => (
-          <div
-            key={action}
-            className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg"
-          >
-            <div className="flex-shrink-0 w-3 h-3 bg-blue-500 rounded-full mt-2"></div>
-            <div className="flex-1">
-              <div className="flex justify-between items-start">
-                <h4 className="text-sm font-medium text-gray-900 capitalize">
-                  {action}
-                </h4>
-                <span className="text-xs text-gray-500">{log.date}</span>
+    <div className="p-6 space-y-6">
+      {/* Existing Activity Logs */}
+      {customer.logs && Object.keys(customer.logs).length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
+            Activity Logs
+          </h3>
+          <div className="space-y-6">
+            {Object.entries(customer.logs).map(([action, log]) => (
+              <div
+                key={action}
+                className="flex items-start space-x-4 p-4 bg-gray-50 rounded-lg"
+              >
+                <div className="flex-shrink-0 w-3 h-3 bg-blue-500 rounded-full mt-2"></div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-start">
+                    <h4 className="text-sm font-medium text-gray-900 capitalize">
+                      {action}
+                    </h4>
+                    <span className="text-xs text-gray-500">{log.date}</span>
+                  </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    By: {log.name || "Not available"}
+                  </p>
+                </div>
               </div>
-              <p className="text-sm text-gray-600 mt-1">
-                By: {log.name || "Not available"}
-              </p>
-            </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* Audit Logs - Like filling requests page */}
+      {customer.audit_logs && customer.audit_logs.length > 0 && (
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900 mb-6">
+            Audit Logs
+          </h3>
+          <AuditLogs logs={customer.audit_logs} title="Activity Logs" recordType="customer" />
+        </div>
+      )}
     </div>
   );
 }

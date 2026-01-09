@@ -160,6 +160,28 @@ export async function POST(request) {
           (fs_id, product_id, trans_type, stock_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
         `;
+        // ✅ Ensure userId is valid before inserting
+        let createdByUserId = (userId && userId > 0) ? userId : null;
+        
+        // ✅ Verify userId exists in employee_profile if provided
+        if (createdByUserId) {
+          try {
+            const verifyUser = await executeQuery(
+              `SELECT id, name FROM employee_profile WHERE id = ?`,
+              [createdByUserId]
+            );
+            if (verifyUser.length === 0) {
+              console.warn(`⚠️ User ID ${createdByUserId} not found in employee_profile, using null for created_by`);
+              createdByUserId = null;
+            } else {
+              console.log(`✅ Verified user for stock history: ${verifyUser[0].name} (ID: ${createdByUserId})`);
+            }
+          } catch (verifyError) {
+            console.error('⚠️ Error verifying user ID:', verifyError);
+            // Continue with userId even if verification fails
+          }
+        }
+        
         const insertResult = await executeQuery(fillingHistoryQuery, [
           station_id,
           product_id,
@@ -168,7 +190,7 @@ export async function POST(request) {
           currentStock, // Current stock before change
           fillingQty, // Positive for add, negative for minus
           availableStock, // Available stock after change
-          userId || null
+          createdByUserId // ✅ Use verified userId or null
         ]);
         console.log('✅ Filling history entry created (with stock_type):', {
           fs_id: station_id,
@@ -179,6 +201,8 @@ export async function POST(request) {
           filling_qty: fillingQty,
           available_stock: availableStock,
           operation: isMinus ? 'Minus (-)' : 'Add (+)',
+          created_by: createdByUserId,
+          created_by_name: userName,
           insertId: insertResult?.insertId || 'N/A'
         });
       } else {
@@ -188,6 +212,28 @@ export async function POST(request) {
           (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
           VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
         `;
+        // ✅ Ensure userId is valid before inserting
+        let createdByUserId = (userId && userId > 0) ? userId : null;
+        
+        // ✅ Verify userId exists in employee_profile if provided
+        if (createdByUserId) {
+          try {
+            const verifyUser = await executeQuery(
+              `SELECT id, name FROM employee_profile WHERE id = ?`,
+              [createdByUserId]
+            );
+            if (verifyUser.length === 0) {
+              console.warn(`⚠️ User ID ${createdByUserId} not found in employee_profile, using null for created_by`);
+              createdByUserId = null;
+            } else {
+              console.log(`✅ Verified user for stock history: ${verifyUser[0].name} (ID: ${createdByUserId})`);
+            }
+          } catch (verifyError) {
+            console.error('⚠️ Error verifying user ID:', verifyError);
+            // Continue with userId even if verification fails
+          }
+        }
+        
         const insertResult = await executeQuery(fillingHistoryQuery, [
           station_id,
           product_id,
@@ -195,7 +241,7 @@ export async function POST(request) {
           currentStock, // Current stock before change
           fillingQty, // Positive for add, negative for minus
           availableStock, // Available stock after change
-          userId || null
+          createdByUserId // ✅ Use verified userId or null
         ]);
         console.log('✅ Filling history entry created (without stock_type):', {
           fs_id: station_id,

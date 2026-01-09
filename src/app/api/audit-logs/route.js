@@ -51,8 +51,11 @@ export async function GET(request) {
     }
     
     if (searchParams.get('record_id')) {
-      conditions.push('record_id = ?');
-      params.push(parseInt(searchParams.get('record_id')));
+      const recordId = parseInt(searchParams.get('record_id'));
+      if (!isNaN(recordId)) {
+        conditions.push('record_id = ?');
+        params.push(recordId);
+      }
     }
     
     if (searchParams.get('unique_code')) {

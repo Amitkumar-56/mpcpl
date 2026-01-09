@@ -6,12 +6,16 @@ import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import React from 'react';
 import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaKey } from 'react-icons/fa';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState({});
+  const [expandedEmployees, setExpandedEmployees] = useState({});
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({
     can_view: false,
@@ -21,6 +25,13 @@ export default function EmployeeHistory() {
   const { user, loading: authLoading } = useSession();
   const isAdmin = user?.role === 5;
   const router = useRouter();
+
+  const toggleEmployeeLogs = (employeeId) => {
+    setExpandedEmployees(prev => ({
+      ...prev,
+      [employeeId]: !prev[employeeId]
+    }));
+  };
 
   // Role names mapping
   const roleNames = {
@@ -561,6 +572,26 @@ export default function EmployeeHistory() {
                             <span className="text-sm text-gray-400">No actions</span>
                           )}
                         </div>
+                        
+                        {/* Mobile Logs Section */}
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <button
+                            onClick={() => toggleEmployeeLogs(emp.id)}
+                            className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                          >
+                            <span className="text-sm font-medium">Activity Logs</span>
+                            {expandedEmployees[emp.id] ? (
+                              <BiChevronUp size={20} />
+                            ) : (
+                              <BiChevronDown size={20} />
+                            )}
+                          </button>
+                          {expandedEmployees[emp.id] && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <EntityLogs entityType="employee" entityId={emp.id} />
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -577,11 +608,13 @@ export default function EmployeeHistory() {
                           <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Status</th>
                           <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Created</th>
                           <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Actions</th>
+                          <th className="p-3 text-left text-sm font-medium text-gray-900 border-b">Logs</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
                         {employees.map((emp, idx) => (
-                          <tr key={emp.id} className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
+                          <React.Fragment key={emp.id}>
+                          <tr className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
                             <td className="p-3 border-b">
                               <div className="text-sm text-gray-900">{idx + 1}</div>
                             </td>
@@ -706,7 +739,38 @@ export default function EmployeeHistory() {
                                 )}
                               </div>
                             </td>
+                            <td className="p-3 border-b">
+                              <button
+                                onClick={() => toggleEmployeeLogs(emp.id)}
+                                className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                                title="View Activity Logs"
+                              >
+                                {expandedEmployees[emp.id] ? (
+                                  <>
+                                    <BiChevronUp size={18} />
+                                    <span className="ml-1 text-xs">Hide</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BiChevronDown size={18} />
+                                    <span className="ml-1 text-xs">Logs</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
                           </tr>
+                          {/* Expandable Logs Row */}
+                          {expandedEmployees[emp.id] && (
+                            <tr className="bg-gray-50">
+                              <td colSpan="8" className="p-4">
+                                <div className="max-w-4xl">
+                                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {emp.name}</h3>
+                                  <EntityLogs entityType="employee" entityId={emp.id} />
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          </React.Fragment>
                         ))}
                       </tbody>
                     </table>

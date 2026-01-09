@@ -15,11 +15,18 @@ export default function CstHeader() {
   useEffect(() => {
     const userData = localStorage.getItem('customer');
     if (userData) {
-      setUser(JSON.parse(userData));
+      const parsedUser = JSON.parse(userData);
+      setUser(prevUser => {
+        // Only update if user data has actually changed
+        if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
+          return parsedUser;
+        }
+        return prevUser;
+      });
     }
     try {
       const c = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
-      setNotifCount(isNaN(c) ? 0 : c);
+      setNotifCount(prevCount => (isNaN(c) ? 0 : c));
     } catch (e) {}
   }, []);
 

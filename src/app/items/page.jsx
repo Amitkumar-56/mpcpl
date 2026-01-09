@@ -3,11 +3,95 @@
 import { useSession } from '@/context/SessionContext';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
+
+// Component to fetch and display item logs
+function ItemLogs({ itemId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!itemId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        const response = await fetch(`/api/audit-logs?record_type=item&record_id=${itemId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+          // API returns data array
+          setLogs(result.data || []);
+        } else {
+          setError(result.error || 'Failed to load logs');
+        }
+      } catch (error) {
+        console.error('Error fetching item logs:', error);
+        setError('Failed to load logs. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLogs();
+  }, [itemId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-sm text-red-600 p-4 bg-red-50 rounded border border-red-200">
+        {error}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this item.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-2 sm:p-3 text-xs sm:text-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-1 sm:ml-2 text-gray-900 break-words">{log.user_name || log.user_display_name || log.userName || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown User')}</span>
+            </div>
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1 sm:mt-2 break-words">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Inner component that uses useSearchParams
 function ItemsListContent() {
@@ -31,6 +115,14 @@ function ItemsListContent() {
     can_edit: false,
     can_delete: false
   });
+  const [expandedItems, setExpandedItems] = useState({});
+  
+  const toggleItemLogs = (itemId) => {
+    setExpandedItems(prev => ({
+      ...prev,
+      [itemId]: !prev[itemId]
+    }));
+  };
 
   useEffect(() => {
     if (!authLoading) {
@@ -245,12 +337,16 @@ function ItemsListContent() {
                     <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
                     </th>
+                    <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Logs
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {items.length > 0 ? (
                     items.map((item, index) => (
-                      <tr key={item.id} className="hover:bg-gray-50">
+                      <React.Fragment key={item.id}>
+                      <tr className="hover:bg-gray-50">
                         <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                           {(pagination.currentPage - 1) * pagination.limit + index + 1}
                         </td>
@@ -275,11 +371,44 @@ function ItemsListContent() {
                             )}
                           </div>
                         </td>
+                        <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => toggleItemLogs(item.id)}
+                            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors text-sm"
+                            title="View Activity Logs"
+                          >
+                            {expandedItems[item.id] ? (
+                              <>
+                                <BiChevronUp size={18} className="sm:inline" />
+                                <span className="ml-1 text-xs hidden sm:inline">Hide</span>
+                              </>
+                            ) : (
+                              <>
+                                <BiChevronDown size={18} className="sm:inline" />
+                                <span className="ml-1 text-xs hidden sm:inline">Logs</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
                       </tr>
+                      {/* Expandable Logs Row */}
+                      {expandedItems[item.id] && (
+                        <tr className="bg-gray-50">
+                          <td colSpan="5" className="px-4 sm:px-6 py-4">
+                            <div className="max-w-full sm:max-w-4xl">
+                              <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for {item.item_name}</h3>
+                              <div className="overflow-x-auto">
+                                <ItemLogs itemId={item.id} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      </React.Fragment>
                     ))
                   ) : (
                 <tr>
-                  <td colSpan="4" className="px-6 py-8 text-center text-sm text-gray-500">
+                  <td colSpan="5" className="px-6 py-8 text-center text-sm text-gray-500">
                     No items found.
                     {permissions.can_edit && (
                       <> <Link href="/add-items" className="text-purple-600 hover:text-purple-500">Add your first item</Link></>
@@ -323,6 +452,26 @@ function ItemsListContent() {
                             </Link>
                           )}
                         </div>
+                      </div>
+                      
+                      {/* Mobile Logs Section */}
+                      <div className="mt-3 pt-3 border-t border-gray-200">
+                        <button
+                          onClick={() => toggleItemLogs(item.id)}
+                          className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                        >
+                          <span className="text-sm font-medium">Activity Logs</span>
+                          {expandedItems[item.id] ? (
+                            <BiChevronUp size={20} />
+                          ) : (
+                            <BiChevronDown size={20} />
+                          )}
+                        </button>
+                        {expandedItems[item.id] && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <ItemLogs itemId={item.id} />
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))

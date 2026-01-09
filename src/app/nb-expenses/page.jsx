@@ -7,6 +7,68 @@ import Sidebar from "components/sidebar";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import React from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+
+// Component to fetch and display expense logs
+function ExpenseLogs({ expenseId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        // Fetch audit logs for this expense
+        const response = await fetch(`/api/audit-log?record_type=nb_expense&record_id=${expenseId}`);
+        const result = await response.json();
+        if (result.success && result.logs) {
+          setLogs(result.logs);
+        }
+      } catch (error) {
+        console.error('Error fetching expense logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (expenseId) {
+      fetchLogs();
+    }
+  }, [expenseId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this expense.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-3 text-sm">
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-2 text-gray-900">{log.user_name || log.userName || 'Unknown User'}</span>
+            </div>
+            <span className="text-xs text-gray-500">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ✅ Loading spinner removed - show page skeleton instead
 
@@ -31,6 +93,14 @@ function ExpensesContent() {
     minAmount: '',
     maxAmount: ''
   });
+  const [expandedExpenses, setExpandedExpenses] = useState({});
+  
+  const toggleExpenseLogs = (expenseId) => {
+    setExpandedExpenses(prev => ({
+      ...prev,
+      [expenseId]: !prev[expenseId]
+    }));
+  };
 
   // Check authentication
   useEffect(() => {
@@ -40,22 +110,24 @@ function ExpensesContent() {
   }, [user, authLoading, router]);
 
   useEffect(() => {
-    if (user) {
+    // ✅ Only fetch if user is authenticated and not loading
+    if (user && !authLoading && user.id) {
       fetchExpenses();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, authLoading]);
 
   // Separate effect for filters - with debounce to prevent too many requests
   useEffect(() => {
-    if (user && !loading) {
+    // ✅ Only fetch if user is authenticated and not loading
+    if (user && !authLoading && user.id && !loading) {
       const timer = setTimeout(() => {
         fetchExpenses(1); // Reset to page 1 when filters change
       }, 500); // Debounce 500ms
       return () => clearTimeout(timer);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, user, authLoading]);
 
   const fetchExpenses = async (page = 1) => {
     try {
@@ -79,20 +151,18 @@ function ExpensesContent() {
       });
       
       if (!response.ok) {
-        // ✅ Only logout on 401 if it's a real authentication error, not just an API error
+        // ✅ Handle 401 more gracefully - don't auto logout immediately
         if (response.status === 401) {
           const errorData = await response.json().catch(() => ({ error: 'Unauthorized' }));
-          // Only logout if the error specifically says unauthorized/auth failed
-          if (errorData.error && (errorData.error.includes('Unauthorized') || errorData.error.includes('login'))) {
-            if (typeof window !== 'undefined') {
-              localStorage.removeItem('user');
-              sessionStorage.clear();
-            }
+          // Only logout if user is actually logged out (no user in session)
+          // This prevents false logout during initial page load
+          if (!user || !user.id) {
+            // User is already logged out, redirect to login
             router.push('/login');
             return;
           }
-          // Otherwise treat as a regular error
-          setError(errorData.error || 'Failed to load expenses');
+          // Otherwise treat as a permission/API error - don't logout
+          setError(errorData.error || 'Authentication error. Please refresh the page.');
           setLoading(false);
           return;
         }
@@ -376,11 +446,13 @@ function ExpensesContent() {
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid To</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
                           {expenses.map((expense) => (
-                            <tr key={`expense-${expense.id}`} className="hover:bg-gray-50">
+                            <React.Fragment key={`expense-${expense.id}`}>
+                            <tr className="hover:bg-gray-50">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{expense.id}</td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {formatDate(expense.payment_date)}
@@ -406,7 +478,38 @@ function ExpensesContent() {
                                   </Link>
                                 )}
                               </td>
+                              <td className="px-6 py-4 whitespace-nowrap">
+                                <button
+                                  onClick={() => toggleExpenseLogs(expense.id)}
+                                  className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                                  title="View Activity Logs"
+                                >
+                                  {expandedExpenses[expense.id] ? (
+                                    <>
+                                      <BiChevronUp size={18} />
+                                      <span className="ml-1 text-xs">Hide</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <BiChevronDown size={18} />
+                                      <span className="ml-1 text-xs">Logs</span>
+                                    </>
+                                  )}
+                                </button>
+                              </td>
                             </tr>
+                            {/* Expandable Logs Row */}
+                            {expandedExpenses[expense.id] && (
+                              <tr className="bg-gray-50">
+                                <td colSpan="8" className="px-6 py-4">
+                                  <div className="max-w-4xl">
+                                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for Expense #{expense.id}</h3>
+                                    <ExpenseLogs expenseId={expense.id} />
+                                  </div>
+                                </td>
+                              </tr>
+                            )}
+                            </React.Fragment>
                           ))}
                         </tbody>
                       </table>
@@ -449,6 +552,26 @@ function ExpensesContent() {
                             >
                               Edit
                             </Link>
+                          )}
+                        </div>
+                        
+                        {/* Mobile Logs Section */}
+                        <div className="col-span-2 mt-3 pt-3 border-t border-gray-200">
+                          <button
+                            onClick={() => toggleExpenseLogs(expense.id)}
+                            className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
+                          >
+                            <span className="text-sm font-medium">Activity Logs</span>
+                            {expandedExpenses[expense.id] ? (
+                              <BiChevronUp size={20} />
+                            ) : (
+                              <BiChevronDown size={20} />
+                            )}
+                          </button>
+                          {expandedExpenses[expense.id] && (
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <ExpenseLogs expenseId={expense.id} />
+                            </div>
                           )}
                         </div>
                       </div>

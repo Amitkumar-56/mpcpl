@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(req) {
   try {
@@ -174,6 +176,57 @@ export async function POST(req) {
       console.log("✅ Filling history updated");
     } catch (fillingError) {
       console.log("⚠️ Filling history skipped:", fillingError.message);
+    }
+
+    // Get customer name for audit log
+    const customerInfo = await executeQuery(
+      `SELECT name FROM customers WHERE id = ?`,
+      [com_id]
+    );
+    const customerName = customerInfo.length > 0 ? customerInfo[0].name : `Customer ID: ${com_id}`;
+
+    // Get current user for audit log
+    let userId = user_id;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || user_id;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Customer Management',
+        uniqueCode: `CUSTOMER-${com_id}`,
+        section: 'Credit Limit',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: operation === "increase" ? 'add' : 'edit',
+        remarks: `Credit limit ${operation === "increase" ? "increased" : "decreased"} for ${customerName}: ₹${amount} (${operation})`,
+        oldValue: currentBalance.length > 0 ? {
+          cst_limit: currentBalance[0].cst_limit,
+          amtlimit: currentBalance[0].amtlimit,
+          balance: currentBalance[0].balance
+        } : null,
+        newValue: {
+          cst_limit: newCstLimit,
+          amtlimit: newAmtLimit,
+          operation
+        },
+        recordType: 'customer',
+        recordId: parseInt(com_id)
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
     }
 
     console.log("🎉 CREDIT LIMIT UPDATE SUCCESSFUL");

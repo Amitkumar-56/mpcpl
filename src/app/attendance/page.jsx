@@ -408,85 +408,87 @@ export default function AttendancePage() {
                   <p>No attendance records found for the selected date.</p>
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Employee
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Station
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Date
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Check In
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Check Out
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Working Hours
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Status
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Remarks
-                        </th>
-                        <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                          Marked By
-                        </th>
-                        <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 border-b">
-                          Actions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {attendanceRecords.map((record) => (
-                        <tr key={record.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            <div>
-                              <div className="font-medium">{record.employee_name}</div>
-                              <div className="text-xs text-gray-500">{record.emp_code}</div>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {record.station_name}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {new Date(record.attendance_date).toLocaleDateString('en-IN')}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {record.check_in_time || "-"}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {record.check_out_time || "-"}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                            {calculateWorkingHours(record.check_in_time, record.check_out_time)}
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
-                              {record.status}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {record.remarks || "-"}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">
-                            {record.marked_by_name || "-"}
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              {!record.check_in_time ? (
-                                <button
-                                  onClick={() => handleQuickIn(record.employee_id, record.station_id)}
-                                  className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
-                                  title="Mark Check-In"
-                                >
+                <>
+                  {/* Desktop Table View */}
+                  <div className="hidden lg:block overflow-x-auto">
+                    <table className="w-full">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Employee
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Station
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Date
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Check In
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Check Out
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Working Hours
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Status
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Remarks
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Marked By
+                          </th>
+                          <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 border-b">
+                            Actions
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {attendanceRecords.map((record) => (
+                          <tr key={record.id} className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              <div>
+                                <div className="font-medium">{record.employee_name}</div>
+                                <div className="text-xs text-gray-500">{record.emp_code}</div>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {record.station_name}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {new Date(record.attendance_date).toLocaleDateString('en-IN')}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {record.check_in_time || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {record.check_out_time || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900 font-medium">
+                              {calculateWorkingHours(record.check_in_time, record.check_out_time)}
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
+                                {record.status}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {record.remarks || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">
+                              {record.marked_by_name || "-"}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                {!record.check_in_time ? (
+                                  <button
+                                    onClick={() => handleQuickIn(record.employee_id, record.station_id)}
+                                    className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
+                                    title="Mark Check-In"
+                                  >
                                   In
                                 </button>
                               ) : !record.check_out_time ? (
@@ -522,6 +524,89 @@ export default function AttendancePage() {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Mobile Card View */}
+                <div className="lg:hidden space-y-4 p-4">
+                  {attendanceRecords.map((record) => (
+                    <div key={record.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <div className="font-semibold text-base text-gray-900">{record.employee_name}</div>
+                          <div className="text-xs text-gray-500">{record.emp_code}</div>
+                          <div className="text-xs text-gray-500 mt-1">{record.station_name}</div>
+                        </div>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
+                          {record.status}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Date</div>
+                          <div className="font-medium">{new Date(record.attendance_date).toLocaleDateString('en-IN')}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Working Hours</div>
+                          <div className="font-medium">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Check In</div>
+                          <div className="font-medium">{record.check_in_time || "-"}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs text-gray-500 mb-1">Check Out</div>
+                          <div className="font-medium">{record.check_out_time || "-"}</div>
+                        </div>
+                        {record.remarks && (
+                          <div className="col-span-2">
+                            <div className="text-xs text-gray-500 mb-1">Remarks</div>
+                            <div className="text-sm text-gray-700">{record.remarks}</div>
+                          </div>
+                        )}
+                        {record.marked_by_name && (
+                          <div className="col-span-2">
+                            <div className="text-xs text-gray-500 mb-1">Marked By</div>
+                            <div className="text-sm text-gray-700">{record.marked_by_name}</div>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex gap-2 pt-3 border-t">
+                        {!record.check_in_time ? (
+                          <button
+                            onClick={() => handleQuickIn(record.employee_id, record.station_id)}
+                            className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
+                          >
+                            Mark Check-In
+                          </button>
+                        ) : !record.check_out_time ? (
+                          <>
+                            <button
+                              onClick={() => handleQuickOut(record)}
+                              className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                            >
+                              Mark Check-Out
+                            </button>
+                            <button
+                              onClick={() => handleEdit(record)}
+                              className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                            >
+                              Edit
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleEdit(record)}
+                            className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                          >
+                            Edit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                </>
               )}
             </div>
           </div>
@@ -534,7 +619,7 @@ export default function AttendancePage() {
 
       {/* Mark Attendance Modal */}
       {showMarkModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
           <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
               <div className="flex justify-between items-center mb-4">

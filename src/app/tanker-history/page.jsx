@@ -8,6 +8,92 @@ import Footer from '@/components/Footer';
 import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import React from 'react';
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
+
+// Component to fetch and display tanker logs
+function TankerLogs({ tankerId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (!tankerId) {
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        // Fetch audit logs for this tanker
+        const response = await fetch(`/api/audit-logs?record_type=tanker&record_id=${tankerId}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
+        const result = await response.json();
+        if (result.success) {
+          // API returns data array
+          setLogs(result.data || []);
+        } else {
+          setError(result.error || 'Failed to load logs');
+        }
+      } catch (error) {
+        console.error('Error fetching tanker logs:', error);
+        setError('Failed to load logs. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    fetchLogs();
+  }, [tankerId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (error) {
+    return (
+      <div className="text-sm text-red-600 p-4 bg-red-50 rounded border border-red-200">
+        {error}
+      </div>
+    );
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this tanker.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-2 sm:p-3 text-xs sm:text-sm">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-1 sm:gap-0">
+            <div className="flex-1 min-w-0">
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-1 sm:ml-2 text-gray-900 break-words">{log.user_name || log.user_display_name || log.userName || (log.user_id ? `Employee ID: ${log.user_id}` : 'Unknown User')}</span>
+            </div>
+            <span className="text-xs text-gray-500 whitespace-nowrap">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1 sm:mt-2 break-words">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Loading components
 function LoadingSpinner() {
@@ -132,6 +218,15 @@ function TankerHistoryContent() {
     can_delete: false
   });
   const [hasPermission, setHasPermission] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(new Set());
+  const [expandedTankers, setExpandedTankers] = useState({});
+  
+  const toggleTankerLogs = (tankerId) => {
+    setExpandedTankers(prev => ({
+      ...prev,
+      [tankerId]: !prev[tankerId]
+    }));
+  };
 
   useEffect(() => {
     if (!authLoading) {
@@ -187,12 +282,24 @@ function TankerHistoryContent() {
       const moduleName = 'Tanker History';
       console.log('🔐 Checking permissions for:', { employee_id: user.id, role: user.role, module: moduleName });
       
+      // Add timeout to permission checks
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
       // Fetch all permissions in parallel
       const [viewRes, editRes, deleteRes] = await Promise.all([
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`, {
+          signal: controller.signal
+        }),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`, {
+          signal: controller.signal
+        }),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`, {
+          signal: controller.signal
+        })
       ]);
+      
+      clearTimeout(timeoutId);
       
       const [viewData, editData, deleteData] = await Promise.all([
         viewRes.json(),
@@ -228,6 +335,25 @@ function TankerHistoryContent() {
       }
     } catch (error) {
       console.error('❌ Permission check error:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Permission check timeout, using cached permissions if available');
+        // Try to use cached permissions on timeout
+        const cacheKey = `perms_${user.id}_Tanker History`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const cachedPerms = JSON.parse(cached);
+            if (cachedPerms.can_view) {
+              setHasPermission(true);
+              setPermissions(cachedPerms);
+              fetchTankerHistory();
+              return;
+            }
+          } catch (e) {
+            // Invalid cache
+          }
+        }
+      }
       setHasPermission(false);
       setLoading(false);
     }
@@ -236,17 +362,34 @@ function TankerHistoryContent() {
   const fetchTankerHistory = async () => {
     try {
       setLoading(true);
-      const response = await fetch('/api/tanker-history');
+      
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
+      const response = await fetch('/api/tanker-history', {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      clearTimeout(timeoutId);
       const result = await response.json();
 
       if (result.success) {
-        setTankers(result.data);
+        setTankers(result.data || []);
       } else {
-        showMessage(result.message, 'error');
+        showMessage(result.message || 'Failed to fetch tanker history', 'error');
       }
     } catch (error) {
-      showMessage('Error fetching tanker history', 'error');
-      console.error('Error:', error);
+      if (error.name === 'AbortError') {
+        showMessage('Request timeout. Please try again.', 'error');
+      } else {
+        showMessage('Error fetching tanker history', 'error');
+        console.error('Error:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -383,175 +526,407 @@ function TankerHistoryContent() {
 
         {/* Tanker Table */}
         <Suspense fallback={<TableSkeleton />}>
-          <div className="bg-white shadow-lg rounded-lg overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
+            <div className="bg-white shadow-lg rounded-lg overflow-hidden">
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto max-w-full">
+                <table className="w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       ID
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Licence Plate
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                       First Driver
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                       First Mobile
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden md:table-cell">
                       Start Date
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden lg:table-cell">
                       Opening Station
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                       Opening Meter
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider hidden xl:table-cell">
                       Closing Meter
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Diesel LTR
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Expand
                     </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Closing Station
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Closing Date
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Approved By
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Created At
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Actions
+                    <th className="px-3 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Logs
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {tankers.map((tanker) => (
-                    <tr key={tanker.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.id}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.licence_plate}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.first_driver}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.first_mobile}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(tanker.first_start_date)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.opening_station}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.opening_meter}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.closing_meter}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.diesel_ltr}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.closing_station}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDate(tanker.closing_date)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {tanker.approved_name || '-'}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatDateTime(tanker.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full cursor-pointer whitespace-nowrap ${
-                          tanker.status === 'approved' 
-                            ? 'bg-green-100 text-green-800 status-approved' 
-                            : 'bg-yellow-100 text-yellow-800 status-pending'
-                        }`}>
-                          {tanker.status === 'approved' ? 'Trip Closed' : 'Trip Open'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
-                        <div className="flex flex-wrap gap-1">
-                          {permissions.can_edit && (
-                            <Link
-                              href={`/edit-tanker-list?id=${tanker.id}`}
-                              className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                            >
-                              Edit
-                            </Link>
-                          )}
-                          <Link
-                            href={`/tanker-view?id=${tanker.id}`}
-                            className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                  {tankers.length > 0 ? (
+                  tankers.map((tanker) => (
+                    <React.Fragment key={tanker.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {tanker.id}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {tanker.licence_plate}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                          {tanker.first_driver}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                          {tanker.first_mobile}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden md:table-cell">
+                          {formatDate(tanker.first_start_date)}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden lg:table-cell">
+                          {tanker.opening_station}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden xl:table-cell">
+                          {tanker.opening_meter}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 hidden xl:table-cell">
+                          {tanker.closing_meter}
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedRows);
+                              if (newExpanded.has(tanker.id)) {
+                                newExpanded.delete(tanker.id);
+                              } else {
+                                newExpanded.add(tanker.id);
+                              }
+                              setExpandedRows(newExpanded);
+                            }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                            title={expandedRows.has(tanker.id) ? "Collapse" : "Expand"}
                           >
-                            View
-                          </Link>
-                          <Link
-                            href={`/tanker-logs?tanker_id=${tanker.id}`}
-                            className="inline-block text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer"
+                            {expandedRows.has(tanker.id) ? (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            )}
+                          </button>
+                        </td>
+                        <td className="px-3 sm:px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => toggleTankerLogs(tanker.id)}
+                            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors text-sm"
                             title="View Activity Logs"
                           >
-                            📋 Logs
-                          </Link>
+                            {expandedTankers[tanker.id] ? (
+                              <>
+                                <BiChevronUp size={18} className="sm:inline" />
+                                <span className="ml-1 text-xs hidden sm:inline">Hide</span>
+                              </>
+                            ) : (
+                              <>
+                                <BiChevronDown size={18} className="sm:inline" />
+                                <span className="ml-1 text-xs hidden sm:inline">Logs</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedRows.has(tanker.id) && (
+                        <tr className="bg-blue-50 border-t-2 border-blue-200">
+                          <td colSpan="10" className="px-4 sm:px-6 py-4">
+                            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-4">
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Diesel LTR</div>
+                                <div className="text-sm text-gray-900">{tanker.diesel_ltr || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Closing Station</div>
+                                <div className="text-sm text-gray-900">{tanker.closing_station || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Closing Date</div>
+                                <div className="text-sm text-gray-900">{formatDate(tanker.closing_date)}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Approved By</div>
+                                <div className="text-sm text-gray-900">{tanker.approved_name || '-'}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Created At</div>
+                                <div className="text-sm text-gray-900">{formatDateTime(tanker.created_at)}</div>
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
+                                <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full whitespace-nowrap ${
+                                  tanker.status === 'approved' 
+                                    ? 'bg-green-100 text-green-800' 
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}>
+                                  {tanker.status === 'approved' ? 'Trip Closed' : 'Trip Open'}
+                                </span>
+                              </div>
+                              <div>
+                                <div className="text-xs font-medium text-gray-500 mb-1">Actions</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {permissions.can_edit && (
+                                    <Link
+                                      href={`/edit-tanker-list?id=${tanker.id}`}
+                                      className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                    >
+                                      Edit
+                                    </Link>
+                                  )}
+                                  <Link
+                                    href={`/tanker-view?id=${tanker.id}`}
+                                    className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                  >
+                                    View
+                                  </Link>
+                                  <Link
+                                    href={`/tanker-logs?tanker_id=${tanker.id}`}
+                                    className="inline-block text-purple-600 hover:text-purple-900 bg-purple-100 hover:bg-purple-200 px-2 py-1 rounded text-xs font-medium transition-colors cursor-pointer"
+                                    title="View Activity Logs"
+                                  >
+                                    📋 Logs
+                                  </Link>
 
-                          {tanker.status !== 'approved' ? (
-                            permissions.can_edit && (
+                                  {tanker.status !== 'approved' ? (
+                                    permissions.can_edit && (
+                                      <button
+                                        onClick={() => handleApprove(tanker.id)}
+                                        className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                      >
+                                        Approve
+                                      </button>
+                                    )
+                                  ) : (
+                                    <>
+                                      <button
+                                        onClick={() => handleDownloadPDF(tanker.id)}
+                                        className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                        title="Download PDF"
+                                      >
+                                        <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                        </svg>
+                                        PDF
+                                      </button>
+                                      {permissions.can_edit && (
+                                        <Link
+                                          href={`/tanker-new-list?id=${tanker.id}`}
+                                          className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                        >
+                                          New
+                                        </Link>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                      {/* Logs Row */}
+                      {expandedTankers[tanker.id] && (
+                        <tr className="bg-gray-50">
+                          <td colSpan="10" className="px-3 sm:px-6 py-4">
+                            <div className="max-w-full sm:max-w-4xl">
+                              <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for Tanker #{tanker.id}</h3>
+                              <div className="overflow-x-auto">
+                                <TankerLogs tankerId={tanker.id} />
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  ))
+                  ) : (
+                    <tr>
+                      <td colSpan="10" className="px-6 py-8 text-center">
+                        <EmptyState hasEditPermission={permissions.can_edit} />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              </div>
+
+              {/* Mobile Cards View */}
+              <div className="block md:hidden p-4 space-y-4">
+                {tankers.length > 0 ? (
+                  tankers.map((tanker) => (
+                    <div key={tanker.id} className="bg-gray-50 rounded-lg border border-gray-200 p-4 shadow-sm">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="font-semibold text-gray-900">Tanker #{tanker.id}</h3>
+                          <p className="text-sm text-gray-600">{tanker.licence_plate}</p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              const newExpanded = new Set(expandedRows);
+                              if (newExpanded.has(tanker.id)) {
+                                newExpanded.delete(tanker.id);
+                              } else {
+                                newExpanded.add(tanker.id);
+                              }
+                              setExpandedRows(newExpanded);
+                            }}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                          >
+                            {expandedRows.has(tanker.id) ? (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                              </svg>
+                            ) : (
+                              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                              </svg>
+                            )}
+                          </button>
+                          <button
+                            onClick={() => toggleTankerLogs(tanker.id)}
+                            className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
+                          >
+                            {expandedTankers[tanker.id] ? (
+                              <BiChevronUp size={20} />
+                            ) : (
+                              <BiChevronDown size={20} />
+                            )}
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 text-sm mb-3">
+                        <div>
+                          <p className="text-gray-500 text-xs">Driver</p>
+                          <p className="text-gray-900 font-medium">{tanker.first_driver || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Mobile</p>
+                          <p className="text-gray-900 font-medium">{tanker.first_mobile || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Start Date</p>
+                          <p className="text-gray-900 font-medium">{formatDate(tanker.first_start_date)}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Opening Station</p>
+                          <p className="text-gray-900 font-medium">{tanker.opening_station || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Opening Meter</p>
+                          <p className="text-gray-900 font-medium">{tanker.opening_meter || '-'}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500 text-xs">Closing Meter</p>
+                          <p className="text-gray-900 font-medium">{tanker.closing_meter || '-'}</p>
+                        </div>
+                      </div>
+
+                      {/* Expanded Details Mobile */}
+                      {expandedRows.has(tanker.id) && (
+                        <div className="mt-3 pt-3 border-t border-gray-200 space-y-2">
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>
+                              <p className="text-gray-500">Diesel LTR</p>
+                              <p className="text-gray-900 font-medium">{tanker.diesel_ltr || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Closing Station</p>
+                              <p className="text-gray-900 font-medium">{tanker.closing_station || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Closing Date</p>
+                              <p className="text-gray-900 font-medium">{formatDate(tanker.closing_date)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Approved By</p>
+                              <p className="text-gray-900 font-medium">{tanker.approved_name || '-'}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Created At</p>
+                              <p className="text-gray-900 font-medium text-xs">{formatDateTime(tanker.created_at)}</p>
+                            </div>
+                            <div>
+                              <p className="text-gray-500">Status</p>
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
+                                tanker.status === 'approved' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {tanker.status === 'approved' ? 'Trip Closed' : 'Trip Open'}
+                              </span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2 pt-2">
+                            {permissions.can_edit && (
+                              <Link
+                                href={`/edit-tanker-list?id=${tanker.id}`}
+                                className="text-blue-600 hover:text-blue-900 bg-blue-100 hover:bg-blue-200 px-2 py-1 rounded text-xs font-medium"
+                              >
+                                Edit
+                              </Link>
+                            )}
+                            <Link
+                              href={`/tanker-view?id=${tanker.id}`}
+                              className="text-cyan-600 hover:text-cyan-900 bg-cyan-100 hover:bg-cyan-200 px-2 py-1 rounded text-xs font-medium"
+                            >
+                              View
+                            </Link>
+                            {tanker.status !== 'approved' && permissions.can_edit && (
                               <button
                                 onClick={() => handleApprove(tanker.id)}
-                                className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                                className="text-green-600 hover:text-green-900 bg-green-100 hover:bg-green-200 px-2 py-1 rounded text-xs font-medium"
                               >
                                 Approve
                               </button>
-                            )
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleDownloadPDF(tanker.id)}
-                                className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium transition-colors"
-                                title="Download PDF"
-                              >
-                                <svg className="w-3 h-3 inline mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                                </svg>
-                                PDF
-                              </button>
-                              {permissions.can_edit && (
-                                <Link
-                                  href={`/tanker-new-list?id=${tanker.id}`}
-                                  className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium transition-colors"
+                            )}
+                            {tanker.status === 'approved' && (
+                              <>
+                                <button
+                                  onClick={() => handleDownloadPDF(tanker.id)}
+                                  className="text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded text-xs font-medium"
                                 >
-                                  New
-                                </Link>
-                              )}
-                            </>
-                          )}
+                                  PDF
+                                </button>
+                                {permissions.can_edit && (
+                                  <Link
+                                    href={`/tanker-new-list?id=${tanker.id}`}
+                                    className="text-yellow-600 hover:text-yellow-900 bg-yellow-100 hover:bg-yellow-200 px-2 py-1 rounded text-xs font-medium"
+                                  >
+                                    New
+                                  </Link>
+                                )}
+                              </>
+                            )}
+                          </div>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                      )}
 
-            {tankers.length === 0 && (
-              <EmptyState hasEditPermission={permissions.can_edit} />
-            )}
+                      {/* Mobile Logs Section */}
+                      {expandedTankers[tanker.id] && (
+                        <div className="mt-3 pt-3 border-t border-gray-200">
+                          <h3 className="text-xs font-semibold text-gray-700 mb-2">Activity Logs for Tanker #{tanker.id}</h3>
+                          <TankerLogs tankerId={tanker.id} />
+                        </div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState hasEditPermission={permissions.can_edit} />
+                )}
+              </div>
           </div>
         </Suspense>
       </main>

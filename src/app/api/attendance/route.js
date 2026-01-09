@@ -3,6 +3,8 @@ import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 // GET - Fetch attendance records with role-based filtering
 export async function GET(request) {
@@ -317,7 +319,41 @@ export async function POST(request) {
       [employee_id, station_id, attendance_date]
     );
 
+    // Get employee and station names for audit log
+    const employeeInfo = await executeQuery(
+      `SELECT name, emp_code FROM employee_profile WHERE id = ?`,
+      [employee_id]
+    );
+    const stationInfo = await executeQuery(
+      `SELECT station_name FROM filling_stations WHERE id = ?`,
+      [station_id]
+    );
+    const employeeName = employeeInfo.length > 0 ? employeeInfo[0].name : `Employee ID: ${employee_id}`;
+    const stationName = stationInfo.length > 0 ? stationInfo[0].station_name : `Station ID: ${station_id}`;
+
+    // Get current user name for audit log
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      const userId = currentUser?.userId || currentUser?.id || currentUserId;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
     if (existing && existing.length > 0) {
+      // Get old attendance data
+      const oldAttendance = await executeQuery(
+        `SELECT * FROM attendance WHERE id = ?`,
+        [existing[0].id]
+      );
+
       // Update existing record
       const updateQuery = `
         UPDATE attendance 
@@ -338,6 +374,31 @@ export async function POST(request) {
         currentUserId,
         existing[0].id
       ]);
+
+      // Get updated attendance data
+      const newAttendance = await executeQuery(
+        `SELECT * FROM attendance WHERE id = ?`,
+        [existing[0].id]
+      );
+
+      // Create audit log
+      try {
+        await createAuditLog({
+          page: 'Attendance',
+          uniqueCode: `ATTENDANCE-${existing[0].id}`,
+          section: 'Edit Attendance',
+          userId: currentUserId,
+          userName: userName || (currentUserId ? `Employee ID: ${currentUserId}` : null),
+          action: 'edit',
+          remarks: `Attendance updated for ${employeeName} at ${stationName} on ${attendance_date}. Status: ${status || 'Present'}`,
+          oldValue: oldAttendance.length > 0 ? oldAttendance[0] : null,
+          newValue: newAttendance.length > 0 ? newAttendance[0] : null,
+          recordType: 'attendance',
+          recordId: existing[0].id
+        });
+      } catch (auditError) {
+        console.error('❌ Audit log creation failed (non-critical):', auditError);
+      }
 
       return NextResponse.json({
         success: true,
@@ -362,6 +423,31 @@ export async function POST(request) {
         remarks || null,
         currentUserId
       ]);
+
+      // Get new attendance data
+      const newAttendance = await executeQuery(
+        `SELECT * FROM attendance WHERE id = ?`,
+        [result.insertId]
+      );
+
+      // Create audit log
+      try {
+        await createAuditLog({
+          page: 'Attendance',
+          uniqueCode: `ATTENDANCE-${result.insertId}`,
+          section: 'Create Attendance',
+          userId: currentUserId,
+          userName: userName || (currentUserId ? `Employee ID: ${currentUserId}` : null),
+          action: 'add',
+          remarks: `Attendance marked for ${employeeName} at ${stationName} on ${attendance_date}. Status: ${status || 'Present'}`,
+          oldValue: null,
+          newValue: newAttendance.length > 0 ? newAttendance[0] : null,
+          recordType: 'attendance',
+          recordId: result.insertId
+        });
+      } catch (auditError) {
+        console.error('❌ Audit log creation failed (non-critical):', auditError);
+      }
 
       return NextResponse.json({
         success: true,

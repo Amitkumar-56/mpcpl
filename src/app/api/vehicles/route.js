@@ -1,5 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(req) {
   try {
@@ -150,7 +152,46 @@ export async function PUT(req) {
     updateParams.push(vehicle_no);
     const updateQuery = `UPDATE vehicles SET ${updateFields.join(', ')} WHERE licence_plate = ?`;
 
+    // Get updated vehicle data
+    const newVehicle = await executeQuery(checkQuery, [vehicle_no]);
+
     await executeQuery(updateQuery, updateParams);
+
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      const empResult = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (empResult.length > 0 && empResult[0].name) {
+        userName = empResult[0].name;
+      }
+    } catch (authError) {
+      console.warn('Auth check failed:', authError.message);
+    }
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Vehicles',
+        uniqueCode: `VEHICLE-${existingVehicle[0].id}`,
+        section: 'Edit Vehicle',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: 'edit',
+        remarks: `Vehicle updated: ${vehicle_no || licence_plate || existingVehicle[0].licence_plate}`,
+        oldValue: existingVehicle[0],
+        newValue: newVehicle.length > 0 ? newVehicle[0] : null,
+        recordType: 'vehicle',
+        recordId: existingVehicle[0].id
+      });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+    }
 
     return NextResponse.json({
       success: true,

@@ -9,7 +9,7 @@ function CreateProductTransferContent() {
     station_from: "",
     station_to: "",
     product_id: "",
-    product_to: "", // For same station transfer (Industrial Oil 40 <-> 60)
+    product_to: "",
     transfer_quantity: "",
     remarks: "",
     status: "pending"
@@ -17,6 +17,7 @@ function CreateProductTransferContent() {
   const [stations, setStations] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const router = useRouter();
@@ -27,6 +28,7 @@ function CreateProductTransferContent() {
 
   const fetchFormData = async () => {
     try {
+      setFetching(true);
       const response = await fetch("/api/stock-transfers-product/create");
       const data = await response.json();
       
@@ -53,15 +55,27 @@ function CreateProductTransferContent() {
     } catch (err) {
       console.error("Error fetching form data:", err);
       setError("Failed to fetch form data");
+    } finally {
+      setFetching(false);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Reset product_to when station_from or station_to changes
+    if (name === 'station_from' || name === 'station_to') {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        product_to: "" // Reset product_to when stations change
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -71,12 +85,45 @@ function CreateProductTransferContent() {
     setSuccess("");
 
     try {
+      const isSameStation = formData.station_from === formData.station_to;
+      
+      // Prepare data based on transfer type
+      const requestData = {
+        station_from: formData.station_from,
+        station_to: formData.station_to,
+        transfer_quantity: formData.transfer_quantity,
+        remarks: formData.remarks,
+        status: formData.status
+      };
+
+      // Add product fields based on transfer type
+      if (isSameStation) {
+        // Same station transfer requires BOTH products
+        if (!formData.product_id || !formData.product_to) {
+          setError("Both Product From and Product To are required for same station transfer");
+          setLoading(false);
+          return;
+        }
+        requestData.product_id = formData.product_id;
+        requestData.product_to = formData.product_to;
+      } else {
+        // Different station transfer requires only product_id
+        if (!formData.product_id) {
+          setError("Product is required for transfer between different stations");
+          setLoading(false);
+          return;
+        }
+        requestData.product_id = formData.product_id;
+      }
+
+      console.log("📤 Submitting data:", requestData);
+
       const response = await fetch("/api/stock-transfers-product/create", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestData),
       });
 
       const result = await response.json();
@@ -96,6 +143,9 @@ function CreateProductTransferContent() {
       setLoading(false);
     }
   };
+
+  // Check if same station transfer
+  const isSameStationTransfer = formData.station_from === formData.station_to;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -149,178 +199,209 @@ function CreateProductTransferContent() {
           </div>
         )}
 
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-semibold text-gray-800">Product Transfer Information</h2>
-          </div>
-          
-          <div className="p-6">
-            <form onSubmit={handleSubmit} className="space-y-6">
+        {fetching ? (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="animate-pulse">
+              <div className="h-6 bg-gray-200 rounded w-48 mb-6"></div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <label htmlFor="station_from" className="block text-sm font-medium text-gray-700 mb-2">
-                    Station From *
-                  </label>
-                  <select
-                    id="station_from"
-                    name="station_from"
-                    value={formData.station_from}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {stations.map(station => (
-                      <option key={station.id} value={station.id}>
-                        {station.station_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="station_to" className="block text-sm font-medium text-gray-700 mb-2">
-                    Station To *
-                  </label>
-                  <select
-                    id="station_to"
-                    name="station_to"
-                    value={formData.station_to}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {stations.map(station => (
-                      <option key={station.id} value={station.id}>
-                        {station.station_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="product_id" className="block text-sm font-medium text-gray-700 mb-2">
-                    Product From *
-                  </label>
-                  <select
-                    id="product_id"
-                    name="product_id"
-                    value={formData.product_id}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {products.map(product => (
-                      <option key={product.id} value={product.id}>
-                        {product.pname}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* Product To - For same station transfer (Industrial Oil 40 <-> 60) */}
-                {formData.station_from === formData.station_to && (
+                {[...Array(4)].map((_, i) => (
+                  <div key={i}>
+                    <div className="h-4 bg-gray-200 rounded w-24 mb-2"></div>
+                    <div className="h-10 bg-gray-200 rounded"></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="bg-white rounded-lg shadow">
+            <div className="px-6 py-4 border-b border-gray-200">
+              <h2 className="text-xl font-semibold text-gray-800">
+                Product Transfer Information
+                {isSameStationTransfer && (
+                  <span className="ml-2 text-sm text-blue-600 font-normal">
+                    (Same Station Transfer)
+                  </span>
+                )}
+              </h2>
+            </div>
+            
+            <div className="p-6">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label htmlFor="product_to" className="block text-sm font-medium text-gray-700 mb-2">
-                      Product To (Same Station) *
+                    <label htmlFor="station_from" className="block text-sm font-medium text-gray-700 mb-2">
+                      Station From *
                     </label>
                     <select
-                      id="product_to"
-                      name="product_to"
-                      value={formData.product_to || ''}
+                      id="station_from"
+                      name="station_from"
+                      value={formData.station_from}
                       onChange={handleInputChange}
-                      required={formData.station_from === formData.station_to}
+                      required
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      <option value="">Select Product To</option>
-                      {/* Show only Industrial Oil 40 and 60 for same station transfer */}
-                      {products.filter(p => p.id === 2 || p.id === 3).map(product => (
+                      {stations.map(station => (
+                        <option key={station.id} value={station.id}>
+                          {station.station_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="station_to" className="block text-sm font-medium text-gray-700 mb-2">
+                      Station To *
+                    </label>
+                    <select
+                      id="station_to"
+                      name="station_to"
+                      value={formData.station_to}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {stations.map(station => (
+                        <option key={station.id} value={station.id}>
+                          {station.station_name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label htmlFor="product_id" className="block text-sm font-medium text-gray-700 mb-2">
+                      {isSameStationTransfer ? "Product From *" : "Product *"}
+                    </label>
+                    <select
+                      id="product_id"
+                      name="product_id"
+                      value={formData.product_id}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      {products.map(product => (
                         <option key={product.id} value={product.id}>
                           {product.pname}
                         </option>
                       ))}
                     </select>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Same station transfer: Industrial Oil 40 ↔ Industrial Oil 60
-                    </p>
                   </div>
-                )}
 
-                <div>
-                  <label htmlFor="transfer_quantity" className="block text-sm font-medium text-gray-700 mb-2">
-                    Transfer Quantity *
-                  </label>
-                  <input
-                    type="number"
-                    id="transfer_quantity"
-                    name="transfer_quantity"
-                    value={formData.transfer_quantity}
-                    onChange={handleInputChange}
-                    required
-                    step="0.01"
-                    min="0.01"
-                    placeholder="Enter quantity"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
-                    Status *
-                  </label>
-                  <select
-                    id="status"
-                    name="status"
-                    value={formData.status}
-                    onChange={handleInputChange}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="in_transit">In Transit</option>
-                    <option value="completed">Completed</option>
-                  </select>
-                </div>
-
-                <div className="md:col-span-2">
-                  <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-2">
-                    Remarks
-                  </label>
-                  <textarea
-                    id="remarks"
-                    name="remarks"
-                    value={formData.remarks}
-                    onChange={handleInputChange}
-                    rows={3}
-                    placeholder="Enter remarks (optional)"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-              </div>
-
-              <div className="flex justify-end pt-6 border-t border-gray-200">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-8 py-3 rounded-lg transition-colors duration-200 flex items-center space-x-2"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Creating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      <span>Create Product Transfer</span>
-                    </>
+                  {/* Product To - Only shown for same station transfer */}
+                  {isSameStationTransfer && (
+                    <div>
+                      <label htmlFor="product_to" className="block text-sm font-medium text-gray-700 mb-2">
+                        Product To *
+                      </label>
+                      <select
+                        id="product_to"
+                        name="product_to"
+                        value={formData.product_to}
+                        onChange={handleInputChange}
+                        required={isSameStationTransfer}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      >
+                        <option value="">Select Product To</option>
+                        {products
+                          .filter(product => product.id.toString() !== formData.product_id) // Exclude selected product_from
+                          .map(product => (
+                            <option key={product.id} value={product.id}>
+                              {product.pname}
+                            </option>
+                          ))}
+                      </select>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Same station transfer: Transfer between different products
+                      </p>
+                    </div>
                   )}
-                </button>
-              </div>
-            </form>
+
+                  <div>
+                    <label htmlFor="transfer_quantity" className="block text-sm font-medium text-gray-700 mb-2">
+                      Transfer Quantity *
+                    </label>
+                    <input
+                      type="number"
+                      id="transfer_quantity"
+                      name="transfer_quantity"
+                      value={formData.transfer_quantity}
+                      onChange={handleInputChange}
+                      required
+                      step="0.01"
+                      min="0.01"
+                      placeholder="Enter quantity"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-2">
+                      Status *
+                    </label>
+                    <select
+                      id="status"
+                      name="status"
+                      value={formData.status}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="in_transit">In Transit</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  </div>
+
+                  <div className="md:col-span-2">
+                    <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-2">
+                      Remarks
+                    </label>
+                    <textarea
+                      id="remarks"
+                      name="remarks"
+                      value={formData.remarks}
+                      onChange={handleInputChange}
+                      rows={3}
+                      placeholder="Enter remarks (optional)"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => router.back()}
+                    className="mr-4 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors duration-200"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 text-white px-8 py-3 rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                  >
+                    {loading ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        <span>Creating...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        <span>Create Product Transfer</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );
@@ -344,4 +425,3 @@ export default function CreateProductTransfer() {
     </Suspense>
   );
 }
-

@@ -7,6 +7,67 @@ import React from "react";
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import Sidebar from "@/components/sidebar";
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+
+// Component to fetch and display transfer logs
+function TransferLogs({ transferId }) {
+  const [logs, setLogs] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchLogs = async () => {
+      try {
+        setLoading(true);
+        // Fetch audit logs for this transfer
+        const response = await fetch(`/api/entity-logs?entity_type=stock_transfer&entity_id=${transferId}`);
+        const result = await response.json();
+        if (result.success && result.audit_logs) {
+          setLogs(result.audit_logs);
+        }
+      } catch (error) {
+        console.error('Error fetching transfer logs:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    if (transferId) {
+      fetchLogs();
+    }
+  }, [transferId]);
+
+  if (loading) {
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
+  }
+
+  if (logs.length === 0) {
+    return (
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this transfer.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      {logs.map((log, idx) => (
+        <div key={idx} className="bg-white rounded border p-3 text-sm">
+          <div className="flex justify-between items-start">
+            <div>
+              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
+              <span className="ml-2 text-gray-900">{log.user_name || log.userName || 'Unknown User'}</span>
+            </div>
+            <span className="text-xs text-gray-500">
+              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+            </span>
+          </div>
+          {log.remarks && (
+            <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // Create a separate component that contains the main logic
 function StockTransfersContent() {
@@ -14,8 +75,21 @@ function StockTransfersContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [expandedRows, setExpandedRows] = useState(new Set());
+  const [expandedLogs, setExpandedLogs] = useState(new Set());
   const router = useRouter();
   const searchParams = useSearchParams();
+  
+  const toggleTransferLogs = (transferId) => {
+    setExpandedLogs(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(transferId)) {
+        newSet.delete(transferId);
+      } else {
+        newSet.add(transferId);
+      }
+      return newSet;
+    });
+  };
 
   useEffect(() => {
     fetchTransfers();
@@ -175,6 +249,7 @@ function StockTransfersContent() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
@@ -212,10 +287,29 @@ function StockTransfersContent() {
                                 </button>
                               </div>
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <button
+                                onClick={() => toggleTransferLogs(transferId)}
+                                className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                                title="View Activity Logs"
+                              >
+                                {expandedLogs.has(transferId) ? (
+                                  <>
+                                    <BiChevronUp size={18} />
+                                    <span className="ml-1 text-xs">Hide</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BiChevronDown size={18} />
+                                    <span className="ml-1 text-xs">Logs</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
                           </tr>
                           {isExpanded && (
                             <tr key={`${transferId}-expanded`} className="bg-gray-50">
-                              <td colSpan="8" className="px-6 py-4">
+                              <td colSpan="9" className="px-6 py-4">
                                 <div className="grid grid-cols-2 gap-4 text-sm">
                                   <div>
                                     <span className="font-medium text-gray-700">Created Date:</span>
@@ -252,7 +346,7 @@ function StockTransfersContent() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="8" className="px-6 py-12 text-center">
+                      <td colSpan="9" className="px-6 py-12 text-center">
                         <div className="text-gray-500">
                           <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />

@@ -1,12 +1,15 @@
 //src/app/transporters/page.jsx
 "use client";
 import { Suspense, useEffect, useState } from "react";
+import React from "react";
 import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
 
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
+import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import EntityLogs from "@/components/EntityLogs";
 
 // Loading component for Suspense fallback
 function TransportersLoading() {
@@ -30,6 +33,14 @@ function TransportersContent() {
     can_edit: false,
     can_delete: false
   });
+  const [expandedTransporters, setExpandedTransporters] = useState({});
+  
+  const toggleTransporterLogs = (transporterId) => {
+    setExpandedTransporters(prev => ({
+      ...prev,
+      [transporterId]: !prev[transporterId]
+    }));
+  };
 
   // Check permissions
   useEffect(() => {
@@ -267,6 +278,27 @@ function TransportersContent() {
                         )}
                       </td>
                     </tr>
+                    <tr>
+                      <th className="text-left text-gray-700">Logs</th>
+                      <td>
+                        <button
+                          onClick={() => toggleTransporterLogs(t.id)}
+                          className="flex items-center text-blue-600 hover:text-blue-800 transition-colors py-2"
+                        >
+                          <span className="text-sm font-medium">Activity Logs</span>
+                          {expandedTransporters[t.id] ? (
+                            <BiChevronUp size={20} className="ml-2" />
+                          ) : (
+                            <BiChevronDown size={20} className="ml-2" />
+                          )}
+                        </button>
+                        {expandedTransporters[t.id] && (
+                          <div className="mt-3 pt-3 border-t border-gray-200">
+                            <EntityLogs entityType="transporter" entityId={t.id} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -284,12 +316,14 @@ function TransportersContent() {
                 <th className="p-3 border">Email</th>
                 <th className="p-3 border">Payable</th>
                 <th className="p-3 border">Actions</th>
+                <th className="p-3 border">Logs</th>
               </tr>
             </thead>
             <tbody>
               {transporters.length > 0 ? (
                 transporters.map((t) => (
-                  <tr key={t.id} className="hover:bg-gray-50">
+                  <React.Fragment key={t.id}>
+                  <tr className="hover:bg-gray-50">
                     <td className="p-3 border">{t.transporter_name}</td>
                     <td className="p-3 border">{t.phone}</td>
                     <td className="p-3 border">{t.email}</td>
@@ -331,11 +365,42 @@ function TransportersContent() {
                         </>
                       )}
                     </td>
+                    <td className="p-3 border">
+                      <button
+                        onClick={() => toggleTransporterLogs(t.id)}
+                        className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                        title="View Activity Logs"
+                      >
+                        {expandedTransporters[t.id] ? (
+                          <>
+                            <BiChevronUp size={18} />
+                            <span className="ml-1 text-xs">Hide</span>
+                          </>
+                        ) : (
+                          <>
+                            <BiChevronDown size={18} />
+                            <span className="ml-1 text-xs">Logs</span>
+                          </>
+                        )}
+                      </button>
+                    </td>
                   </tr>
+                  {/* Expandable Logs Row */}
+                  {expandedTransporters[t.id] && (
+                    <tr className="bg-gray-50">
+                      <td colSpan="6" className="p-4">
+                        <div className="max-w-4xl">
+                          <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {t.transporter_name}</h3>
+                          <EntityLogs entityType="transporter" entityId={t.id} />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                  </React.Fragment>
                 ))
               ) : (
                 <tr>
-                  <td colSpan="5" className="text-center text-gray-600 p-4">
+                  <td colSpan="6" className="text-center text-gray-600 p-4">
                     No transporters found
                   </td>
                 </tr>

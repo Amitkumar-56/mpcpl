@@ -571,6 +571,53 @@ export async function GET(request) {
       }
     }
 
+    // Fetch audit logs for this customer
+    let auditLogs = [];
+    try {
+      const auditLogsQuery = `
+        SELECT 
+          al.id,
+          al.user_id,
+          al.user_name,
+          al.action,
+          al.remarks,
+          al.old_value,
+          al.new_value,
+          al.created_at,
+          ep.name as employee_name,
+          ep.employee_code
+        FROM audit_log al
+        LEFT JOIN employee_profile ep ON al.user_id = ep.id
+        WHERE (al.record_type = 'customer' AND al.record_id = ?)
+           OR (al.unique_code LIKE ?)
+           OR (al.remarks LIKE ?)
+        ORDER BY al.created_at DESC
+      `;
+      const customerIdStr = String(id);
+      auditLogs = await executeQuery(auditLogsQuery, [
+        id,
+        `%CUSTOMER-${customerIdStr}%`,
+        `%customer ${customerIdStr}%`
+      ]);
+      
+      // Format audit logs
+      auditLogs = (auditLogs || []).map(log => ({
+        id: log.id,
+        user_id: log.user_id,
+        user_name: log.employee_name || log.user_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'System'),
+        employee_code: log.employee_code,
+        action: log.action,
+        remarks: log.remarks,
+        old_value: log.old_value,
+        new_value: log.new_value,
+        created_at: log.created_at
+      }));
+      console.log("Audit logs fetched:", auditLogs.length);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      auditLogs = [];
+    }
+
     // Check customer eligibility
     console.log("Checking customer eligibility...");
     const eligibility = await checkCustomerEligibility(id);
@@ -584,6 +631,7 @@ export async function GET(request) {
         dealPrices: dealPricesWithNames,
         users,
         logs: logData,
+        audit_logs: auditLogs,
         outstandingInvoices,
         transactionHistory,
         eligibility,

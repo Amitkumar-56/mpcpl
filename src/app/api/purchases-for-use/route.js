@@ -1,6 +1,8 @@
 // app/api/purchases-for-use/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 
 export async function GET() {
   try {
@@ -72,6 +74,32 @@ export async function POST(request) {
       );
     }
 
+    // Get current user for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      const currentUser = await getCurrentUser();
+      userId = currentUser?.userId || currentUser?.id || null;
+      userName = currentUser?.userName || null;
+      
+      // Fetch employee name from employee_profile
+      if (userId) {
+        try {
+          const empResult = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (empResult.length > 0 && empResult[0].name) {
+            userName = empResult[0].name;
+          }
+        } catch (empError) {
+          console.error('Error fetching employee name:', empError);
+        }
+      }
+    } catch (authError) {
+      console.warn('Auth check failed, continuing without user info:', authError.message);
+    }
+
     // Insert into purchase_for_use table
     const result = await executeQuery(
       `INSERT INTO purchase_for_use 
@@ -86,6 +114,34 @@ export async function POST(request) {
         fsIdNum
       ]
     );
+
+    // Create audit log
+    try {
+      await createAuditLog({
+        page: 'Stock Management',
+        uniqueCode: `PURCHASE-USE-${result.insertId}`,
+        section: 'Purchase for Use',
+        userId: userId,
+        userName: userName || (userId ? `Employee ID: ${userId}` : null),
+        action: 'add',
+        remarks: `Purchase for use created: ${supplier_name} - ${product_name}, Amount: ₹${amountNum}, Quantity: ${quantityNum}Kg, Station ID: ${fsIdNum}`,
+        oldValue: null,
+        newValue: {
+          supplier_name,
+          product_name,
+          amount: amountNum,
+          quantity: quantityNum,
+          invoice_date: invoiceDate,
+          fs_id: fsIdNum
+        },
+        recordType: 'purchase_for_use',
+        recordId: result.insertId
+      });
+      console.log('✅ Audit log created for purchase for use:', { userId, userName, purchaseId: result.insertId });
+    } catch (auditError) {
+      console.error('❌ Audit log creation failed (non-critical):', auditError);
+      // Don't throw - continue even if audit log fails
+    }
 
     return NextResponse.json(
       { 

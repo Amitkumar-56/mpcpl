@@ -723,12 +723,27 @@ export default function StockRequest() {
 
     try {
       const moduleName = 'Stock';
+      
+      // Add timeout to permission checks
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
+      
       const [viewRes, editRes, deleteRes, createRes] = await Promise.all([
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`, {
+          signal: controller.signal
+        }),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`, {
+          signal: controller.signal
+        }),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`, {
+          signal: controller.signal
+        }),
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`, {
+          signal: controller.signal
+        })
       ]);
+      
+      clearTimeout(timeoutId);
 
       const [viewData, editData, deleteData, createData] = await Promise.all([
         viewRes.json(),
@@ -759,6 +774,26 @@ export default function StockRequest() {
       }
     } catch (error) {
       console.error('Permission check error:', error);
+      if (error.name === 'AbortError') {
+        console.warn('Permission check timeout, using cached permissions if available');
+        // Try to use cached permissions on timeout
+        const cacheKey = `perms_${user.id}_Stock`;
+        const cached = sessionStorage.getItem(cacheKey);
+        if (cached) {
+          try {
+            const cachedPerms = JSON.parse(cached);
+            if (cachedPerms.can_view) {
+              setHasPermission(true);
+              setPermissions(cachedPerms);
+              fetchStockStats();
+              fetchStockRequests();
+              return;
+            }
+          } catch (e) {
+            // Invalid cache
+          }
+        }
+      }
       setHasPermission(false);
       setError('Failed to check permissions.');
     }
@@ -769,13 +804,25 @@ export default function StockRequest() {
     try {
       setStatsLoading(true);
       
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       // Fetch from dashboard API which has stock history count
-      const dashboardResponse = await fetch('/api/dashboard');
+      const dashboardResponse = await fetch('/api/dashboard', {
+        signal: controller.signal,
+        cache: 'no-store'
+      });
       const dashboardResult = await dashboardResponse.json();
       
       // Fetch stock counts
-      const stockResponse = await fetch('/api/stock');
+      const stockResponse = await fetch('/api/stock', {
+        signal: controller.signal,
+        cache: 'no-store'
+      });
       const stockData = await stockResponse.json();
+      
+      clearTimeout(timeoutId);
       
       if (dashboardResult.success && stockData) {
         const stockArray = Array.isArray(stockData) ? stockData : [];
@@ -797,6 +844,9 @@ export default function StockRequest() {
       }
     } catch (err) {
       console.error('Error fetching stock stats:', err);
+      if (err.name === 'AbortError') {
+        console.warn('Stock stats fetch timeout');
+      }
       // Set default values on error
       setStats({
         totalStock: 0,
@@ -815,12 +865,20 @@ export default function StockRequest() {
       setDataLoading(true);
       
       console.log("Fetching stock data...");
+      
+      // Add timeout to prevent infinite loading
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const res = await fetch("/api/stock", {
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
         },
         cache: 'no-store'
       });
+      
+      clearTimeout(timeoutId);
       
       if (!res.ok) {
         const errorText = await res.text();
@@ -861,15 +919,19 @@ export default function StockRequest() {
       }
     } catch (err) {
       console.error("Fetch error details:", err);
-      setError("Error fetching stock requests: " + err.message);
+      if (err.name === 'AbortError') {
+        setError("Request timeout. Please try again.");
+      } else {
+        setError("Error fetching stock requests: " + err.message);
+      }
       setStockRequests([]);
     } finally {
       setDataLoading(false);
     }
   };
 
-  // Show loading state
-  if (sessionLoading || dataLoading || (!user && !sessionLoading)) {
+  // Show loading state - only when session is loading OR data is loading with user
+  if (sessionLoading || (dataLoading && user)) {
     return (
       <div className="flex h-screen bg-gray-100">
         <Sidebar />

@@ -3,6 +3,7 @@
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
+import AuditLogs from '@/components/AuditLogs';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
@@ -15,6 +16,7 @@ function DeepoViewContent() {
   const [deepoData, setDeepoData] = useState(null);
   const [items, setItems] = useState([]);
   const [pdfFiles, setPdfFiles] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -34,6 +36,7 @@ function DeepoViewContent() {
         setDeepoData(result.data.deepo);
         setItems(result.data.items);
         setPdfFiles(result.data.pdfFiles);
+        setAuditLogs(result.data.audit_logs || []);
       } else {
         setError(result.error);
       }
@@ -444,6 +447,14 @@ function DeepoViewContent() {
             Download as PDF
           </button>
         </div>
+
+        {/* Audit Logs Section */}
+        {auditLogs && auditLogs.length > 0 && (
+          <div className="bg-white rounded-lg shadow-lg p-6 mt-6 print:hidden">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">Activity Logs</h2>
+            <AuditLogs logs={auditLogs} title="Activity Logs" recordType="deepo" />
+          </div>
+        )}
       </div>
     </div>
   );

@@ -17,7 +17,7 @@ export default function Sidebar() {
       return;
     }
     setUser(JSON.parse(savedUser));
-  }, [router]);
+  }, []); // Remove router dependency to prevent re-renders
 
   const logout = () => {
     // Clear all storage items
@@ -73,7 +73,8 @@ export default function Sidebar() {
               <button
                 key={item.name}
                 onClick={() => {
-                  router.push(item.path);
+                  // Use window.location.href for faster navigation
+                  window.location.href = item.path;
                   setIsOpen(false);
                 }}
                 className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${

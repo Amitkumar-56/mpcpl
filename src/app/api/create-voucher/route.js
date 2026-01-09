@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
+import { createEntityLog } from '@/lib/entityLogs';
 
 // GET endpoint for fetching form data
 export async function GET(request) {
@@ -257,6 +258,27 @@ export async function POST(request) {
       });
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
+    }
+
+    // ✅ Create entity-specific log (similar to filling_logs)
+    try {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
+      await createEntityLog({
+        entityType: 'voucher',
+        entityId: voucherId,
+        createdBy: userId || parseInt(user_id),
+        createdDate: currentDateTime
+      });
+    } catch (logError) {
+      console.error('⚠️ Error creating voucher log:', logError);
     }
 
     // Return the stored voucher_no (formatted code) in response for UI
