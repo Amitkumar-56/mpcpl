@@ -173,19 +173,33 @@ export async function POST(request) {
           }
         }
 
-        // Update customer balance
-        const newBalance = customer.balance - amount;
-        await executeQuery(
-          'UPDATE customer_balances SET balance = ? WHERE com_id = ?',
-          [newBalance, customerId]
-        );
+      // Update customer balance
+      const newBalance = customer.balance - amount;
+      await executeQuery(
+        'UPDATE customer_balances SET balance = ? WHERE com_id = ?',
+        [newBalance, customerId]
+      );
 
-        // For day limit customers, reset day counter if all paid
-        if (isDayLimitCustomer && invoicesPaid > 0) {
+        // For day limit customers, adjust flags after payment
+        if (isDayLimitCustomer) {
+          // Reset day_amount tracker
           await executeQuery(
             'UPDATE customer_balances SET day_amount = 0 WHERE com_id = ?',
             [customerId]
           );
+          // If no unpaid requests remain, activate account
+          const remainingUnpaid = await executeQuery(
+            `SELECT id FROM filling_requests 
+             WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+             LIMIT 1`,
+            [customerId]
+          );
+          if (remainingUnpaid.length === 0) {
+            await executeQuery(
+              'UPDATE customer_balances SET is_active = 1 WHERE com_id = ?',
+              [customerId]
+            );
+          }
         }
 
         // Record in filling_history

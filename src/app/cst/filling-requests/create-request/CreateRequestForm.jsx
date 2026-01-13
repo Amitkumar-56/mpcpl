@@ -37,6 +37,7 @@ export default function CreateRequestForm() {
   const [productCodes, setProductCodes] = useState([])
   const [selectedSubProductId, setSelectedSubProductId] = useState('')
   const [loadingSubProducts, setLoadingSubProducts] = useState(false)
+  const [filterType, setFilterType] = useState('')
 
   // Product configuration based on product_id
   const productConfig = {
@@ -173,6 +174,38 @@ export default function CreateRequestForm() {
     fetchPrice();
   }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct, selectedSubProductId]);
 
+  // Derive Bulk/Retail from selected sub product code and set minimums dynamically
+  useEffect(() => {
+    const pid = parseInt(formData.product_id) || null;
+    if (!pid || !selectedSubProductId || productCodes.length === 0) return;
+    const codeObj = productCodes.find(c => String(c.id) === String(selectedSubProductId));
+    const pcode = (codeObj?.pcode || '').toUpperCase();
+    let category = 'retail';
+    if (pid === 2 || pid === 3) {
+      const norm = pcode.replace(/\s+/g, '');
+      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcode.includes('RTL') || pcode.includes('RETAIL');
+      category = isRetail ? 'retail' : 'bulk';
+    } else if (pid === 4) {
+      const norm = pcode.toUpperCase().replace(/\s+/g, '');
+      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
+      else category = 'retail';
+    } else if (pid === 5) {
+      // DEF Bucket: BUCKET (bulk buckets) vs PACK (retail bucket)
+      if (pcode.includes('BUCKET')) category = 'bulk';
+      else category = 'retail';
+    }
+    let minValue = 1;
+    if (pid === 2 || pid === 3) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 4) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 5) {
+      // bucket min is bucket count, not liters
+      minValue = category === 'bulk' ? 25 : 1;
+    }
+    setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
+  }, [selectedSubProductId, productCodes, formData.product_id]);
+
   useEffect(() => {
     const pid = formData.product_id;
     if (!pid) {
@@ -190,6 +223,7 @@ export default function CreateRequestForm() {
         if (json.success) {
           const codes = json.codes || [];
           setProductCodes(codes);
+          setFilterType(json.filter_type || '');
           // Auto-select first sub-product if available
           if (codes.length > 0) {
             const first = codes[0]?.id ? String(codes[0].id) : '';
@@ -200,6 +234,7 @@ export default function CreateRequestForm() {
         } else {
           setProductCodes([]);
           setSelectedSubProductId('');
+          setFilterType('');
         }
       } catch (e) {
         console.error('Error fetching product codes:', e);
@@ -291,10 +326,18 @@ export default function CreateRequestForm() {
 
     // Additional validation for selected product
     if (selectedProduct) {
-      const quantity = parseInt(formData.qty) || 0;
-      if (quantity < selectedProduct.min) {
-        const minUnit = selectedProduct.min === 1 ? 'liter' : 'liters';
-        newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${minUnit}`;
+      const quantityLiters = parseInt(formData.qty) || 0;
+      const quantityBuckets = parseInt(formData.aty) || 0;
+      if (selectedProduct.type === 'bucket') {
+        if (quantityBuckets < (selectedProduct.min || 1)) {
+          const unit = (selectedProduct.min || 1) === 1 ? 'bucket' : 'buckets';
+          newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${unit}`;
+        }
+      } else {
+        if (quantityLiters < (selectedProduct.min || 1)) {
+          const unit = (selectedProduct.min || 1) === 1 ? 'liter' : 'liters';
+          newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${unit}`;
+        }
       }
       // Only validate maxQuantity for non-bucket products
       // For bucket products, allow any number of buckets
@@ -500,6 +543,28 @@ export default function CreateRequestForm() {
     if (formData.phone.includes(' ')) {
       alert('❌ Spaces are not allowed in Phone Number! Please remove spaces.');
       return;
+    }
+
+    // ✅ Eligibility pre-check: block if day limit/overdue makes customer ineligible
+    try {
+      const eligibilityResponse = await fetch('/api/customers/eligibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerId })
+      });
+      if (eligibilityResponse.ok) {
+        const eligibility = await eligibilityResponse.json();
+        if (!eligibility.isEligible) {
+          const msg = eligibility.reason || 'You are not eligible to create a request right now.';
+          alert(`❌ ${msg}`);
+          return;
+        }
+      } else {
+        // If eligibility API fails, proceed to backend which enforces checks
+        console.warn('Eligibility API returned non-OK status:', eligibilityResponse.status);
+      }
+    } catch (eligError) {
+      console.warn('Eligibility check failed, backend will enforce eligibility:', eligError);
     }
 
     setLoading(true)
@@ -952,6 +1017,11 @@ export default function CreateRequestForm() {
                         <div className="mt-4">
                           <label htmlFor="sub_product_id" className="block text-sm font-semibold text-gray-700 mb-2">
                             Select Product Code (Sub-Product) *
+                            {filterType && (
+                              <span className="ml-2 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full font-medium">
+                                {filterType}
+                              </span>
+                            )}
                           </label>
                           <div className="relative">
                             <select

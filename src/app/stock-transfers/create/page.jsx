@@ -43,7 +43,7 @@ function CreateStockTransferContent() {
           setFormData(prev => ({
             ...prev,
             station_from: data.stations[0].id.toString(),
-            station_to: data.stations[0].id.toString()
+            station_to: ""
           }));
         }
         if (data.products.length > 0) {
@@ -67,7 +67,8 @@ function CreateStockTransferContent() {
     const { name, value } = e.target;
     setFormData(prev => ({
       ...prev,
-      [name]: value
+      [name]: value,
+      ...(name === "station_from" ? { station_to: "" } : {})
     }));
   };
 
@@ -354,15 +355,7 @@ function CreateStockTransferContent() {
 
               {/* Action Buttons */}
               <div className="flex justify-between pt-6 border-t border-gray-200">
-                <Link
-                  href="/stock-transfers/product/create"
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg transition-colors duration-200 flex items-center space-x-2"
-                >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-                  </svg>
-                  <span>Product Transfer</span>
-                </Link>
+              
                 <button
                   type="submit"
                   disabled={loading}

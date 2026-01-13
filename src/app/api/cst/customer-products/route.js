@@ -38,24 +38,25 @@ export async function GET(request) {
     if (!customerData.product || customerData.product.trim() === '') {
       console.log('ℹ️ No products assigned to customer - product column is empty');
       
-      // If no products in customer table, fetch ALL products (not sub-products)
-      const allProductsQuery = `
+      // If no products in customer table, fetch ONLY 4 specific products for requests
+      const specificProductsQuery = `
         SELECT 
           p.id, 
           p.pname as product_name,
           p.id as product_id
         FROM products p
-        ORDER BY p.pname
+        WHERE p.id IN (2, 3, 4, 5)
+        ORDER BY p.id
       `;
       
-      const allProductsData = await executeQuery(allProductsQuery);
-      console.log('📦 All products (fallback):', allProductsData);
+      const specificProductsData = await executeQuery(specificProductsQuery);
+      console.log('📦 Specific products for requests:', specificProductsData);
 
       return NextResponse.json({ 
         success: true, 
-        products: allProductsData || [],
-        count: allProductsData.length,
-        message: 'Using all products (customer product column empty)'
+        products: specificProductsData || [],
+        count: specificProductsData.length,
+        message: 'Using 4 specific products for requests'
       });
     }
 
@@ -66,23 +67,24 @@ export async function GET(request) {
     if (allowedProductIds.length === 0) {
       console.log('ℹ️ No valid product IDs found after processing');
       
-      // Fallback to all products (not sub-products)
-      const allProductsQuery = `
+      // Fallback to 4 specific products (not all products)
+      const specificProductsQuery = `
         SELECT 
           p.id, 
           p.pname as product_name,
           p.id as product_id
         FROM products p
-        ORDER BY p.pname
+        WHERE p.id IN (2, 3, 4, 5)
+        ORDER BY p.id
       `;
       
-      const allProductsData = await executeQuery(allProductsQuery);
+      const specificProductsData = await executeQuery(specificProductsQuery);
       
       return NextResponse.json({ 
         success: true, 
-        products: allProductsData || [],
-        count: allProductsData.length,
-        message: 'Using all products (no valid product IDs)'
+        products: specificProductsData || [],
+        count: specificProductsData.length,
+        message: 'Using 4 specific products (no valid product IDs)'
       });
     }
 

@@ -294,6 +294,27 @@ export async function GET(request) {
       totalStockHistory = 0;
     }
 
+    // Additional counts
+    let totalStations = 0;
+    let totalStocks = 0;
+    let totalStockRequests = 0;
+    try {
+      const stationsResult = await executeQuery(`SELECT COUNT(*) as count FROM filling_stations`);
+      totalStations = parseInt(stationsResult[0]?.count) || 0;
+    } catch {}
+    try {
+      const stocksResult = await executeQuery(`SELECT COUNT(*) as count FROM stock`);
+      totalStocks = parseInt(stocksResult[0]?.count) || 0;
+    } catch {}
+    try {
+      const stockRequestsResult = await executeQuery(`
+        SELECT COUNT(*) as count 
+        FROM filling_requests 
+        WHERE cid IS NOT NULL
+      `);
+      totalStockRequests = parseInt(stockRequestsResult[0]?.count) || 0;
+    } catch {}
+
     // ✅ 10. CALCULATE CHANGES
     const clientChange = clientTodayOutstanding;
 
@@ -307,6 +328,9 @@ export async function GET(request) {
       totalClients: totalClients,
       totalTransactions: totalTransactions,
       totalStockHistory: totalStockHistory,
+      totalStations: totalStations,
+      totalStocks: totalStocks,
+      totalStockRequests: totalStockRequests,
       collectionEfficiency: Math.round(collectionEfficiency * 100) / 100,
       pendingPayments: pendingPayments,
       clearedPayments: clearedPayments,

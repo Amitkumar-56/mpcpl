@@ -1,7 +1,7 @@
 //src/app/api/cst/create-requests/route.js
+import { createAuditLog } from "@/lib/auditLog";
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { createAuditLog } from "@/lib/auditLog";
 
 export async function POST(request) {
   try {
@@ -29,6 +29,39 @@ export async function POST(request) {
         success: false, 
         message: 'Missing required fields (product/sub-product, station, vehicle, phone, or customer)' 
       }, { status: 400 });
+    }
+
+    const stationRows = await executeQuery(
+      'SELECT id, station_name, status FROM filling_stations WHERE id = ?',
+      [parseInt(station_id)]
+    );
+    if (stationRows.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'Station not found'
+      }, { status: 404 });
+    }
+    if (stationRows[0].status === 0 || stationRows[0].status === '0') {
+      return NextResponse.json({
+        success: false,
+        message: `Station "${stationRows[0].station_name}" is disabled. Please enable the station first to create filling requests.`
+      }, { status: 403 });
+    }
+    const blRows = await executeQuery(
+      'SELECT blocklocation FROM customers WHERE id = ?',
+      [parseInt(customer_id)]
+    );
+    const bl = blRows.length > 0 ? String(blRows[0].blocklocation || '').trim() : '';
+    const allowedIds = bl
+      .split(',')
+      .map(x => x.trim())
+      .filter(x => x !== '' && !isNaN(parseInt(x)))
+      .map(x => parseInt(x));
+    if (!allowedIds.includes(parseInt(station_id))) {
+      return NextResponse.json({
+        success: false,
+        message: 'Selected station is not allowed for this customer'
+      }, { status: 403 });
     }
 
     // Check if customer is active
@@ -183,6 +216,42 @@ export async function POST(request) {
     }
 
     const productData = productResult[0];
+
+    // Minimum quantity enforcement based on product and code (Bulk/Retail)
+    const pcodeUpper = String(productData.pcode || '').toUpperCase();
+    const pid = parseInt(productData.product_id);
+    let category = 'retail';
+    if (pid === 2 || pid === 3) {
+      const norm = pcodeUpper.replace(/\s+/g, '');
+      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcodeUpper.includes('RTL') || pcodeUpper.includes('RETAIL');
+      category = isRetail ? 'retail' : 'bulk';
+    } else if (pid === 4) {
+      const norm = pcodeUpper.replace(/\s+/g, '');
+      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
+      else category = 'retail';
+    } else if (pid === 5) {
+      if (pcodeUpper.includes('BUCKET')) category = 'bulk';
+      else category = 'retail';
+    }
+    let minLiters = 1;
+    if (pid === 2 || pid === 3) {
+      minLiters = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 4) {
+      minLiters = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 5) {
+      const bucketSize = 20;
+      minLiters = category === 'bulk' ? (25 * bucketSize) : (1 * bucketSize);
+    }
+    const requestedQty = parseFloat(qty) || 0;
+    if (requestedQty < minLiters) {
+      const msg =
+        pid === 5
+          ? (category === 'bulk' ? 'Minimum Bulk quantity is 25 buckets (500 Ltr)' : 'Minimum Retail quantity is 1 bucket (20 Ltr)')
+          : (category === 'bulk'
+              ? 'Minimum Bulk quantity is 1000 Ltr'
+              : 'Minimum Retail quantity is 1 Ltr');
+      return NextResponse.json({ success: false, message: msg }, { status: 400 });
+    }
 
     // Get price - check for sub_product_id match first, then product_id only
     let priceQuery = '';

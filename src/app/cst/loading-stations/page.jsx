@@ -1,5 +1,8 @@
 // src/app/cst/loading-stations/page.jsx
 'use client';
+import CstHeader from "@/components/cstHeader";
+import Sidebar from "@/components/cstsidebar";
+import Footer from "@/components/Footer";
 import { useEffect, useState } from 'react';
 
 export default function LoadingStationsPage() {
@@ -76,8 +79,12 @@ export default function LoadingStationsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gray-50 p-4">
-      <div className="max-w-7xl mx-auto">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <CstHeader />
+        <main className="flex-1 overflow-y-auto p-4 bg-gray-50">
+          <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Filling Station Details</h1>
@@ -221,7 +228,10 @@ export default function LoadingStationsPage() {
             </div>
           </div>
         )}
+          </div>
+        </main>
+        <Footer />
       </div>
-    </main>
+    </div>
   );
 }

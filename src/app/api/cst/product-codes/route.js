@@ -13,7 +13,8 @@ export async function GET(request) {
       }, { status: 400 });
     }
 
-    const codesQuery = `
+    // Filter sub-products based on product type
+    let codesQuery = `
       SELECT 
         pc.id, 
         pc.pcode, 
@@ -22,14 +23,19 @@ export async function GET(request) {
       FROM product_codes pc
       LEFT JOIN products p ON pc.product_id = p.id
       WHERE pc.product_id = ?
-      ORDER BY pc.pcode
     `;
+
+    // Parameters
+    const queryParams = [productId];
     
-    const codes = await executeQuery(codesQuery, [productId]);
+    codesQuery += ` ORDER BY pc.pcode`;
+    
+    const codes = await executeQuery(codesQuery, queryParams);
 
     return NextResponse.json({ 
       success: true, 
-      codes: codes || []
+      codes: codes || [],
+      product_id: productId
     });
 
   } catch (error) {

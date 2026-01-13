@@ -40,7 +40,7 @@ function CreateProductTransferContent() {
           setFormData(prev => ({
             ...prev,
             station_from: data.stations[0].id.toString(),
-            station_to: data.stations[0].id.toString()
+            station_to: "" // do not auto-set 'to' same as 'from'
           }));
         }
         if (data.products.length > 0) {

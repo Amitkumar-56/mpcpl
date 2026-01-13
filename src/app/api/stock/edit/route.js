@@ -2,8 +2,8 @@
 import { createAuditLog } from '@/lib/auditLog';
 import { getCurrentUser, verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 // GET - Fetch stock data for editing
 export async function GET(request) {
@@ -243,7 +243,7 @@ export async function PUT(request) {
     const quantity = parseFloat(oldStock.ltr) || 0;
     
     // ✅ NEW: Handle stock updates based on status changes
-    if (statusChanged && quantity > 0) {
+    if (statusChanged) {
       // Get current stock in filling_station_stocks
       const currentStockQuery = `
         SELECT stock FROM filling_station_stocks 
@@ -268,8 +268,11 @@ export async function PUT(request) {
       // on_the_way -> pending: No stock change
       
       if (newStatus === 'delivered' || newStatus === '3') {
-        // Add stock when delivered
-        const newStock = currentStock + quantity;
+        const effectiveQty = updateData.ltr !== undefined ? (parseFloat(updateData.ltr) || 0) : quantity;
+        if (effectiveQty <= 0) {
+          // Skip stock update if no quantity available
+        } else {
+        const newStock = currentStock + effectiveQty;
         if (currentStockResult.length > 0) {
           await executeQuery(
             `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
@@ -282,7 +285,7 @@ export async function PUT(request) {
             [
               oldStock.fs_id,
               oldStock.product_id,
-              quantity,
+              effectiveQty,
               `Stock delivered - Invoice: ${oldStock.invoice_number || 'N/A'}`,
               `Status changed from ${oldStatus} to delivered`
             ]
@@ -291,8 +294,8 @@ export async function PUT(request) {
         
         // Insert into filling_history with stock_type
         try {
-          const oldStockValue = currentStock; // Stock before addition
-          const newStockValue = currentStock + quantity; // Stock after addition
+          const oldStockValue = currentStock;
+          const newStockValue = currentStock + effectiveQty;
           
           // ✅ Use current user (who is delivering/updating status to delivered) as created_by
           // This is the user who delivered the stock, NOT the original purchase creator
@@ -345,7 +348,7 @@ export async function PUT(request) {
               [
                 oldStock.fs_id,
                 oldStock.product_id,
-                quantity, // Positive quantity for Inward
+                effectiveQty,
                 oldStockValue, // Current stock before change
                 newStockValue, // Available stock after change
                 deliveredByUserId || null // Use current user who delivered (employee_profile.id)
@@ -359,7 +362,7 @@ export async function PUT(request) {
               [
                 oldStock.fs_id,
                 oldStock.product_id,
-                quantity, // Positive quantity for Inward
+                effectiveQty,
                 oldStockValue, // Current stock before change
                 newStockValue, // Available stock after change
                 deliveredByUserId || null // Use current user who delivered (employee_profile.id)
@@ -369,7 +372,7 @@ export async function PUT(request) {
           console.log('✅ Filling history entry created with delivery user ID:', { 
             oldStock: oldStockValue, 
             newStock: newStockValue, 
-            quantity,
+            quantity: effectiveQty,
             created_by: deliveredByUserId,
             delivered_by: deliveredByUserId,
             wasNull: !deliveredByUserId
@@ -381,13 +384,14 @@ export async function PUT(request) {
         // ✅ Stock record will remain in stock table with status "delivered"
         // Staff and Incharge will not see delivered items (filtered in GET route)
         // Only filling_station_stocks and filling_history are updated
-        console.log(`✅ Stock delivered: ${quantity} Ltr (Status: ${oldStatus} -> delivered). Record remains in stock table.`);
+        console.log(`✅ Stock delivered: ${effectiveQty} Ltr (Status: ${oldStatus} -> delivered). Record remains in stock table.`);
+        }
       } else if (oldStatus === 'delivered' && (newStatus === 'on_the_way' || newStatus === 'pending')) {
         // When moving from delivered to other status:
         // 1. Decrease stock from filling_station_stocks
         // 2. Create filling_history entry
         // 3. Re-insert record into stock table (since it was deleted when delivered)
-        if (currentStockResult.length > 0 && currentStock >= quantity) {
+        if (currentStockResult.length > 0 && quantity > 0 && currentStock >= quantity) {
           const newStock = currentStock - quantity;
           await executeQuery(
             `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
@@ -424,6 +428,195 @@ export async function PUT(request) {
       }
     }
 
+    // ✅ Handle quantity/station/product changes when status is delivered (no status change)
+    try {
+      if (!statusChanged && oldStatus === 'delivered') {
+        const oldQty = parseFloat(oldStock.ltr) || 0;
+        const newQty = updateData.ltr !== undefined ? (parseFloat(updateData.ltr) || 0) : oldQty;
+        const fsOld = oldStock.fs_id;
+        const prodOld = oldStock.product_id;
+        const fsNew = updateData.fs_id !== undefined ? updateData.fs_id : fsOld;
+        const prodNew = updateData.product_id !== undefined ? updateData.product_id : prodOld;
+        
+        // Current user will be the editor who performs the delta change
+        let editorUserId = userId || null;
+        if (!editorUserId) {
+          try {
+            const currentUser = await getCurrentUser();
+            if (currentUser && currentUser.userId) {
+              editorUserId = currentUser.userId;
+            }
+          } catch {}
+        }
+        
+        // Verify stock_type column existence once
+        let hasStockType = false;
+        try {
+          const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+          const colSet = new Set(colsInfo.map(r => r.Field));
+          hasStockType = colSet.has('stock_type');
+        } catch {}
+        
+        if (fsNew === fsOld && prodNew === prodOld) {
+          // Same station/product: apply delta
+          const delta = newQty - oldQty;
+          if (delta !== 0) {
+            // Fetch current stock
+            const curRes = await executeQuery(
+              `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+              [fsOld, prodOld]
+            );
+            const currentStock = curRes.length > 0 ? (parseFloat(curRes[0].stock) || 0) : 0;
+            const newStock = currentStock + delta;
+            
+            if (curRes.length > 0) {
+              await executeQuery(
+                `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+                [newStock, fsOld, prodOld]
+              );
+            } else {
+              await executeQuery(
+                `INSERT INTO filling_station_stocks (fs_id, product, stock, msg, remark, created_at)
+                 VALUES (?, ?, ?, ?, ?, NOW())`,
+                [
+                  fsOld, prodOld, Math.max(0, newStock),
+                  delta > 0 ? `Stock increased by edit (+${delta})` : `Stock decreased by edit (${delta})`,
+                  `Edited quantity from ${oldQty} to ${newQty}`
+                ]
+              );
+            }
+            
+            // Insert filling_history entry for delta
+            if (hasStockType) {
+              await executeQuery(
+                `INSERT INTO filling_history 
+                 (fs_id, product_id, filling_qty, trans_type, stock_type, current_stock, available_stock, filling_date, created_by, created_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+                [
+                  fsOld, prodOld, delta,
+                  delta > 0 ? 'Inward' : 'Outward',
+                  delta > 0 ? 'inward' : 'stored',
+                  currentStock, newStock, editorUserId
+                ]
+              );
+            } else {
+              await executeQuery(
+                `INSERT INTO filling_history 
+                 (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
+                 VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, NOW())`,
+                [
+                  fsOld, prodOld, delta,
+                  delta > 0 ? 'Inward' : 'Outward',
+                  currentStock, newStock, editorUserId
+                ]
+              );
+            }
+            
+            // Log specific audit for quantity delta
+            await createAuditLog({
+              page: 'Stock Management',
+              uniqueCode: `STOCK-${id}`,
+              section: 'Quantity Change (Delivered)',
+              userId: userId,
+              userName: userName,
+              action: 'edit',
+              remarks: `Quantity changed from ${oldQty}L to ${newQty}L; station ${fsOld}, product ${prodOld}; stock ${currentStock} → ${newStock}`,
+              oldValue: { ltr: oldQty, fs_id: fsOld, product_id: prodOld },
+              newValue: { ltr: newQty, fs_id: fsNew, product_id: prodNew },
+              recordType: 'stock',
+              recordId: parseInt(id)
+            });
+          }
+        } else {
+          // Station/Product changed: move stock from old to new
+          const curOldRes = await executeQuery(
+            `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+            [fsOld, prodOld]
+          );
+          const curNewRes = await executeQuery(
+            `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+            [fsNew, prodNew]
+          );
+          const oldCurrent = curOldRes.length > 0 ? (parseFloat(curOldRes[0].stock) || 0) : 0;
+          const newCurrent = curNewRes.length > 0 ? (parseFloat(curNewRes[0].stock) || 0) : 0;
+          
+          const afterOld = Math.max(0, oldCurrent - oldQty);
+          const afterNew = newCurrent + newQty;
+          
+          // Update old
+          if (curOldRes.length > 0) {
+            await executeQuery(
+              `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+              [afterOld, fsOld, prodOld]
+            );
+          }
+          // Update/Insert new
+          if (curNewRes.length > 0) {
+            await executeQuery(
+              `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+              [afterNew, fsNew, prodNew]
+            );
+          } else {
+            await executeQuery(
+              `INSERT INTO filling_station_stocks (fs_id, product, stock, msg, remark, created_at)
+               VALUES (?, ?, ?, ?, ?, NOW())`,
+              [
+                fsNew, prodNew, afterNew,
+                `Stock moved by edit (+${newQty})`,
+                `Moved from station ${fsOld}/product ${prodOld}`,
+              ]
+            );
+          }
+          
+          // filling_history entries: Outward from old, Inward to new
+          if (hasStockType) {
+            await executeQuery(
+              `INSERT INTO filling_history 
+               (fs_id, product_id, filling_qty, trans_type, stock_type, current_stock, available_stock, filling_date, created_by, created_at) 
+               VALUES (?, ?, ?, 'Outward', 'stored', ?, ?, NOW(), ?, NOW())`,
+              [fsOld, prodOld, -oldQty, oldCurrent, afterOld, editorUserId]
+            );
+            await executeQuery(
+              `INSERT INTO filling_history 
+               (fs_id, product_id, filling_qty, trans_type, stock_type, current_stock, available_stock, filling_date, created_by, created_at) 
+               VALUES (?, ?, ?, 'Inward', 'inward', ?, ?, NOW(), ?, NOW())`,
+              [fsNew, prodNew, newQty, newCurrent, afterNew, editorUserId]
+            );
+          } else {
+            await executeQuery(
+              `INSERT INTO filling_history 
+               (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
+               VALUES (?, ?, ?, 'Outward', ?, ?, NOW(), ?, NOW())`,
+              [fsOld, prodOld, -oldQty, oldCurrent, afterOld, editorUserId]
+            );
+            await executeQuery(
+              `INSERT INTO filling_history 
+               (fs_id, product_id, filling_qty, trans_type, current_stock, available_stock, filling_date, created_by, created_at) 
+               VALUES (?, ?, ?, 'Inward', ?, ?, NOW(), ?, NOW())`,
+              [fsNew, prodNew, newQty, newCurrent, afterNew, editorUserId]
+            );
+          }
+          
+          // Log audit for station/product change
+          await createAuditLog({
+            page: 'Stock Management',
+            uniqueCode: `STOCK-${id}`,
+            section: 'Station/Product Change (Delivered)',
+            userId: userId,
+            userName: userName,
+            action: 'edit',
+            remarks: `Moved delivered stock: old ${fsOld}/${prodOld} (${oldQty}L, ${oldCurrent}→${afterOld}), new ${fsNew}/${prodNew} (${newQty}L, ${newCurrent}→${afterNew})`,
+            oldValue: { ltr: oldQty, fs_id: fsOld, product_id: prodOld },
+            newValue: { ltr: newQty, fs_id: fsNew, product_id: prodNew },
+            recordType: 'stock',
+            recordId: parseInt(id)
+          });
+        }
+      }
+    } catch (deltaError) {
+      console.warn('⚠️ Quantity/Station/Product delta handling failed:', deltaError);
+    }
+    
     // Build update query dynamically - include all fields even if empty
     const updateFields = [];
     const updateValues = [];

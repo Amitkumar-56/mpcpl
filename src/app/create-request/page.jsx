@@ -1,11 +1,11 @@
 'use client';
 
+import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import Footer from '../../components/Footer';
 import Header from '../../components/Header';
 import Sidebar from '../../components/sidebar';
-import { useSession } from '@/context/SessionContext';
 
 export default function CreateRequestPage() {
   const router = useRouter();
@@ -14,6 +14,7 @@ export default function CreateRequestPage() {
   const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
 
   const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
   const [productCodes, setProductCodes] = useState([]);
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -24,6 +25,7 @@ export default function CreateRequestPage() {
 
   const [formData, setFormData] = useState({
     customer: '',
+    product_id: '',
     products_codes: '',
     station_id: '',
     vehicle_no: '',
@@ -37,6 +39,9 @@ export default function CreateRequestPage() {
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [calculatedBarrels, setCalculatedBarrels] = useState(0);
   const [maxQuantity, setMaxQuantity] = useState(0);
+  const [allowedStations, setAllowedStations] = useState([]);
+  const [allowedStationIds, setAllowedStationIds] = useState(new Set());
+  const [stationError, setStationError] = useState('');
 
   // Product configuration based on product_id
   const productConfig = {
@@ -108,25 +113,25 @@ export default function CreateRequestPage() {
       try {
         setLoading(true);
         setError('');
-        const [customersRes, productCodesRes, stationsRes] = await Promise.all([
+        const [customersRes, productsRes, stationsRes] = await Promise.all([
           fetch('/api/customers'),
-          fetch('/api/create-request'),
+          fetch('/api/products'),
           fetch('/api/stations')
         ]);
 
         if (!customersRes.ok) throw new Error('Failed to fetch customers');
-        if (!productCodesRes.ok) throw new Error('Failed to fetch product codes');
+        if (!productsRes.ok) throw new Error('Failed to fetch products');
         if (!stationsRes.ok) throw new Error('Failed to fetch stations');
 
-        const [customersData, productCodesData, stationsData] = await Promise.all([
+        const [customersData, productsData, stationsData] = await Promise.all([
           customersRes.json(),
-          productCodesRes.json(),
+          productsRes.json(),
           stationsRes.json(),
         ]);
 
-        console.log('📦 Product codes data:', productCodesData);
         setCustomers(customersData);
-        setProductCodes(productCodesData);
+        setProducts(productsData);
+        setProductCodes([]);
         setStations(stationsData);
       } catch (err) {
         console.error('❌ Fetch error:', err);
@@ -137,6 +142,36 @@ export default function CreateRequestPage() {
     }
     fetchData();
   }, []);
+
+  useEffect(() => {
+    if (!formData.products_codes) return;
+    const selectedCode = productCodes.find(p => p.id === parseInt(formData.products_codes));
+    if (!selectedCode) return;
+    const pcode = (selectedCode.pcode || '').toUpperCase();
+    const pid = parseInt(selectedCode.product_id);
+    let category = 'retail';
+    if (pid === 2 || pid === 3) {
+      const norm = pcode.replace(/\s+/g, '');
+      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcode.includes('RTL') || pcode.includes('RETAIL');
+      category = isRetail ? 'retail' : 'bulk';
+    } else if (pid === 4) {
+      const norm = pcode.toUpperCase().replace(/\s+/g, '');
+      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
+      else category = 'retail';
+    } else if (pid === 5) {
+      if (pcode.includes('BUCKET')) category = 'bulk';
+      else category = 'retail';
+    }
+    let minValue = 1;
+    if (pid === 2 || pid === 3) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 4) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 5) {
+      minValue = category === 'bulk' ? 25 : 1;
+    }
+    setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
+  }, [formData.products_codes, productCodes]);
 
   // ✅ FIX: Move all hooks BEFORE early returns to maintain hook order
   // Barrel calculation - 200 liters per barrel
@@ -225,6 +260,61 @@ export default function CreateRequestPage() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+
+    if (name === 'customer') {
+      setStationError('');
+      setFormData(prev => ({ ...prev, station_id: '' }));
+      setAllowedStations([]);
+      setAllowedStationIds(new Set());
+      (async () => {
+        try {
+          const res = await fetch(`/api/cst/customer-stations?customer_id=${value}`);
+          const json = await res.json();
+          if (json.success) {
+            const stationsList = json.stations || [];
+            setAllowedStations(stationsList);
+            setAllowedStationIds(new Set(stationsList.map(s => parseInt(s.id))));
+            setStations(stationsList.length > 0 ? stationsList : []);
+          }
+        } catch {
+          // keep existing stations if fetch fails
+        }
+      })();
+    }
+
+    if (name === 'product_id') {
+      const productId = parseInt(value);
+      const product = productConfig[productId] || null;
+      setSelectedProduct(product);
+      setMaxQuantity(product?.maxQuantity || 0);
+      setFormData(prev => ({ 
+        ...prev, 
+        products_codes: '',
+        qty: '', 
+        aty: '', 
+        request_type: 'Liter' 
+      }));
+      setCalculatedBarrels(0);
+      setShowFullTankMessage(false);
+      (async () => {
+        try {
+          if (!value) {
+            setProductCodes([]);
+            return;
+          }
+          const res = await fetch(`/api/cst/product-codes?product_id=${value}`);
+          const json = await res.json();
+          if (json.success) {
+            const codes = json.codes || [];
+            setProductCodes(codes);
+          } else {
+            setProductCodes([]);
+          }
+        } catch {
+          setProductCodes([]);
+        }
+      })();
+    }
 
     if (name === 'products_codes') {
       const productCodeId = parseInt(value);
@@ -316,6 +406,13 @@ export default function CreateRequestPage() {
         !formData.vehicle_no || !formData.driver_no || !formData.qty)
       return alert('Please fill all required fields.');
 
+    if (allowedStationIds.size > 0 && !allowedStationIds.has(parseInt(formData.station_id))) {
+      setStationError('This station is not allotted to this customer');
+      return alert('This station is not allotted to this customer');
+    } else {
+      setStationError('');
+    }
+
     // ✅ STRICT Vehicle Number Validation - NO SPACES ALLOWED
     if (formData.vehicle_no.includes(' ')) {
       return alert('❌ Spaces are not allowed in Vehicle Number! Please remove spaces.');
@@ -335,9 +432,17 @@ export default function CreateRequestPage() {
     }
 
     const quantity = parseInt(formData.qty) || 0;
-    if (quantity < selectedProduct.min) {
-      const minUnit = selectedProduct.min === 1 ? 'liter' : 'liters';
-      return alert(`Minimum quantity for this product is ${selectedProduct.min} ${minUnit}.`);
+    if (selectedProduct.type === 'bucket') {
+      const buckets = parseInt(formData.aty) || 0;
+      if (buckets < (selectedProduct.min || 1)) {
+        const unit = (selectedProduct.min || 1) === 1 ? 'bucket' : 'buckets';
+        return alert(`Minimum quantity for this product is ${selectedProduct.min} ${unit}.`);
+      }
+    } else {
+      if (quantity < (selectedProduct.min || 1)) {
+        const minUnit = (selectedProduct.min || 1) === 1 ? 'liter' : 'liters';
+        return alert(`Minimum quantity for this product is ${selectedProduct.min} ${minUnit}.`);
+      }
     }
 
     // Only validate maxQuantity for non-bucket products
@@ -503,12 +608,36 @@ export default function CreateRequestPage() {
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Product *</label>
-                  <select name="products_codes" value={formData.products_codes} onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" required>
+                  <select 
+                    name="product_id" 
+                    value={formData.product_id} 
+                    onChange={handleChange}
+                    className="border border-gray-300 rounded p-2" 
+                    required
+                  >
                     <option value="">Select Product</option>
+                    {products.map(p => (
+                      <option key={p.id} value={p.id}>
+                        {p.pname || p.product_name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col">
+                  <label className="mb-1 font-medium">Select Product Code (Sub-Product) *</label>
+                  <select 
+                    name="products_codes" 
+                    value={formData.products_codes} 
+                    onChange={handleChange}
+                    className="border border-gray-300 rounded p-2" 
+                    required
+                    disabled={!formData.product_id || productCodes.length === 0}
+                  >
+                    <option value="">{productCodes.length === 0 ? 'No sub-products available' : 'Select Product Code'}</option>
                     {productCodes.map(p => (
                       <option key={p.id} value={p.id}>
-                        {p.pcode} {p.product_name ? `(${p.product_name})` : ''}
+                        {p.pcode}
                       </option>
                     ))}
                   </select>

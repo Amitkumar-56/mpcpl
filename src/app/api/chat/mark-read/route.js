@@ -19,7 +19,7 @@ export async function POST(request) {
     const senderToUpdate = userType === 'employee' ? 'customer' : 'employee';
 
     const result = await executeQuery(
-      `UPDATE chat_messages SET status = 'read' 
+      `UPDATE messages SET status = 'read' 
        WHERE customer_id = ? 
        AND sender = ? 
        AND status != 'read'`,

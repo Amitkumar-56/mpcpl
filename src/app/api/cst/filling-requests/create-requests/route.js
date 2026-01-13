@@ -78,6 +78,23 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
+    const blRows = await executeQuery(
+      'SELECT blocklocation FROM customers WHERE id = ?',
+      [parseInt(customer_id)]
+    );
+    const bl = blRows.length > 0 ? String(blRows[0].blocklocation || '').trim() : '';
+    const allowedIds = bl
+      .split(',')
+      .map(x => x.trim())
+      .filter(x => x !== '' && !isNaN(parseInt(x)))
+      .map(x => parseInt(x));
+    if (!allowedIds.includes(parseInt(station_id))) {
+      return NextResponse.json({
+        success: false,
+        message: `Selected station is not allowed for this customer`
+      }, { status: 403 });
+    }
+
     // Generate RID
     const lastRequestQuery = `SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1`;
     const lastRequest = await executeQuery(lastRequestQuery);

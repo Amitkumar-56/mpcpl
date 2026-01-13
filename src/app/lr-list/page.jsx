@@ -7,7 +7,6 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useState } from 'react';
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
-import EntityLogs from "@/components/EntityLogs";
 
 // Component to fetch and display shipment logs
 function ShipmentLogs({ shipmentId }) {
@@ -19,10 +18,11 @@ function ShipmentLogs({ shipmentId }) {
       try {
         setLoading(true);
         // Fetch audit logs for this shipment
-        const response = await fetch(`/api/audit-logs?record_type=shipment&record_id=${shipmentId}`);
+        const response = await fetch(`/api/audit-logs?record_type=lr&record_id=${shipmentId}`);
         const result = await response.json();
-        if (result.success && result.logs) {
-          setLogs(result.logs);
+        if (result.success) {
+          const logsData = Array.isArray(result.logs) ? result.logs : (result.data || []);
+          setLogs(logsData);
         }
       } catch (error) {
         console.error('Error fetching shipment logs:', error);
@@ -167,7 +167,7 @@ function LRManagementContent() {
       setError('');
       
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const timeoutId = setTimeout(() => controller.abort(), 20000);
       
       const response = await fetch('/api/lr-list', {
         signal: controller.signal,
@@ -252,6 +252,14 @@ function LRManagementContent() {
               <p className="text-gray-600 mt-1">
                 Total {shipments.length} shipment{shipments.length !== 1 ? 's' : ''}
               </p>
+              <div className="mt-3">
+                <Link
+                  href="/driver-cash-collection-history"
+                  className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 py-1.5 rounded-lg transition duration-200 text-sm"
+                >
+                  Driver Cash Collection History
+                </Link>
+              </div>
             </div>
             
             {/* 🔥 CREATE LR BUTTON - Show if user has create permission */}

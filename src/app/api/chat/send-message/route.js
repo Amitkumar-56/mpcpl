@@ -36,6 +36,31 @@ export async function POST(request) {
       [numericEmployeeId, numericCustomerId]
     );
 
+    // Emit realtime events if socket server is available
+    try {
+      const io = global._io;
+      if (io) {
+        const [savedMessage] = await executeQuery(
+          `SELECT m.*, ep.name as employee_name 
+           FROM messages m 
+           LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
+           WHERE m.id = ?`,
+          [result.insertId]
+        );
+        const messageData = {
+          id: savedMessage.id,
+          text: savedMessage.text,
+          sender: savedMessage.sender,
+          customer_id: savedMessage.customer_id,
+          employee_id: savedMessage.employee_id,
+          status: savedMessage.status,
+          timestamp: savedMessage.timestamp,
+          employee_name: savedMessage.employee_name || employeeName,
+        };
+        io.to(`customer_${numericCustomerId}`).emit('new_message', { message: messageData });
+      }
+    } catch (e) {}
+
     return NextResponse.json({ 
       success: true, 
       message: 'Message sent successfully',

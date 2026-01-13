@@ -266,12 +266,12 @@ export async function POST(request) {
           }
         }
         
-        // Check if performed_by_name column exists
-        const colsInfo = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
+        // Check if performed_by_name column exists (correct rows handling)
+        const [colsInfoRows] = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
         let insertQuery = '';
         let insertParams = [];
         
-        if (colsInfo.length > 0) {
+        if (colsInfoRows && colsInfoRows.length > 0) {
           // Column exists, include it
           insertQuery = `
             INSERT INTO stock_transfer_logs 
@@ -345,6 +345,8 @@ export async function POST(request) {
         userName, 
         available_stock_from, 
         new_stock_from,
+        dest_current_stock: destCurrentStock,
+        dest_new_stock: destNewStock,
         transferQuantity 
       };
     });
@@ -358,8 +360,22 @@ export async function POST(request) {
       userName: result.userName,
       action: 'add',
       remarks: `Stock transferred: ${result.transferQuantity} Ltr of ${result.productName} from ${result.stationFromName} to ${result.stationToName}`,
-      oldValue: { stock: result.available_stock_from, station_id: station_from, product_id: product },
-      newValue: { stock: result.new_stock_from, station_id: station_from, product_id: product, transferred_to: station_to, quantity: result.transferQuantity },
+      oldValue: { 
+        stock: result.available_stock_from, 
+        station_id: station_from, 
+        product_id: product,
+        dest_stock: result.dest_current_stock,
+        dest_station_id: station_to
+      },
+      newValue: { 
+        stock: result.new_stock_from, 
+        station_id: station_from, 
+        product_id: product, 
+        transferred_to: station_to, 
+        quantity: result.transferQuantity,
+        dest_stock: result.dest_new_stock,
+        dest_station_id: station_to
+      },
       fieldName: 'stock',
       recordType: 'stock_transfer',
       recordId: result.transferResult.insertId

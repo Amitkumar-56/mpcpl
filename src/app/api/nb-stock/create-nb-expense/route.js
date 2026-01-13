@@ -86,29 +86,29 @@ export async function POST(req) {
       );
     }
 
-    // Check stock availability
-    const stockCheck = await executeQuery(
-      `SELECT stock FROM non_billing_stocks 
-       WHERE station_id = ? AND product_id = ?`,
+    // Check total stock availability (aggregate across possible multiple rows)
+    const stockAggregateRows = await executeQuery(
+      `SELECT id, stock FROM non_billing_stocks 
+       WHERE station_id = ? AND product_id = ? 
+       ORDER BY COALESCE(updated_at, created_at) DESC, id DESC`,
       [station_id, product_id]
     );
 
-    if (stockCheck.length === 0) {
+    if (stockAggregateRows.length === 0) {
       return NextResponse.json(
         { success: false, error: "Selected stock item not found" },
         { status: 404 }
       );
     }
 
-    const currentStock = parseFloat(stockCheck[0].stock);
-    const oldStock = currentStock;
-    const newStock = currentStock - amount;
+    const totalCurrentStock = stockAggregateRows.reduce((sum, r) => sum + (parseFloat(r.stock) || 0), 0);
+    const oldStock = totalCurrentStock;
     
-    if (currentStock < amount) {
+    if (totalCurrentStock < amount) {
       return NextResponse.json(
         { 
           success: false, 
-          error: `Insufficient stock! Available: ${currentStock}, Requested: ${amount}` 
+          error: `Insufficient stock! Available: ${totalCurrentStock}, Requested: ${amount}` 
         },
         { status: 400 }
       );
@@ -122,28 +122,37 @@ export async function POST(req) {
       [payment_date, title, reason, paid_to, amount, station_id, product_id]
     );
 
-    // ✅ FIX: Update stock - check if updated_at column exists
-    try {
-      // Try with updated_at first
-      await executeQuery(
-        `UPDATE non_billing_stocks 
-         SET stock = stock - ?, updated_at = NOW(), updated_by = ?
-         WHERE station_id = ? AND product_id = ?`,
-        [amount, user_id, station_id, product_id]
-      );
-    } catch (updateError) {
-      // If updated_at doesn't exist, try without it
-      if (updateError.message && updateError.message.includes('updated_at')) {
-        await executeQuery(
-          `UPDATE non_billing_stocks 
-           SET stock = stock - ?, updated_by = ?
-           WHERE station_id = ? AND product_id = ?`,
-          [amount, user_id, station_id, product_id]
-        );
-      } else {
-        throw updateError;
+    // ✅ Update stock across rows without over-deducting:
+    // Deduct from latest rows first until the requested amount is fully deducted
+    {
+      let remaining = amount;
+      for (const row of stockAggregateRows) {
+        if (remaining <= 0) break;
+        const rowStock = parseFloat(row.stock) || 0;
+        if (rowStock <= 0) continue;
+        const deduct = Math.min(remaining, rowStock);
+        // Try to update with updated_at column; fallback if column doesn't exist
+        try {
+          await executeQuery(
+            `UPDATE non_billing_stocks 
+             SET stock = stock - ?, updated_at = NOW(), updated_by = ?
+             WHERE id = ?`,
+            [deduct, user_id, row.id]
+          );
+        } catch (updateError) {
+          // Fallback without updated_at
+          await executeQuery(
+            `UPDATE non_billing_stocks 
+             SET stock = stock - ?, updated_by = ?
+             WHERE id = ?`,
+            [deduct, user_id, row.id]
+          );
+        }
+        remaining -= deduct;
       }
+      // Safety: remaining should be 0 here based on availability check
     }
+    const newStock = oldStock - amount;
     
     // ✅ Create filling_history entry for NB stock expense (Inward - stock deducted)
     try {

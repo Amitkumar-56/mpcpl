@@ -2,7 +2,7 @@
   "name": "MPCL Customer Portal",
   "short_name": "MPCL CST",
   "description": "MPCL Customer Self Service Portal",
-  "start_url": "/cst/cstdashboard",
+  "start_url": "/cst/login",
   "scope": "/cst/",
   "display": "standalone",
   "background_color": "#ffffff",

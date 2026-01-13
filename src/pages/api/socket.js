@@ -47,29 +47,42 @@ export default function SocketHandler(req, res) {
         });
         socket.on("customer_message", async (data) => {
           try {
-            const { customerId, text, customerName, tempId } = data;
+            const { customerId, text, customerName, tempId, messageId } = data;
             if (!customerId || !text) {
               socket.emit("error", { message: "Customer ID and text are required" });
               return;
             }
-            const result = await executeQuery(
-              `INSERT INTO messages (text, sender, customer_id, status, timestamp) 
-               VALUES (?, 'customer', ?, 'sent', NOW())`,
-              [text, customerId]
-            );
-            await executeQuery(
-              `INSERT INTO chat_sessions (customer_id, last_message_at, status) 
-               VALUES (?, NOW(), 'awaiting') 
-               ON DUPLICATE KEY UPDATE last_message_at = NOW(), status = 'awaiting'`,
-              [customerId]
-            );
-            const [savedMessage] = await executeQuery(
-              `SELECT m.*, c.name as customer_name 
-               FROM messages m 
-               LEFT JOIN customers c ON m.customer_id = c.id 
-               WHERE m.id = ?`,
-              [result.insertId]
-            );
+            let savedMessage;
+            if (messageId) {
+              const [row] = await executeQuery(
+                `SELECT m.*, c.name as customer_name 
+                 FROM messages m 
+                 LEFT JOIN customers c ON m.customer_id = c.id 
+                 WHERE m.id = ?`,
+                [messageId]
+              );
+              savedMessage = row;
+            } else {
+              const result = await executeQuery(
+                `INSERT INTO messages (text, sender, customer_id, status, timestamp) 
+                 VALUES (?, 'customer', ?, 'sent', NOW())`,
+                [text, customerId]
+              );
+              await executeQuery(
+                `INSERT INTO chat_sessions (customer_id, last_message_at, status) 
+                 VALUES (?, NOW(), 'awaiting') 
+                 ON DUPLICATE KEY UPDATE last_message_at = NOW(), status = 'awaiting'`,
+                [customerId]
+              );
+              const [row] = await executeQuery(
+                `SELECT m.*, c.name as customer_name 
+                 FROM messages m 
+                 LEFT JOIN customers c ON m.customer_id = c.id 
+                 WHERE m.id = ?`,
+                [result.insertId]
+              );
+              savedMessage = row;
+            }
             const messageData = {
               id: savedMessage.id,
               text: savedMessage.text,
@@ -123,28 +136,41 @@ export default function SocketHandler(req, res) {
         });
         socket.on("employee_message", async (data) => {
           try {
-            const { customerId, text, employeeId, employeeName } = data;
+            const { customerId, text, employeeId, employeeName, messageId } = data;
             if (!customerId || !text || !employeeId) {
               socket.emit("error", { message: "Customer ID, text and employee ID are required" });
               return;
             }
-            const result = await executeQuery(
-              `INSERT INTO messages (text, sender, customer_id, employee_id, status, timestamp) 
-               VALUES (?, 'employee', ?, ?, 'delivered', NOW())`,
-              [text, customerId, employeeId]
-            );
-            await executeQuery(
-              `UPDATE chat_sessions SET employee_id = ?, last_message_at = NOW(), status = 'active' 
-               WHERE customer_id = ?`,
-              [employeeId, customerId]
-            );
-            const [savedMessage] = await executeQuery(
-              `SELECT m.*, ep.name as employee_name 
-               FROM messages m 
-               LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
-               WHERE m.id = ?`,
-              [result.insertId]
-            );
+            let savedMessage;
+            if (messageId) {
+              const [row] = await executeQuery(
+                `SELECT m.*, ep.name as employee_name 
+                 FROM messages m 
+                 LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
+                 WHERE m.id = ?`,
+                [messageId]
+              );
+              savedMessage = row;
+            } else {
+              const result = await executeQuery(
+                `INSERT INTO messages (text, sender, customer_id, employee_id, status, timestamp) 
+                 VALUES (?, 'employee', ?, ?, 'delivered', NOW())`,
+                [text, customerId, employeeId]
+              );
+              await executeQuery(
+                `UPDATE chat_sessions SET employee_id = ?, last_message_at = NOW(), status = 'active' 
+                 WHERE customer_id = ?`,
+                [employeeId, customerId]
+              );
+              const [row] = await executeQuery(
+                `SELECT m.*, ep.name as employee_name 
+                 FROM messages m 
+                 LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
+                 WHERE m.id = ?`,
+                [result.insertId]
+              );
+              savedMessage = row;
+            }
             const messageData = {
               id: savedMessage.id,
               text: savedMessage.text,

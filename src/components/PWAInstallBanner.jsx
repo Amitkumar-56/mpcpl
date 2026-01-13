@@ -10,6 +10,7 @@ export default function PWAInstallBanner() {
   const [isInstalled, setIsInstalled] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
   const [appName, setAppName] = useState('MPCL App');
+  const [isIOS, setIsIOS] = useState(false);
 
   useEffect(() => {
     // Determine app name based on pathname
@@ -27,28 +28,27 @@ export default function PWAInstallBanner() {
   }, [pathname]);
 
   useEffect(() => {
-    // Check if already installed
     if (typeof window !== 'undefined') {
-      // Check if app is running in standalone mode (installed)
       if (window.matchMedia('(display-mode: standalone)').matches || 
           window.navigator.standalone === true) {
         setIsInstalled(true);
         return;
       }
-
-      // Check if user has previously dismissed the banner
       const dismissed = localStorage.getItem('pwa-banner-dismissed');
       if (dismissed) {
         const dismissedTime = parseInt(dismissed);
         const daysSinceDismissed = (Date.now() - dismissedTime) / (1000 * 60 * 60 * 24);
-        // Show again after 7 days
         if (daysSinceDismissed < 7) {
           setIsDismissed(true);
           return;
         }
       }
-
-      // Register service worker
+      const ua = window.navigator.userAgent.toLowerCase();
+      const iOS = /iphone|ipad|ipod/.test(ua);
+      setIsIOS(iOS);
+      if (iOS) {
+        setShowBanner(true);
+      }
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker
           .register('/sw.js', { scope: '/' })
@@ -59,18 +59,13 @@ export default function PWAInstallBanner() {
             console.log('❌ Service Worker registration failed:', error);
           });
       }
-
-      // Handle install prompt
       const handleBeforeInstallPrompt = (e) => {
         e.preventDefault();
         setDeferredPrompt(e);
-        setShowBanner(true);
+        if (!iOS) setShowBanner(true);
         console.log('✅ Install prompt available');
       };
-
       window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-
-      // Handle app installed
       const handleAppInstalled = () => {
         console.log('✅ PWA installed successfully');
         setDeferredPrompt(null);
@@ -78,9 +73,7 @@ export default function PWAInstallBanner() {
         setIsInstalled(true);
         localStorage.removeItem('pwa-banner-dismissed');
       };
-
       window.addEventListener('appinstalled', handleAppInstalled);
-
       return () => {
         window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
         window.removeEventListener('appinstalled', handleAppInstalled);
@@ -134,18 +127,22 @@ export default function PWAInstallBanner() {
             </div>
             <div className="flex-1">
               <h3 className="font-bold text-lg mb-1">Install {appName}</h3>
-              <p className="text-sm text-white/90">
-                Get the app on your device for faster access and offline support
-              </p>
+              {!isIOS ? (
+                <p className="text-sm text-white/90">Get the app on your device for faster access and offline support</p>
+              ) : (
+                <p className="text-sm text-white/90">iPhone पर इंस्टॉल करने के लिए Share से Add to Home Screen चुनें</p>
+              )}
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              onClick={handleInstallClick}
-              className="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105"
-            >
-              Install Now
-            </button>
+            {!isIOS && (
+              <button
+                onClick={handleInstallClick}
+                className="bg-white text-purple-600 px-6 py-2 rounded-lg font-semibold hover:bg-gray-100 transition-colors shadow-lg hover:shadow-xl transform hover:scale-105"
+              >
+                Install Now
+              </button>
+            )}
             <button
               onClick={handleDismiss}
               className="text-white/80 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"

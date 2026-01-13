@@ -1,29 +1,27 @@
 // src/app/dashboard/page.js
 "use client";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    BiCalendar,
-    BiChart,
-    BiCheckCircle,
-    BiDollar,
-    BiError,
-    BiGroup,
-    BiHide,
-    BiMessageRounded,
-    BiPackage,
-    BiRefresh,
-    BiSend,
-    BiShoppingBag,
-    BiShow,
-    BiTrendingDown,
-    BiTrendingUp,
-    BiX
+  BiCalendar,
+  BiChart,
+  BiCheckCircle,
+  BiDollar,
+  BiError,
+  BiGroup,
+  BiHide,
+  BiMessageRounded,
+  BiPackage,
+  BiRefresh,
+  BiSend,
+  BiShoppingBag,
+  BiShow,
+  BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -272,16 +270,10 @@ export default function DashboardPage() {
     }
   }, [sessionUser]);
 
-  // SINGLE Socket Connection Setup (Skip for Staff/Incharge)
+  // Socket Connection Setup
   useEffect(() => {
     if (!sessionUser?.id) {
       console.log('Dashboard: No session user, skipping socket setup');
-      return;
-    }
-    
-    // ✅ Skip socket setup for Staff/Incharge (role 1 or 2)
-    if (sessionUser?.role === 1 || sessionUser?.role === 2) {
-      console.log('Dashboard: Skipping socket setup for Staff/Incharge');
       return;
     }
 
@@ -606,7 +598,7 @@ export default function DashboardPage() {
                     className="block"
                   >
                     <StatCard
-                      title="Yesterday Outstanding"
+                      title="Til Yesterday Outstanding"
                       amount={stats.clientYesterdayOutstanding}
                       icon={<BiDollar />}
                       gradient="from-blue-500 to-blue-600"
@@ -633,11 +625,11 @@ export default function DashboardPage() {
               {hasStockView && (
                 <div className="mb-6">
                   <h2 className="text-xl font-bold text-gray-800 mb-4">Stock Management</h2>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <a href="/stock-history" className="block">
                       <InfoCard
                         title="Stock History"
-                        value={stats.totalTransactions || 0}
+                        value={stats.totalStockHistory || 0}
                         icon={<BiCalendar />}
                         color="purple"
                       />
@@ -645,7 +637,7 @@ export default function DashboardPage() {
                     <a href="/all-stock" className="block">
                       <InfoCard
                         title="All Stocks"
-                        value={stats.totalClients || 0}
+                        value={stats.totalStocks || 0}
                         icon={<BiShoppingBag />}
                         color="blue"
                       />
@@ -653,7 +645,7 @@ export default function DashboardPage() {
                     <a href="/stock-requests" className="block">
                       <InfoCard
                         title="Stock Requests"
-                        value={stats.pendingPayments || 0}
+                        value={stats.totalStockRequests || 0}
                         icon={<BiPackage />}
                         color="yellow"
                       />
@@ -665,13 +657,21 @@ export default function DashboardPage() {
               {/* Quick Stats */}
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <a href="/customers" className="block">
                     <InfoCard
                       title="Total Clients"
                       value={stats.totalClients}
                       icon={<BiGroup />}
                       color="purple"
+                    />
+                  </a>
+                  <a href="/stations" className="block">
+                    <InfoCard
+                      title="Total Stations"
+                      value={stats.totalStations || 0}
+                      icon={<BiPackage />}
+                      color="green"
                     />
                   </a>
                   <a href="/filling-requests" className="block">

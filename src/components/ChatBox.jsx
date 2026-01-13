@@ -47,24 +47,26 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
   // Initialize socket connection
   useEffect(() => {
-    const newSocket = io({
-      path: '/api/socket',
-      transports: ['websocket', 'polling'],
-    });
+    const initialize = async () => {
+      try { await fetch('/api/socket'); } catch (e) {}
+      const newSocket = io({
+        path: '/api/socket',
+        transports: ['websocket', 'polling'],
+      });
 
-    newSocket.on('connect', () => {
-      console.log('✅ Chat socket connected');
-      if (customerId) {
-        newSocket.emit('join_customer_room', { customerId });
-      }
-    });
+      newSocket.on('connect', () => {
+        console.log('✅ Chat socket connected');
+        if (customerId) {
+          newSocket.emit('customer_join', { customerId, customerName });
+        }
+      });
 
-    newSocket.on('disconnect', () => {
-      console.log('❌ Chat socket disconnected');
-    });
+      newSocket.on('disconnect', () => {
+        console.log('❌ Chat socket disconnected');
+      });
 
-    // Listen for new messages
-    newSocket.on('new_message', (data) => {
+      // Listen for new messages
+      newSocket.on('new_message', (data) => {
       console.log('📨 New message received:', data);
       
       // Play notification sound
@@ -117,18 +119,20 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
         }
       }
 
-      scrollToBottom();
-    });
+        scrollToBottom();
+      });
 
-    setSocket(newSocket);
+      setSocket(newSocket);
 
-    return () => {
-      newSocket.close();
-      if (ringIntervalRef.current) {
-        clearInterval(ringIntervalRef.current);
-        ringIntervalRef.current = null;
-      }
+      return () => {
+        newSocket.close();
+        if (ringIntervalRef.current) {
+          clearInterval(ringIntervalRef.current);
+          ringIntervalRef.current = null;
+        }
+      };
     };
+    initialize();
   }, [customerId, ringing, showChat]);
 
   useEffect(() => {
@@ -234,7 +238,7 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
       await fetch('/api/chat/mark-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId, employeeId: selectedEmployee.id })
+        body: JSON.stringify({ customerId, userId: selectedEmployee.id, userType: 'customer' })
       });
     } catch (error) {
       console.error('Error marking as read:', error);
@@ -304,6 +308,15 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
               return true;
             });
           });
+          if (socket) {
+            socket.emit('customer_message', {
+              customerId,
+              text: messageText,
+              customerName,
+              tempId: tempId,
+              messageId: data.messageId
+            });
+          }
         } else {
           throw new Error(data.error || 'Failed to send message');
         }

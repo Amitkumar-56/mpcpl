@@ -172,7 +172,7 @@ export default function VehiclesPage() {
             {/* Vehicle list container */}
             <div className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden">
               {/* Desktop Table */}
-              <div className="hidden md:block overflow-auto">
+              <div className="hidden md:block overflow-x-auto">
                 <table className="min-w-full divide-y divide-purple-100/50">
                   <thead className="bg-gray-50 border-b border-gray-200">
                     <tr>
