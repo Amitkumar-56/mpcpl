@@ -239,7 +239,7 @@ export async function GET(request) {
 
     let processedRequests = []; // define at the top
 
-if (requests && requests.length > 0) {
+    if (requests && requests.length > 0) {
   processedRequests = requests.map((request) => {
     const createdName =
       request.created_by_name &&

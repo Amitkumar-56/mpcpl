@@ -28,155 +28,145 @@ export default function SupplyDetailsPage() {
       setLoading(true);
       setError('');
       
-      // Fetch stock details
-      const stockResponse = await fetch(`/api/stock`);
+      console.log('🔍 Fetching stock details for ID:', id);
+      
+      // Fetch stock details using the new API endpoint
+      const stockResponse = await fetch(`/api/stock/${id}`);
       const stockResult = await stockResponse.json();
       
+      console.log('📦 Stock API Response:', stockResult);
+      
+      if (!stockResponse.ok) {
+        throw new Error(stockResult.error || 'Failed to fetch stock details');
+      }
+      
       if (stockResult.success && stockResult.data) {
-        const stockItem = stockResult.data.find(item => item.id === parseInt(id));
-        if (stockItem) {
-          setStockData(stockItem);
-          
-          // Fetch history from multiple sources
-          const historyData = [];
+        setStockData(stockResult.data);
+        console.log('✅ Stock data loaded:', stockResult.data);
+        
+        // Fetch history from multiple sources
+        const historyData = [];
           
           // 1. ✅ Audit logs - Status changes and edits (MOST IMPORTANT)
-          try {
-            const auditResponse = await fetch(`/api/audit-logs?record_type=stock&record_id=${id}&limit=100`);
-            const auditResult = await auditResponse.json();
-            if (auditResult.success && auditResult.data) {
-              auditResult.data.forEach(log => {
-                // Parse old and new values to extract status changes
-                let oldStatus = null;
-                let newStatus = null;
-                let actionText = log.action;
-                
-                try {
-                  if (log.old_value && typeof log.old_value === 'object') {
-                    oldStatus = log.old_value.status;
-                  } else if (log.old_value && typeof log.old_value === 'string') {
-                    const parsed = JSON.parse(log.old_value);
-                    oldStatus = parsed.status;
-                  }
-                  
-                  if (log.new_value && typeof log.new_value === 'object') {
-                    newStatus = log.new_value.status;
-                  } else if (log.new_value && typeof log.new_value === 'string') {
-                    const parsed = JSON.parse(log.new_value);
-                    newStatus = parsed.status;
-                  }
-                } catch (e) {
-                  // Ignore parse errors
+        try {
+          const auditResponse = await fetch(`/api/audit-logs?record_type=stock&record_id=${id}&limit=100`);
+          const auditResult = await auditResponse.json();
+          if (auditResult.success && auditResult.data) {
+            auditResult.data.forEach(log => {
+              // Parse old and new values to extract status changes
+              let oldStatus = null;
+              let newStatus = null;
+              let actionText = log.action;
+              
+              try {
+                if (log.old_value && typeof log.old_value === 'object') {
+                  oldStatus = log.old_value.status;
+                } else if (log.old_value && typeof log.old_value === 'string') {
+                  const parsed = JSON.parse(log.old_value);
+                  oldStatus = parsed.status;
                 }
                 
-                // Format status change message
-                if (log.action === 'status_change' && oldStatus && newStatus) {
-                  const statusMap = {
-                    'pending': 'Pending',
-                    'on_the_way': 'On The Way',
-                    'delivered': 'Delivered',
-                    '1': 'Pending',
-                    '2': 'On The Way',
-                    '3': 'Delivered'
-                  };
-                  actionText = `Status Changed: ${statusMap[oldStatus] || oldStatus} → ${statusMap[newStatus] || newStatus}`;
-                } else if (log.action === 'edit') {
-                  actionText = 'Stock Details Edited';
+                if (log.new_value && typeof log.new_value === 'object') {
+                  newStatus = log.new_value.status;
+                } else if (log.new_value && typeof log.new_value === 'string') {
+                  const parsed = JSON.parse(log.new_value);
+                  newStatus = parsed.status;
                 }
-                
-                // ✅ FIX: Use user_display_name first (from employee_profile join), then user_name, then fallback
-                const changedByName = log.user_display_name || log.user_name || log.employee_name || (log.user_id ? `Employee ID: ${log.user_id}` : 'N/A');
-                
-                historyData.push({
-                  type: 'audit',
-                  action: actionText,
-                  changed_by: changedByName !== 'System' ? changedByName : (log.user_id ? `Employee ID: ${log.user_id}` : 'System'),
-                  date: log.created_at || `${log.action_date} ${log.action_time}`,
-                  status: newStatus || oldStatus || log.new_value?.status || log.old_value?.status,
-                  remarks: log.remarks || log.remarks,
-                  old_status: oldStatus,
-                  new_status: newStatus,
-                  section: log.section,
-                  user_id: log.user_id // Store user_id for debugging
-                });
+              } catch (parseErr) {
+                console.log('Could not parse audit log values');
+              }
+              
+              historyData.push({
+                type: 'audit',
+                action: actionText || 'Status Change',
+                changed_by: log.user_name || log.employee_name || 'System',
+                date: log.created_at,
+                old_status: oldStatus,
+                new_status: newStatus,
+                details: log.section || 'Stock Update'
               });
-            }
-          } catch (err) {
-            console.log('No audit logs available:', err);
+            });
           }
-          
-          // 2. Stock logs if available
-          try {
-            const logsResponse = await fetch(`/api/stock/dncn?id=${id}`);
-            const logsResult = await logsResponse.json();
-            if (logsResult.success && logsResult.logs) {
-              logsResult.logs.forEach(log => {
-                historyData.push({
-                  type: 'log',
-                  action: log.action || 'Status Change',
-                  changed_by: log.changed_by_name || 'System',
-                  date: log.created_at || log.updated_at,
-                  status: log.status,
-                  remarks: log.remarks
-                });
-              });
-            }
-          } catch (err) {
-            console.log('No stock logs available');
-          }
-          
-          // 3. Stock transfer history
-          try {
-            const transferResponse = await fetch(`/api/stock-transfers?stock_id=${id}`);
-            const transferResult = await transferResponse.json();
-            if (transferResult.success && transferResult.data) {
-              transferResult.data.forEach(transfer => {
-                historyData.push({
-                  type: 'transfer',
-                  action: `Stock Transfer: ${transfer.station_from} → ${transfer.station_to}`,
-                  changed_by: transfer.created_by_name || 'System',
-                  date: transfer.created_at,
-                  quantity: transfer.transfer_quantity,
-                  status: transfer.status
-                });
-              });
-            }
-          } catch (err) {
-            console.log('No transfer history available');
-          }
-          
-          // 4. Filling history if linked
-          try {
-            const fillingResponse = await fetch(`/api/filling-requests?stock_id=${id}`);
-            const fillingResult = await fillingResponse.json();
-            if (fillingResult.success && fillingResult.requests) {
-              fillingResult.requests.forEach(filling => {
-                historyData.push({
-                  type: 'filling',
-                  action: `Filling Request: ${filling.rid}`,
-                  changed_by: filling.created_by_name || 'System',
-                  date: filling.created,
-                  status: filling.status,
-                  quantity: filling.qty
-                });
-              });
-            }
-          } catch (err) {
-            console.log('No filling history available');
-          }
-          
-          // Sort by date (newest first)
-          historyData.sort((a, b) => new Date(b.date) - new Date(a.date));
-          setHistory(historyData);
-        } else {
-          setError('Stock record not found');
+        } catch (err) {
+          console.log('No audit logs available');
         }
+        
+        // 2. Stock transfer history
+        try {
+          const transferResponse = await fetch(`/api/stock-transfer-history?stock_id=${id}`);
+          const transferResult = await transferResponse.json();
+          if (transferResult.success && transferResult.transfers) {
+            transferResult.transfers.forEach(transfer => {
+              historyData.push({
+                type: 'transfer',
+                action: `Stock Transfer: ${transfer.station_from} → ${transfer.station_to}`,
+                changed_by: transfer.performed_by_name || 'System',
+                date: transfer.performed_at,
+                quantity: transfer.quantity,
+                status: transfer.status
+              });
+            });
+          }
+        } catch (err) {
+          console.log('No transfer history available');
+        }
+        
+        // 3. DN/CN history
+        try {
+          const dncnResponse = await fetch(`/api/dncn?stock_id=${id}`);
+          const dncnResult = await dncnResponse.json();
+          if (dncnResult.success && dncnResult.records) {
+            dncnResult.records.forEach(dncn => {
+              historyData.push({
+                type: 'dncn',
+                action: `DN/CN: ${dncn.type}`,
+                changed_by: dncn.created_by_name || 'System',
+                date: dncn.created_at,
+                amount: dncn.amount,
+                status: dncn.status
+              });
+            });
+          }
+        } catch (err) {
+          console.log('No DN/CN history available');
+        }
+        
+        // 4. Filling history if linked
+        try {
+          const fillingResponse = await fetch(`/api/filling-requests?stock_id=${id}`);
+          const fillingResult = await fillingResponse.json();
+          if (fillingResult.success && fillingResult.requests) {
+            fillingResult.requests.forEach(filling => {
+              historyData.push({
+                type: 'filling',
+                action: `Filling Request: ${filling.rid}`,
+                changed_by: filling.created_by_name || 'System',
+                date: filling.created,
+                status: filling.status,
+                quantity: filling.qty
+              });
+            });
+          }
+        } catch (err) {
+          console.log('No filling history available');
+        }
+        
+        // Sort by date (newest first)
+        historyData.sort((a, b) => new Date(b.date) - new Date(a.date));
+        setHistory(historyData);
       } else {
-        setError('Failed to fetch stock data');
+        const errorMessage = stockResult.error || 'Stock record not found';
+        const errorDetails = stockResult.available_ids ? 
+          `Available IDs: ${stockResult.available_ids.map(item => `ID: ${item.id} (${item.invoice_number})`).join(', ')}` : 
+          '';
+        
+        console.log('❌ Stock not found:', { requested_id: stockResult.requested_id, available_ids: stockResult.available_ids });
+        
+        setError(`${errorMessage}${errorDetails ? '\n\n' + errorDetails : ''}`);
       }
     } catch (err) {
       console.error('Error fetching supply details:', err);
-      setError('Failed to load supply details');
+      setError(`Failed to load supply details: ${err.message}`);
     } finally {
       setLoading(false);
     }

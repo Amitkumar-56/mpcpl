@@ -19,6 +19,19 @@ export default function Sidebar() {
     setUser(JSON.parse(savedUser));
   }, []); // Remove router dependency to prevent re-renders
 
+  // Lock body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
   const logout = () => {
     // Clear all storage items
     localStorage.removeItem("customer");
@@ -50,20 +63,38 @@ export default function Sidebar() {
       {/* Mobile toggle button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 right-16 z-50 p-2 bg-gray-900 text-white rounded"
+        className="md:hidden fixed top-4 right-4 z-50 p-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
+        aria-label="Toggle menu"
       >
         {isOpen ? <FaTimes /> : <FaBars />}
       </button>
 
+      {/* Overlay backdrop for mobile */}
+      {isOpen && (
+        <div
+          className="md:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={() => setIsOpen(false)}
+        />
+      )}
+
       {/* Sidebar */}
       <aside
-        className={`fixed md:relative z-40 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
+        className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
           isOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0 transition-transform duration-300`}
       >
-        <div className="p-4 border-b border-gray-300">
-          <h2 className="text-lg font-semibold">Welcome, {user?.name}</h2>
-          <p className="text-sm text-gray-600">{user?.station}</p>
+        <div className="p-4 border-b border-gray-300 flex justify-between items-center">
+          <div>
+            <h2 className="text-lg font-semibold">Welcome, {user?.name}</h2>
+            <p className="text-sm text-gray-600">{user?.station}</p>
+          </div>
+          <button
+            onClick={() => setIsOpen(false)}
+            className="md:hidden p-2 rounded hover:bg-blue-300 transition-colors"
+            aria-label="Close menu"
+          >
+            <FaTimes className="text-gray-700" />
+          </button>
         </div>
         
         <nav className="flex-1 overflow-y-auto py-2 px-2">

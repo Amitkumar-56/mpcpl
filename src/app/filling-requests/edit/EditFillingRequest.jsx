@@ -150,19 +150,21 @@ export default function EditFillingRequest() {
     
     setLoading(true);
 
-    const submitData = new FormData();
-    submitData.append('aqty', formData.aqty);
-    submitData.append('id', id);
-    
-    // Add remark (always send, even if empty)
-    submitData.append('remark', formData.remark || '');
-
-    Object.keys(files).forEach(key => {
-      if (files[key]) submitData.append(key, files[key]);
-    });
-
     try {
-      const res = await fetch('/api/filling-requests/edit', { method: 'POST', body: submitData });
+      const res = await fetch('/api/filling-requests/edit', { 
+        method: 'PUT', 
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: id,
+          aqty: formData.aqty,
+          remark: formData.remark || '',
+          doc1: files.doc1,
+          doc2: files.doc2,
+          doc3: files.doc3
+        })
+      });
       
       let result;
       try {

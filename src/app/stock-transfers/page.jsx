@@ -18,11 +18,11 @@ function TransferLogs({ transferId }) {
     const fetchLogs = async () => {
       try {
         setLoading(true);
-        // Fetch audit logs for this transfer
+        // Fetch stock transfer logs
         const response = await fetch(`/api/entity-logs?entity_type=stock_transfer&entity_id=${transferId}`);
         const result = await response.json();
-        if (result.success && result.audit_logs) {
-          setLogs(result.audit_logs);
+        if (result.success && result.logs) {
+          setLogs(result.logs);
         }
       } catch (error) {
         console.error('Error fetching transfer logs:', error);
@@ -54,12 +54,34 @@ function TransferLogs({ transferId }) {
           <div className="flex justify-between items-start">
             <div>
               <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
-              <span className="ml-2 text-gray-900">{log.user_name || log.userName || 'Unknown User'}</span>
+              <span className="ml-2 text-gray-900">
+                {log.user_name || log.employee_name || log.performed_by_name || 'Unknown User'}
+              </span>
             </div>
             <span className="text-xs text-gray-500">
-              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
+              {log.performed_at_formatted || log.created_at_formatted || 
+               (log.performed_at ? new Date(log.performed_at).toLocaleString('en-IN') : '')}
             </span>
           </div>
+          
+          {/* Show transfer details */}
+          <div className="mt-2 text-xs text-gray-600">
+            <div className="flex items-center space-x-4">
+              {log.station_from_name && (
+                <span>From: {log.station_from_name}</span>
+              )}
+              {log.station_to_name && (
+                <span>To: {log.station_to_name}</span>
+              )}
+              {log.product_name && (
+                <span>Product: {log.product_name}</span>
+              )}
+              {log.quantity && (
+                <span>Qty: {log.quantity}</span>
+              )}
+            </div>
+          </div>
+          
           {log.remarks && (
             <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
           )}

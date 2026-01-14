@@ -34,6 +34,12 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
+  useEffect(() => {
+    const isMobile = typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+    if (isMobile) {
+      setIsCollapsed(true);
+    }
+  }, []);
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
@@ -68,6 +74,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "NB Expenses", icon: <FaMoneyBill />, module: "nb_expenses", path: "/nb-expenses" },
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock_transfers", path: "/stock-transfers" },
+    { name: "Transfer Logs", icon: <FaHistory />, module: "stock_transfer_logs", path: "/stock-transfer-logs" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
     { name: "Users", icon: <FaUsers />, module: "users", path: "/users" },
@@ -99,6 +106,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     nb_balance: "NB Accounts", // ✅ FIX: Added missing mapping
     vouchers: "Voucher",
     stock_transfers: "Stock Transfer", // ✅ FIX: "Stock Transfer" module
+    stock_transfer_logs: "Transfer Logs", // ✅ Added transfer logs mapping
     stock_history: "Stock History", // ✅ Added stock history mapping
     stock_requests: "Stock Requests", // ✅ Added stock requests mapping
     outstanding_history: "Outstanding History", // ✅ Added outstanding history mapping
@@ -132,10 +140,10 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           return false;
         }
         
-        // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer, Attendance
+        // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer, Transfer Logs, Attendance
         const allowedModules = [
           'dashboard', 'filling_requests', 'stock', 'nb_balance', 'nb_expenses', 'nb_stock',
-          'tanker_history', 'stock_transfers', 'loading_stations', 'products', 'attendance'
+          'tanker_history', 'stock_transfers', 'stock_transfer_logs', 'loading_stations', 'products', 'attendance'
         ];
         return allowedModules.includes(item.module);
       });
