@@ -2,13 +2,13 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
+import { FaBell, FaBars, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 export default function CstHeader() {
   const [user, setUser] = useState(null);
   const [notifCount, setNotifCount] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showSidebar, setShowSidebar] = useState(false); // Mobile sidebar
+  const [showSidebar, setShowSidebar] = useState(false);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -17,7 +17,6 @@ export default function CstHeader() {
     if (userData) {
       const parsedUser = JSON.parse(userData);
       setUser(prevUser => {
-        // Only update if user data has actually changed
         if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
           return parsedUser;
         }
@@ -53,7 +52,6 @@ export default function CstHeader() {
   }, []);
 
   const handleLogout = () => {
-    // Clear all storage items
     localStorage.removeItem('customer');
     localStorage.removeItem('cst_token');
     localStorage.removeItem('token');
@@ -62,7 +60,6 @@ export default function CstHeader() {
     sessionStorage.removeItem('user');
     sessionStorage.removeItem('isLoggingOut');
     
-    // Use window.location.replace for hard redirect (clears history and disconnects socket)
     if (typeof window !== 'undefined') {
       window.location.replace('/cst/login');
     } else {
@@ -78,10 +75,20 @@ export default function CstHeader() {
   return (
     <header className="bg-white shadow-sm">
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-        {/* Logo */}
-        <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+        {/* Left Section: Toggle Button and Logo */}
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setShowSidebar(true)}
+            className="p-2 rounded-md hover:bg-gray-100 md:hidden"
+            aria-label="Open menu"
+          >
+            <FaBars className="text-gray-700 text-xl" />
+          </button>
+          
+          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+        </div>
 
-        {/* Search - Only show on dashboard */}
+        {/* Center Section: Search - Only show on dashboard */}
         {pathname === '/cst/cstdashboard' && (
           <div className="hidden sm:flex items-center w-1/2 max-w-lg">
             <input
@@ -95,9 +102,8 @@ export default function CstHeader() {
           </div>
         )}
 
-        {/* User Profile */}
+        {/* Right Section: User Profile */}
         <div className="flex items-center gap-4">
-          {/* Notification with badge */}
           <div className="relative hidden sm:block">
             <FaBell className="text-gray-600 cursor-pointer text-lg" />
             <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs px-1.5 rounded-full">
@@ -105,21 +111,19 @@ export default function CstHeader() {
             </span>
           </div>
 
-          {/* Profile Dropdown / Mobile Sidebar */}
-          <div className="relative">
+          <div className="relative hidden sm:block">
             <div
               className="flex items-center gap-2 cursor-pointer"
-              onClick={() => setShowSidebar(true)}
+              onClick={() => setShowProfileMenu(!showProfileMenu)}
             >
               <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
                 {user?.name?.charAt(0) || 'U'}
               </div>
-              <span className="text-gray-800 font-medium hidden sm:block">{user?.name || 'User'}</span>
+              <span className="text-gray-800 font-medium">{user?.name || 'User'}</span>
             </div>
 
-            {/* Desktop Dropdown */}
-            {showProfileMenu && !showSidebar && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-50 sm:block hidden">
+            {showProfileMenu && (
+              <div className="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-50">
                 <button
                   onClick={() => { router.push('/roles'); setShowProfileMenu(false); }}
                   className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
@@ -146,47 +150,84 @@ export default function CstHeader() {
                 </button>
               </div>
             )}
+          </div>
 
-            {/* Mobile Sidebar */}
-            {showSidebar && (
-              <div className="fixed top-0 right-0 w-64 h-full bg-white shadow-lg z-50 flex flex-col">
-                <div className="flex justify-between items-center px-4 py-3 border-b">
-                  <h2 className="text-lg font-semibold">Menu</h2>
-                  <button onClick={() => setShowSidebar(false)}>
-                    <FaTimes className="text-gray-700 text-xl" />
-                  </button>
-                </div>
-                <div className="flex flex-col mt-4 gap-2 px-4">
-                  <button
-                    onClick={() => { router.push('/roles'); setShowSidebar(false); }}
-                    className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
-                  >
-                    <FaCog /> Role Setting
-                  </button>
-                  <button
-                    onClick={() => { router.push('/cst/cstprofile'); setShowSidebar(false); }}
-                    className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
-                  >
-                    <FaUser /> My Profile
-                  </button>
-                  <button
-                    onClick={() => { router.push('/change-password'); setShowSidebar(false); }}
-                    className="flex items-center gap-2 px-2 py-2 text-gray-700 hover:bg-gray-100 rounded"
-                  >
-                    <FaKey /> Change Password
-                  </button>
-                  <button
-                    onClick={handleLogout}
-                    className="flex items-center gap-2 px-2 py-2 text-red-600 hover:bg-gray-100 rounded"
-                  >
-                    <FaSignOutAlt /> Sign Out
-                  </button>
-                </div>
-              </div>
-            )}
+          <div className="flex items-center gap-2 sm:hidden">
+            <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
+              {user?.name?.charAt(0) || 'U'}
+            </div>
           </div>
         </div>
       </div>
+
+      {showSidebar && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-40 md:hidden"
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
+
+      {showSidebar && (
+        <div className="fixed top-0 right-0 w-64 h-full bg-white shadow-lg z-50 flex flex-col md:hidden">
+          <div className="flex justify-between items-center px-4 py-3 border-b">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center text-white">
+                {user?.name?.charAt(0) || 'U'}
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold">{user?.name || 'User'}</h2>
+                <p className="text-xs text-gray-500">Profile</p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setShowSidebar(false)}
+              className="p-2 rounded hover:bg-gray-100"
+            >
+              <FaTimes className="text-gray-700 text-xl" />
+            </button>
+          </div>
+          
+          <div className="flex flex-col mt-4 gap-2 px-4 py-2">
+            <button
+              onClick={() => { router.push('/roles'); setShowSidebar(false); }}
+              className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              <FaCog className="text-gray-500" /> Role Setting
+            </button>
+            <button
+              onClick={() => { router.push('/cst/cstprofile'); setShowSidebar(false); }}
+              className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              <FaUser className="text-gray-500" /> My Profile
+            </button>
+            <button
+              onClick={() => { router.push('/change-password'); setShowSidebar(false); }}
+              className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"
+            >
+              <FaKey className="text-gray-500" /> Change Password
+            </button>
+            
+            <div className="flex items-center justify-between px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg">
+              <div className="flex items-center gap-3">
+                <FaBell className="text-gray-500" />
+                <span>Notifications</span>
+              </div>
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {notifCount}
+              </span>
+            </div>
+            
+            <div className="border-t my-2"></div>
+            
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-3 px-3 py-3 text-red-600 hover:bg-red-50 rounded-lg mt-2"
+            >
+              <FaSignOutAlt /> Sign Out
+            </button>
+          </div>
+        </div>
+      )}
     </header>
   );
 }

@@ -3,7 +3,7 @@
 
 import Footer from "@/components/Footer";
 import CstHeader from "@/components/cstHeader";
-import Sidebar from "@/components/cstsidebar";
+import Sidebar from "@/components/cstSidebar";
 import Link from 'next/link';
 import React, { Fragment, Suspense, useCallback, useEffect, useState } from 'react';
 
@@ -20,29 +20,58 @@ function FillingRequestsPage() {
   useEffect(() => {
     if (typeof window === 'undefined') return; // SSR safety
     
+    console.log("🔍 CST: Getting customer ID from localStorage...");
+    
     try {
       const savedUser = localStorage.getItem("customer");
+      console.log("📦 CST: Raw localStorage data:", savedUser);
+      
+      // 🧪 TEMP: Add test customer data if none exists
+      if (!savedUser) {
+        console.log("🧪 Adding test customer data for debugging...");
+        const testUser = {
+          id: 1,
+          name: "Test Customer",
+          email: "test@example.com"
+        };
+        localStorage.setItem("customer", JSON.stringify(testUser));
+        console.log("🧪 Test customer data added:", testUser);
+        setCustomerId("1");
+        return;
+      }
+      
       if (savedUser) {
         const user = JSON.parse(savedUser);
+        console.log("👤 CST: Parsed user data:", user);
+        
         if (user && user.id) {
           // ✅ Ensure customer ID is converted to string properly
           const customerIdValue = String(user.id).trim();
+          console.log("🆔 CST: Customer ID found:", customerIdValue);
+          
           if (customerIdValue && customerIdValue !== customerId) {
             setCustomerId(customerIdValue);
+            console.log("✅ CST: Customer ID set to:", customerIdValue);
           }
+        } else {
+          console.log("❌ CST: No user.id found in parsed data");
         }
+      } else {
+        console.log("❌ CST: No customer data found in localStorage");
       }
     } catch (error) {
-      console.error("❌ Error reading from localStorage:", error);
+      console.error("❌ CST: Error reading from localStorage:", error);
     }
-  }, [customerId]); // Add customerId to prevent unnecessary updates
+  }, []); // Empty dependency array - runs once on mount
 
   // ✅ Fetch filling requests - wrapped in useCallback to prevent infinite loops
   const fetchFillingRequests = React.useCallback(async (filter = 'All') => {
     if (!customerId) {
-      console.log("❌ No customer ID available");
+      console.log("❌ CST: No customer ID available");
       return;
     }
+    
+    console.log("🚀 CST: Starting fetch with customerId:", customerId, "filter:", filter);
     
     try {
       setLoading(true);
@@ -53,6 +82,8 @@ function FillingRequestsPage() {
         url += `&status=${filter}`;
       }
       
+      console.log("📡 CST: Fetching from URL:", url);
+      
       const response = await fetch(url, {
         method: 'GET',
         cache: 'no-store',
@@ -61,28 +92,39 @@ function FillingRequestsPage() {
         },
       });
       
+      console.log("📡 CST: Response status:", response.status);
+      console.log("📡 CST: Response ok:", response.ok);
+      
       if (!response.ok) {
         const errorText = await response.text();
+        console.log("❌ CST: Error response:", errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
       
       const responseText = await response.text();
+      console.log("📦 CST: Raw response:", responseText);
+      
       let data;
       try {
         data = JSON.parse(responseText);
+        console.log("✅ CST: Parsed response:", data);
       } catch (parseError) {
+        console.log("❌ CST: JSON parse error:", parseError);
         throw new Error('Invalid JSON response from server');
       }
       
       if (data.success) {
         const requestsArray = Array.isArray(data.requests) ? data.requests : [];
+        console.log("✅ CST: Setting requests:", requestsArray.length, "items");
         setRequests(requestsArray);
       } else {
         const errorMsg = data.message || data.error || 'Failed to fetch requests';
+        console.log("❌ CST: API returned error:", errorMsg);
         setError(errorMsg);
         setRequests([]);
       }
     } catch (err) {
+      console.log("❌ CST: Fetch error:", err);
       setError(err.message || 'An error occurred while fetching requests');
       setRequests([]);
     } finally {
@@ -90,12 +132,16 @@ function FillingRequestsPage() {
     }
   }, [customerId]);
 
-  // ✅ Fetch data when filter or customerId changes - optimized to prevent excessive calls
+  // ✅ Fetch data when filter or customerId changes - FIXED
   useEffect(() => {
-    if (customerId && !loading) {
+    console.log("🔄 useEffect triggered - Customer ID:", customerId, "Filter:", statusFilter);
+    if (customerId) {
+      console.log("🚀 Fetching requests...");
       fetchFillingRequests(statusFilter);
+    } else {
+      console.log("⏳ Waiting for customer ID...");
     }
-  }, [statusFilter, customerId]); // Removed fetchFillingRequests to prevent infinite loops
+  }, [statusFilter, customerId, fetchFillingRequests]); // ✅ Now includes fetchFillingRequests
 
   // Map database status to display status
   const mapStatus = (status) => {

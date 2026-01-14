@@ -1,4 +1,3 @@
-// src/components/cstSidebar.jsx (Self-contained version)
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -17,9 +16,8 @@ export default function Sidebar() {
       return;
     }
     setUser(JSON.parse(savedUser));
-  }, []); // Remove router dependency to prevent re-renders
+  }, []);
 
-  // Lock body scroll when sidebar is open on mobile
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -33,7 +31,6 @@ export default function Sidebar() {
   }, [isOpen]);
 
   const logout = () => {
-    // Clear all storage items
     localStorage.removeItem("customer");
     localStorage.removeItem("cst_token");
     localStorage.removeItem("token");
@@ -42,7 +39,6 @@ export default function Sidebar() {
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("isLoggingOut");
     
-    // Use window.location.replace for hard redirect (clears history and disconnects socket)
     if (typeof window !== 'undefined') {
       window.location.replace("/cst/login");
     } else {
@@ -60,10 +56,10 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Mobile toggle button */}
+      {/* Mobile toggle button - Left side for right sidebar */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 right-4 z-50 p-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
+        className="md:hidden fixed top-4 left-4 z-50 p-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
         aria-label="Toggle menu"
       >
         {isOpen ? <FaTimes /> : <FaBars />}
@@ -77,11 +73,11 @@ export default function Sidebar() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Sidebar - Right-side on mobile */}
       <aside
         className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 transition-transform duration-300`}
+          isOpen ? "translate-x-0" : "translate-x-full"
+        } md:translate-x-0 transition-transform duration-300 right-0`}
       >
         <div className="p-4 border-b border-gray-300 flex justify-between items-center">
           <div>
@@ -104,7 +100,6 @@ export default function Sidebar() {
               <button
                 key={item.name}
                 onClick={() => {
-                  // Use window.location.href for faster navigation
                   window.location.href = item.path;
                   setIsOpen(false);
                 }}
