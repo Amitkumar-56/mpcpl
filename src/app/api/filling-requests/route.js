@@ -7,6 +7,7 @@ import { getCurrentUser } from '@/lib/auth';
 export async function GET(request) {
   try {
     console.log('🚀 API CALL STARTED...');
+    console.log('📡 Request URL:', request.url);
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
@@ -24,18 +25,25 @@ export async function GET(request) {
     let userRole = null;
     let userFsId = null;
     try {
+      console.log('🔐 Getting current user...');
       currentUser = await getCurrentUser();
+      console.log('👤 Current user result:', currentUser);
       if (currentUser) {
         userRole = currentUser.role;
+        console.log('🔑 User role:', userRole);
         // Get fs_id from employee_profile
         const userResult = await executeQuery(
           'SELECT fs_id FROM employee_profile WHERE id = ?',
           [currentUser.userId]
         );
+        console.log('🏢 User fs_id result:', userResult);
         if (userResult.length > 0 && userResult[0].fs_id) {
           userFsId = userResult[0].fs_id;
+          console.log('📍 Final userFsId:', userFsId);
         }
         console.log('✅ User info:', { userId: currentUser.userId, role: userRole, fs_id: userFsId });
+      } else {
+        console.log('❌ No current user found');
       }
     } catch (err) {
       console.log('⚠️ Could not get user info:', err);
@@ -227,15 +235,19 @@ export async function GET(request) {
     console.log('📋 Executing queries...');
 
     // Get total records count
+    console.log('🔢 Count query:', countQuery);
+    console.log('🔢 Count params:', countParams);
     const countResult = await executeQuery(countQuery, countParams);
     const totalRecords = countResult[0]?.total || 0;
-
     console.log('📈 Total records found:', totalRecords);
 
     // Get requests data
+    console.log('📋 Main query:', query);
+    console.log('📋 Main params:', params);
     const requests = await executeQuery(query, params);
 
     console.log('✅ Raw requests from database:', requests?.length || 0);
+    console.log('📄 Sample request data:', requests?.[0] || 'No data');
 
     let processedRequests = []; // define at the top
 
