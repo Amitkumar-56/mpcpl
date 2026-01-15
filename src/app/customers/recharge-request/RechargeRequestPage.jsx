@@ -31,6 +31,15 @@ export default function RechargeRequestPage() {
 
   useEffect(() => {
     if (customerId) {
+      // Validate customer ID
+      const customerIdNum = parseInt(customerId);
+      if (isNaN(customerIdNum) || customerIdNum <= 0) {
+        setError("Invalid Customer ID");
+        setPageLoading(false);
+        return;
+      }
+      
+      console.log('✅ Valid Customer ID:', customerIdNum);
       fetchCustomerData();
     } else {
       setError("Customer ID is required");

@@ -1,6 +1,19 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+// Helper function to get payment type text
+function getPaymentTypeText(paymentType) {
+  switch(paymentType) {
+    case '1': return 'Cash';
+    case '2': return 'RTGS';
+    case '3': return 'NEFT';
+    case '4': return 'UPI';
+    case '5': return 'CHEQUE';
+    default: return 'Unknown';
+  }
+}
+
+// ✅ GET: Customer data fetch
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -13,9 +26,8 @@ export async function GET(request) {
       );
     }
 
-    // ✅ ADD: Check if day_remaining_amount column exists
+    // Check if day_remaining_amount column exists
     try {
-      // Check if column exists
       const columns = await executeQuery(`
         SELECT COLUMN_NAME 
         FROM INFORMATION_SCHEMA.COLUMNS 
@@ -25,7 +37,6 @@ export async function GET(request) {
       `);
       
       if (columns.length === 0) {
-        // Column doesn't exist, add it
         await executeQuery(`
           ALTER TABLE customer_balances 
           ADD COLUMN day_remaining_amount DECIMAL(10,2) DEFAULT 0.00
@@ -33,11 +44,10 @@ export async function GET(request) {
         console.log('Added day_remaining_amount column to customer_balances');
       }
     } catch (alterError) {
-      // Column might already exist or other error, ignore
       console.log('day_remaining_amount column check:', alterError.message);
     }
 
-    // Fetch customer with balance info (including billing_type)
+    // Fetch customer with balance info
     const customerRows = await executeQuery(
       `SELECT c.id, c.name, c.phone, c.client_type, c.billing_type,
               cb.day_limit, cb.amtlimit, cb.balance, 
@@ -59,7 +69,7 @@ export async function GET(request) {
 
     const customer = customerRows[0];
 
-    // ✅ Get individual pending requests with completed_date for day limit calculation
+    // Get individual pending requests
     const pendingRequests = await executeQuery(
       `SELECT 
          fr.id,
@@ -70,6 +80,7 @@ export async function GET(request) {
          COALESCE(fr.totalamt, fr.price * fr.aqty) AS amount,
          fr.aqty,
          fr.price,
+         fr.payment_status,
          p.pname AS product_name,
          fs.station_name
        FROM filling_requests fr
@@ -100,6 +111,7 @@ export async function GET(request) {
         vehicle_number: req.vehicle_number,
         completed_date: req.completed_date,
         amount: parseFloat(req.amount || 0),
+        payment_status: req.payment_status,
         product_name: req.product_name,
         station_name: req.station_name
       });
@@ -112,7 +124,7 @@ export async function GET(request) {
     // Total unpaid amount
     const totalUnpaid = pendingRequests.reduce((sum, req) => sum + parseFloat(req.amount || 0), 0);
 
-    // Calculate payment days pending based on oldest unpaid completed_date
+    // Calculate payment days pending
     let paymentDaysPending = 0;
     const oldestUnpaidRows = await executeQuery(
       `SELECT MIN(DATE(fr.completed_date)) AS oldest_date
@@ -136,7 +148,7 @@ export async function GET(request) {
         ...customer,
         balance: customer.balance || 0,
         total_day_amount: customer.total_day_amount || 0,
-        day_remaining_amount: customer.day_remaining_amount || 0 // ✅ NEW: Extra payment amount
+        day_remaining_amount: customer.day_remaining_amount || 0
       },
       balance: {
         current_balance: customer.balance || 0,
@@ -147,12 +159,476 @@ export async function GET(request) {
         total_amount: totalUnpaid,
         payment_days_pending: paymentDaysPending,
         day_wise_breakdown: pendingRows || [],
-        request_count: pendingRequests.length, // Total pending requests
-        individual_requests: pendingRequests || [] // Individual requests with details
+        request_count: pendingRequests.length,
+        individual_requests: pendingRequests || []
       }
     });
   } catch (error) {
-    console.error("Recharge request API error:", error);
+    console.error("Recharge request GET API error:", error);
+    return NextResponse.json(
+      { success: false, error: error.message || "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+// ✅ POST: Process recharge/payment for ALL CUSTOMER TYPES
+export async function POST(request) {
+  let connection;
+  try {
+    const body = await request.json();
+    const { customerId, amount, paymentType, transactionId, comments, paymentDate } = body;
+
+    console.log('Processing recharge for customer:', customerId, 'Amount:', amount);
+
+    if (!customerId || !amount || parseFloat(amount) <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Valid customer ID and amount are required" },
+        { status: 400 }
+      );
+    }
+
+    // Get database connection for transaction
+    const pool = require('@/lib/db').pool || require('@/lib/db').default;
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    // Get customer details
+    const [customerRows] = await connection.execute(
+      `SELECT c.id, c.client_type, c.name, c.billing_type,
+              cb.balance, cb.amtlimit, cb.total_day_amount, cb.day_remaining_amount,
+              cb.day_limit
+       FROM customers c
+       LEFT JOIN customer_balances cb ON c.id = cb.com_id
+       WHERE c.id = ?`,
+      [parseInt(customerId)]
+    );
+
+    if (!customerRows || customerRows.length === 0) {
+      await connection.rollback();
+      return NextResponse.json(
+        { success: false, error: "Customer not found" },
+        { status: 404 }
+      );
+    }
+
+    const customer = customerRows[0];
+    const clientType = customer.client_type;
+    const oldBalance = customer.balance || 0;
+    const oldAmtLimit = customer.amtlimit || 0;
+    const currentTotalDayAmount = customer.total_day_amount || 0;
+    const currentDayRemainingAmount = customer.day_remaining_amount || 0;
+    
+    const rechargeAmount = parseFloat(amount);
+    const paymentTypeText = getPaymentTypeText(paymentType || '1');
+    const safeTransactionId = transactionId || '';
+    const safeUtrNo = transactionId || ''; // Using transaction_id as utr_no if not provided
+    const safeComments = comments || '';
+    const safePaymentDate = paymentDate || new Date().toISOString().split('T')[0];
+    
+    console.log('Customer Type:', clientType, 'Old Balance:', oldBalance, 'Old Limit:', oldAmtLimit);
+
+    // Variables for response
+    let paidRequests = [];
+    let pendingRequests = [];
+    let amountPaid = 0;
+    let invoicesPaid = 0;
+    let daysCleared = 0;
+    let newBalance = oldBalance;
+    let newAmtLimit = oldAmtLimit;
+    let newTotalDayAmount = currentTotalDayAmount;
+    let newDayRemainingAmount = currentDayRemainingAmount;
+
+    // ============================================
+    // ✅ 1. PREPAID CUSTOMER (client_type = '1')
+    // ============================================
+    if (clientType === "1") {
+      console.log('Processing PREPAID customer');
+      
+      // ✅ PREPAID RULES:
+      // 1. balance से MINUS (payment received)
+      // 2. amtlimit में ADD (credit limit increase)
+      
+      newBalance = oldBalance - rechargeAmount;
+      newAmtLimit = oldAmtLimit + rechargeAmount;
+      
+      // Step 1: Update customer_balances
+      await connection.execute(
+        `UPDATE customer_balances 
+         SET balance = ?, 
+             amtlimit = ?, 
+             updated_at = NOW()
+         WHERE com_id = ?`,
+        [newBalance, newAmtLimit, parseInt(customerId)]
+      );
+      
+      // Step 2: Insert into recharge_wallets
+      await connection.execute(
+        `INSERT INTO recharge_wallets 
+         (com_id, amount, payment_date, payment_type, transaction_id, utr_no, comments, status, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', NOW())`,
+        [parseInt(customerId), rechargeAmount, safePaymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
+      );
+      
+      // Step 3: Insert into recharge_requests
+      await connection.execute(
+        `INSERT INTO recharge_requests 
+         (cid, amount, payment_date, payment_type, transaction_id, utr_no, comments, status, created) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', NOW())`,
+        [parseInt(customerId), rechargeAmount, safePaymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
+      );
+      
+      // Step 4: Insert into filling_history as INWARD transaction
+      await connection.execute(
+        `INSERT INTO filling_history 
+         (trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, cl_id, created_by, payment_status) 
+         VALUES ('inward', ?, ?, ?, ?, ?, ?, 1, 1)`,
+        [rechargeAmount, safePaymentDate, oldBalance, newBalance, newAmtLimit, parseInt(customerId)]
+      );
+      
+      // Step 5: Insert into limit_history
+      await connection.execute(
+        `INSERT INTO limit_history 
+         (com_id, old_limit, change_amount, new_limit, changed_by, change_date) 
+         VALUES (?, ?, ?, ?, 1, NOW())`,
+        [parseInt(customerId), oldAmtLimit, rechargeAmount, newAmtLimit]
+      );
+
+      await connection.commit();
+      connection.release();
+      
+      return NextResponse.json({
+        success: true,
+        message: `Prepaid wallet recharged with ₹${rechargeAmount.toFixed(2)}`,
+        customerType: 'prepaid',
+        old_balance: oldBalance,
+        new_balance: newBalance,
+        old_limit: oldAmtLimit,
+        new_limit: newAmtLimit,
+        amountPaid: 0,
+        invoicesPaid: 0,
+        rechargeAmount,
+        transactionType: 'INWARD'
+      });
+    }
+
+    // =============================================
+    // ✅ 2. POSTPAID CUSTOMER (client_type = '2')
+    // =============================================
+    if (clientType === "2") {
+      console.log('Processing POSTPAID customer');
+      
+      // ✅ POSTPAID RULES:
+      // 1. balance से MINUS (payment received)
+      // 2. amtlimit में ADD (credit limit increase)
+      // 3. Pending invoices pay करेगा
+      
+      newBalance = oldBalance - rechargeAmount;
+      newAmtLimit = oldAmtLimit + rechargeAmount;
+      
+      let remainingAmount = rechargeAmount;
+      let amountUsedForInvoices = 0;
+      
+      // Get pending invoices
+      const [pendingInvoices] = await connection.execute(
+        `SELECT id, rid, vehicle_number, completed_date,
+                COALESCE(totalamt, price * aqty) AS amount,
+                payment_status
+         FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+         ORDER BY completed_date ASC`,
+        [parseInt(customerId)]
+      );
+
+      console.log('Found pending invoices:', pendingInvoices.length);
+      
+      // Pay invoices oldest first
+      for (const invoice of pendingInvoices) {
+        if (remainingAmount <= 0) break;
+        
+        const invoiceAmount = parseFloat(invoice.amount || 0);
+        
+        if (remainingAmount >= invoiceAmount) {
+          // ✅ Can pay this invoice
+          
+          // Update filling_requests
+          await connection.execute(
+            `UPDATE filling_requests 
+             SET payment_status = 1, 
+                 payment_date = NOW()
+             WHERE id = ?`,
+            [invoice.id]
+          );
+          
+          // Update filling_history for this invoice
+          try {
+            await connection.execute(
+              `UPDATE filling_history 
+               SET payment_status = 1
+               WHERE rid = ?`,
+              [invoice.rid]
+            );
+          } catch (historyError) {
+            console.log('History update note:', historyError.message);
+          }
+          
+          paidRequests.push({
+            id: invoice.id,
+            rid: invoice.rid,
+            vehicle_number: invoice.vehicle_number,
+            completed_date: invoice.completed_date,
+            amount: invoiceAmount
+          });
+          
+          amountUsedForInvoices += invoiceAmount;
+          remainingAmount -= invoiceAmount;
+          invoicesPaid++;
+          
+          console.log(`Paid invoice ${invoice.id}: ₹${invoiceAmount}`);
+        } else {
+          // Cannot pay this invoice
+          pendingRequests.push({
+            id: invoice.id,
+            rid: invoice.rid,
+            vehicle_number: invoice.vehicle_number,
+            completed_date: invoice.completed_date,
+            amount: invoiceAmount,
+            required: invoiceAmount,
+            available: remainingAmount
+          });
+        }
+      }
+      
+      // Step 1: Update customer_balances
+      await connection.execute(
+        `UPDATE customer_balances 
+         SET balance = ?, 
+             amtlimit = ?,
+             updated_at = NOW()
+         WHERE com_id = ?`,
+        [newBalance, newAmtLimit, parseInt(customerId)]
+      );
+      
+      // Step 2: Insert into recharge_wallets
+      await connection.execute(
+        `INSERT INTO recharge_wallets 
+         (com_id, amount, payment_date, payment_type, transaction_id, utr_no, comments, status, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', NOW())`,
+        [parseInt(customerId), rechargeAmount, safePaymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
+      );
+      
+      // Step 3: Insert into recharge_requests
+      await connection.execute(
+        `INSERT INTO recharge_requests 
+         (cid, amount, payment_date, payment_type, transaction_id, utr_no, comments, status, created) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', NOW())`,
+        [parseInt(customerId), rechargeAmount, safePaymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
+      );
+      
+      // Step 4: Insert into filling_history as INWARD transaction
+      await connection.execute(
+        `INSERT INTO filling_history 
+         (trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, cl_id, created_by, payment_status) 
+         VALUES ('inward', ?, ?, ?, ?, ?, ?, 1, 1)`,
+        [rechargeAmount, safePaymentDate, oldBalance, newBalance, newAmtLimit, parseInt(customerId)]
+      );
+      
+      // Step 5: Insert into limit_history
+      await connection.execute(
+        `INSERT INTO limit_history 
+         (com_id, old_limit, change_amount, new_limit, changed_by, change_date) 
+         VALUES (?, ?, ?, ?, 1, NOW())`,
+        [parseInt(customerId), oldAmtLimit, rechargeAmount, newAmtLimit]
+      );
+
+      await connection.commit();
+      connection.release();
+      
+      return NextResponse.json({
+        success: true,
+        message: `Postpaid payment of ₹${rechargeAmount.toFixed(2)} processed`,
+        customerType: 'postpaid',
+        old_balance: oldBalance,
+        new_balance: newBalance,
+        old_limit: oldAmtLimit,
+        new_limit: newAmtLimit,
+        amountPaid: amountUsedForInvoices,
+        invoicesPaid,
+        remainingCredit: remainingAmount > 0 ? remainingAmount : 0,
+        paidRequests: paidRequests.length > 0 ? paidRequests : undefined,
+        pendingRequests: pendingRequests.length > 0 ? pendingRequests : undefined,
+        rechargeAmount,
+        transactionType: 'INWARD'
+      });
+    }
+
+    // ============================================
+    // ✅ 3. DAY LIMIT CUSTOMER (client_type = '3')
+    // ============================================
+    if (clientType === "3") {
+      console.log('Processing DAY LIMIT customer');
+      
+      // Day Limit logic
+      newBalance = oldBalance - rechargeAmount;
+      newTotalDayAmount = currentTotalDayAmount + rechargeAmount;
+      newDayRemainingAmount = currentDayRemainingAmount + rechargeAmount;
+      
+      let remainingAmount = newDayRemainingAmount;
+      
+      // Get pending requests grouped by day
+      const [pendingReqRows] = await connection.execute(
+        `SELECT id, rid, vehicle_number, completed_date,
+                COALESCE(totalamt, price * aqty) AS amount,
+                DATE(completed_date) as day_date,
+                payment_status
+         FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+         ORDER BY completed_date ASC`,
+        [parseInt(customerId)]
+      );
+
+      console.log('Found pending requests:', pendingReqRows.length);
+      
+      // Group by day
+      const dayGroups = {};
+      pendingReqRows.forEach(req => {
+        const dayDate = req.day_date;
+        if (!dayGroups[dayDate]) {
+          dayGroups[dayDate] = [];
+        }
+        dayGroups[dayDate].push(req);
+      });
+
+      const sortedDays = Object.keys(dayGroups).sort();
+      
+      // Pay day by day
+      for (const dayDate of sortedDays) {
+        if (remainingAmount <= 0) break;
+        
+        const dayRequests = dayGroups[dayDate];
+        const dayTotal = dayRequests.reduce((sum, req) => sum + parseFloat(req.amount || 0), 0);
+        
+        if (remainingAmount >= dayTotal) {
+          daysCleared++;
+          amountPaid += dayTotal;
+          remainingAmount -= dayTotal;
+          
+          // Update each request in this day
+          for (const req of dayRequests) {
+            // Update filling_requests
+            await connection.execute(
+              `UPDATE filling_requests 
+               SET payment_status = 1, 
+                   payment_date = NOW()
+               WHERE id = ?`,
+              [req.id]
+            );
+            
+            // Update filling_history for this request
+            try {
+              await connection.execute(
+                `UPDATE filling_history 
+                 SET payment_status = 1
+                 WHERE rid = ?`,
+                [req.rid]
+              );
+            } catch (historyError) {
+              console.log('History update note:', historyError.message);
+            }
+            
+            paidRequests.push({
+              id: req.id,
+              rid: req.rid,
+              vehicle_number: req.vehicle_number,
+              completed_date: req.completed_date,
+              amount: parseFloat(req.amount || 0),
+              day_date: req.day_date
+            });
+            
+            invoicesPaid++;
+          }
+          
+          console.log(`Paid day ${dayDate}: ₹${dayTotal}, Requests: ${dayRequests.length}`);
+        } else {
+          // Cannot pay for this day
+          dayRequests.forEach(req => {
+            pendingRequests.push({
+              id: req.id,
+              rid: req.rid,
+              vehicle_number: req.vehicle_number,
+              completed_date: req.completed_date,
+              amount: parseFloat(req.amount || 0),
+              day_date: req.day_date
+            });
+          });
+          break;
+        }
+      }
+      
+      // Update remaining amount
+      newDayRemainingAmount = remainingAmount;
+      
+      // Step 1: Update customer_balances
+      await connection.execute(
+        `UPDATE customer_balances 
+         SET balance = ?, 
+             total_day_amount = ?, 
+             day_remaining_amount = ?,
+             updated_at = NOW()
+         WHERE com_id = ?`,
+        [newBalance, newTotalDayAmount, newDayRemainingAmount, parseInt(customerId)]
+      );
+      
+      // Step 2: Insert into recharge_wallets (optional for Day Limit)
+      await connection.execute(
+        `INSERT INTO recharge_wallets 
+         (com_id, amount, payment_date, payment_type, transaction_id, utr_no, comments, status, created_at) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', NOW())`,
+        [parseInt(customerId), rechargeAmount, safePaymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
+      );
+      
+      // Step 3: Insert into recharge_requests (optional for Day Limit)
+      await connection.execute(
+        `INSERT INTO recharge_requests 
+         (cid, amount, payment_date, payment_type, transaction_id, utr_no, comments, status, created) 
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Approved', NOW())`,
+        [parseInt(customerId), rechargeAmount, safePaymentDate, paymentTypeText, safeTransactionId, safeUtrNo, safeComments]
+      );
+
+      await connection.commit();
+      connection.release();
+      
+      return NextResponse.json({
+        success: true,
+        message: `Day limit payment of ₹${rechargeAmount.toFixed(2)} processed`,
+        customerType: 'day_limit',
+        old_balance: oldBalance,
+        new_balance: newBalance,
+        newTotalDayAmount,
+        dayRemainingAmount: newDayRemainingAmount,
+        amountPaid,
+        invoicesPaid,
+        daysCleared,
+        paidRequests: paidRequests.length > 0 ? paidRequests : undefined,
+        pendingRequests: pendingRequests.length > 0 ? pendingRequests : undefined,
+        rechargeAmount
+      });
+    }
+
+    // Unknown customer type
+    await connection.rollback();
+    connection.release();
+    return NextResponse.json({
+      success: false,
+      error: `Unknown customer type: ${clientType}`
+    }, { status: 400 });
+
+  } catch (error) {
+    console.error("Recharge POST API error:", error);
+    if (connection) {
+      await connection.rollback();
+      connection.release();
+    }
     return NextResponse.json(
       { success: false, error: error.message || "Internal server error" },
       { status: 500 }
