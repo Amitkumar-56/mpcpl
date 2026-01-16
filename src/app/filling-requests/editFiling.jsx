@@ -7,7 +7,6 @@ import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
 
-// OTP Modal Component
 // OTP Modal Component - Without Auto-fill
 const OtpModal = ({ 
   requestId, 
@@ -264,7 +263,8 @@ const OtpModal = ({
     </div>
   );
 };
-// Icons Component with eligibility check
+
+// Icons Component with updated eligibility check
 const Icons = ({
   request,
   onView,
@@ -281,27 +281,50 @@ const Icons = ({
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
   
-  // ✅ Check eligibility for view button
-  const isEligible = request.eligibility === "Yes" && request.status === "Pending";
-  const canView = permissions.can_view && isEligible;
+  // ✅ Updated: View button should be enabled for Processing and Completed status too
+  const canView = permissions.can_view && (
+    // For Pending status - only if eligible
+    (request.status === "Pending" && request.eligibility === "Yes") ||
+    // For Processing and Completed status - always enable
+    request.status === "Processing" ||
+    request.status === "Completed"
+  );
 
   // ✅ Staff (role 1): No edit button
   // ✅ Incharge (role 2): Can edit only if status is Pending and eligible
   // ✅ Team Leader (role 3) and above: Can edit based on permissions
   const canEdit = userRole === 1 ? false : 
-                  userRole === 2 ? (isEligible && request.status === "Pending") || request.status === "Completed" :
+                  userRole === 2 ? (request.eligibility === "Yes" && request.status === "Pending") || request.status === "Completed" :
                   permissions.can_edit;
+
+  // Get appropriate title based on status
+  const getViewButtonTitle = () => {
+    if (!permissions.can_view) return "No view permission";
+    
+    if (request.status === "Pending") {
+      if (request.eligibility === "Yes") {
+        return "View & Process Request (OTP Required)";
+      } else {
+        return `Cannot view: ${request.eligibility_reason || "Not eligible"}`;
+      }
+    } else if (request.status === "Processing") {
+      return "View Processing Request";
+    } else if (request.status === "Completed") {
+      return "View Completed Request";
+    }
+    return "View Request";
+  };
 
   return (
     <div className="flex items-center space-x-1">
-      {/* View Icon - Only enabled if eligible and permission */}
+      {/* View Icon - Enabled for eligible Pending, Processing, and Completed requests */}
       {permissions.can_view ? (
         <button
           onClick={() => {
-            if (canView && onOtpVerify) {
-              onOtpVerify(request); // Show OTP modal instead of direct view
-            } else if (canView) {
-              onView(request.id);
+            if (request.status === "Pending" && request.eligibility === "Yes" && onOtpVerify) {
+              onOtpVerify(request); // Show OTP modal for eligible pending requests
+            } else {
+              onView(request.id); // Direct view for Processing/Completed
             }
           }}
           disabled={!canView}
@@ -310,7 +333,7 @@ const Icons = ({
               ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
               : "text-gray-400 cursor-not-allowed opacity-50"
           }`}
-          title={canView ? "View & Process Request (OTP Required)" : `Cannot view: ${request.eligibility_reason || "Not eligible"}`}
+          title={getViewButtonTitle()}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -1549,31 +1572,31 @@ export default function FillingRequests() {
     router.push(`/filling-requests?${params.toString()}`);
   }, [router, searchParams]);
 
-  // OTP Verification Handlers - SIMPLIFIED VERSION
- // OTP Verification Handlers - SIMPLIFIED VERSION
-const handleOtpVerify = useCallback((request) => {
-  // Check eligibility
-  if (request.status === "Pending" && request.eligibility === "Yes") {
-    // Generate random OTP immediately (6 digits)
-    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    
-    console.log('🔢 Generated OTP for request:', {
-      rid: request.rid,
-      otp: generatedOtp
-    });
-    
-    // Show OTP modal with generated OTP (NOT auto-filled)
-    setOtpModal({
-      isOpen: true,
-      requestId: request.id,
-      requestRid: request.rid,
-      generatedOtp: generatedOtp, // OTP store किया लेकिन auto-fill नहीं होगा
-      phoneNumber: request.driver_number || request.customer_phone || null
-    });
-  } else {
-    alert(`Cannot process request:\n${request.eligibility_reason || "Not eligible"}`);
-  }
-}, []);
+  // OTP Verification Handlers
+  const handleOtpVerify = useCallback((request) => {
+    // Check eligibility
+    if (request.status === "Pending" && request.eligibility === "Yes") {
+      // Generate random OTP immediately (6 digits)
+      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      console.log('🔢 Generated OTP for request:', {
+        rid: request.rid,
+        otp: generatedOtp
+      });
+      
+      // Show OTP modal with generated OTP (NOT auto-filled)
+      setOtpModal({
+        isOpen: true,
+        requestId: request.id,
+        requestRid: request.rid,
+        generatedOtp: generatedOtp,
+        phoneNumber: request.driver_number || request.customer_phone || null
+      });
+    } else {
+      alert(`Cannot process request:\n${request.eligibility_reason || "Not eligible"}`);
+    }
+  }, []);
+
   const verifyOtp = async (requestId, otp) => {
     try {
       console.log('✅ Verifying OTP for request:', requestId);
@@ -1586,7 +1609,6 @@ const handleOtpVerify = useCallback((request) => {
       }
 
       // Check if OTP matches (for demo/development)
-      // In production, you would verify with backend
       if (process.env.NODE_ENV === 'development') {
         console.log('🔍 Development OTP check:', {
           enteredOtp: otp,
