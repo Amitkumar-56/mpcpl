@@ -2,11 +2,268 @@
 
 import { useSession } from "@/context/SessionContext";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
 
+// OTP Modal Component
+// OTP Modal Component - Without Auto-fill
+const OtpModal = ({ 
+  requestId, 
+  requestRid, 
+  generatedOtp,
+  onClose, 
+  onVerify,
+  onResend 
+}) => {
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [timer, setTimer] = useState(60);
+  const [canResend, setCanResend] = useState(false);
+  const [showOtpHint, setShowOtpHint] = useState(false);
+  const inputRefs = useRef([]);
+
+  // Initialize refs
+  useEffect(() => {
+    inputRefs.current = inputRefs.current.slice(0, 6);
+  }, []);
+
+  // Timer countdown
+  useEffect(() => {
+    if (timer > 0) {
+      const countdown = setTimeout(() => setTimer(timer - 1), 1000);
+      return () => clearTimeout(countdown);
+    } else {
+      setCanResend(true);
+    }
+  }, [timer]);
+
+  // Show OTP hint for development (but don't auto-fill)
+  useEffect(() => {
+    if (generatedOtp && generatedOtp.length === 6) {
+      console.log('🔢 Generated OTP (not auto-filled):', generatedOtp);
+      // Show hint but don't auto-fill
+      if (process.env.NODE_ENV === 'development') {
+        setShowOtpHint(true);
+      }
+      
+      // Focus on first input
+      if (inputRefs.current[0]) {
+        inputRefs.current[0].focus();
+      }
+    }
+  }, [generatedOtp]);
+
+  const handleOtpChange = (index, value) => {
+    if (!/^\d?$/.test(value)) return;
+
+    const newOtp = [...otp];
+    newOtp[index] = value;
+    setOtp(newOtp);
+    setError("");
+
+    // Auto-focus next input
+    if (value && index < 5) {
+      inputRefs.current[index + 1].focus();
+    }
+
+    // Auto-submit if all digits filled
+    if (newOtp.every(digit => digit !== "") && index === 5) {
+      handleVerify();
+    }
+  };
+
+  const handleKeyDown = (index, e) => {
+    if (e.key === "Backspace" && !otp[index] && index > 0) {
+      inputRefs.current[index - 1].focus();
+    }
+  };
+
+  const handleVerify = async () => {
+    const otpString = otp.join("");
+    if (otpString.length !== 6) {
+      setError("Please enter 6-digit OTP");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+    try {
+      await onVerify(requestId, otpString);
+    } catch (err) {
+      setError(err.message || "OTP verification failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!canResend) return;
+    
+    setLoading(true);
+    setError("");
+    try {
+      const success = await onResend(requestId);
+      if (success) {
+        setTimer(60);
+        setCanResend(false);
+        setOtp(["", "", "", "", "", ""]);
+        if (inputRefs.current[0]) {
+          inputRefs.current[0].focus();
+        }
+      }
+    } catch (err) {
+      setError(err.message || "Failed to resend OTP");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleOtpHint = () => {
+    setShowOtpHint(!showOtpHint);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl max-w-md w-full">
+        <div className="flex justify-between items-center p-6 border-b">
+          <div>
+            <h3 className="text-lg font-semibold text-gray-900">OTP Verification</h3>
+            <p className="text-sm text-gray-600 mt-1">
+              Request ID: <span className="font-mono font-semibold">{requestRid}</span>
+            </p>
+          </div>
+          <button 
+            onClick={onClose}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            disabled={loading}
+          >
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="p-6">
+          <div className="text-center mb-6">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h4 className="text-xl font-semibold text-gray-900">Enter OTP</h4>
+            <p className="text-gray-600 mt-2">
+              Enter the 6-digit OTP to process the request
+            </p>
+            
+            {/* Show OTP hint button for development */}
+            {process.env.NODE_ENV === 'development' && generatedOtp && (
+              <div className="mt-3">
+                <button
+                  onClick={toggleOtpHint}
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
+                >
+                  {showOtpHint ? (
+                    <>
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                      Hide OTP
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                      Show OTP (Dev)
+                    </>
+                  )}
+                </button>
+                
+                {showOtpHint && (
+                  <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-800 font-semibold">
+                      🔢 Development OTP: <span className="font-mono text-lg">{generatedOtp}</span>
+                    </p>
+                    <p className="text-xs text-yellow-600 mt-1">
+                      Manually enter this OTP in the boxes below
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* OTP Inputs */}
+          <div className="flex justify-center gap-2 mb-6">
+            {otp.map((digit, index) => (
+              <input
+                key={index}
+                ref={el => inputRefs.current[index] = el}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleOtpChange(index, e.target.value)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                className="w-12 h-12 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
+                disabled={loading}
+              />
+            ))}
+          </div>
+
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <p className="text-red-600 text-sm text-center">{error}</p>
+            </div>
+          )}
+
+          {/* Resend OTP */}
+          <div className="text-center mb-6">
+            <p className="text-gray-600 text-sm">
+              Didn't receive OTP?{" "}
+              <button
+                onClick={handleResend}
+                disabled={!canResend || loading}
+                className={`font-medium ${canResend ? "text-blue-600 hover:text-blue-800" : "text-gray-400 cursor-not-allowed"}`}
+              >
+                {canResend ? "Resend OTP" : `Resend in ${timer}s`}
+              </button>
+            </p>
+          </div>
+
+          {/* Buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              disabled={loading}
+              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleVerify}
+              disabled={loading || otp.join("").length !== 6}
+              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+            >
+              {loading ? (
+                <>
+                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  Verifying...
+                </>
+              ) : (
+                "Verify & Process"
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 // Icons Component with eligibility check
 const Icons = ({
   request,
@@ -17,7 +274,9 @@ const Icons = ({
   onShare,
   onPdf,
   onShowDetails,
-  permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }
+  permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false },
+  userRole = null,
+  onOtpVerify = null
 }) => {
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
@@ -26,19 +285,32 @@ const Icons = ({
   const isEligible = request.eligibility === "Yes" && request.status === "Pending";
   const canView = permissions.can_view && isEligible;
 
+  // ✅ Staff (role 1): No edit button
+  // ✅ Incharge (role 2): Can edit only if status is Pending and eligible
+  // ✅ Team Leader (role 3) and above: Can edit based on permissions
+  const canEdit = userRole === 1 ? false : 
+                  userRole === 2 ? (isEligible && request.status === "Pending") || request.status === "Completed" :
+                  permissions.can_edit;
+
   return (
     <div className="flex items-center space-x-1">
       {/* View Icon - Only enabled if eligible and permission */}
       {permissions.can_view ? (
         <button
-          onClick={() => canView && onView(request.id)}
+          onClick={() => {
+            if (canView && onOtpVerify) {
+              onOtpVerify(request); // Show OTP modal instead of direct view
+            } else if (canView) {
+              onView(request.id);
+            }
+          }}
           disabled={!canView}
           className={`p-1.5 rounded-full transition-colors ${
             canView 
               ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
               : "text-gray-400 cursor-not-allowed opacity-50"
           }`}
-          title={canView ? "View & Process Request" : `Cannot view: ${request.eligibility_reason || "Not eligible"}`}
+          title={canView ? "View & Process Request (OTP Required)" : `Cannot view: ${request.eligibility_reason || "Not eligible"}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -47,20 +319,20 @@ const Icons = ({
         </button>
       ) : null}
 
-      {/* Edit Icon - Only for eligible pending requests or admin for completed */}
-      {permissions.can_edit && (
+      {/* Edit Icon - Based on role */}
+      {canEdit && (
         <button
           onClick={() => onEdit(request.id)}
-          disabled={!isEligible && request.status !== "Completed" && !permissions.isAdmin}
+          disabled={!canEdit}
           className={`p-1.5 rounded-full transition-colors ${
-            (isEligible || request.status === "Completed" || permissions.isAdmin)
+            canEdit
               ? "text-green-600 hover:bg-green-50 cursor-pointer"
               : "text-gray-400 cursor-not-allowed opacity-50"
           }`}
           title={
-            (isEligible || request.status === "Completed" || permissions.isAdmin)
+            canEdit
               ? "Edit Request"
-              : "Cannot edit: Not eligible or not completed"
+              : "Cannot edit"
           }
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -168,7 +440,7 @@ const Icons = ({
 };
 
 // Expanded Details Component
-const ExpandedDetails = ({ request, onClose }) => {
+const ExpandedDetails = ({ request, onClose, userRole = null }) => {
   if (!request) return null;
   
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
@@ -176,6 +448,12 @@ const ExpandedDetails = ({ request, onClose }) => {
   const stationManager = request.station_manager && request.station_manager !== "NULL" ? request.station_manager : null;
   const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
 
+  // ✅ For staff (role 1): Show limited information
+  // ✅ For incharge (role 2): Show more information but still limited for completed
+  const isStaff = userRole === 1;
+  const isIncharge = userRole === 2;
+  const isCompleted = request.status === "Completed";
+  
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -188,143 +466,175 @@ const ExpandedDetails = ({ request, onClose }) => {
           </button>
         </div>
         <div className="p-6 space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Request ID</label>
-              <p className="font-mono font-semibold">{request.rid}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Status</label>
-              <span className={`px-2 py-1 rounded-full text-xs ${
-                request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                request.status === "Processing" ? "bg-blue-100 text-blue-800" :
-                request.status === "Completed" ? "bg-green-100 text-green-800" :
-                "bg-red-100 text-red-800"
-              }`}>
-                {request.status}
-              </span>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Vehicle Number</label>
-              <p>{request.vehicle_number}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Driver Phone</label>
-              <p>{request.driver_number}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Client Name</label>
-              <p>{request.customer_name || "N/A"}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Loading Station</label>
-              <p>{request.loading_station || "N/A"}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Product</label>
-              <p>{request.product_name || "N/A"}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Quantity</label>
-              <p>{request.qty || "N/A"}</p>
-            </div>
-          </div>
-
-          {/* Eligibility Information */}
-          {request.eligibility && request.eligibility !== "N/A" && (
-            <div className="border-t pt-4">
-              <label className="text-sm font-medium text-gray-600">Eligibility Check</label>
-              <div className="mt-2">
+          {/* ✅ Staff: Limited view for completed requests */}
+          {isStaff && isCompleted ? (
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="text-sm font-medium text-gray-600">Vehicle Number</label>
+                <p className="font-semibold">{request.vehicle_number}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Driver Phone</label>
+                <p>{request.driver_number}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Product</label>
+                <p>{request.product_name || "N/A"}</p>
+              </div>
+              <div>
+                <label className="text-sm font-medium text-gray-600">Status</label>
                 <span className={`px-2 py-1 rounded-full text-xs ${
-                  request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                  request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                  request.status === "Processing" ? "bg-blue-100 text-blue-800" :
+                  request.status === "Completed" ? "bg-green-100 text-green-800" :
+                  "bg-red-100 text-red-800"
                 }`}>
-                  {request.eligibility}
+                  {request.status}
                 </span>
-                {request.eligibility_reason && (
-                  <p className="text-sm text-gray-600 mt-1">{request.eligibility_reason}</p>
-                )}
               </div>
             </div>
-          )}
-
-          {/* Station Contact Information */}
-          {(stationPhone || stationEmail || stationManager) && (
-            <div className="border-t pt-4">
-              <label className="text-sm font-medium text-gray-600">Station Contact Information</label>
-              <div className="mt-2 space-y-2">
-                {stationManager && (
-                  <div className="flex justify-between">
-                    <span>Manager:</span>
-                    <span className="font-medium">{stationManager}</span>
-                  </div>
-                )}
-                {stationPhone && (
-                  <div className="flex justify-between">
-                    <span>Station Phone:</span>
-                    <a href={`tel:${stationPhone}`} className="text-blue-600 hover:underline">
-                      {stationPhone}
-                    </a>
-                  </div>
-                )}
-                {stationEmail && (
-                  <div className="flex justify-between">
-                    <span>Station Email:</span>
-                    <a href={`mailto:${stationEmail}`} className="text-blue-600 hover:underline">
-                      {stationEmail}
-                    </a>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {stationMapLink && (
-            <div>
-              <label className="text-sm font-medium text-gray-600">Map Location</label>
-              <div className="mt-1">
-                <a
-                  href={stationMapLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline flex items-center"
-                >
-                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                  View on Google Maps
-                </a>
-              </div>
-            </div>
-          )}
-          
-          <div className="border-t pt-4">
-            <label className="text-sm font-medium text-gray-600">Timeline</label>
-            <div className="mt-2 space-y-2">
-              <div className="flex justify-between">
-                <span>Created:</span>
-                <span>{request.created_formatted || request.created_date_formatted || (request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A")}</span>
-              </div>
-              {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
-                <div className="flex justify-between">
-                  <span>Completed:</span>
-                  <span>
-                    {request.completed_date_formatted || 
-                     (request.completed_date ? 
-                       new Date(request.completed_date).toLocaleString("en-IN", {
-                         day: "2-digit",
-                         month: "2-digit",
-                         year: "numeric",
-                         hour: "2-digit",
-                         minute: "2-digit",
-                         hour12: true,
-                         timeZone: "Asia/Kolkata"
-                       }) : '')}
+          ) : (
+            /* ✅ Incharge and others: Full details */
+            <>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Request ID</label>
+                  <p className="font-mono font-semibold">{request.rid}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Status</label>
+                  <span className={`px-2 py-1 rounded-full text-xs ${
+                    request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                    request.status === "Processing" ? "bg-blue-100 text-blue-800" :
+                    request.status === "Completed" ? "bg-green-100 text-green-800" :
+                    "bg-red-100 text-red-800"
+                  }`}>
+                    {request.status}
                   </span>
                 </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Vehicle Number</label>
+                  <p>{request.vehicle_number}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Driver Phone</label>
+                  <p>{request.driver_number}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Client Name</label>
+                  <p>{request.customer_name || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Loading Station</label>
+                  <p>{request.loading_station || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Product</label>
+                  <p>{request.product_name || "N/A"}</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Quantity</label>
+                  <p>{request.qty || "N/A"}</p>
+                </div>
+              </div>
+
+              {/* Eligibility Information */}
+              {request.eligibility && request.eligibility !== "N/A" && (
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium text-gray-600">Eligibility Check</label>
+                  <div className="mt-2">
+                    <span className={`px-2 py-1 rounded-full text-xs ${
+                      request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                    }`}>
+                      {request.eligibility}
+                    </span>
+                    {request.eligibility_reason && (
+                      <p className="text-sm text-gray-600 mt-1">{request.eligibility_reason}</p>
+                    )}
+                  </div>
+                </div>
               )}
-            </div>
-          </div>
+
+              {/* Station Contact Information */}
+              {(stationPhone || stationEmail || stationManager) && (
+                <div className="border-t pt-4">
+                  <label className="text-sm font-medium text-gray-600">Station Contact Information</label>
+                  <div className="mt-2 space-y-2">
+                    {stationManager && (
+                      <div className="flex justify-between">
+                        <span>Manager:</span>
+                        <span className="font-medium">{stationManager}</span>
+                      </div>
+                    )}
+                    {stationPhone && (
+                      <div className="flex justify-between">
+                        <span>Station Phone:</span>
+                        <a href={`tel:${stationPhone}`} className="text-blue-600 hover:underline">
+                          {stationPhone}
+                        </a>
+                      </div>
+                    )}
+                    {stationEmail && (
+                      <div className="flex justify-between">
+                        <span>Station Email:</span>
+                        <a href={`mailto:${stationEmail}`} className="text-blue-600 hover:underline">
+                          {stationEmail}
+                        </a>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {stationMapLink && (
+                <div>
+                  <label className="text-sm font-medium text-gray-600">Map Location</label>
+                  <div className="mt-1">
+                    <a
+                      href={stationMapLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline flex items-center"
+                    >
+                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      View on Google Maps
+                    </a>
+                  </div>
+                </div>
+              )}
+              
+              <div className="border-t pt-4">
+                <label className="text-sm font-medium text-gray-600">Timeline</label>
+                <div className="mt-2 space-y-2">
+                  <div className="flex justify-between">
+                    <span>Created:</span>
+                    <span>{request.created_formatted || request.created_date_formatted || (request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A")}</span>
+                  </div>
+                  {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
+                    <div className="flex justify-between">
+                      <span>Completed:</span>
+                      <span>
+                        {request.completed_date_formatted || 
+                         (request.completed_date ? 
+                           new Date(request.completed_date).toLocaleString("en-IN", {
+                             day: "2-digit",
+                             month: "2-digit",
+                             year: "numeric",
+                             hour: "2-digit",
+                             minute: "2-digit",
+                             hour12: true,
+                             timeZone: "Asia/Kolkata"
+                           }) : '')}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -332,7 +642,7 @@ const ExpandedDetails = ({ request, onClose }) => {
 };
 
 // Request Row Component
-const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
+const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, onOtpVerify, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -346,6 +656,15 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
     Completed: "bg-green-50",
     Cancelled: "bg-red-50",
   }[request.status] || "";
+
+  // ✅ Staff: Hide completed requests
+  // ✅ Incharge: Show completed requests
+  const isStaff = userRole === 1;
+  const isIncharge = userRole === 2;
+  
+  if (isStaff && request.status === "Completed") {
+    return null;
+  }
 
   return (
     <>
@@ -408,198 +727,123 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                 </div>
 
                 {/* Eligibility Check */}
-                <div className="bg-white rounded-lg p-3 border border-gray-200">
-                  <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
-                  {request.status === "Pending" && request.eligibility ? (
-                    <div className="flex flex-col items-start">
-                      <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                        request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                      }`}>
-                        {request.eligibility}
-                      </span>
-                      {request.eligibility_reason && (
-                        <div className="text-xs text-gray-500 mt-1 max-w-xs">{request.eligibility_reason}</div>
-                      )}
-                    </div>
-                  ) : (
-                    <span className="text-gray-400 text-xs">N/A</span>
-                  )}
-                </div>
-
-                {/* Created By - Always show if exists */}
-                {request.created_by_name && (
-                <div className="bg-white rounded-lg p-3 border border-gray-200">
-                  <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
-                  <div className="text-sm text-gray-900">
-                    {request.created_by_name}
-                  </div>
-                  {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
-                    <div className="text-xs text-gray-500 mt-1">
-                      {request.created_date_formatted || request.created_formatted || 
-                       (request.created_date || request.created ? 
-                         new Date(request.created_date || request.created).toLocaleString("en-IN", {
-                           day: "2-digit",
-                           month: "2-digit",
-                           year: "numeric",
-                           hour: "2-digit",
-                           minute: "2-digit",
-                           hour12: true
-                         }) : '')}
-                    </div>
-                  )}
-                </div>
-                )}
-
-                {/* Processed By */}
-                {request.processing_by_name && (
+                {request.status === "Pending" && (
                   <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
-                    <div className="text-sm text-gray-900">
-                      {request.processing_by_name || "-"}
-                    </div>
-                    {request.processed_date_formatted && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        {request.processed_date_formatted}
+                    <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
+                    {request.eligibility ? (
+                      <div className="flex flex-col items-start">
+                        <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
+                          request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                        }`}>
+                          {request.eligibility}
+                        </span>
+                        {request.eligibility_reason && (
+                          <div className="text-xs text-gray-500 mt-1 max-w-xs">{request.eligibility_reason}</div>
+                        )}
                       </div>
+                    ) : (
+                      <span className="text-gray-400 text-xs">N/A</span>
                     )}
                   </div>
                 )}
 
-                {/* Completed By - Only show if status is Completed */}
-                {request.status === "Completed" && (
-                  <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
-                    <div className="text-sm text-gray-900">
-                      {request.completed_by_name || "-"}
+                {/* ✅ Staff: Limited view for completed requests */}
+                {isStaff && request.status === "Completed" ? (
+                  <>
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                      <div className="text-xs font-medium text-gray-500 mb-1">Vehicle Info</div>
+                      <div className="text-sm text-gray-900">{request.vehicle_number}</div>
+                      <div className="text-xs text-gray-500 mt-1">Driver: {request.driver_number}</div>
                     </div>
-                    {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
-                      <div className="text-xs text-gray-500 mt-1">
-                        {request.completed_date_formatted || 
-                         (request.completed_date ? 
-                           new Date(request.completed_date).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true,
-                             timeZone: "Asia/Kolkata"
-                           }) : '')}
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {/* Edited By - Show all edit logs with details */}
-                {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (
-                  <div className="bg-white rounded-lg p-3 border border-gray-200">
-                    <div className="text-xs font-medium text-gray-500 mb-2">
-                      Edited By ({request.edit_logs.length} {request.edit_logs.length === 1 ? 'time' : 'times'})
+                    <div className="bg-white rounded-lg p-3 border border-gray-200">
+                      <div className="text-xs font-medium text-gray-500 mb-1">Product</div>
+                      <div className="text-sm text-gray-900">{request.product_name || "N/A"}</div>
                     </div>
-                    <div className="space-y-3 max-h-64 overflow-y-auto">
-                      {request.edit_logs.map((editLog, index) => {
-                        const editedByName = editLog.edited_by_name || 
-                          (editLog.changes && typeof editLog.changes === 'string' ? (() => {
-                            try {
-                              const changes = JSON.parse(editLog.changes);
-                              return changes.edited_by_name;
-                            } catch (e) {
-                              return null;
-                            }
-                          })() : null) ||
-                          `Employee ID: ${editLog.edited_by || 'Unknown'}`;
-                        
-                        // Check if this is a different employee from previous edit
-                        const prevEdit = index > 0 ? request.edit_logs[index - 1] : null;
-                        const prevEmployeeId = prevEdit?.edited_by || (prevEdit?.changes ? (() => {
-                          try {
-                            const prevChanges = JSON.parse(prevEdit.changes);
-                            return prevChanges.edited_by_id;
-                          } catch (e) {
-                            return null;
-                          }
-                        })() : null);
-                        const currentEmployeeId = editLog.edited_by || (editLog.changes ? (() => {
-                          try {
-                            const changes = JSON.parse(editLog.changes);
-                            return changes.edited_by_id;
-                          } catch (e) {
-                            return null;
-                          }
-                        })() : null);
-                        const isDifferentEmployee = prevEdit && prevEmployeeId !== currentEmployeeId;
-                        
-                        // Parse changes
-                        let changesData = null;
-                        if (editLog.changes && typeof editLog.changes === 'string') {
-                          try {
-                            changesData = JSON.parse(editLog.changes);
-                          } catch (e) {
-                            // Ignore parse errors
-                          }
-                        }
-                        
-                        return (
-                          <div key={index} className={`bg-purple-50 border rounded p-2 ${isDifferentEmployee ? 'border-purple-400 border-l-4' : 'border-purple-200'}`}>
-                            <div className="flex items-center justify-between mb-1">
-                              <div className="text-xs font-semibold text-purple-800">
-                                ✏️ Edit #{request.edit_logs.length - index}: {editedByName}
-                                {editLog.edited_by_code && (
-                                  <span className="text-gray-600 ml-1">({editLog.edited_by_code})</span>
-                                )}
-                                {isDifferentEmployee && (
-                                  <span className="ml-2 text-xs bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">Different Employee</span>
-                                )}
-                              </div>
-                              {editLog.edited_date && (
-                                <div className="text-xs text-gray-600">
-                                  {new Date(editLog.edited_date).toLocaleString("en-IN", {
-                                    day: "2-digit",
-                                    month: "2-digit",
-                                    year: "numeric",
-                                    hour: "2-digit",
-                                    minute: "2-digit",
-                                    hour12: true,
-                                    timeZone: "Asia/Kolkata"
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                            
-                            {/* Show changes */}
-                            <div className="text-xs text-purple-700 space-y-1 mt-1">
-                              {changesData?.aqty && changesData.aqty.from !== undefined && changesData.aqty.to !== undefined && (
-                                <div>
-                                  📦 Qty: <span className="font-medium">{changesData.aqty.from}L</span> → <span className="font-medium">{changesData.aqty.to}L</span>
-                                </div>
-                              )}
-                              {changesData?.stock && changesData.stock.before !== undefined && changesData.stock.after !== undefined && (
-                                <div>
-                                  📊 Stock: <span className="font-medium">{changesData.stock.before}L</span> → <span className="font-medium">{changesData.stock.after}L</span>
-                                </div>
-                              )}
-                              {changesData?.remarks && changesData.remarks.from && changesData.remarks.to && (
-                                <div>
-                                  📝 Remarks: <span className="font-medium">"{changesData.remarks.from}"</span> → <span className="font-medium">"{changesData.remarks.to}"</span>
-                                </div>
-                              )}
-                              {(editLog.old_aqty !== undefined && editLog.new_aqty !== undefined) && !changesData?.aqty && (
-                                <div>
-                                  📦 Qty: <span className="font-medium">{editLog.old_aqty}L</span> → <span className="font-medium">{editLog.new_aqty}L</span>
-                                </div>
-                              )}
-                            </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Created By - Always show if exists */}
+                    {request.created_by_name && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
+                        <div className="text-sm text-gray-900">
+                          {request.created_by_name}
+                        </div>
+                        {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {request.created_date_formatted || request.created_formatted || 
+                             (request.created_date || request.created ? 
+                               new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                                 day: "2-digit",
+                                 month: "2-digit",
+                                 year: "numeric",
+                                 hour: "2-digit",
+                                 minute: "2-digit",
+                                 hour12: true
+                               }) : '')}
                           </div>
-                        );
-                      })}
-                    </div>
-                  </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Processed By */}
+                    {request.processing_by_name && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
+                        <div className="text-sm text-gray-900">
+                          {request.processing_by_name || "-"}
+                        </div>
+                        {request.processed_date_formatted && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {request.processed_date_formatted}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Completed By - Only show if status is Completed */}
+                    {request.status === "Completed" && (
+                      <div className="bg-white rounded-lg p-3 border border-gray-200">
+                        <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
+                        <div className="text-sm text-gray-900">
+                          {request.completed_by_name || "-"}
+                        </div>
+                        {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
+                          <div className="text-xs text-gray-500 mt-1">
+                            {request.completed_date_formatted || 
+                             (request.completed_date ? 
+                               new Date(request.completed_date).toLocaleString("en-IN", {
+                                 day: "2-digit",
+                                 month: "2-digit",
+                                 year: "numeric",
+                                 hour: "2-digit",
+                                 minute: "2-digit",
+                                 hour12: true,
+                                 timeZone: "Asia/Kolkata"
+                               }) : '')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
                 )}
 
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-                  <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} userRole={userRole} />
+                  <Icons 
+                    request={request} 
+                    onView={onView}
+                    onEdit={onEdit} 
+                    onExpand={onExpand} 
+                    onCall={onCall} 
+                    onShare={onShare} 
+                    onPdf={onPdf} 
+                    onShowDetails={onShowDetails} 
+                    permissions={permissions} 
+                    userRole={userRole}
+                    onOtpVerify={onOtpVerify}
+                  />
                 </div>
               </div>
             </div>
@@ -611,7 +855,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
 };
 
 // Mobile Request Card Component
-const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
+const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, onOtpVerify, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
@@ -629,6 +873,18 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
 
+  // ✅ Staff: Hide completed requests
+  // ✅ Incharge: Show completed requests
+  const isStaff = userRole === 1;
+  const isIncharge = userRole === 2;
+  
+  if (isStaff && request.status === "Completed") {
+    return null;
+  }
+
+  // ✅ For staff and completed requests: Limited view
+  const isStaffViewingCompleted = isStaff && request.status === "Completed";
+
   return (
     <div className={`border rounded-xl p-4 mb-4 bg-white shadow-md hover:shadow-lg transition-all ${statusBorderClass}`}>
       <div className="flex justify-between items-start mb-3">
@@ -642,191 +898,114 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
         <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
       </div>
       <div className="space-y-3 text-sm">
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="font-medium text-gray-600 text-xs">Vehicle No</div>
-            <div className="font-semibold">{request.vehicle_number}</div>
-          </div>
-          <div>
-            <div className="font-medium text-gray-600 text-xs">Loading Station</div>
-            <div>{request.loading_station || "N/A"}</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="font-medium text-gray-600 text-xs">Client Name</div>
-            <div>{request.customer_name || "N/A"}</div>
-          </div>
-          <div>
-            <div className="font-medium text-gray-600 text-xs">Driver Phone</div>
-            <div>{request.driver_number}</div>
-          </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <div className="font-medium text-gray-600 text-xs">Date & Time</div>
-            <div>
-              {request.created_formatted ? request.created_formatted.split(' ')[0] : (request.created_date_formatted ? request.created_date_formatted.split(' ')[0] : (request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"))}
-              <br />
-              <span className="text-xs text-gray-500">
-                {request.created_formatted ? request.created_formatted.split(' ').slice(1).join(' ') : (request.created_date_formatted ? request.created_date_formatted.split(' ').slice(1).join(' ') : (request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""))}
-              </span>
-            </div>
-          </div>
-          {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
-            <div>
-              <div className="font-medium text-gray-600 text-xs mb-1">Completed</div>
-              <div className="flex flex-col items-start gap-1">
-                <span>{request.completed_date_formatted ? request.completed_date_formatted.split(' ')[0] : (request.completed_date ? new Date(request.completed_date).toLocaleDateString("en-IN", { timeZone: 'Asia/Kolkata' }) : 'N/A')}</span>
-                {request.status === "Completed" && (
-                  <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-                    title={isExpanded ? "Hide Creator Info" : "Show Creator Info"}
-                  >
-                    {isExpanded ? (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                      </svg>
-                    ) : (
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                    )}
-                  </button>
-                )}
+        {/* ✅ Staff viewing completed: Limited information */}
+        {isStaffViewingCompleted ? (
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Vehicle No</div>
+                <div className="font-semibold">{request.vehicle_number}</div>
+              </div>
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Driver Phone</div>
+                <div>{request.driver_number}</div>
               </div>
             </div>
-          )}
-        </div>
-        
-        {/* Eligibility Check */}
-        {request.status === "Pending" && request.eligibility && (
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="flex items-center justify-between">
-              <div className="font-medium text-gray-600 text-xs">Eligibility Check</div>
-              <span className={`px-2 py-1 rounded-full text-xs text-white ${
-                request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-              }`}>
-                {request.eligibility}
-              </span>
+            <div>
+              <div className="font-medium text-gray-600 text-xs">Product</div>
+              <div>{request.product_name || "N/A"}</div>
             </div>
-            {request.eligibility_reason && (
-              <div className="text-xs mt-1 text-gray-600">{request.eligibility_reason}</div>
-            )}
-          </div>
-        )}
-
-        {/* Station Contact Info */}
-        {stationPhone && (
-          <div className="bg-blue-50 p-3 rounded-md">
-            <div className="flex items-center justify-between">
-              <div className="font-medium text-blue-600 text-xs">Station Phone</div>
-              <a href={`tel:${stationPhone}`} className="text-blue-700 font-semibold">
-                {stationPhone}
-              </a>
+          </>
+        ) : (
+          /* ✅ Regular view for others */
+          <>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Vehicle No</div>
+                <div className="font-semibold">{request.vehicle_number}</div>
+              </div>
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Loading Station</div>
+                <div>{request.loading_station || "N/A"}</div>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Activity Logs */}
-        {(request.created_by_name || request.processing_by_name || request.completed_by_name || (request.edit_logs && request.edit_logs.length > 0)) && (
-          <div className="mt-2 pt-2 border-t border-gray-200">
-            <div className="font-medium text-gray-600 text-xs mb-1">Activity Logs</div>
-            <div className="space-y-1">
-              {request.created_by_name && (
-                <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
-                  <p className="text-xs text-blue-700">
-                    <span className="font-medium">📝 Created:</span> {request.created_by_name}
-                  </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Client Name</div>
+                <div>{request.customer_name || "N/A"}</div>
+              </div>
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Driver Phone</div>
+                <div>{request.driver_number}</div>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <div className="font-medium text-gray-600 text-xs">Date & Time</div>
+                <div>
+                  {request.created_formatted ? request.created_formatted.split(' ')[0] : (request.created_date_formatted ? request.created_date_formatted.split(' ')[0] : (request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"))}
+                  <br />
+                  <span className="text-xs text-gray-500">
+                    {request.created_formatted ? request.created_formatted.split(' ').slice(1).join(' ') : (request.created_date_formatted ? request.created_date_formatted.split(' ').slice(1).join(' ') : (request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""))}
+                  </span>
                 </div>
-              )}
-              {request.processing_by_name && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
-                  <p className="text-xs text-yellow-700">
-                    <span className="font-medium">⚙️ Processed:</span> {request.processing_by_name}
-                    {request.processed_date_formatted && (
-                      <span className="ml-2 text-gray-600">({request.processed_date_formatted})</span>
-                    )}
-                  </p>
-                </div>
-              )}
-              {request.completed_by_name && (
-                <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
-                  <p className="text-xs text-green-700">
-                    <span className="font-medium">✅ Completed:</span> {request.completed_by_name}
-                    {request.completed_date_formatted && (
-                      <span className="ml-2 text-gray-600">({request.completed_date_formatted})</span>
-                    )}
-                  </p>
-                </div>
-              )}
-              {/* Show all edit logs */}
-              {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && request.edit_logs.map((editLog, index) => {
-                const editedByName = editLog.edited_by_name || 
-                  (editLog.changes && typeof editLog.changes === 'string' ? (() => {
-                    try {
-                      const changes = JSON.parse(editLog.changes);
-                      return changes.edited_by_name;
-                    } catch (e) {
-                      return null;
-                    }
-                  })() : null) ||
-                  `Employee ID: ${editLog.edited_by || 'Unknown'}`;
-                
-                // Parse changes
-                let changesData = null;
-                if (editLog.changes && typeof editLog.changes === 'string') {
-                  try {
-                    changesData = JSON.parse(editLog.changes);
-                  } catch (e) {
-                    // Ignore parse errors
-                  }
-                }
-                
-                return (
-                  <div key={index} className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
-                    <p className="text-xs text-purple-700">
-                      <span className="font-medium">✏️ Edited ({index + 1}):</span> {editedByName}
-                      {editLog.edited_date && (
-                        <span className="ml-2 text-gray-600">
-                          ({new Date(editLog.edited_date).toLocaleString("en-IN", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                            hour12: true,
-                            timeZone: "Asia/Kolkata"
-                          })})
-                        </span>
-                      )}
-                    </p>
-                    {changesData?.aqty && changesData.aqty.from !== undefined && changesData.aqty.to !== undefined && (
-                      <p className="text-xs text-purple-600 mt-1">
-                        📦 Qty: <span className="font-medium">{changesData.aqty.from}L</span> → <span className="font-medium">{changesData.aqty.to}L</span>
-                      </p>
-                    )}
-                    {changesData?.stock && changesData.stock.before !== undefined && changesData.stock.after !== undefined && (
-                      <p className="text-xs text-purple-600 mt-1">
-                        📊 Stock: <span className="font-medium">{changesData.stock.before}L</span> → <span className="font-medium">{changesData.stock.after}L</span>
-                      </p>
-                    )}
-                    {changesData?.remarks && changesData.remarks.from && changesData.remarks.to && (
-                      <p className="text-xs text-purple-600 mt-1">
-                        📝 Remarks: <span className="font-medium">"{changesData.remarks.from}"</span> → <span className="font-medium">"{changesData.remarks.to}"</span>
-                      </p>
-                    )}
-                    {(editLog.old_aqty !== undefined && editLog.new_aqty !== undefined) && !changesData?.aqty && (
-                      <p className="text-xs text-purple-600 mt-1">
-                        📦 Qty: <span className="font-medium">{editLog.old_aqty}L</span> → <span className="font-medium">{editLog.new_aqty}L</span>
-                      </p>
+              </div>
+              {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
+                <div>
+                  <div className="font-medium text-gray-600 text-xs mb-1">Completed</div>
+                  <div className="flex flex-col items-start gap-1">
+                    <span>{request.completed_date_formatted ? request.completed_date_formatted.split(' ')[0] : (request.completed_date ? new Date(request.completed_date).toLocaleDateString("en-IN", { timeZone: 'Asia/Kolkata' }) : 'N/A')}</span>
+                    {request.status === "Completed" && (
+                      <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+                        title={isExpanded ? "Hide Creator Info" : "Show Creator Info"}
+                      >
+                        {isExpanded ? (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                          </svg>
+                        )}
+                      </button>
                     )}
                   </div>
-                );
-              })}
+                </div>
+              )}
             </div>
-          </div>
+            
+            {/* Eligibility Check */}
+            {request.status === "Pending" && request.eligibility && (
+              <div className="bg-gray-50 p-3 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-gray-600 text-xs">Eligibility Check</div>
+                  <span className={`px-2 py-1 rounded-full text-xs text-white ${
+                    request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                  }`}>
+                    {request.eligibility}
+                  </span>
+                </div>
+                {request.eligibility_reason && (
+                  <div className="text-xs mt-1 text-gray-600">{request.eligibility_reason}</div>
+                )}
+              </div>
+            )}
+
+            {/* Station Contact Info */}
+            {stationPhone && (
+              <div className="bg-blue-50 p-3 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium text-blue-600 text-xs">Station Phone</div>
+                  <a href={`tel:${stationPhone}`} className="text-blue-700 font-semibold">
+                    {stationPhone}
+                  </a>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
       <div className="flex justify-between items-center mt-4 pt-3 border-t">
@@ -847,12 +1026,24 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </svg>
             )}
           </button>
-          <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} userRole={userRole} />
+          <Icons 
+            request={request} 
+            onView={onView} 
+            onEdit={onEdit} 
+            onExpand={onExpand} 
+            onCall={onCall} 
+            onShare={onShare} 
+            onPdf={onPdf} 
+            onShowDetails={onShowDetails} 
+            permissions={permissions} 
+            userRole={userRole}
+            onOtpVerify={onOtpVerify}
+          />
         </div>
       </div>
       
       {/* Expanded Details */}
-      {isExpanded && (
+      {isExpanded && !isStaffViewingCompleted && (
         <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
           <div className="space-y-3">
@@ -866,57 +1057,58 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               {request.status === "Completed" && request.completed_by_name && (
                 <div className="text-xs text-gray-600 mt-1">By: {request.completed_by_name}</div>
               )}
-               {request.status === "Edited" && request.edited_by_name && (
-                <div className="text-xs text-gray-600 mt-1">By: {request.edited_by_name}</div>
-              )}
             </div>
 
             {/* Eligibility Check */}
-            <div className="bg-white rounded-lg p-3 border border-gray-200">
-              <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
-              {request.status === "Pending" && request.eligibility ? (
-                <>
-                  <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                    request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                  }`}>
-                    {request.eligibility}
-                  </span>
-                  {request.eligibility_reason && (
-                    <div className="text-xs text-gray-500 mt-1">{request.eligibility_reason}</div>
-                  )}
-                </>
-              ) : (
-                <span className="text-gray-400 text-xs">N/A</span>
-              )}
-            </div>
+            {request.status === "Pending" && (
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
+                {request.eligibility ? (
+                  <>
+                    <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
+                      request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                    }`}>
+                      {request.eligibility}
+                    </span>
+                    {request.eligibility_reason && (
+                      <div className="text-xs text-gray-500 mt-1">{request.eligibility_reason}</div>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-gray-400 text-xs">N/A</span>
+                )}
+              </div>
+            )}
 
             {/* Created By - Always show if exists */}
             {request.created_by_name && (
-            <div className="bg-white rounded-lg p-3 border border-gray-200">
-              <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
-              <div className="text-sm text-gray-900">{request.created_by_name}</div>
-              {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
-                <div className="text-xs text-gray-500 mt-1">
-                  {request.created_date_formatted || request.created_formatted || 
-                   (request.created_date || request.created ? 
-                     new Date(request.created_date || request.created).toLocaleString("en-IN", {
-                       day: "2-digit",
-                       month: "2-digit",
-                       year: "numeric",
-                       hour: "2-digit",
-                       minute: "2-digit",
-                       hour12: true
-                     }) : '')}
-                </div>
-              )}
-            </div>
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
+                <div className="text-sm text-gray-900">{request.created_by_name}</div>
+                {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
+                  <div className="text-xs text-gray-500 mt-1">
+                    {request.created_date_formatted || request.created_formatted || 
+                     (request.created_date || request.created ? 
+                       new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                         day: "2-digit",
+                         month: "2-digit",
+                         year: "numeric",
+                         hour: "2-digit",
+                         minute: "2-digit",
+                         hour12: true
+                       }) : '')}
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Processed By */}
-            <div className="bg-white rounded-lg p-3 border border-gray-200">
-              <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
-              <div className="text-sm text-gray-900">{request.processing_by_name || "-"}</div>
-            </div>
+            {request.processing_by_name && (
+              <div className="bg-white rounded-lg p-3 border border-gray-200">
+                <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
+                <div className="text-sm text-gray-900">{request.processing_by_name || "-"}</div>
+              </div>
+            )}
 
             {/* Completed By - Only show if status is Completed */}
             {request.status === "Completed" && (
@@ -939,116 +1131,22 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </div>
             )}
 
-            {/* Edited By - Show all edit logs with details */}
-            {request.edit_logs && Array.isArray(request.edit_logs) && request.edit_logs.length > 0 && (
-              <div className="bg-white rounded-lg p-3 border border-gray-200">
-                <div className="text-xs font-medium text-gray-500 mb-2">
-                  Edited By ({request.edit_logs.length} {request.edit_logs.length === 1 ? 'time' : 'times'})
-                </div>
-                <div className="space-y-3 max-h-64 overflow-y-auto">
-                  {request.edit_logs.map((editLog, index) => {
-                    const editedByName = editLog.edited_by_name || 
-                      (editLog.changes && typeof editLog.changes === 'string' ? (() => {
-                        try {
-                          const changes = JSON.parse(editLog.changes);
-                          return changes.edited_by_name;
-                        } catch (e) {
-                          return null;
-                        }
-                      })() : null) ||
-                      `Employee ID: ${editLog.edited_by || 'Unknown'}`;
-                    
-                    // Check if this is a different employee from previous edit
-                    const prevEdit = index > 0 ? request.edit_logs[index - 1] : null;
-                    const prevEmployeeId = prevEdit?.edited_by || (prevEdit?.changes ? (() => {
-                      try {
-                        const prevChanges = JSON.parse(prevEdit.changes);
-                        return prevChanges.edited_by_id;
-                      } catch (e) {
-                        return null;
-                      }
-                    })() : null);
-                    const currentEmployeeId = editLog.edited_by || (editLog.changes ? (() => {
-                      try {
-                        const changes = JSON.parse(editLog.changes);
-                        return changes.edited_by_id;
-                      } catch (e) {
-                        return null;
-                      }
-                    })() : null);
-                    const isDifferentEmployee = prevEdit && prevEmployeeId !== currentEmployeeId;
-                    
-                    // Parse changes
-                    let changesData = null;
-                    if (editLog.changes && typeof editLog.changes === 'string') {
-                      try {
-                        changesData = JSON.parse(editLog.changes);
-                      } catch (e) {
-                        // Ignore parse errors
-                      }
-                    }
-                    
-                    return (
-                      <div key={index} className={`bg-purple-50 border rounded p-2 ${isDifferentEmployee ? 'border-purple-400 border-l-4' : 'border-purple-200'}`}>
-                        <div className="flex items-center justify-between mb-1">
-                          <div className="text-xs font-semibold text-purple-800">
-                            ✏️ Edit #{request.edit_logs.length - index}: {editedByName}
-                            {editLog.edited_by_code && (
-                              <span className="text-gray-600 ml-1">({editLog.edited_by_code})</span>
-                            )}
-                            {isDifferentEmployee && (
-                              <span className="ml-2 text-xs bg-purple-200 text-purple-800 px-1.5 py-0.5 rounded">Different Employee</span>
-                            )}
-                          </div>
-                          {editLog.edited_date && (
-                            <div className="text-xs text-gray-600">
-                              {new Date(editLog.edited_date).toLocaleString("en-IN", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                                hour12: true,
-                                timeZone: "Asia/Kolkata"
-                              })}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* Show changes */}
-                        <div className="text-xs text-purple-700 space-y-1 mt-1">
-                          {changesData?.aqty && changesData.aqty.from !== undefined && changesData.aqty.to !== undefined && (
-                            <div>
-                              📦 Qty: <span className="font-medium">{changesData.aqty.from}L</span> → <span className="font-medium">{changesData.aqty.to}L</span>
-                            </div>
-                          )}
-                          {changesData?.stock && changesData.stock.before !== undefined && changesData.stock.after !== undefined && (
-                            <div>
-                              📊 Stock: <span className="font-medium">{changesData.stock.before}L</span> → <span className="font-medium">{changesData.stock.after}L</span>
-                            </div>
-                          )}
-                          {changesData?.remarks && changesData.remarks.from && changesData.remarks.to && (
-                            <div>
-                              📝 Remarks: <span className="font-medium">"{changesData.remarks.from}"</span> → <span className="font-medium">"{changesData.remarks.to}"</span>
-                            </div>
-                          )}
-                          {(editLog.old_aqty !== undefined && editLog.new_aqty !== undefined) && !changesData?.aqty && (
-                            <div>
-                              📦 Qty: <span className="font-medium">{editLog.old_aqty}L</span> → <span className="font-medium">{editLog.new_aqty}L</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
             {/* Actions */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-              <Icons request={request} onView={onView} onEdit={onEdit} onExpand={onExpand} onCall={onCall} onShare={onShare} onPdf={onPdf} onShowDetails={onShowDetails} permissions={permissions} userRole={null} />
+              <Icons 
+                request={request} 
+                onView={onView} 
+                onEdit={onEdit} 
+                onExpand={onExpand} 
+                onCall={onCall} 
+                onShare={onShare} 
+                onPdf={onPdf} 
+                onShowDetails={onShowDetails} 
+                permissions={permissions} 
+                userRole={null}
+                onOtpVerify={onOtpVerify}
+              />
             </div>
           </div>
         </div>
@@ -1056,8 +1154,6 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
     </div>
   );
 };
-
-// Quick Loading Component - REMOVED (no loading states)
 
 // StatusFilters Component
 const StatusFilters = ({ currentStatus, onStatusChange, userRole = null }) => {
@@ -1148,6 +1244,7 @@ export default function FillingRequests() {
   const searchParams = useSearchParams();
   const { user, loading: authLoading } = useSession();
   const [requests, setRequests] = useState([]);
+  const [filteredRequests, setFilteredRequests] = useState([]);
   const [expandedRequest, setExpandedRequest] = useState(null);
   const [hasPermission, setHasPermission] = useState(false);
   const [permissions, setPermissions] = useState({
@@ -1162,8 +1259,20 @@ export default function FillingRequests() {
     totalPages: 1,
   });
 
+  // OTP Modal State
+  const [otpModal, setOtpModal] = useState({
+    isOpen: false,
+    requestId: null,
+    requestRid: "",
+    generatedOtp: "",
+    phoneNumber: null
+  });
+
   const statusFilter = searchParams.get("status") || "";
   const search = searchParams.get("search") || "";
+  const userRole = user ? Number(user.role) : null;
+  const isStaff = userRole === 1;
+  const isIncharge = userRole === 2;
 
   // Check permissions
   useEffect(() => {
@@ -1198,7 +1307,7 @@ export default function FillingRequests() {
         setHasPermission(true);
         setPermissions({
           can_view: fillingPerms.can_view,
-          can_edit: fillingPerms.can_edit || false,
+          can_edit: isStaff ? false : (fillingPerms.can_edit || false),
           can_create: fillingPerms.can_create || false
         });
         return;
@@ -1219,7 +1328,7 @@ export default function FillingRequests() {
         setHasPermission(true);
         setPermissions({
           can_view: cachedPerms.can_view,
-          can_edit: cachedPerms.can_edit || false,
+          can_edit: isStaff ? false : (cachedPerms.can_edit || false),
           can_create: cachedPerms.can_create || false
         });
         return;
@@ -1247,7 +1356,7 @@ export default function FillingRequests() {
 
       const perms = {
         can_view: viewData.allowed || false,
-        can_edit: editData.allowed || false,
+        can_edit: isStaff ? false : (editData.allowed || false),
         can_create: createData.allowed || false
       };
 
@@ -1319,7 +1428,6 @@ export default function FillingRequests() {
         });
 
         console.log("🔍 Fetching from:", `/api/filling-requests?${params}`);
-        console.log("📡 Full URL:", `${window.location.origin}/api/filling-requests?${params}`);
 
         const response = await fetch(`/api/filling-requests?${params}`);
         console.log("📡 Response status:", response.status);
@@ -1395,6 +1503,22 @@ export default function FillingRequests() {
     }
   }, [searchParams, statusFilter, search, user, hasPermission, authLoading]);
 
+  // Filter requests based on role
+  useEffect(() => {
+    if (requests.length > 0) {
+      let filtered = requests;
+      
+      // ✅ Staff: Hide completed requests
+      if (isStaff) {
+        filtered = filtered.filter(request => request.status !== "Completed");
+      }
+      
+      setFilteredRequests(filtered);
+    } else {
+      setFilteredRequests([]);
+    }
+  }, [requests, isStaff]);
+
   // Handlers
   const handleStatusChange = useCallback((newStatus) => {
     const params = new URLSearchParams(searchParams);
@@ -1425,106 +1549,222 @@ export default function FillingRequests() {
     router.push(`/filling-requests?${params.toString()}`);
   }, [router, searchParams]);
 
- // Updated handleView function with auto-processing
-const handleView = useCallback(async (requestId) => {
-  try {
-    // Find the request from current list
-    const request = requests.find(req => req.id === requestId);
+  // OTP Verification Handlers - SIMPLIFIED VERSION
+ // OTP Verification Handlers - SIMPLIFIED VERSION
+const handleOtpVerify = useCallback((request) => {
+  // Check eligibility
+  if (request.status === "Pending" && request.eligibility === "Yes") {
+    // Generate random OTP immediately (6 digits)
+    const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
     
-    if (!request) {
-      console.error("Request not found:", requestId);
-      alert("Request not found");
-      return;
-    }
-    
-    console.log("👁️ Viewing request:", {
-      id: requestId,
+    console.log('🔢 Generated OTP for request:', {
       rid: request.rid,
-      status: request.status,
-      eligibility: request.eligibility,
-      eligibility_reason: request.eligibility_reason
+      otp: generatedOtp
     });
     
-    // ✅ Step 1: If Pending and eligible, auto-process
-    if (request.status === "Pending" && request.eligibility === "Yes") {
-      console.log("🔄 Auto-processing request:", request.rid);
+    // Show OTP modal with generated OTP (NOT auto-filled)
+    setOtpModal({
+      isOpen: true,
+      requestId: request.id,
+      requestRid: request.rid,
+      generatedOtp: generatedOtp, // OTP store किया लेकिन auto-fill नहीं होगा
+      phoneNumber: request.driver_number || request.customer_phone || null
+    });
+  } else {
+    alert(`Cannot process request:\n${request.eligibility_reason || "Not eligible"}`);
+  }
+}, []);
+  const verifyOtp = async (requestId, otp) => {
+    try {
+      console.log('✅ Verifying OTP for request:', requestId);
       
-      try {
-        // Show loading indicator
-        const viewButton = document.querySelector(`button[onclick*="${requestId}"]`);
-        if (viewButton) {
-          viewButton.disabled = true;
-          viewButton.innerHTML = '<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>';
-        }
-        
-        // Call auto-process API
-        const processResponse = await fetch('/api/auto-process-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ requestId: request.id })
+      // Find the request
+      const request = requests.find(req => req.id === requestId);
+      
+      if (!request) {
+        throw new Error("Request not found");
+      }
+
+      // Check if OTP matches (for demo/development)
+      // In production, you would verify with backend
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 Development OTP check:', {
+          enteredOtp: otp,
+          expectedOtp: otpModal.generatedOtp
         });
         
-        const processResult = await processResponse.json();
-        
-        // Reset button
-        if (viewButton) {
-          viewButton.disabled = false;
-          viewButton.innerHTML = `
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          `;
-        }
-        
-        if (processResponse.ok && processResult.success) {
-          console.log("✅ Auto-process successful:", processResult.message);
-          
-          // Show success message
-          alert(`✅ ${processResult.message}\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
-          
-          // ✅ Update local state immediately for better UX
-          setRequests(prevRequests => 
-            prevRequests.map(req => 
-              req.id === requestId 
-                ? { ...req, status: 'Processing', eligibility: 'N/A' }
-                : req
-            )
-          );
-          
-          // ✅ Now navigate to details page
-          setTimeout(() => {
-            router.push(`/filling-details-admin?id=${requestId}`);
-          }, 500);
-          return;
-          
+        // For development, accept any 6-digit OTP
+        if (otp.length === 6 && /^\d{6}$/.test(otp)) {
+          console.log('✅ OTP accepted in development mode');
         } else {
-          console.error("❌ Auto-process failed:", processResult.error);
-          alert(`❌ ${processResult.error || 'Failed to process request'}`);
-          return; // Don't navigate if process failed
+          throw new Error("Invalid OTP format");
         }
-      } catch (apiError) {
-        console.error("❌ API call error:", apiError);
-        alert("Network error. Please check your connection and try again.");
+      }
+
+      // Process the request after OTP verification
+      const processResponse = await fetch('/api/process-request-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          requestId: requestId,
+          otp: otp,
+          userId: user?.id 
+        })
+      });
+      
+      const processResult = await processResponse.json();
+      
+      if (processResponse.ok && processResult.success) {
+        // Close OTP modal
+        setOtpModal({ isOpen: false, requestId: null, requestRid: "", generatedOtp: "", phoneNumber: null });
+        
+        // Show success message
+        alert(`✅ Request processed successfully!\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
+        
+        // Update local state
+        setRequests(prevRequests => 
+          prevRequests.map(req => 
+            req.id === requestId 
+              ? { ...req, status: 'Processing', eligibility: 'N/A' }
+              : req
+          )
+        );
+        
+        // Navigate to details page after 1 second
+        setTimeout(() => {
+          router.push(`/filling-details-admin?id=${requestId}`);
+        }, 1000);
+        
+        return true;
+      } else {
+        throw new Error(processResult.error || 'Failed to process request');
+      }
+    } catch (error) {
+      throw new Error(error.message || "Request processing failed");
+    }
+  };
+
+  const resendOtp = async (requestId) => {
+    try {
+      // Generate new OTP
+      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
+      
+      // Update modal with new OTP
+      setOtpModal(prev => ({
+        ...prev,
+        generatedOtp: newOtp
+      }));
+      
+      console.log('🔄 New OTP generated:', newOtp);
+      return true;
+    } catch (error) {
+      throw new Error(error.message || "Failed to resend OTP");
+    }
+  };
+
+  const closeOtpModal = () => {
+    setOtpModal({ isOpen: false, requestId: null, requestRid: "", generatedOtp: "", phoneNumber: null });
+  };
+
+  // Original handleView function (for non-OTP cases - Team Leader+)
+  const handleView = useCallback(async (requestId) => {
+    try {
+      const request = requests.find(req => req.id === requestId);
+      
+      if (!request) {
+        console.error("Request not found:", requestId);
+        alert("Request not found");
         return;
       }
+      
+      console.log("👁️ Viewing request:", {
+        id: requestId,
+        rid: request.rid,
+        status: request.status,
+        eligibility: request.eligibility,
+        eligibility_reason: request.eligibility_reason
+      });
+      
+      // ✅ Step 1: If Pending and eligible, auto-process
+      if (request.status === "Pending" && request.eligibility === "Yes") {
+        console.log("🔄 Auto-processing request:", request.rid);
+        
+        try {
+          // Show loading indicator
+          const viewButton = document.querySelector(`button[onclick*="${requestId}"]`);
+          if (viewButton) {
+            viewButton.disabled = true;
+            viewButton.innerHTML = '<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>';
+          }
+          
+          // Call auto-process API
+          const processResponse = await fetch('/api/auto-process-request', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ requestId: request.id })
+          });
+          
+          const processResult = await processResponse.json();
+          
+          // Reset button
+          if (viewButton) {
+            viewButton.disabled = false;
+            viewButton.innerHTML = `
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            `;
+          }
+          
+          if (processResponse.ok && processResult.success) {
+            console.log("✅ Auto-process successful:", processResult.message);
+            
+            // Show success message
+            alert(`✅ ${processResult.message}\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
+            
+            // ✅ Update local state immediately for better UX
+            setRequests(prevRequests => 
+              prevRequests.map(req => 
+                req.id === requestId 
+                  ? { ...req, status: 'Processing', eligibility: 'N/A' }
+                  : req
+              )
+            );
+            
+            // ✅ Now navigate to details page
+            setTimeout(() => {
+              router.push(`/filling-details-admin?id=${requestId}`);
+            }, 500);
+            return;
+            
+          } else {
+            console.error("❌ Auto-process failed:", processResult.error);
+            alert(`❌ ${processResult.error || 'Failed to process request'}`);
+            return;
+          }
+        } catch (apiError) {
+          console.error("❌ API call error:", apiError);
+          alert("Network error. Please check your connection and try again.");
+          return;
+        }
+      }
+      
+      // ✅ Step 2: If not eligible, show error
+      if (request.status === "Pending" && request.eligibility === "No") {
+        alert(`❌ Cannot process request:\n\n${request.eligibility_reason || "Not eligible"}`);
+        return;
+      }
+      
+      // ✅ Step 3: If already Processing/Completed or not eligible, just navigate
+      console.log("📋 Navigating to details page for request:", request.rid);
+      router.push(`/filling-details-admin?id=${requestId}`);
+      
+    } catch (error) {
+      console.error("❌ Error in handleView:", error);
+      alert("Error processing request. Please try again.");
     }
-    
-    // ✅ Step 2: If not eligible, show error
-    if (request.status === "Pending" && request.eligibility === "No") {
-      alert(`❌ Cannot process request:\n\n${request.eligibility_reason || "Not eligible"}`);
-      return;
-    }
-    
-    // ✅ Step 3: If already Processing/Completed or not eligible, just navigate
-    console.log("📋 Navigating to details page for request:", request.rid);
-    router.push(`/filling-details-admin?id=${requestId}`);
-    
-  } catch (error) {
-    console.error("❌ Error in handleView:", error);
-    alert("Error processing request. Please try again.");
-  }
-}, [requests, router]);
+  }, [requests, router]);
 
   const handleEdit = useCallback((requestId) => {
     router.push(`/filling-requests/edit?id=${requestId}`);
@@ -1642,9 +1882,8 @@ const handleView = useCallback(async (requestId) => {
   }, []);
 
   // Memoized components
-  const userRole = user ? Number(user.role) : null;
   const requestItems = useMemo(() =>
-    requests.map((request, index) => (
+    filteredRequests.map((request, index) => (
       <RequestRow
         key={request.id}
         request={request}
@@ -1656,13 +1895,14 @@ const handleView = useCallback(async (requestId) => {
         onShare={handleShare}
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
+        onOtpVerify={handleOtpVerify}
         permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
         userRole={userRole}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user, userRole]);
+    )), [filteredRequests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, handleOtpVerify, permissions, user, userRole]);
 
   const mobileRequestItems = useMemo(() =>
-    requests.map((request, index) => (
+    filteredRequests.map((request, index) => (
       <MobileRequestCard
         key={request.id}
         request={request}
@@ -1674,10 +1914,11 @@ const handleView = useCallback(async (requestId) => {
         onShare={handleShare}
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
+        onOtpVerify={handleOtpVerify}
         permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
         userRole={userRole}
       />
-    )), [requests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, permissions, user, userRole]);
+    )), [filteredRequests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, handleOtpVerify, permissions, user, userRole]);
 
   // ✅ Show loading while checking authentication
   if (authLoading) {
@@ -1699,7 +1940,7 @@ const handleView = useCallback(async (requestId) => {
 
   // ✅ Redirect if user is not authenticated
   if (!user) {
-    return null; // Will redirect via useEffect
+    return null;
   }
 
   // ✅ Show access denied if no permission - don't load data
@@ -1886,7 +2127,19 @@ const handleView = useCallback(async (requestId) => {
             </>
           </div>
 
-          {expandedRequest && <ExpandedDetails request={expandedRequest} onClose={closeExpanded} />}
+          {/* OTP Modal */}
+          {otpModal.isOpen && (
+            <OtpModal
+              requestId={otpModal.requestId}
+              requestRid={otpModal.requestRid}
+              generatedOtp={otpModal.generatedOtp}
+              onClose={closeOtpModal}
+              onVerify={verifyOtp}
+              onResend={resendOtp}
+            />
+          )}
+
+          {expandedRequest && <ExpandedDetails request={expandedRequest} onClose={closeExpanded} userRole={userRole} />}
 
           {/* Details Modal - Created By and Completed By */}
           {detailsModal && (
@@ -1953,7 +2206,6 @@ const handleView = useCallback(async (requestId) => {
           )}
 
           {/* Create Button - Show for Team Leader (role 3) and above with can_create permission */}
-          {/* Staff/Incharge cannot create requests */}
           {permissions.can_create && userRole >= 3 && (
             <a
               href="/create-request"
@@ -1971,4 +2223,3 @@ const handleView = useCallback(async (requestId) => {
     </div>
   );
 }
-
