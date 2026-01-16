@@ -7,7 +7,7 @@ import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
 
-// Icons Component
+// Icons Component with eligibility check
 const Icons = ({
   request,
   onView,
@@ -21,29 +21,47 @@ const Icons = ({
 }) => {
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
+  
+  // ✅ Check eligibility for view button
+  const isEligible = request.eligibility === "Yes" && request.status === "Pending";
+  const canView = permissions.can_view && isEligible;
 
   return (
     <div className="flex items-center space-x-1">
-      {/* View Icon */}
-      {permissions.can_view && (
+      {/* View Icon - Only enabled if eligible and permission */}
+      {permissions.can_view ? (
         <button
-          onClick={() => onView(request.id)}
-          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-full transition-colors"
-          title="View Details"
+          onClick={() => canView && onView(request.id)}
+          disabled={!canView}
+          className={`p-1.5 rounded-full transition-colors ${
+            canView 
+              ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+              : "text-gray-400 cursor-not-allowed opacity-50"
+          }`}
+          title={canView ? "View & Process Request" : `Cannot view: ${request.eligibility_reason || "Not eligible"}`}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
           </svg>
         </button>
-      )}
+      ) : null}
 
-      {/* Edit Icon */}
+      {/* Edit Icon - Only for eligible pending requests or admin for completed */}
       {permissions.can_edit && (
         <button
           onClick={() => onEdit(request.id)}
-          className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
-          title="Edit Request"
+          disabled={!isEligible && request.status !== "Completed" && !permissions.isAdmin}
+          className={`p-1.5 rounded-full transition-colors ${
+            (isEligible || request.status === "Completed" || permissions.isAdmin)
+              ? "text-green-600 hover:bg-green-50 cursor-pointer"
+              : "text-gray-400 cursor-not-allowed opacity-50"
+          }`}
+          title={
+            (isEligible || request.status === "Completed" || permissions.isAdmin)
+              ? "Edit Request"
+              : "Cannot edit: Not eligible or not completed"
+          }
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
@@ -51,10 +69,10 @@ const Icons = ({
         </button>
       )}
 
-      {/* Expand Icon */}
+      {/* Expand Icon - Always enabled */}
       <button
         onClick={() => onExpand(request)}
-        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors"
+        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer"
         title="Expand Details"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -62,10 +80,10 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* Details Icon - Show Created By and Completed By */}
+      {/* Details Icon - Always enabled */}
       <button
         onClick={() => onShowDetails(request)}
-        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors"
+        className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors cursor-pointer"
         title="Show Created/Completed By"
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,14 +91,14 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* Call Icon - Show vehicle number and phone in tooltip */}
+      {/* Call Icon - Conditionally enabled */}
       <button
-        onClick={() => onCall(request.station_phone, request.loading_station)}
+        onClick={() => stationPhone && onCall(stationPhone, request.loading_station)}
         disabled={!stationPhone}
         className={`p-1.5 rounded-full transition-colors ${
           stationPhone 
-            ? "text-green-600 hover:bg-green-50" 
-            : "text-gray-400 cursor-not-allowed"
+            ? "text-green-600 hover:bg-green-50 cursor-pointer" 
+            : "text-gray-400 cursor-not-allowed opacity-50"
         }`}
         title={stationPhone ? `Call Station\nStation: ${request.loading_station}\nPhone: ${stationPhone}\nVehicle: ${request.vehicle_number || 'N/A'}` : `No phone number\nVehicle: ${request.vehicle_number || 'N/A'}`}
       >
@@ -89,14 +107,14 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* Share Icon - Show map location and vehicle in tooltip */}
+      {/* Share Icon - Conditionally enabled */}
       <button
-        onClick={() => onShare(request)}
+        onClick={() => hasMapLink && onShare(request)}
         disabled={!hasMapLink}
         className={`p-1.5 rounded-full transition-colors ${
           hasMapLink 
-            ? "text-blue-600 hover:bg-blue-50" 
-            : "text-gray-400 cursor-not-allowed"
+            ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+            : "text-gray-400 cursor-not-allowed opacity-50"
         }`}
         title={hasMapLink ? `Share Station Location\nStation: ${request.loading_station}\nVehicle: ${request.vehicle_number || 'N/A'}\nMap: Click to copy` : `No map location\nVehicle: ${request.vehicle_number || 'N/A'}`}
       >
@@ -105,7 +123,7 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* WhatsApp Icon - Send details to customer */}
+      {/* WhatsApp Icon - Only if customer_phone exists */}
       {request.customer_phone && (
         <button
           onClick={() => {
@@ -124,7 +142,7 @@ const Icons = ({
             const whatsappUrl = `https://wa.me/91${cleanPhone}?text=${message}`;
             window.open(whatsappUrl, '_blank');
           }}
-          className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
+          className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors cursor-pointer"
           title={`Send via WhatsApp\nCustomer: ${request.customer_phone}\nVehicle: ${request.vehicle_number || 'N/A'}`}
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -133,11 +151,11 @@ const Icons = ({
         </button>
       )}
 
-      {/* PDF Icon - Only for Admin */}
+      {/* PDF Icon - Only for Admin and Completed status */}
       {request.status === "Completed" && permissions.isAdmin && (
         <button
           onClick={() => onPdf(request.id)}
-          className="p-1.5 text-red-600 hover:bg-red-50 rounded-full transition-colors"
+          className="p-1.5 text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer"
           title="Download PDF Invoice (Admin Only)"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1407,9 +1425,106 @@ export default function FillingRequests() {
     router.push(`/filling-requests?${params.toString()}`);
   }, [router, searchParams]);
 
-  const handleView = useCallback((requestId) => {
+ // Updated handleView function with auto-processing
+const handleView = useCallback(async (requestId) => {
+  try {
+    // Find the request from current list
+    const request = requests.find(req => req.id === requestId);
+    
+    if (!request) {
+      console.error("Request not found:", requestId);
+      alert("Request not found");
+      return;
+    }
+    
+    console.log("👁️ Viewing request:", {
+      id: requestId,
+      rid: request.rid,
+      status: request.status,
+      eligibility: request.eligibility,
+      eligibility_reason: request.eligibility_reason
+    });
+    
+    // ✅ Step 1: If Pending and eligible, auto-process
+    if (request.status === "Pending" && request.eligibility === "Yes") {
+      console.log("🔄 Auto-processing request:", request.rid);
+      
+      try {
+        // Show loading indicator
+        const viewButton = document.querySelector(`button[onclick*="${requestId}"]`);
+        if (viewButton) {
+          viewButton.disabled = true;
+          viewButton.innerHTML = '<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>';
+        }
+        
+        // Call auto-process API
+        const processResponse = await fetch('/api/auto-process-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ requestId: request.id })
+        });
+        
+        const processResult = await processResponse.json();
+        
+        // Reset button
+        if (viewButton) {
+          viewButton.disabled = false;
+          viewButton.innerHTML = `
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+          `;
+        }
+        
+        if (processResponse.ok && processResult.success) {
+          console.log("✅ Auto-process successful:", processResult.message);
+          
+          // Show success message
+          alert(`✅ ${processResult.message}\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
+          
+          // ✅ Update local state immediately for better UX
+          setRequests(prevRequests => 
+            prevRequests.map(req => 
+              req.id === requestId 
+                ? { ...req, status: 'Processing', eligibility: 'N/A' }
+                : req
+            )
+          );
+          
+          // ✅ Now navigate to details page
+          setTimeout(() => {
+            router.push(`/filling-details-admin?id=${requestId}`);
+          }, 500);
+          return;
+          
+        } else {
+          console.error("❌ Auto-process failed:", processResult.error);
+          alert(`❌ ${processResult.error || 'Failed to process request'}`);
+          return; // Don't navigate if process failed
+        }
+      } catch (apiError) {
+        console.error("❌ API call error:", apiError);
+        alert("Network error. Please check your connection and try again.");
+        return;
+      }
+    }
+    
+    // ✅ Step 2: If not eligible, show error
+    if (request.status === "Pending" && request.eligibility === "No") {
+      alert(`❌ Cannot process request:\n\n${request.eligibility_reason || "Not eligible"}`);
+      return;
+    }
+    
+    // ✅ Step 3: If already Processing/Completed or not eligible, just navigate
+    console.log("📋 Navigating to details page for request:", request.rid);
     router.push(`/filling-details-admin?id=${requestId}`);
-  }, [router]);
+    
+  } catch (error) {
+    console.error("❌ Error in handleView:", error);
+    alert("Error processing request. Please try again.");
+  }
+}, [requests, router]);
 
   const handleEdit = useCallback((requestId) => {
     router.push(`/filling-requests/edit?id=${requestId}`);
