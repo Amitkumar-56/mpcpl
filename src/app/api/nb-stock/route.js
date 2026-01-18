@@ -1,107 +1,96 @@
-// src/app/api/nb-stock/route.js
-import { executeQuery } from "@/lib/db";
-import { NextResponse } from "next/server";
+// /app/api/nb-stock/route.js
+import { executeQuery } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    console.log('🚀 Starting NB Stock API...');
-
-    // Step 1: Check table exists and get count
-    const countQuery = `SELECT COUNT(*) as total FROM non_billing_stocks`;
-    console.log('📊 Counting records...');
-    const countResult = await executeQuery(countQuery);
-    const totalRecords = countResult[0]?.total || 0;
+    console.log('API called: /api/nb-stock');
     
-    console.log(`📊 Total records found: ${totalRecords}`);
+    // Optional: Enable authentication later
+    // const session = await getSession();
+    // if (!session) {
+    //   return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    // }
 
-    if (totalRecords === 0) {
-      return NextResponse.json({ 
-        success: true, 
-        data: [],
-        message: "No records found in non_billing_stocks table",
-        isEmpty: true
-      });
-    }
-
-    // Step 2: Fetch data with logs - GROUP BY to get aggregated stock
-    console.log('🔄 Fetching stock data with logs...');
-    // ✅ Also fetch count of non-billing customers who took stock from this station/product
+    // Query with JOINs to get names from other tables
     const query = `
       SELECT 
-        n.station_id,
-        n.product_id,
-        SUM(n.stock) as stock,
-        MAX(n.created_at) as created_at,
-        IFNULL(MAX(n.updated_at), MAX(n.created_at)) as updated_at,
-        MAX(n.created_by) as created_by,
-        IFNULL(MAX(n.updated_by), MAX(n.created_by)) as updated_by,
-        ep_created.name as created_by_name,
-        IFNULL(ep_updated.name, ep_created.name) as updated_by_name,
-        (
-          SELECT COUNT(DISTINCT c.id)
-          FROM filling_history fh
-          LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-          LEFT JOIN customers c ON fr.cid = c.id
-          WHERE fh.fs_id = n.station_id 
-            AND fh.product_id = n.product_id
-            AND fh.trans_type = 'Outward'
-            AND c.billing_type = 2
-            AND c.id IS NOT NULL
-        ) as customer_count
-      FROM non_billing_stocks n
-      LEFT JOIN employee_profile ep_created ON n.created_by = ep_created.id
-      LEFT JOIN employee_profile ep_updated ON n.updated_by = ep_updated.id
-      GROUP BY n.station_id, n.product_id, ep_created.name, ep_updated.name
-      ORDER BY IFNULL(MAX(n.updated_at), MAX(n.created_at)) DESC
+        nbs.id,
+        nbs.station_id,
+        fs.station_name,
+        nbs.product_id,
+        p.pname as product_name,
+        nbs.stock,
+        DATE_FORMAT(nbs.created_at, '%d-%m-%Y %H:%i') as created_at_formatted,
+        nbs.created_at
+      FROM non_billing_stocks nbs
+      LEFT JOIN products p ON nbs.product_id = p.id
+      LEFT JOIN filling_stations fs ON nbs.station_id = fs.id
+      ORDER BY nbs.id DESC
     `;
+
+    console.log('Executing query:', query);
     
-    let results = await executeQuery(query);
-    console.log(`✅ Found ${results.length} aggregated records`);
-
-    // Step 3: If we have data, enhance with station and product names
-    if (results.length > 0) {
-      // Get station names
-      const stationIds = [...new Set(results.map(row => row.station_id))];
-      const stationPlaceholders = stationIds.map(() => '?').join(',');
-      const stationQuery = `SELECT id, station_name FROM filling_stations WHERE id IN (${stationPlaceholders})`;
-      const stations = await executeQuery(stationQuery, stationIds);
-      console.log(`🏪 Found ${stations.length} stations`);
-
-      // Get product names  
-      const productIds = [...new Set(results.map(row => row.product_id))];
-      const productPlaceholders = productIds.map(() => '?').join(',');
-      const productQuery = `SELECT id, pname FROM products WHERE id IN (${productPlaceholders})`;
-      const products = await executeQuery(productQuery, productIds);
-      console.log(`🛢️ Found ${products.length} products`);
-
-      // Combine data
-      results = results.map(row => {
-        const station = stations.find(s => s.id === row.station_id);
-        const product = products.find(p => p.id === row.product_id);
-        
-        return {
-          ...row,
-          station_name: station ? station.station_name : `Station ${row.station_id}`,
-          pname: product ? product.pname : `Product ${row.product_id}`,
-          stock: parseFloat(row.stock) || 0,
-          customer_count: parseInt(row.customer_count || 0)
-        };
-      });
+    const results = await executeQuery(query);
+    console.log('Query results:', results);
+    
+    // Check if any data is missing
+    const missingData = results.filter(item => 
+      !item.station_name || !item.product_name
+    );
+    
+    if (missingData.length > 0) {
+      console.warn('⚠️ Missing linked data:', missingData);
     }
-
+    
     return NextResponse.json({ 
       success: true, 
       data: results,
       count: results.length,
-      isEmpty: false
+      warning: missingData.length > 0 ? 
+        `Missing data in ${missingData.length} records` : null
     });
-
+    
   } catch (error) {
-    console.error("💥 Error in NB Stock API:", error.message);
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message,
-      data: []
-    }, { status: 500 });
+    console.error('❌ Error in /api/nb-stock:', error);
+    
+    // Fallback to simple query if JOIN fails
+    try {
+      console.log('Trying simple query as fallback...');
+      const fallbackQuery = `
+        SELECT 
+          id,
+          station_id,
+          product_id,
+          stock,
+          created_at
+        FROM non_billing_stocks
+        ORDER BY id DESC
+      `;
+      
+      const fallbackResults = await executeQuery(fallbackQuery);
+      
+      return NextResponse.json({ 
+        success: true, 
+        data: fallbackResults,
+        count: fallbackResults.length,
+        message: 'Used fallback query (without joins)',
+        warning: 'Could not fetch names from related tables'
+      });
+      
+    } catch (fallbackError) {
+      console.error('❌ Fallback also failed:', fallbackError);
+      
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Database error',
+          message: error.message,
+          sqlMessage: error.sqlMessage,
+          suggestion: 'Check if products and filling_stations tables exist'
+        },
+        { status: 500 }
+      );
+    }
   }
 }

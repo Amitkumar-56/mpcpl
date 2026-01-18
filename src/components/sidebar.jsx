@@ -1,4 +1,4 @@
-//src/components/sidebar.jsx
+// src/components/sidebar.jsx
 "use client";
 import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from "next/navigation";
@@ -27,33 +27,64 @@ import {
 
 const Sidebar = memo(function Sidebar({ onClose }) {
   const { user, logout } = useSession();
-  const [isCollapsed, setIsCollapsed] = useState(true);
+  
+  // SSR के लिए default state
+  const [isCollapsed, setIsCollapsed] = useState(true); // SSR के लिए हमेशा collapsed
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false); // Track initialization
   const router = useRouter();
   const pathname = usePathname();
   const sidebarRef = useRef(null);
   
-  // मोबाइल डिटेक्शन
+  // ✅ Client-side initialization only
   useEffect(() => {
-    const checkMobile = () => {
-      if (typeof window !== 'undefined') {
-        const mobile = window.innerWidth < 768;
-        setIsMobile(mobile);
-        if (mobile) {
-          setIsCollapsed(true);
+    const initializeSidebar = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      
+      // localStorage से collapsed state retrieve करें
+      const saved = localStorage.getItem('sidebar-collapsed');
+      
+      if (mobile) {
+        // Mobile पर हमेशा collapsed रखें
+        setIsCollapsed(true);
+      } else {
+        // Desktop पर: अगर saved state है तो वो use करें, नहीं तो expanded (false)
+        if (saved !== null) {
+          setIsCollapsed(JSON.parse(saved));
         } else {
-          setIsCollapsed(false);
+          setIsCollapsed(false); // Desktop पर default expanded
         }
+      }
+      
+      setIsInitialized(true);
+    };
+    
+    initializeSidebar();
+    
+    const handleResize = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      
+      if (mobile) {
+        // Mobile पर collapsed रखें
+        setIsCollapsed(true);
       }
     };
     
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // साइडबार के बाहर क्लिक करने पर बंद करें (मोबाइल के लिए)
+  // ✅ localStorage में collapsed state save करें (client-side only)
+  useEffect(() => {
+    if (isInitialized && typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+    }
+  }, [isCollapsed, isInitialized]);
+
+  // ✅ साइडबार के बाहर क्लिक करने पर बंद करें (मोबाइल के लिए)
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (isMobile && 
@@ -85,11 +116,11 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     setIsCollapsed(!isCollapsed);
   };
 
-  // Menu items (same as before)
+  // Menu items
   const menuItems = useMemo(() => [
     { name: "Dashboard", icon: <FaHome />, module: "dashboard", path: "/dashboard" },
     { name: "Customers", icon: <FaUsers />, module: "customers", path: "/customers" },
-    { name: "Purchese Request", icon: <FaFileInvoice />, module: "filling_requests", path: "/filling-requests" },
+    { name: "Purchase Request", icon: <FaFileInvoice />, module: "filling_requests", path: "/filling-requests" },
     { name: "Stock", icon: <FaUsers />, module: "stock", path: "/stock" },
     { name: "Stock History", icon: <FaHistory />, module: "stock_history", path: "/stock-history" },
     { name: "Outstanding History", icon: <FaFileInvoice />, module: "outstanding_history", path: "/outstanding-history" },
@@ -150,7 +181,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     agent_management: "Agent Management",
   }), []);
 
-  // ✅ Role-based menu filtering (same as before)
+  // ✅ Role-based menu filtering
   const allowedMenu = useMemo(() => {
     if (!user) return [];
     
@@ -299,8 +330,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
   return (
     <>
-      {/* Mobile Toggle Button - Fixed position */}
-      {isMobile && (
+      {/* Mobile Toggle Button - Fixed position (only render after initialization) */}
+      {isInitialized && isMobile && (
         <button
           onClick={handleToggle}
           style={{
@@ -324,7 +355,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
       )}
 
       {/* Overlay for mobile when sidebar is open */}
-      {isMobile && !isCollapsed && (
+      {isInitialized && isMobile && !isCollapsed && (
         <div 
           style={{
             position: 'fixed',
@@ -348,24 +379,25 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           color: 'black',
           display: 'flex',
           flexDirection: 'column',
-          transition: 'all 0.3s ease',
+          transition: isInitialized ? 'all 0.3s ease' : 'none', // SSR के समय transition नहीं
           zIndex: 9999,
-          position: isMobile ? 'fixed' : 'relative',
-          width: isCollapsed ? (isMobile ? '0' : '4rem') : '16rem',
+          position: isInitialized ? (isMobile ? 'fixed' : 'relative') : 'relative',
+          width: isInitialized ? (isCollapsed ? (isMobile ? '0' : '4rem') : '16rem') : '4rem', // SSR के लिए collapsed
           overflow: 'hidden',
           left: 0,
           top: 0,
+          minWidth: isInitialized && isMobile ? (isCollapsed ? '0' : '16rem') : undefined,
         }}
       >
         {/* User Info */}
         <div style={{
-          padding: isCollapsed ? '0.5rem' : '1rem',
+          padding: isInitialized && !isCollapsed ? '1rem' : '0.5rem',
           borderBottom: '1px solid #d1d5db',
           backgroundColor: '#93c5fd',
           minHeight: '80px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: isCollapsed ? 'center' : 'flex-start',
+          justifyContent: isInitialized && !isCollapsed ? 'flex-start' : 'center',
         }}>
           <div style={{
             width: '40px',
@@ -382,7 +414,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
             {user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
           
-          {!isCollapsed && (
+          {/* User details - only show when not collapsed AND initialized */}
+          {isInitialized && !isCollapsed && (
             <div style={{ marginLeft: '0.75rem', flex: 1, minWidth: 0 }}>
               <p style={{ 
                 fontSize: '0.875rem', 
@@ -439,7 +472,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                 }
                 
                 // Mobile पर navigation के बाद sidebar बंद करें
-                if (isMobile) {
+                if (isInitialized && isMobile) {
                   setIsCollapsed(true);
                 }
                 
@@ -462,7 +495,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                     borderRadius: '0.375rem',
                     cursor: 'pointer',
                     textAlign: 'left',
-                    justifyContent: isCollapsed ? 'center' : 'flex-start',
+                    justifyContent: isInitialized && isCollapsed ? 'center' : 'flex-start',
                     backgroundColor: isActive ? '#3b82f6' : 'transparent',
                     color: isActive ? 'white' : 'black',
                     boxShadow: isActive ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none',
@@ -470,18 +503,18 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                     border: 'none',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isActive) {
+                    if (!isActive && isInitialized) {
                       e.currentTarget.style.backgroundColor = '#93c5fd';
                       e.currentTarget.style.color = '#111827';
                     }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isActive) {
+                    if (!isActive && isInitialized) {
                       e.currentTarget.style.backgroundColor = 'transparent';
                       e.currentTarget.style.color = 'black';
                     }
                   }}
-                  title={isCollapsed ? item.name : ''}
+                  title={isInitialized && isCollapsed ? item.name : ''}
                 >
                   <span style={{ 
                     fontSize: '1.125rem', 
@@ -491,7 +524,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                     {item.icon}
                   </span>
                   
-                  {!isCollapsed && (
+                  {/* Menu item name - only show when not collapsed AND initialized */}
+                  {isInitialized && !isCollapsed && (
                     <span style={{ 
                       fontSize: '0.875rem', 
                       fontWeight: 500,
@@ -527,7 +561,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
         {/* Logout Button */}
         <div style={{
-          padding: isCollapsed ? '0.5rem' : '0.75rem',
+          padding: isInitialized && isCollapsed ? '0.5rem' : '0.75rem',
           borderTop: '1px solid #d1d5db',
           backgroundColor: '#93c5fd',
         }}>
@@ -537,7 +571,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
             style={{
               display: 'flex',
               alignItems: 'center',
-              justifyContent: isCollapsed ? 'center' : 'center',
+              justifyContent: isInitialized && isCollapsed ? 'center' : 'center',
               width: '100%',
               padding: '0.75rem',
               color: 'black',
@@ -548,18 +582,18 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               transition: 'all 0.2s ease',
             }}
             onMouseEnter={(e) => {
-              if (!isLoggingOut) {
+              if (!isLoggingOut && isInitialized) {
                 e.currentTarget.style.backgroundColor = '#ef4444';
                 e.currentTarget.style.color = 'white';
               }
             }}
             onMouseLeave={(e) => {
-              if (!isLoggingOut) {
+              if (!isLoggingOut && isInitialized) {
                 e.currentTarget.style.backgroundColor = 'transparent';
                 e.currentTarget.style.color = 'black';
               }
             }}
-            title={isCollapsed ? 'Logout' : ''}
+            title={isInitialized && isCollapsed ? 'Logout' : ''}
           >
             {isLoggingOut ? (
               <>
@@ -573,7 +607,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                   borderRightColor: 'white',
                   flexShrink: 0,
                 }} />
-                {!isCollapsed && (
+                {isInitialized && !isCollapsed && (
                   <span style={{ 
                     fontWeight: 500, 
                     marginLeft: '0.75rem' 
@@ -586,9 +620,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               <>
                 <FaSignOutAlt style={{ 
                   flexShrink: 0,
-                  marginRight: isCollapsed ? 0 : '0.75rem' 
+                  marginRight: isInitialized && !isCollapsed ? '0.75rem' : 0 
                 }} /> 
-                {!isCollapsed && (
+                {isInitialized && !isCollapsed && (
                   <span style={{ fontWeight: 500 }}>Logout</span>
                 )}
               </>

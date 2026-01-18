@@ -1,3 +1,4 @@
+// src/components/SidebarController.jsx
 'use client';
 
 import { useSidebar } from '@/context/SidebarContext';
@@ -30,8 +31,7 @@ export default function SidebarController() {
         sidebar.classList.add('main-sidebar', 'main-sidebar-processed');
         
         // ✅ Modify existing blue toggle button to use sidebar context toggle
-        // ✅ Find button by its style or class to ensure we get the right one
-        const existingToggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
+        const existingToggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"], button[title*="Open Sidebar"], button[title*="Close Sidebar"]');
         if (existingToggleBtn && !existingToggleBtn.hasAttribute('data-toggle-modified')) {
           existingToggleBtn.setAttribute('data-toggle-modified', 'true');
           
@@ -103,7 +103,7 @@ export default function SidebarController() {
         });
       }
 
-      // ✅ Handle mobile overlay - declare outside to fix scope issue
+      // ✅ Handle mobile overlay
       const isMobile = window.innerWidth < 768;
       let overlay = document.querySelector('.sidebar-overlay-mobile');
       
@@ -118,7 +118,7 @@ export default function SidebarController() {
         }
 
         // ✅ Get toggle button once and reuse it
-        const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"]');
+        const toggleBtn = document.querySelector('button[title*="Expand"], button[title*="Collapse"], button[title*="Open Sidebar"], button[title*="Close Sidebar"]');
         if (toggleBtn) {
           toggleBtn.style.position = 'fixed';
           toggleBtn.style.zIndex = '50';
@@ -165,7 +165,6 @@ export default function SidebarController() {
         // Desktop: always show sidebar, hide overlay completely
         sidebar.classList.remove('sidebar-hidden', 'sidebar-visible');
         sidebar.style.transform = '';
-        // ✅ Query overlay again in else block (may not exist on desktop)
         const desktopOverlay = document.querySelector('.sidebar-overlay-mobile');
         if (desktopOverlay) {
           desktopOverlay.style.display = 'none';
@@ -213,5 +212,5 @@ export default function SidebarController() {
   // ✅ Don't render anything until after hydration to prevent mismatch
   if (!mounted) return null;
 
-  return null; // This component doesn't render anything
+  return null;
 }

@@ -57,6 +57,7 @@ function CreateExpenseContent() {
 
   const confirmSubmit = (e) => {
     e.preventDefault();
+    e.stopPropagation();
     
     // Validate amount
     const amountNum = parseFloat(formData.amount);
@@ -132,27 +133,28 @@ function CreateExpenseContent() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50">
       {/* Fixed Sidebar */}
-      <div className="fixed left-0 top-0 h-screen w-64 z-30">
+      <div className="fixed left-0 top-0 h-full w-64 z-30 bg-white shadow-lg">
         <Sidebar activePage="CreateExpense" />
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col ml-64">
         {/* Fixed Header */}
-        <div className="fixed top-0 right-0 left-64 z-20">
+        <div className="fixed top-0 right-0 left-64 z-20 bg-white shadow-md">
           <Header />
         </div>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 mt-16 overflow-auto">
+        {/* Scrollable Main Content - Adjusted for header height */}
+        <main className="flex-1 mt-16 pb-24 overflow-y-auto">
           <div className="p-6">
             <div className="max-w-2xl mx-auto">
               <div className="bg-white shadow rounded-lg">
                 <div className="px-6 py-4 border-b border-gray-200">
                   <div className="flex items-center">
                     <button 
+                      type="button"
                       onClick={() => router.back()}
                       className="mr-4 text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100"
                     >
@@ -183,7 +185,10 @@ function CreateExpenseContent() {
                     </div>
                   )}
 
-                  <form className="space-y-6" onSubmit={confirmSubmit}>
+                  <form className="space-y-6" onSubmit={(e) => {
+                    e.preventDefault();
+                    confirmSubmit(e);
+                  }}>
                     <div className="space-y-4">
                       <div>
                         <label htmlFor="payment_date" className="block text-sm font-medium text-gray-700 mb-1">
@@ -293,10 +298,10 @@ function CreateExpenseContent() {
               </div>
             </div>
           </div>
-        </div>
+        </main>
 
-        {/* Fixed Footer */}
-        <div className="fixed bottom-0 right-0 left-64 z-10">
+        {/* Fixed Footer at bottom */}
+        <div className="fixed bottom-0 right-0 left-64 z-10 bg-white border-t">
           <Footer />
         </div>
       </div>
@@ -307,7 +312,11 @@ function CreateExpenseContent() {
 // Main Page Component with Suspense
 export default function CreateExpense() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
       <CreateExpenseContent />
     </Suspense>
   );

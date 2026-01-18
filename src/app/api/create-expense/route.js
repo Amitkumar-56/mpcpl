@@ -1,8 +1,8 @@
-import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
+import { verifyToken } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 export async function POST(request) {
   try {
@@ -140,7 +140,6 @@ export async function POST(request) {
   }
 }
 
-// GET method to fetch current balance
 export async function GET(request) {
   try {
     const balanceQuery = 'SELECT balance FROM cash_balance WHERE id = 1';

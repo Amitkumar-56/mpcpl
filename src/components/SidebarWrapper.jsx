@@ -1,8 +1,9 @@
+// src/components/SidebarWrapper.jsx
 'use client';
 
 import { useSidebar } from '@/context/SidebarContext';
-import Sidebar from './sidebar';
 import { useEffect, useRef } from 'react';
+import Sidebar from './sidebar';
 
 export default function SidebarWrapper() {
   const { isSidebarOpen, closeSidebar } = useSidebar();

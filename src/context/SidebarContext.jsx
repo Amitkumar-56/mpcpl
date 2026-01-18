@@ -1,61 +1,49 @@
+// src/context/SidebarContext.js
 'use client';
 
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useEffect, useState } from 'react';
 
-const SidebarContext = createContext();
+const SidebarContext = createContext(undefined);
 
 export function SidebarProvider({ children }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
+    // Check on client side only
+    if (typeof window === 'undefined') return false;
+    
+    const saved = localStorage.getItem('sidebar-open');
+    return saved ? JSON.parse(saved) : window.innerWidth >= 768;
+  });
 
-  // Close sidebar when clicking outside on mobile
+  const [isMobile, setIsMobile] = useState(false);
+
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      // Only handle on mobile (screen width < 768px)
-      if (window.innerWidth < 768) {
-        const sidebar = document.querySelector('.main-sidebar');
-        const toggleButton = document.querySelector('.sidebar-toggle-btn');
-        
-        // Close if click is outside sidebar and toggle button
-        if (
-          isSidebarOpen &&
-          sidebar &&
-          toggleButton &&
-          !sidebar.contains(event.target) &&
-          !toggleButton.contains(event.target)
-        ) {
-          setIsSidebarOpen(false);
-        }
-      }
-    };
-
-    if (isSidebarOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-      // Prevent body scroll when sidebar is open on mobile
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = '';
-    }
-
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.body.style.overflow = '';
-    };
-  }, [isSidebarOpen]);
-
-  // Close sidebar on window resize to desktop size
-  useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth >= 768 && isSidebarOpen) {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      
+      if (mobile) {
+        // Mobile पर sidebar closed रखें
         setIsSidebarOpen(false);
       }
     };
 
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('sidebar-open', JSON.stringify(isSidebarOpen));
+    }
   }, [isSidebarOpen]);
 
   const toggleSidebar = () => {
-    setIsSidebarOpen(prev => !prev);
+    setIsSidebarOpen(!isSidebarOpen);
+  };
+
+  const openSidebar = () => {
+    setIsSidebarOpen(true);
   };
 
   const closeSidebar = () => {
@@ -63,16 +51,24 @@ export function SidebarProvider({ children }) {
   };
 
   return (
-    <SidebarContext.Provider value={{ isSidebarOpen, toggleSidebar, closeSidebar }}>
+    <SidebarContext.Provider
+      value={{
+        isSidebarOpen,
+        isMobile,
+        toggleSidebar,
+        openSidebar,
+        closeSidebar,
+      }}
+    >
       {children}
     </SidebarContext.Provider>
   );
 }
 
-export function useSidebar() {
+export const useSidebar = () => {
   const context = useContext(SidebarContext);
   if (!context) {
     throw new Error('useSidebar must be used within SidebarProvider');
   }
   return context;
-}
+};

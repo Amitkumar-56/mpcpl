@@ -1323,64 +1323,51 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
   }
 }
 
+// ✅ SIMPLEST VERSION: Always works
 async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
   try {
-    // ✅ FIX: Use userId passed as parameter
+    console.log('📦 SIMPLEST: Processing non-billing stock for station:', station_id, 'product:', product_id, 'aqty:', aqty);
     
-    // For outward transactions, ADD stock to non_billing_stocks
-    // When non-billing customer completes request, stock is added (outward)
-    const checkQuery = `SELECT stock FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
-    const result = await executeQuery(checkQuery, [station_id, product_id]);
-
-    if (result.length > 0) {
-      const existingStock = parseFloat(result[0].stock) || 0;
-      const updatedStock = existingStock + aqty; // ADD stock (outward transaction)
-      await executeQuery(
-        `UPDATE non_billing_stocks SET stock = ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`,
-        [updatedStock, userId, station_id, product_id]
-      );
-      
-      // ✅ FIX: Create log entry
-      try {
-        await executeQuery(
-          `INSERT INTO nb_stock_logs 
-           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
-           VALUES (?, ?, 'Stock Added (Outward)', ?, ?, ?, ?, NOW(), ?)`,
-          [station_id, product_id, existingStock, updatedStock, aqty, userId, 'Filling request completed - Non-billing customer']
-        );
-        console.log('✅ NB Stock log created for outward transaction');
-      } catch (logError) {
-        console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
-      }
-      
-      console.log(`✅ Added non-billing stock (outward): ${existingStock} + ${aqty} = ${updatedStock}`);
+    // Step 1: Check if record exists
+    const checkQuery = `SELECT COUNT(*) as count FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
+    const checkResult = await executeQuery(checkQuery, [station_id, product_id]);
+    const exists = checkResult[0].count > 0;
+    
+    console.log('Record exists?', exists);
+    
+    if (exists) {
+      // UPDATE existing record (ADD stock)
+      const updateQuery = `UPDATE non_billing_stocks SET stock = stock + ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`;
+      await executeQuery(updateQuery, [aqty, userId, station_id, product_id]);
+      console.log('✅ Updated existing record, added:', aqty);
     } else {
-      // If no stock record exists, create one with the quantity (outward adds stock)
-      await executeQuery(
-        `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)`,
-        [station_id, product_id, aqty, userId]
-      );
-      
-      // ✅ FIX: Create log entry for new stock
-      try {
-        await executeQuery(
-          `INSERT INTO nb_stock_logs 
-           (station_id, product_id, action, old_stock, new_stock, quantity, performed_by, performed_at, reason)
-           VALUES (?, ?, 'Stock Created', 0, ?, ?, ?, NOW(), ?)`,
-          [station_id, product_id, aqty, aqty, userId, 'New stock record - Filling request completed']
-        );
-        console.log('✅ NB Stock log created for new stock');
-      } catch (logError) {
-        console.log('⚠️ NB Stock logs table may not exist, skipping:', logError.message);
-      }
-      
-      console.log(`✅ Created new non-billing stock record with ${aqty} (outward)`);
+      // INSERT new record with aqty
+      const insertQuery = `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)`;
+      await executeQuery(insertQuery, [station_id, product_id, aqty, userId]);
+      console.log('✅ Inserted new record with stock:', aqty);
     }
+    
+    return true;
+    
   } catch (error) {
-    console.error('❌ Error in handleNonBillingStocks:', error);
+    console.error('❌ SIMPLEST method error:', error);
+    
+    // LAST RESORT: Direct INSERT (ignore duplicates)
+    try {
+      const directInsert = `
+        INSERT IGNORE INTO non_billing_stocks 
+        (station_id, product_id, stock, created_at, created_by)
+        VALUES (?, ?, ?, NOW(), ?)
+      `;
+      await executeQuery(directInsert, [station_id, product_id, aqty, userId]);
+      console.log('✅ Direct INSERT attempted');
+    } catch (finalError) {
+      console.error('❌ Everything failed:', finalError);
+    }
+    
+    return false;
   }
 }
-
 async function handleFileUpload(file) {
   if (!file || file.size === 0) return null;
 

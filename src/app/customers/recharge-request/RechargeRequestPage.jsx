@@ -243,21 +243,22 @@ export default function RechargeRequestPage() {
 
     try {
       const payload = {
-        ...formData,
-        com_id: parseInt(customerId),
+        customerId: parseInt(customerId),
         amount: parseFloat(formData.amount),
+        paymentType: formData.payment_type,
+        transactionId: formData.transaction_id,
+        utrNo: formData.utr_no,
+        comments: formData.comments,
+        paymentDate: formData.payment_date,
       };
 
       console.log('Submitting payment request:', payload);
 
-      // ✅ FIX: Use client-history PATCH route for payment processing (same as day_limit recharge)
-      const response = await fetch('/api/customers/client-history', {
-        method: "PATCH",
+      // ✅ Use POST route for payment processing
+      const response = await fetch('/api/customers/recharge-request', {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: parseInt(customerId),
-          rechargeAmount: parseFloat(formData.amount)
-        }),
+        body: JSON.stringify(payload),
       });
 
       const data = await response.json();
@@ -270,8 +271,8 @@ export default function RechargeRequestPage() {
         let message = data.message || "Recharge processed successfully!";
         
         // ✅ Enhanced message format for all customer types
-        if (data.newBalance !== undefined) {
-          message += `\n\n💰 New Balance: ₹${data.newBalance.toFixed(2)}`;
+        if (data.new_balance !== undefined) {
+          message += `\n\n💰 New Balance: ₹${data.new_balance.toFixed(2)}`;
         }
         if (data.newTotalDayAmount !== undefined && data.newTotalDayAmount > 0) {
           message += `\n\n📊 Total Day Amount: ₹${data.newTotalDayAmount.toFixed(2)}`;
@@ -288,8 +289,11 @@ export default function RechargeRequestPage() {
         if (data.amountPaid !== undefined && data.amountPaid > 0) {
           message += `\n\n💳 Amount Paid: ₹${data.amountPaid.toFixed(2)}`;
         }
-        if (data.remainingBalance !== undefined && data.remainingBalance > 0) {
-          message += `\n\n💵 Remaining Credit: ₹${data.remainingBalance.toFixed(2)}`;
+        if (data.remainingCredit !== undefined && data.remainingCredit > 0) {
+          message += `\n\n💵 Remaining Credit: ₹${data.remainingCredit.toFixed(2)}`;
+        }
+        if (data.cashUpdated !== undefined && data.cashUpdated) {
+          message += `\n\n💵 Cash Balance Updated`;
         }
         
         setSuccessMessage(message);
@@ -334,6 +338,45 @@ export default function RechargeRequestPage() {
       case '3': return 'Day Limit';
       default: return 'Unknown';
     }
+  };
+
+  const getPaymentTypeText = (type) => {
+    switch(type) {
+      case '1': return 'Cash';
+      case '2': return 'RTGS';
+      case '3': return 'NEFT';
+      case '4': return 'UPI';
+      case '5': return 'CHEQUE';
+      default: return 'Unknown';
+    }
+  };
+
+  // Check if transaction ID field should be shown
+  const shouldShowTransactionId = () => {
+    // Always show for RTGS, NEFT, UPI, CHEQUE
+    if (['2', '3', '4', '5'].includes(formData.payment_type)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Check if UTR field should be shown
+  const shouldShowUtrNo = () => {
+    // Show for RTGS, NEFT
+    if (['2', '3'].includes(formData.payment_type)) {
+      return true;
+    }
+    return false;
+  };
+
+  // Get payment type label
+  const getPaymentTypeLabel = () => {
+    const type = formData.payment_type;
+    if (type === '2') return 'RTGS Reference No';
+    if (type === '3') return 'NEFT Reference No';
+    if (type === '4') return 'UPI Transaction ID';
+    if (type === '5') return 'Cheque Number';
+    return 'Transaction ID';
   };
 
   if (pageLoading) {
@@ -899,20 +942,49 @@ export default function RechargeRequestPage() {
                     </>
                   )}
                 </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formData.payment_type === '1' ? '💵 Cash payment will update cash balance' : 
+                   formData.payment_type === '2' ? '🏦 RTGS requires reference number' :
+                   formData.payment_type === '3' ? '📱 NEFT requires reference number' :
+                   formData.payment_type === '4' ? '📲 UPI requires transaction ID' :
+                   formData.payment_type === '5' ? '📄 Cheque requires cheque number' : ''}
+                </p>
               </div>
 
-              {/* Transaction/UTR Number - Hidden for non-billing customers (cash only) */}
-              {customerData?.customer?.billing_type !== 2 && (
+              {/* Transaction ID / Reference Number - Show based on payment type */}
+              {shouldShowTransactionId() && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Transaction/UTR Number</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    {getPaymentTypeLabel()} {['2', '3', '4', '5'].includes(formData.payment_type) && <span className="text-red-500">*</span>}
+                  </label>
                   <input
                     type="text"
                     name="transaction_id"
                     value={formData.transaction_id}
                     onChange={handleInputChange}
                     className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Optional"
+                    placeholder={`Enter ${getPaymentTypeLabel()}`}
                     disabled={loading}
+                    required={['2', '3', '4', '5'].includes(formData.payment_type)}
+                  />
+                </div>
+              )}
+
+              {/* UTR Number - Only for RTGS/NEFT */}
+              {shouldShowUtrNo() && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    UTR Number <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    name="utr_no"
+                    value={formData.utr_no}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    placeholder="Enter UTR Number"
+                    disabled={loading}
+                    required
                   />
                 </div>
               )}
@@ -950,7 +1022,14 @@ export default function RechargeRequestPage() {
                       Processing...
                     </>
                   ) : (
-                    isDayLimitCustomer ? "Make Payment" : (isPrepaid ? "Recharge" : (isPostpaid ? "Recharge & Pay" : "Recharge"))
+                    <>
+                      {formData.payment_type === '1' ? '💰 Pay Cash' : 
+                       formData.payment_type === '2' ? '🏦 Pay via RTGS' :
+                       formData.payment_type === '3' ? '📱 Pay via NEFT' :
+                       formData.payment_type === '4' ? '📲 Pay via UPI' :
+                       formData.payment_type === '5' ? '📄 Pay via Cheque' : 
+                       (isDayLimitCustomer ? "Make Payment" : (isPrepaid ? "Recharge" : (isPostpaid ? "Recharge & Pay" : "Recharge")))}
+                    </>
                   )}
                 </button>
               </div>
