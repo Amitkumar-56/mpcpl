@@ -21,7 +21,6 @@ const OtpModal = ({
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [showOtpHint, setShowOtpHint] = useState(false);
   const inputRefs = useRef([]);
 
   // Initialize refs
@@ -39,21 +38,17 @@ const OtpModal = ({
     }
   }, [timer]);
 
-  // Show OTP hint for development (but don't auto-fill)
+  // Focus on first input and log OTP
   useEffect(() => {
     if (generatedOtp && generatedOtp.length === 6) {
-      console.log('🔢 Generated OTP (not auto-filled):', generatedOtp);
-      // Show hint but don't auto-fill
-      if (process.env.NODE_ENV === 'development') {
-        setShowOtpHint(true);
-      }
+      console.log('🔢 OTP for Request:', requestRid, '->', generatedOtp);
       
       // Focus on first input
       if (inputRefs.current[0]) {
         inputRefs.current[0].focus();
       }
     }
-  }, [generatedOtp]);
+  }, [generatedOtp, requestRid]);
 
   const handleOtpChange = (index, value) => {
     if (!/^\d?$/.test(value)) return;
@@ -120,10 +115,6 @@ const OtpModal = ({
     }
   };
 
-  const toggleOtpHint = () => {
-    setShowOtpHint(!showOtpHint);
-  };
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-md w-full">
@@ -157,41 +148,21 @@ const OtpModal = ({
               Enter the 6-digit OTP to process the request
             </p>
             
-            {/* Show OTP hint button for development */}
-            {process.env.NODE_ENV === 'development' && generatedOtp && (
-              <div className="mt-3">
-                <button
-                  onClick={toggleOtpHint}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
-                >
-                  {showOtpHint ? (
-                    <>
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                      Hide OTP
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      Show OTP (Dev)
-                    </>
-                  )}
-                </button>
-                
-                {showOtpHint && (
-                  <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800 font-semibold">
-                      🔢 Development OTP: <span className="font-mono text-lg">{generatedOtp}</span>
-                    </p>
-                    <p className="text-xs text-yellow-600 mt-1">
-                      Manually enter this OTP in the boxes below
-                    </p>
-                  </div>
-                )}
+            {/* ✅ OTP सीधे show करें - बिना बटन के */}
+            {generatedOtp && generatedOtp.length === 6 && (
+              <div className="mt-4 p-4 bg-yellow-50 border-2 border-yellow-200 rounded-lg">
+                <p className="text-sm font-semibold text-yellow-800 mb-2">
+                  📱 Test OTP (For Manual Entry)
+                </p>
+                <div className="text-2xl font-mono font-bold text-gray-800 bg-white p-3 rounded border border-gray-300">
+                  {generatedOtp}
+                </div>
+                <p className="text-xs text-gray-600 mt-2">
+                  Type this OTP manually in the boxes below
+                </p>
+                <p className="text-xs text-red-600 mt-1">
+                  ⚠️ OTP is NOT auto-filled - manual entry required
+                </p>
               </div>
             )}
           </div>
@@ -263,7 +234,6 @@ const OtpModal = ({
     </div>
   );
 };
-
 // Icons Component with updated eligibility check
 const Icons = ({
   request,
