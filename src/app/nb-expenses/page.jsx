@@ -8,7 +8,7 @@ import Sidebar from "components/sidebar";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { Suspense, useEffect, useState } from 'react';
-import { BiChevronDown, BiChevronUp, BiFilterAlt, BiRefresh, BiSearch } from "react-icons/bi";
+import { BiChevronDown, BiChevronUp, BiEdit, BiFilterAlt, BiRefresh, BiRupee, BiSearch } from "react-icons/bi";
 
 // Component to fetch and display expense logs
 function ExpenseLogs({ expenseId }) {
@@ -20,9 +20,11 @@ function ExpenseLogs({ expenseId }) {
       try {
         setLoading(true);
         const response = await fetch(`/api/audit-log?record_type=nb_expense&record_id=${expenseId}`);
-        const result = await response.json();
-        if (result.success && result.logs) {
-          setLogs(result.logs);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.logs) {
+            setLogs(result.logs);
+          }
         }
       } catch (error) {
         console.error('Error fetching expense logs:', error);
@@ -36,24 +38,21 @@ function ExpenseLogs({ expenseId }) {
   }, [expenseId]);
 
   if (loading) {
-    return (
-      <div className="animate-pulse space-y-2">
-        <div className="h-4 bg-gray-200 rounded"></div>
-        <div className="h-4 bg-gray-200 rounded"></div>
-      </div>
-    );
+    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
   }
 
   if (logs.length === 0) {
     return (
-      <div className="text-sm text-gray-500 italic">No activity logs found</div>
+      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
+        No activity logs found for this expense.
+      </div>
     );
   }
 
   return (
     <div className="space-y-2">
       {logs.map((log, idx) => (
-        <div key={idx} className="bg-gray-50 rounded p-3 text-sm border">
+        <div key={idx} className="bg-white rounded border p-3 text-sm">
           <div className="flex justify-between items-start">
             <div>
               <span className={`font-medium px-2 py-1 rounded text-xs ${
@@ -64,7 +63,7 @@ function ExpenseLogs({ expenseId }) {
                 {log.action?.toUpperCase() || 'ACTION'}
               </span>
               <span className="ml-2 font-medium text-gray-700">
-                {log.user_name || log.userName || 'System'}
+                {log.user_name || log.userName || 'Unknown User'}
               </span>
             </div>
             <span className="text-xs text-gray-500">
@@ -72,7 +71,7 @@ function ExpenseLogs({ expenseId }) {
             </span>
           </div>
           {log.remarks && (
-            <p className="text-gray-600 mt-2 text-sm">{log.remarks}</p>
+            <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
           )}
         </div>
       ))}
@@ -122,7 +121,6 @@ function ExpensesContent() {
     if (user && !authLoading && user.id) {
       fetchExpenses();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, authLoading]);
 
   // Filter effect
@@ -133,7 +131,6 @@ function ExpensesContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters, user, authLoading]);
 
   const fetchExpenses = async (page = 1) => {
@@ -152,45 +149,58 @@ function ExpensesContent() {
       if (filters.minAmount) params.append('minAmount', filters.minAmount);
       if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
       
+      console.log('📡 Fetching expenses with params:', params.toString());
+      
       const response = await fetch(`/api/nb-expenses?${params.toString()}`, {
         credentials: 'include',
         cache: 'no-store',
         headers: {
-          'Cache-Control': 'no-cache'
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
         }
       });
       
-      if (!response.ok) {
+      // Check response content type
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('❌ Non-JSON response:', text.substring(0, 200));
+        
         if (response.status === 401) {
-          const errorData = await response.json().catch(() => ({ error: 'Unauthorized' }));
-          if (!user || !user.id) {
-            router.push('/login');
-            return;
-          }
-          setError(errorData.error || 'Authentication error');
-          setLoading(false);
+          router.push('/login');
           return;
         }
         
-        if (response.status === 403) {
-          const errorData = await response.json().catch(() => ({ error: 'Access denied' }));
-          setError(errorData.error || 'You do not have permission to view expenses');
-          setLoading(false);
-          return;
-        }
-        
-        const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-        setError(errorData.error || `Failed to load expenses (${response.status})`);
+        setError(`Server error: Received HTML instead of JSON (Status: ${response.status})`);
         setLoading(false);
         return;
       }
       
       const data = await response.json();
       
+      if (!response.ok) {
+        if (response.status === 401) {
+          router.push('/login');
+          return;
+        }
+        
+        if (response.status === 403) {
+          setError(data.error || 'You do not have permission to view expenses');
+          setLoading(false);
+          return;
+        }
+        
+        setError(data.error || `Failed to load expenses (${response.status})`);
+        setLoading(false);
+        return;
+      }
+      
       if (!data.success) {
         setError(data.error || 'Failed to load expenses');
         return;
       }
+      
+      console.log('✅ Expenses loaded:', data.expenses?.length || 0);
       
       setExpenses(data.expenses || []);
       setPermissions(data.permissions || {});
@@ -202,8 +212,13 @@ function ExpensesContent() {
       });
       
     } catch (err) {
-      setError(err.message || 'Failed to load expenses. Please try again.');
       console.error('❌ Error fetching expenses:', err);
+      
+      if (err instanceof SyntaxError && err.message.includes('JSON')) {
+        setError('Server returned an invalid response. Please refresh the page.');
+      } else {
+        setError(err.message || 'Failed to load expenses. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -246,13 +261,13 @@ function ExpensesContent() {
     }
   };
 
-  // Format date for input
+  // Get today's date for date input max
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   };
 
-  // Calculate total amount
+  // Calculate total amount of displayed expenses
   const totalAmount = expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
 
   // Show loading skeleton
@@ -264,28 +279,14 @@ function ExpensesContent() {
           <Header />
           <div className="flex-1 overflow-y-auto p-4">
             <div className="max-w-7xl mx-auto">
-              {/* Header skeleton */}
-              <div className="mb-6">
-                <div className="h-8 bg-gray-200 rounded w-48 mb-2 animate-pulse"></div>
-                <div className="h-4 bg-gray-200 rounded w-32 animate-pulse"></div>
-              </div>
-              
-              {/* Filters skeleton */}
+              <div className="h-8 bg-gray-200 rounded w-48 mb-6 animate-pulse"></div>
               <div className="bg-white shadow rounded-lg p-4 mb-6">
-                <div className="h-10 bg-gray-200 rounded animate-pulse mb-4"></div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {[1,2,3,4,5].map(i => (
-                    <div key={i} className="h-10 bg-gray-200 rounded animate-pulse"></div>
-                  ))}
-                </div>
+                <div className="h-40 bg-gray-100 rounded animate-pulse"></div>
               </div>
-              
-              {/* Table skeleton */}
               <div className="bg-white shadow rounded-lg p-4">
-                <div className="overflow-hidden">
-                  <div className="h-12 bg-gray-200 rounded animate-pulse mb-4"></div>
+                <div className="space-y-3">
                   {[1,2,3,4,5].map(i => (
-                    <div key={i} className="h-16 bg-gray-100 rounded animate-pulse mb-2"></div>
+                    <div key={i} className="h-16 bg-gray-100 rounded animate-pulse"></div>
                   ))}
                 </div>
               </div>
@@ -407,13 +408,11 @@ function ExpensesContent() {
               <div className="bg-white rounded-lg shadow p-4 border">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-500">Total Amount</p>
+                    <p className="text-sm text-gray-500">Current Page Total</p>
                     <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalAmount)}</p>
                   </div>
                   <div className="p-3 bg-green-50 rounded-lg">
-                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+                    <BiRupee className="w-6 h-6 text-green-600" />
                   </div>
                 </div>
               </div>
@@ -561,9 +560,10 @@ function ExpensesContent() {
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title & Reason</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid To</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
@@ -583,15 +583,15 @@ function ExpensesContent() {
                                 </td>
                                 <td className="px-6 py-4">
                                   <div className="font-medium text-gray-900">{expense.title}</div>
-                                  {expense.reason && (
-                                    <div className="text-xs text-gray-500 mt-1 truncate max-w-xs">{expense.reason}</div>
-                                  )}
                                 </td>
                                 <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
                                   <div className="truncate">{expense.details || '-'}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                   {expense.paid_to || '-'}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-gray-900 max-w-xs">
+                                  <div className="truncate">{expense.reason || '-'}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                   <span className="font-semibold text-gray-900">
@@ -604,9 +604,7 @@ function ExpensesContent() {
                                       href={`/nb-expense/edit?id=${expense.id}`}
                                       className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 px-3 py-1 border border-blue-600 rounded-md hover:bg-blue-50 transition-colors"
                                     >
-                                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                      </svg>
+                                      <BiEdit className="w-4 h-4" />
                                       Edit
                                     </Link>
                                   )}
@@ -634,7 +632,7 @@ function ExpensesContent() {
                               {/* Expandable Logs Row */}
                               {expandedExpenses[expense.id] && (
                                 <tr className="bg-gray-50">
-                                  <td colSpan="8" className="px-6 py-4">
+                                  <td colSpan="9" className="px-6 py-4">
                                     <div className="max-w-4xl">
                                       <h3 className="text-sm font-semibold text-gray-700 mb-3">
                                         Activity Logs for Expense #{expense.id}
@@ -699,9 +697,7 @@ function ExpensesContent() {
                               href={`/nb-expense/edit?id=${expense.id}`}
                               className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-900 px-3 py-1 text-sm border border-blue-600 rounded-md"
                             >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
+                              <BiEdit className="w-4 h-4" />
                               Edit
                             </Link>
                           )}

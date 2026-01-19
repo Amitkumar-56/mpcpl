@@ -31,7 +31,6 @@ async function checkUserPermissions(employee_id, module_name) {
       };
     }
     
-    // Default permissions if not found
     return {
       can_view: false,
       can_edit: false,
@@ -70,7 +69,6 @@ async function getCurrentUserFromToken() {
       return null;
     }
     
-    // Get user details from database
     const userQuery = `
       SELECT id, name, role, status 
       FROM employee_profile 
@@ -85,8 +83,6 @@ async function getCurrentUserFromToken() {
     }
     
     const user = users[0];
-    console.log(`✅ User authenticated: ${user.name} (ID: ${user.id}, Role: ${user.role})`);
-    
     return {
       userId: user.id,
       userName: user.name,
@@ -100,6 +96,8 @@ async function getCurrentUserFromToken() {
 
 // GET - Fetch expenses
 export async function GET(request) {
+  console.log('🚀 API: nb-expenses GET called');
+  
   try {
     const { searchParams } = new URL(request.url);
     
@@ -118,11 +116,10 @@ export async function GET(request) {
     
     const { userId, userRole, userName } = currentUser;
     
-    // Check permissions for both module name formats
+    // Check permissions
     const permissions1 = await checkUserPermissions(userId, 'nb_expenses');
     const permissions2 = await checkUserPermissions(userId, 'NB Expenses');
     
-    // Merge permissions (if any module has permission, allow)
     const permissions = {
       can_view: permissions1.can_view || permissions2.can_view || userRole === 5,
       can_edit: permissions1.can_edit || permissions2.can_edit || userRole === 5,
@@ -139,100 +136,114 @@ export async function GET(request) {
       );
     }
     
-    // Build query
-    let expensesQuery = `
-      SELECT e.*
-      FROM expenses e
-      WHERE 1=1
-    `;
-    
-    let queryParams = [];
-    
-    // Add search filter if provided
-    const search = searchParams.get('search');
-    if (search && search.trim() !== '') {
-      expensesQuery += " AND (e.title LIKE ? OR e.details LIKE ? OR e.paid_to LIKE ? OR e.reason LIKE ?) ";
-      const searchTerm = `%${search.trim()}%`;
-      queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
-    }
-    
-    // Add date filters
-    const dateFrom = searchParams.get('dateFrom');
-    const dateTo = searchParams.get('dateTo');
-    
-    if (dateFrom && dateFrom.trim() !== '') {
-      expensesQuery += " AND e.payment_date >= ? ";
-      queryParams.push(dateFrom.trim());
-    }
-    
-    if (dateTo && dateTo.trim() !== '') {
-      expensesQuery += " AND e.payment_date <= ? ";
-      queryParams.push(dateTo.trim());
-    }
-    
-    // Add amount filters
-    const minAmount = searchParams.get('minAmount');
-    const maxAmount = searchParams.get('maxAmount');
-    
-    if (minAmount && minAmount.trim() !== '') {
-      expensesQuery += " AND e.amount >= ? ";
-      queryParams.push(parseFloat(minAmount));
-    }
-    
-    if (maxAmount && maxAmount.trim() !== '') {
-      expensesQuery += " AND e.amount <= ? ";
-      queryParams.push(parseFloat(maxAmount));
-    }
-    
-    // Add ordering
-    expensesQuery += " ORDER BY e.payment_date DESC, e.id DESC ";
-    
-    // Handle pagination
+    // Parse pagination parameters
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = parseInt(searchParams.get('limit')) || 20;
     const offset = (page - 1) * limit;
     
-    // Clone parameters for count query BEFORE adding pagination
-    const countParams = [...queryParams];
+    console.log(`📄 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
     
-    // Add pagination to main query
-    expensesQuery += " LIMIT ? OFFSET ? ";
+    // Build base query
+    let query = `
+      SELECT 
+        id,
+        payment_date,
+        title,
+        details,
+        paid_to,
+        reason,
+        amount
+      FROM expenses 
+      WHERE 1=1
+    `;
     
-    // IMPORTANT: Ensure LIMIT and OFFSET are numbers (not strings)
-    queryParams.push(Number(limit), Number(offset));
+    let params = [];
     
-    console.log('🔍 Executing expenses query:', expensesQuery);
-    console.log('🔍 Query params:', queryParams);
-    
-    // Execute main query
-    const expenses = await executeQuery(expensesQuery, queryParams);
-    
-    // Get total count for pagination
-    let countQuery = "SELECT COUNT(*) as total FROM expenses e WHERE 1=1";
-    
-    // Add the same filters to count query
+    // Search filter
+    const search = searchParams.get('search');
     if (search && search.trim() !== '') {
-      countQuery += " AND (e.title LIKE ? OR e.details LIKE ? OR e.paid_to LIKE ? OR e.reason LIKE ?) ";
+      query += " AND (title LIKE ? OR details LIKE ? OR paid_to LIKE ? OR reason LIKE ?) ";
+      const searchTerm = `%${search.trim()}%`;
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
     
+    // Date filters
+    const dateFrom = searchParams.get('dateFrom');
+    const dateTo = searchParams.get('dateTo');
+    
     if (dateFrom && dateFrom.trim() !== '') {
-      countQuery += " AND e.payment_date >= ? ";
+      query += " AND payment_date >= ? ";
+      params.push(dateFrom.trim());
     }
     
     if (dateTo && dateTo.trim() !== '') {
-      countQuery += " AND e.payment_date <= ? ";
+      query += " AND payment_date <= ? ";
+      params.push(dateTo.trim());
     }
     
+    // Amount filters
+    const minAmount = searchParams.get('minAmount');
+    const maxAmount = searchParams.get('maxAmount');
+    
     if (minAmount && minAmount.trim() !== '') {
-      countQuery += " AND e.amount >= ? ";
+      query += " AND amount >= ? ";
+      params.push(parseFloat(minAmount));
     }
     
     if (maxAmount && maxAmount.trim() !== '') {
-      countQuery += " AND e.amount <= ? ";
+      query += " AND amount <= ? ";
+      params.push(parseFloat(maxAmount));
+    }
+    
+    // Add ordering
+    query += " ORDER BY payment_date DESC, id DESC ";
+    
+    // **FIX: MySQL prepared statements issue with LIMIT/OFFSET**
+    // Add pagination directly in query string (not as parameters)
+    query += ` LIMIT ${limit} OFFSET ${offset}`;
+    
+    console.log('🔍 Final Query:', query);
+    console.log('🔍 Query Params:', params);
+    
+    // Execute query
+    const expenses = await executeQuery(query, params);
+    console.log(`✅ Retrieved ${expenses?.length || 0} expenses`);
+    
+    // Get total count (without pagination)
+    let countQuery = "SELECT COUNT(*) as total FROM expenses WHERE 1=1";
+    let countParams = [];
+    
+    // Apply same filters to count query
+    if (search && search.trim() !== '') {
+      countQuery += " AND (title LIKE ? OR details LIKE ? OR paid_to LIKE ? OR reason LIKE ?) ";
+      const searchTerm = `%${search.trim()}%`;
+      countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (dateFrom && dateFrom.trim() !== '') {
+      countQuery += " AND payment_date >= ? ";
+      countParams.push(dateFrom.trim());
+    }
+    
+    if (dateTo && dateTo.trim() !== '') {
+      countQuery += " AND payment_date <= ? ";
+      countParams.push(dateTo.trim());
+    }
+    
+    if (minAmount && minAmount.trim() !== '') {
+      countQuery += " AND amount >= ? ";
+      countParams.push(parseFloat(minAmount));
+    }
+    
+    if (maxAmount && maxAmount.trim() !== '') {
+      countQuery += " AND amount <= ? ";
+      countParams.push(parseFloat(maxAmount));
     }
     
     const countResult = await executeQuery(countQuery, countParams);
     const totalCount = countResult[0]?.total || 0;
+    
+    console.log(`📊 Total expenses count: ${totalCount}`);
     
     return NextResponse.json({
       success: true,
@@ -254,27 +265,10 @@ export async function GET(request) {
   } catch (error) {
     console.error("❌ Error in nb-expenses GET:", error);
     
-    // Better error logging
-    console.error("❌ Error details:", {
-      message: error.message,
-      code: error.code,
-      errno: error.errno,
-      sql: error.sql,
-      sqlState: error.sqlState,
-      sqlMessage: error.sqlMessage
-    });
-    
-    let errorMessage = "Internal server error";
-    if (error.code === 'ER_WRONG_ARGUMENTS') {
-      errorMessage = "Database query error: Parameter type mismatch";
-    } else if (process.env.NODE_ENV === 'development') {
-      errorMessage = error.message;
-    }
-    
     return NextResponse.json(
       { 
         success: false,
-        error: errorMessage 
+        error: error.message 
       },
       { status: 500 }
     );
@@ -329,7 +323,7 @@ export async function POST(request) {
       );
     }
     
-    // Validate amount is a number
+    // Validate amount
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum)) {
       return NextResponse.json(
@@ -341,10 +335,12 @@ export async function POST(request) {
       );
     }
     
-    // Insert expense
+    // Insert query
     const query = `
-      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, NOW())
+      INSERT INTO expenses 
+        (payment_date, title, details, paid_to, reason, amount, created_at)
+      VALUES 
+        (?, ?, ?, ?, ?, ?, NOW())
     `;
     
     const params = [
@@ -446,7 +442,7 @@ export async function PUT(request) {
       );
     }
     
-    // Validate amount if provided
+    // Validate amount
     let amountNum = null;
     if (amount !== undefined) {
       amountNum = parseFloat(amount);
@@ -461,7 +457,7 @@ export async function PUT(request) {
       }
     }
     
-    // Get old expense data
+    // Get old data
     const oldExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
     const oldExpenseData = await executeQuery(oldExpenseQuery, [id]);
     
@@ -477,7 +473,7 @@ export async function PUT(request) {
     
     const oldExpense = oldExpenseData[0];
     
-    // Update the expense
+    // Update query
     const updateQuery = `
       UPDATE expenses 
       SET 
@@ -501,7 +497,7 @@ export async function PUT(request) {
       id
     ]);
     
-    // Get updated expense data
+    // Get updated data
     const newExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
     const newExpenseData = await executeQuery(newExpenseQuery, [id]);
     const newExpense = newExpenseData[0];
@@ -520,8 +516,6 @@ export async function PUT(request) {
       recordType: 'nb_expense',
       recordId: parseInt(id)
     });
-    
-    console.log(`✅ Expense ${id} updated by ${userName} (ID: ${userId})`);
     
     return NextResponse.json({
       success: true,
