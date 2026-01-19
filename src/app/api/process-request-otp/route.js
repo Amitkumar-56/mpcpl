@@ -22,7 +22,8 @@ export async function POST(request) {
     console.log('📋 Process Request Data:', { 
       requestId, 
       otp: otp ? `${otp.substring(0, 2)}...` : 'empty',
-      userId: currentUser.userId 
+      userId: currentUser.userId,
+      environment: process.env.NODE_ENV
     });
     
     if (!requestId || !otp) {
@@ -70,10 +71,11 @@ export async function POST(request) {
       );
     }
     
-    // 4. For development, accept any 6-digit OTP
-    // In production, you would verify OTP from database
+    // 🔥 FIXED: Development mode में OTP verification skip करें
     if (process.env.NODE_ENV === 'production') {
-      // Check OTP in database
+      // Production में ही OTP check करें
+      console.log('🔍 Production mode: Checking OTP against database');
+      
       const otpCheck = await executeQuery(
         `SELECT * FROM otp_verifications 
          WHERE request_id = ? 
@@ -97,9 +99,13 @@ export async function POST(request) {
          WHERE id = ?`,
         [currentUser.userId, otpCheck[0].id]
       );
+    } else {
+      // Development mode में सिर्फ log करें
+      console.log('🔧 Development mode: Skipping OTP verification');
+      console.log('🔢 OTP received:', otp);
     }
     
-    // 5. Update request status to Processing (without updated_at column)
+    // 5. Update request status to Processing
     const updateResult = await executeQuery(
       `UPDATE filling_requests 
        SET status = 'Processing', 
