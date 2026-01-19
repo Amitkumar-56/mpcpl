@@ -8,6 +8,7 @@ import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
 
 // OTP Modal Component - Fully Responsive
+// OTP Modal Component - Fully Responsive
 const OtpModal = ({ 
   requestId, 
   requestRid, 
@@ -21,18 +22,7 @@ const OtpModal = ({
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(false);
   const inputRefs = useRef([]);
-
-  // Check if in development mode
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const isDevelopment = window.location.hostname === 'localhost' || 
-                           window.location.hostname.includes('dev') ||
-                           window.location.hostname.includes('staging');
-      setIsDevMode(isDevelopment);
-    }
-  }, []);
 
   // Initialize refs
   useEffect(() => {
@@ -183,22 +173,40 @@ const OtpModal = ({
               Enter the 6-digit OTP sent to the customer
             </p>
             
-            {/* Development Mode Information */}
-            {isDevMode && (
-              <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800 font-semibold">
-                  🔧 Development Mode Active
-                </p>
-                <p className="text-xs text-yellow-600 mt-1">
-                  Use any 6-digit OTP for testing
-                </p>
-                {generatedOtp && (
-                  <p className="text-xs text-yellow-600 mt-1">
-                    Test OTP: <span className="font-mono font-bold">{generatedOtp}</span>
-                  </p>
-                )}
-              </div>
-            )}
+            {/* ✅ FIXED: ALWAYS SHOW TEST OTP (NO CONDITION) */}
+            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <p className="text-sm text-green-800 font-semibold">
+                ✅ Test OTP Available
+              </p>
+              <p className="text-xs text-green-600 mt-1">
+                Use this 6-digit OTP for testing (Works everywhere)
+              </p>
+              {generatedOtp && (
+                <div className="mt-2">
+                  <p className="text-xs text-green-600 mb-1">Test OTP:</p>
+                  <div className="flex items-center justify-between bg-white p-2 rounded border border-green-300">
+                    <span className="font-mono font-bold text-lg text-green-700">
+                      {generatedOtp}
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(generatedOtp);
+                        alert('OTP copied to clipboard!');
+                      }}
+                      className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded flex items-center"
+                    >
+                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                      </svg>
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-green-500 mt-2">
+                Enter any 6-digit number to proceed
+              </p>
+            </div>
           </div>
 
           {/* OTP Inputs - Responsive */}
