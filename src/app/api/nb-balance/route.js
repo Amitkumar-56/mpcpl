@@ -10,13 +10,21 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 10;
     const offset = (page - 1) * limit;
 
+    console.log('📊 nb-balance GET called with:', { page, limit, offset });
+
     // Get total cash balance
     const cashBalance = await executeQuery(
       'SELECT balance FROM cash_balance LIMIT 1'
     );
 
+    // FIX: Ensure LIMIT and OFFSET are numbers
+    const limitNum = Number(limit);
+    const offsetNum = Number(offset);
+    
+    console.log('🔍 Executing cash history query with:', { limitNum, offsetNum });
+
     // Get cash history with pagination
-    const cashHistory = await executeQuery(`
+    const cashHistoryQuery = `
       SELECT r.id, c.name, r.amount, r.payment_date, 
              r.comments, r.payment_type 
       FROM recharge_wallets r 
@@ -24,14 +32,24 @@ export async function GET(request) {
       WHERE r.payment_type = 'Cash' 
       ORDER BY r.id DESC 
       LIMIT ? OFFSET ?
-    `, [limit, offset]);
+    `;
+    
+    const cashHistory = await executeQuery(cashHistoryQuery, [limitNum, offsetNum]);
 
     // Get total count for pagination
-    const totalCount = await executeQuery(`
+    const totalCountResult = await executeQuery(`
       SELECT COUNT(*) as count 
       FROM recharge_wallets r 
       WHERE r.payment_type = 'Cash'
     `);
+    
+    const totalCount = totalCountResult[0]?.count || 0;
+
+    console.log('✅ Cash data fetched successfully:', {
+      cashBalance: cashBalance[0]?.balance || 0,
+      cashHistoryCount: cashHistory?.length || 0,
+      totalCount
+    });
 
     return NextResponse.json({
       success: true,
@@ -40,16 +58,25 @@ export async function GET(request) {
         cashHistory,
         pagination: {
           currentPage: page,
-          totalPages: Math.ceil(totalCount[0]?.count / limit),
-          totalRecords: totalCount[0]?.count
+          totalPages: Math.ceil(totalCount / limit),
+          totalRecords: totalCount
         }
       }
     });
 
   } catch (error) {
-    console.error('Error fetching cash data:', error);
+    console.error('❌ Error fetching cash data:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      sql: error.sql
+    });
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch cash data' },
+      { 
+        success: false, 
+        error: 'Failed to fetch cash data: ' + (error.message || 'Unknown error') 
+      },
       { status: 500 }
     );
   }
@@ -67,6 +94,8 @@ export async function PUT(request) {
         { status: 400 }
       );
     }
+
+    console.log('🔄 Updating cash record:', { id, amount, payment_date });
 
     const result = await executeQuery(
       `UPDATE recharge_wallets 
@@ -88,9 +117,9 @@ export async function PUT(request) {
     }
 
   } catch (error) {
-    console.error('Error updating record:', error);
+    console.error('❌ Error updating record:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update record' },
+      { success: false, error: 'Failed to update record: ' + error.message },
       { status: 500 }
     );
   }

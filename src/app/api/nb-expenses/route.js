@@ -1,8 +1,9 @@
-import { executeQuery } from "@/lib/db";
-import { NextResponse } from "next/server";
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
+// src/app/api/nb-expenses/route.js
 import { createAuditLog } from '@/lib/auditLog';
+import { verifyToken } from '@/lib/auth';
+import { executeQuery } from "@/lib/db";
+import { cookies } from 'next/headers';
+import { NextResponse } from "next/server";
 
 // Helper function to check permissions
 async function checkUserPermissions(employee_id, module_name) {
@@ -138,48 +139,14 @@ export async function GET(request) {
       );
     }
     
-    // Build query based on user role
-    // First, check if employee_id column exists in expenses table
-    let hasEmployeeIdColumn = false;
-    try {
-      const columnCheckQuery = `
-        SELECT COUNT(*) as col_count 
-        FROM information_schema.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'expenses' 
-        AND COLUMN_NAME = 'employee_id'
-      `;
-      const columnCheck = await executeQuery(columnCheckQuery);
-      hasEmployeeIdColumn = columnCheck && columnCheck.length > 0 && columnCheck[0].col_count > 0;
-    } catch (err) {
-      console.log('Could not check for employee_id column, assuming it exists');
-      hasEmployeeIdColumn = true; // Assume it exists to maintain existing behavior
-    }
-
-    // Build query - include JOIN only if employee_id column exists
-    let expensesQuery = '';
-    if (hasEmployeeIdColumn) {
-      expensesQuery = `
-        SELECT e.*, ep.name as employee_name
-        FROM expenses e
-        LEFT JOIN employee_profile ep ON e.employee_id = ep.id
-        WHERE 1=1
-      `;
-    } else {
-      expensesQuery = `
-        SELECT e.*
-        FROM expenses e
-        WHERE 1=1
-      `;
-    }
+    // Build query
+    let expensesQuery = `
+      SELECT e.*
+      FROM expenses e
+      WHERE 1=1
+    `;
     
     let queryParams = [];
-    
-    // If not admin and employee_id column exists, filter by employee_id
-    if (userRole !== 5 && hasEmployeeIdColumn) {
-      expensesQuery += " AND e.employee_id = ?";
-      queryParams.push(userId);
-    }
     
     // Add search filter if provided
     const search = searchParams.get('search');
@@ -224,24 +191,44 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 20;
     const offset = (page - 1) * limit;
     
+    // FIX: Ensure LIMIT and OFFSET are numbers
+    const limitNum = Number(limit);
+    const offsetNum = Number(offset);
+    
+    // Clone parameters for count query BEFORE adding pagination
+    const countParams = [...queryParams];
+    
+    // Add pagination to main query
     expensesQuery += " LIMIT ? OFFSET ? ";
-    queryParams.push(limit, offset);
+    queryParams.push(limitNum, offsetNum);
+    
+    console.log('🔍 Executing expenses query:', expensesQuery);
+    console.log('🔍 Query params:', queryParams);
     
     const expenses = await executeQuery(expensesQuery, queryParams);
     
-    // Get total count for pagination
+    // Get total count for pagination (without pagination)
     let countQuery = "SELECT COUNT(*) as total FROM expenses e WHERE 1=1";
-    let countParams = [];
     
-    if (userRole !== 5 && hasEmployeeIdColumn) {
-      countQuery += " AND e.employee_id = ?";
-      countParams.push(userId);
-    }
-    
+    // Add the same filters to count query
     if (search) {
       countQuery += " AND (e.title LIKE ? OR e.details LIKE ? OR e.paid_to LIKE ? OR e.reason LIKE ?) ";
-      const searchTerm = `%${search}%`;
-      countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+    }
+    
+    if (dateFrom) {
+      countQuery += " AND e.payment_date >= ? ";
+    }
+    
+    if (dateTo) {
+      countQuery += " AND e.payment_date <= ? ";
+    }
+    
+    if (minAmount) {
+      countQuery += " AND e.amount >= ? ";
+    }
+    
+    if (maxAmount) {
+      countQuery += " AND e.amount <= ? ";
     }
     
     const countResult = await executeQuery(countQuery, countParams);
@@ -266,8 +253,12 @@ export async function GET(request) {
     
   } catch (error) {
     console.error("❌ Error in nb-expenses GET:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      code: error.code,
+      sql: error.sql
+    });
     
-    // Don't expose sensitive error details in production
     const errorMessage = process.env.NODE_ENV === 'development' 
       ? error.message 
       : "Internal server error";
@@ -317,10 +308,7 @@ export async function POST(request) {
     }
     
     const body = await request.json();
-    const { payment_date, title, details, paid_to, reason, amount, employee_id: bodyEmployeeId } = body;
-    
-    // Use employee_id from body if provided, otherwise use logged-in user
-    const finalEmployeeId = bodyEmployeeId || userId;
+    const { payment_date, title, details, paid_to, reason, amount } = body;
     
     // Validate required fields
     if (!payment_date || !title || !amount) {
@@ -333,20 +321,54 @@ export async function POST(request) {
       );
     }
     
-    const query = `
-      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, employee_id, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-    `;
+    // FIX: Check if employee_id column exists before including it
+    let columnCheck = null;
+    let hasEmployeeIdColumn = false;
+    try {
+      columnCheck = await executeQuery(`
+        SELECT COUNT(*) as col_count 
+        FROM information_schema.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'expenses' 
+        AND COLUMN_NAME = 'employee_id'
+      `);
+      hasEmployeeIdColumn = columnCheck && columnCheck.length > 0 && columnCheck[0].col_count > 0;
+    } catch (err) {
+      console.log('Could not check for employee_id column');
+      hasEmployeeIdColumn = false;
+    }
     
-    const result = await executeQuery(query, [
-      payment_date, 
-      title || '', 
-      details || '', 
-      paid_to || '', 
-      reason || '', 
-      parseFloat(amount), 
-      finalEmployeeId
-    ]);
+    let query, params;
+    if (hasEmployeeIdColumn) {
+      query = `
+        INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, employee_id, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+      `;
+      params = [
+        payment_date, 
+        title || '', 
+        details || '', 
+        paid_to || '', 
+        reason || '', 
+        parseFloat(amount), 
+        userId
+      ];
+    } else {
+      query = `
+        INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, NOW())
+      `;
+      params = [
+        payment_date, 
+        title || '', 
+        details || '', 
+        paid_to || '', 
+        reason || '', 
+        parseFloat(amount)
+      ];
+    }
+    
+    const result = await executeQuery(query, params);
     
     // Create audit log
     await createAuditLog({
@@ -364,8 +386,7 @@ export async function POST(request) {
         amount, 
         paid_to, 
         reason, 
-        payment_date,
-        employee_id: finalEmployeeId
+        payment_date
       },
       recordType: 'nb_expense',
       recordId: result.insertId
@@ -452,17 +473,6 @@ export async function PUT(request) {
     }
     
     const oldExpense = oldExpenseData[0];
-    
-    // If not admin, check ownership
-    if (userRole !== 5 && oldExpense.employee_id != userId) {
-      return NextResponse.json(
-        { 
-          success: false,
-          error: "Access denied. You can only edit your own expenses." 
-        },
-        { status: 403 }
-      );
-    }
     
     // Update the expense
     const updateQuery = `
