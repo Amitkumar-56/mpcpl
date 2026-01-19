@@ -1,6 +1,5 @@
 // app/nb-stock/nb-stock-history/page.jsx
 'use client';
-
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
