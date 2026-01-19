@@ -1,4 +1,3 @@
-// src/app/api/nb-balance/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -14,16 +13,10 @@ export async function GET(request) {
 
     // Get total cash balance
     const cashBalance = await executeQuery(
-      'SELECT balance FROM cash_balance LIMIT 1'
+      'SELECT COALESCE(balance, 0) as balance FROM cash_balance LIMIT 1'
     );
 
-    // FIX: Ensure LIMIT and OFFSET are numbers
-    const limitNum = Number(limit);
-    const offsetNum = Number(offset);
-    
-    console.log('🔍 Executing cash history query with:', { limitNum, offsetNum });
-
-    // Get cash history with pagination
+    // Use string interpolation for LIMIT/OFFSET to avoid parameter issues
     const cashHistoryQuery = `
       SELECT r.id, c.name, r.amount, r.payment_date, 
              r.comments, r.payment_type 
@@ -31,10 +24,10 @@ export async function GET(request) {
       JOIN customers c ON r.com_id = c.id 
       WHERE r.payment_type = 'Cash' 
       ORDER BY r.id DESC 
-      LIMIT ? OFFSET ?
+      LIMIT ${limit} OFFSET ${offset}
     `;
     
-    const cashHistory = await executeQuery(cashHistoryQuery, [limitNum, offsetNum]);
+    const cashHistory = await executeQuery(cashHistoryQuery);
 
     // Get total count for pagination
     const totalCountResult = await executeQuery(`
@@ -55,7 +48,7 @@ export async function GET(request) {
       success: true,
       data: {
         totalCash: cashBalance[0]?.balance || 0,
-        cashHistory,
+        cashHistory: cashHistory || [],
         pagination: {
           currentPage: page,
           totalPages: Math.ceil(totalCount / limit),
@@ -69,13 +62,19 @@ export async function GET(request) {
     console.error('❌ Error details:', {
       message: error.message,
       code: error.code,
-      sql: error.sql
+      errno: error.errno,
+      sqlState: error.sqlState
     });
     
     return NextResponse.json(
       { 
         success: false, 
-        error: 'Failed to fetch cash data: ' + (error.message || 'Unknown error') 
+        error: 'Failed to fetch cash data',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? {
+          sqlState: error.sqlState,
+          errno: error.errno
+        } : undefined
       },
       { status: 500 }
     );
@@ -101,10 +100,21 @@ export async function PUT(request) {
       `UPDATE recharge_wallets 
        SET amount = ?, payment_date = ?, comments = ?, payment_type = ? 
        WHERE id = ?`,
-      [amount, payment_date, comments, payment_type, id]
+      [parseFloat(amount), payment_date, comments, payment_type, parseInt(id)]
     );
 
     if (result.affectedRows > 0) {
+      // Update cash balance
+      await executeQuery(`
+        UPDATE cash_balance 
+        SET balance = (
+          SELECT COALESCE(SUM(amount), 0) 
+          FROM recharge_wallets 
+          WHERE payment_type = 'Cash'
+        )
+        WHERE id = 1
+      `);
+
       return NextResponse.json({
         success: true,
         message: 'Record updated successfully'

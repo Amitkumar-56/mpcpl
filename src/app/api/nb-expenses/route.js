@@ -150,9 +150,9 @@ export async function GET(request) {
     
     // Add search filter if provided
     const search = searchParams.get('search');
-    if (search) {
+    if (search && search.trim() !== '') {
       expensesQuery += " AND (e.title LIKE ? OR e.details LIKE ? OR e.paid_to LIKE ? OR e.reason LIKE ?) ";
-      const searchTerm = `%${search}%`;
+      const searchTerm = `%${search.trim()}%`;
       queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
     }
     
@@ -160,74 +160,74 @@ export async function GET(request) {
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
     
-    if (dateFrom) {
+    if (dateFrom && dateFrom.trim() !== '') {
       expensesQuery += " AND e.payment_date >= ? ";
-      queryParams.push(dateFrom);
+      queryParams.push(dateFrom.trim());
     }
     
-    if (dateTo) {
+    if (dateTo && dateTo.trim() !== '') {
       expensesQuery += " AND e.payment_date <= ? ";
-      queryParams.push(dateTo);
+      queryParams.push(dateTo.trim());
     }
     
     // Add amount filters
     const minAmount = searchParams.get('minAmount');
     const maxAmount = searchParams.get('maxAmount');
     
-    if (minAmount) {
+    if (minAmount && minAmount.trim() !== '') {
       expensesQuery += " AND e.amount >= ? ";
       queryParams.push(parseFloat(minAmount));
     }
     
-    if (maxAmount) {
+    if (maxAmount && maxAmount.trim() !== '') {
       expensesQuery += " AND e.amount <= ? ";
       queryParams.push(parseFloat(maxAmount));
     }
     
-    // Add ordering and pagination
+    // Add ordering
     expensesQuery += " ORDER BY e.payment_date DESC, e.id DESC ";
     
+    // Handle pagination
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = parseInt(searchParams.get('limit')) || 20;
     const offset = (page - 1) * limit;
-    
-    // FIX: Ensure LIMIT and OFFSET are numbers
-    const limitNum = Number(limit);
-    const offsetNum = Number(offset);
     
     // Clone parameters for count query BEFORE adding pagination
     const countParams = [...queryParams];
     
     // Add pagination to main query
     expensesQuery += " LIMIT ? OFFSET ? ";
-    queryParams.push(limitNum, offsetNum);
+    
+    // IMPORTANT: Ensure LIMIT and OFFSET are numbers (not strings)
+    queryParams.push(Number(limit), Number(offset));
     
     console.log('🔍 Executing expenses query:', expensesQuery);
     console.log('🔍 Query params:', queryParams);
     
+    // Execute main query
     const expenses = await executeQuery(expensesQuery, queryParams);
     
-    // Get total count for pagination (without pagination)
+    // Get total count for pagination
     let countQuery = "SELECT COUNT(*) as total FROM expenses e WHERE 1=1";
     
     // Add the same filters to count query
-    if (search) {
+    if (search && search.trim() !== '') {
       countQuery += " AND (e.title LIKE ? OR e.details LIKE ? OR e.paid_to LIKE ? OR e.reason LIKE ?) ";
     }
     
-    if (dateFrom) {
+    if (dateFrom && dateFrom.trim() !== '') {
       countQuery += " AND e.payment_date >= ? ";
     }
     
-    if (dateTo) {
+    if (dateTo && dateTo.trim() !== '') {
       countQuery += " AND e.payment_date <= ? ";
     }
     
-    if (minAmount) {
+    if (minAmount && minAmount.trim() !== '') {
       countQuery += " AND e.amount >= ? ";
     }
     
-    if (maxAmount) {
+    if (maxAmount && maxAmount.trim() !== '') {
       countQuery += " AND e.amount <= ? ";
     }
     
@@ -253,15 +253,23 @@ export async function GET(request) {
     
   } catch (error) {
     console.error("❌ Error in nb-expenses GET:", error);
+    
+    // Better error logging
     console.error("❌ Error details:", {
       message: error.message,
       code: error.code,
-      sql: error.sql
+      errno: error.errno,
+      sql: error.sql,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
     });
     
-    const errorMessage = process.env.NODE_ENV === 'development' 
-      ? error.message 
-      : "Internal server error";
+    let errorMessage = "Internal server error";
+    if (error.code === 'ER_WRONG_ARGUMENTS') {
+      errorMessage = "Database query error: Parameter type mismatch";
+    } else if (process.env.NODE_ENV === 'development') {
+      errorMessage = error.message;
+    }
     
     return NextResponse.json(
       { 
@@ -321,52 +329,32 @@ export async function POST(request) {
       );
     }
     
-    // FIX: Check if employee_id column exists before including it
-    let columnCheck = null;
-    let hasEmployeeIdColumn = false;
-    try {
-      columnCheck = await executeQuery(`
-        SELECT COUNT(*) as col_count 
-        FROM information_schema.COLUMNS 
-        WHERE TABLE_SCHEMA = DATABASE() 
-        AND TABLE_NAME = 'expenses' 
-        AND COLUMN_NAME = 'employee_id'
-      `);
-      hasEmployeeIdColumn = columnCheck && columnCheck.length > 0 && columnCheck[0].col_count > 0;
-    } catch (err) {
-      console.log('Could not check for employee_id column');
-      hasEmployeeIdColumn = false;
+    // Validate amount is a number
+    const amountNum = parseFloat(amount);
+    if (isNaN(amountNum)) {
+      return NextResponse.json(
+        { 
+          success: false,
+          error: "Amount must be a valid number." 
+        },
+        { status: 400 }
+      );
     }
     
-    let query, params;
-    if (hasEmployeeIdColumn) {
-      query = `
-        INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, employee_id, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-      `;
-      params = [
-        payment_date, 
-        title || '', 
-        details || '', 
-        paid_to || '', 
-        reason || '', 
-        parseFloat(amount), 
-        userId
-      ];
-    } else {
-      query = `
-        INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, NOW())
-      `;
-      params = [
-        payment_date, 
-        title || '', 
-        details || '', 
-        paid_to || '', 
-        reason || '', 
-        parseFloat(amount)
-      ];
-    }
+    // Insert expense
+    const query = `
+      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, NOW())
+    `;
+    
+    const params = [
+      payment_date, 
+      title || '', 
+      details || '', 
+      paid_to || '', 
+      reason || '', 
+      amountNum
+    ];
     
     const result = await executeQuery(query, params);
     
@@ -378,12 +366,12 @@ export async function POST(request) {
       userId: userId,
       userName: userName,
       action: 'add',
-      remarks: `Expense added: ${title} - ₹${amount} to ${paid_to}`,
+      remarks: `Expense added: ${title} - ₹${amountNum} to ${paid_to}`,
       oldValue: null,
       newValue: { 
         id: result.insertId,
         title, 
-        amount, 
+        amount: amountNum, 
         paid_to, 
         reason, 
         payment_date
@@ -458,6 +446,21 @@ export async function PUT(request) {
       );
     }
     
+    // Validate amount if provided
+    let amountNum = null;
+    if (amount !== undefined) {
+      amountNum = parseFloat(amount);
+      if (isNaN(amountNum)) {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: "Amount must be a valid number." 
+          },
+          { status: 400 }
+        );
+      }
+    }
+    
     // Get old expense data
     const oldExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
     const oldExpenseData = await executeQuery(oldExpenseQuery, [id]);
@@ -494,7 +497,7 @@ export async function PUT(request) {
       details || oldExpense.details,
       paid_to || oldExpense.paid_to,
       reason || oldExpense.reason,
-      amount ? parseFloat(amount) : oldExpense.amount,
+      amountNum !== null ? amountNum : oldExpense.amount,
       id
     ]);
     
