@@ -153,7 +153,7 @@ export default function CreateRequestForm() {
           console.log('💰 Price API Response:', data);
 
           if (data.success && data.data) {
-            const latestPrice = data.data.price;
+            const latestPrice = parseFloat(data.data.price) || 0; // ✅ Convert to number
             const total = latestPrice * parseFloat(formData.qty || 0);
             
             setPriceDetails({
@@ -328,6 +328,7 @@ export default function CreateRequestForm() {
     if (selectedProduct) {
       const quantityLiters = parseInt(formData.qty) || 0;
       const quantityBuckets = parseInt(formData.aty) || 0;
+      
       if (selectedProduct.type === 'bucket') {
         if (quantityBuckets < (selectedProduct.min || 1)) {
           const unit = (selectedProduct.min || 1) === 1 ? 'bucket' : 'buckets';
@@ -338,12 +339,14 @@ export default function CreateRequestForm() {
           const unit = (selectedProduct.min || 1) === 1 ? 'liter' : 'liters';
           newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${unit}`;
         }
-      }
-      // Only validate maxQuantity for non-bucket products
-      // For bucket products, allow any number of buckets
-      if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantity > selectedProduct.maxQuantity) {
-        const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
-        newErrors.qty = `Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}`;
+        
+        // ✅ FIX: Changed 'quantity' to 'quantityLiters'
+        // Only validate maxQuantity for non-bucket products
+        // For bucket products, allow any number of buckets
+        if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantityLiters > selectedProduct.maxQuantity) {
+          const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
+          newErrors.qty = `Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}`;
+        }
       }
     }
 
@@ -779,11 +782,11 @@ export default function CreateRequestForm() {
                         <>
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-gray-700">Price:</span>
-                            <span className="font-medium">₹{createdRequest.price}/Ltr</span>
+                            <span className="font-medium">₹{Number(createdRequest.price || 0).toFixed(2)}/Ltr</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-gray-700">Total Amount:</span>
-                            <span className="font-medium">₹{createdRequest.total_amount}</span>
+                            <span className="font-medium">₹{Number(createdRequest.total_amount || 0).toFixed(2)}</span>
                           </div>
                         </>
                       )}
@@ -839,10 +842,7 @@ export default function CreateRequestForm() {
                       <span className="font-semibold text-gray-700 mr-2">Customer:</span>
                       <span className="text-gray-900">{customerData.name}</span>
                     </div>
-                    <div className="flex items-center">
-                      <span className="font-semibold text-gray-700 mr-2">Company:</span>
-                      <span className="text-gray-900">{customerData.company}</span>
-                    </div>
+                   
                     {customerData.blocklocation && (
                       <div className="flex items-center">
                         <span className="font-semibold text-gray-700 mr-2">Assigned Station ID:</span>
@@ -853,27 +853,6 @@ export default function CreateRequestForm() {
                 </div>
               )}
             </div>
-
-            {/* Price Display Card */}
-            {(priceDetails.price > 0 || priceDetails.totalAmount > 0) && (
-              <div className="bg-green-50 rounded-xl p-4 border border-green-200 mb-6">
-                <h3 className="font-semibold text-green-800 mb-3">Price Calculation</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
-                  <div className="text-center">
-                    <div className="text-gray-600">Unit Price</div>
-                    <div className="text-lg font-bold text-green-700">₹{priceDetails.price.toFixed(2)}</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-gray-600">Quantity</div>
-                    <div className="text-lg font-bold text-blue-700">{formData.qty || 0} Ltr</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-gray-600">Total Amount</div>
-                    <div className="text-lg font-bold text-purple-700">₹{priceDetails.totalAmount.toFixed(2)}</div>
-                  </div>
-                </div>
-              </div>
-            )}
 
             {/* Form Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">

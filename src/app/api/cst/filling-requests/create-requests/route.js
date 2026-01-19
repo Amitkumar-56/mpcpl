@@ -1,7 +1,6 @@
 // src/app/api/cst/filling-requests/create-requests/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { createAuditLog } from "@/lib/auditLog";
 
 export async function POST(request) {
   try {
@@ -78,23 +77,6 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
-    const blRows = await executeQuery(
-      'SELECT blocklocation FROM customers WHERE id = ?',
-      [parseInt(customer_id)]
-    );
-    const bl = blRows.length > 0 ? String(blRows[0].blocklocation || '').trim() : '';
-    const allowedIds = bl
-      .split(',')
-      .map(x => x.trim())
-      .filter(x => x !== '' && !isNaN(parseInt(x)))
-      .map(x => parseInt(x));
-    if (!allowedIds.includes(parseInt(station_id))) {
-      return NextResponse.json({
-        success: false,
-        message: `Selected station is not allowed for this customer`
-      }, { status: 403 });
-    }
-
     // Generate RID
     const lastRequestQuery = `SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1`;
     const lastRequest = await executeQuery(lastRequestQuery);
@@ -112,15 +94,7 @@ export async function POST(request) {
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    // ✅ FIX: Get current IST time directly (server timezone should be IST)
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const currentDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
     // Get product details - product_id is now a product id, not product_code id
     // Get the first product_code for this product
@@ -224,70 +198,6 @@ export async function POST(request) {
     console.log('✅ Database insert result:', result);
 
     if (result.affectedRows === 1) {
-      // ✅ Get customer name from customers table
-      let customerName = null;
-      let customerPermissions = {};
-      
-      try {
-        const customerInfo = await executeQuery(
-          `SELECT id, name FROM customers WHERE id = ?`,
-          [parseInt(customer_id)]
-        );
-        
-        if (customerInfo.length > 0) {
-          customerName = customerInfo[0].name;
-          
-          // ✅ Check customer_permissions
-          const permissionRows = await executeQuery(
-            `SELECT module_name, can_view, can_edit, can_create 
-             FROM customer_permissions 
-             WHERE customer_id = ?`,
-            [parseInt(customer_id)]
-          );
-          
-          permissionRows.forEach((row) => {
-            customerPermissions[row.module_name] = {
-              can_view: Boolean(row.can_view),
-              can_edit: Boolean(row.can_edit),
-              can_create: Boolean(row.can_create),
-            };
-          });
-        }
-      } catch (custError) {
-        console.error('Error fetching customer info:', custError);
-      }
-
-      // ✅ Create audit log with customer name and permissions
-      try {
-        await createAuditLog({
-          page: 'Customer Dashboard - Filling Requests',
-          uniqueCode: `FR-CST-${newRid}`,
-          section: 'Create Filling Request',
-          userId: parseInt(customer_id),
-          userName: customerName || `Customer ID: ${customer_id}`,
-          action: 'create',
-          remarks: `Created filling request ${newRid}: ${productData.product_name}, Qty: ${qty}, Vehicle: ${licence_plate.toUpperCase()}, Station: ${station_id}`,
-          oldValue: null,
-          newValue: {
-            rid: newRid,
-            customer_id: parseInt(customer_id),
-            customer_name: customerName,
-            product_id: productData.product_id,
-            product_name: productData.product_name,
-            station_id: parseInt(station_id),
-            vehicle_number: licence_plate.toUpperCase(),
-            qty: parseFloat(qty) || 0,
-            price: price,
-            total_amount: (price * parseFloat(qty || 0)).toFixed(2),
-            permissions: customerPermissions
-          }
-        });
-        console.log('✅ Audit log created for customer filling request');
-      } catch (auditError) {
-        console.error('Error creating audit log:', auditError);
-        // Continue even if audit log fails
-      }
-
       const stationQuery = `SELECT station_name FROM filling_stations WHERE id = ?`;
       const stationResult = await executeQuery(stationQuery, [station_id]);
       const stationName = stationResult.length > 0 ? stationResult[0].station_name : 'Unknown Station';
@@ -321,3 +231,4 @@ export async function POST(request) {
     }, { status: 500 });
   }
 }
+
