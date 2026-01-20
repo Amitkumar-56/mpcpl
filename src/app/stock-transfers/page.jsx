@@ -1,12 +1,11 @@
 'use client';
  
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
-import React from "react";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
-import Sidebar from "@/components/sidebar";
+import React, { Suspense, useEffect, useState } from "react";
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
 
 // Component to fetch and display transfer logs
@@ -344,7 +343,7 @@ function StockTransfersContent() {
                                         onClick={() => {
                                           console.log('View Details clicked for transfer:', transfer, 'ID:', transferId);
                                           // Update URL with query parameter
-                                          router.push(`/stock-transfers?id=${transferId}`, { scroll: false });
+                                          router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
                                           // Expand the row
                                           setExpandedRows(prev => new Set([...prev, transferId]));
                                         }}

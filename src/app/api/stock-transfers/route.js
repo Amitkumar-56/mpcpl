@@ -1,7 +1,5 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { createAuditLog } from "@/lib/auditLog";
-import { getCurrentUser } from "@/lib/auth";
 
 export async function GET() {
   try {
@@ -46,82 +44,3 @@ export async function GET() {
   }
 }
 
-export async function POST(request) {
-  try {
-    const body = await request.json();
-    const {
-      station_from,
-      station_to,
-      driver_id,
-      vehicle_id,
-      transfer_quantity,
-      product,
-      status = 1
-    } = body;
-
-    const query = `
-      INSERT INTO stock_transfers 
-      (station_from, station_to, driver_id, vehicle_id, transfer_quantity, product, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
-    `;
-
-    const result = await executeQuery(query, [
-      station_from,
-      station_to,
-      driver_id,
-      vehicle_id,
-      transfer_quantity,
-      product,
-      status
-    ]);
-
-    // Get current user for audit log
-    const currentUser = await getCurrentUser();
-    const userId = currentUser?.userId || null;
-    // Ensure userName is fetched from employee_profile
-    let userName = currentUser?.userName;
-    if (!userName && currentUser?.userId) {
-      const users = await executeQuery(
-        `SELECT name FROM employee_profile WHERE id = ?`,
-        [currentUser.userId]
-      );
-      if (users.length > 0 && users[0].name) {
-        userName = users[0].name;
-      }
-    }
-
-    // Create audit log
-    await createAuditLog({
-      page: 'Stock Transfers',
-      uniqueCode: `TRANSFER-${result.insertId}`,
-      section: 'Stock Transfer',
-      userId: userId,
-      userName: userName,
-      action: 'create',
-      remarks: `Stock transfer record created (Quantity: ${transfer_quantity})`,
-      oldValue: null,
-      newValue: {
-        station_from,
-        station_to,
-        driver_id,
-        vehicle_id,
-        transfer_quantity,
-        product,
-        status
-      },
-      recordType: 'stock_transfer',
-      recordId: result.insertId
-    });
-
-    return NextResponse.json({ 
-      message: "Stock transfer created successfully",
-      id: result.insertId 
-    });
-  } catch (error) {
-    console.error("Error creating stock transfer:", error);
-    return NextResponse.json(
-      { error: "Failed to create stock transfer" },
-      { status: 500 }
-    );
-  }
-}
