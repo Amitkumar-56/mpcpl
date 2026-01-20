@@ -2,7 +2,7 @@
 
 import Footer from "@/components/Footer";
 import Header from "@/components/Header";
-import Sidebar from "@/components/Sidebar";
+import Sidebar from "@/components/sidebar";
 import { useSession } from "@/context/SessionContext";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
