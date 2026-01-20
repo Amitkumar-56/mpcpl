@@ -62,7 +62,7 @@ function CashManagementContent() {
         ...filters
       });
 
-      const response = await fetch(`/api/nb-balance/cash-management?${queryParams}`);
+      const response = await fetch(`/api/cash-management?${queryParams}`);
       const result = await response.json();
 
       if (result.success) {
