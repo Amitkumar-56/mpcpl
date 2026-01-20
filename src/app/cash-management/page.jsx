@@ -1,4 +1,4 @@
-//src/app/nb-balance/cash-managemnet/page.jsx
+//src/app/cash-management/page.jsx
 'use client';
 import { useSession } from '@/context/SessionContext';
 import Footer from "components/Footer";

@@ -1,9 +1,15 @@
-
 import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
-import { executeQuery } from '@/lib/db';
+import { executeQuery, executeTransaction } from '@/lib/db';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+
+// Helper function to safely convert to number
+const safeNumber = (value) => {
+  if (value === null || value === undefined) return null;
+  const num = Number(value);
+  return isNaN(num) ? value : num;
+};
 
 // GET - All expenses with dynamic filtering and pagination
 export async function GET(request) {
@@ -46,12 +52,12 @@ export async function GET(request) {
 
     if (minAmount) {
       whereConditions.push('amount >= ?');
-      queryParams.push(parseFloat(minAmount));
+      queryParams.push(safeNumber(minAmount));
     }
 
     if (maxAmount) {
       whereConditions.push('amount <= ?');
-      queryParams.push(parseFloat(maxAmount));
+      queryParams.push(safeNumber(maxAmount));
     }
 
     if (paidTo) {
@@ -70,11 +76,14 @@ export async function GET(request) {
 
     // Get total count for pagination
     const countQuery = `SELECT COUNT(*) as total FROM expenses ${whereClause}`;
+    console.log('Count Query:', countQuery);
+    console.log('Count Params:', queryParams);
+    
     const countResult = await executeQuery(countQuery, queryParams);
-    const total = countResult[0].total;
+    const total = countResult[0]?.total || 0;
     const totalPages = Math.ceil(total / limit);
 
-    // Get paginated data
+    // Get paginated data - FIX: All parameters must be strings for MySQL prepared statements
     const dataQuery = `
       SELECT * FROM expenses 
       ${whereClause}
@@ -82,7 +91,16 @@ export async function GET(request) {
       LIMIT ? OFFSET ?
     `;
     
-    const dataParams = [...queryParams, limit, offset];
+    // Copy query params for data query
+    const dataParams = [...queryParams];
+    
+    // Convert LIMIT and OFFSET to strings - THIS IS IMPORTANT!
+    dataParams.push(String(limit), String(offset));
+    
+    console.log('Data Query:', dataQuery);
+    console.log('Data Params:', dataParams);
+    console.log('Data Params Types:', dataParams.map(p => `${p} (${typeof p})`));
+    
     const expenses = await executeQuery(dataQuery, dataParams);
 
     // Get total cash balance - initialize if empty
@@ -121,18 +139,32 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Error fetching cash data:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sql: error.sql,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
+    
     return NextResponse.json(
       { 
         success: false, 
         error: 'Failed to fetch cash data',
-        message: error.message 
+        message: error.message,
+        details: {
+          code: error.code,
+          errno: error.errno,
+          sqlState: error.sqlState
+        }
       },
       { status: 500 }
     );
   }
 }
 
-// POST - Create new expense
+// POST - Create new expense with transaction
 export async function POST(request) {
   try {
     const body = await request.json();
@@ -166,37 +198,48 @@ export async function POST(request) {
       );
     }
 
-    // Note: expenses table doesn't have created_at column based on schema
-    const insertQuery = `
-      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `;
+    // Use transaction for expense creation and balance update
+    const result = await executeTransaction(async (connection) => {
+      // Note: expenses table doesn't have created_at column based on schema
+      const insertQuery = `
+        INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `;
 
-    const result = await executeQuery(insertQuery, [
-      payment_date, 
-      title, 
-      details, 
-      paid_to, 
-      reason, 
-      parseFloat(amount)
-    ]);
+      const [insertResult] = await connection.execute(insertQuery, [
+        payment_date, 
+        title, 
+        details, 
+        paid_to, 
+        reason, 
+        parseFloat(amount)
+      ]);
 
-    // Get old balance before update
-    const oldBalanceQuery = `SELECT balance FROM cash_balance LIMIT 1`;
-    const oldBalanceResult = await executeQuery(oldBalanceQuery);
-    const oldBalance = oldBalanceResult[0]?.balance || 0;
+      // Get old balance before update
+      const [oldBalanceResult] = await connection.execute(
+        `SELECT balance FROM cash_balance LIMIT 1`
+      );
+      const oldBalance = oldBalanceResult[0]?.balance || 0;
 
-    // Update cash balance (deduct expense)
-    const updateBalanceQuery = `
-      UPDATE cash_balance 
-      SET balance = balance - ?, updated_at = NOW()
-    `;
-    await executeQuery(updateBalanceQuery, [parseFloat(amount)]);
+      // Update cash balance (deduct expense)
+      const updateBalanceQuery = `
+        UPDATE cash_balance 
+        SET balance = balance - ?, updated_at = NOW()
+      `;
+      await connection.execute(updateBalanceQuery, [parseFloat(amount)]);
 
-    // Get updated balance
-    const balanceQuery = `SELECT balance FROM cash_balance LIMIT 1`;
-    const balanceResult = await executeQuery(balanceQuery);
-    const newBalance = balanceResult[0]?.balance || 0;
+      // Get updated balance
+      const [balanceResult] = await connection.execute(
+        `SELECT balance FROM cash_balance LIMIT 1`
+      );
+      const newBalance = balanceResult[0]?.balance || 0;
+
+      return {
+        insertId: insertResult.insertId,
+        oldBalance,
+        newBalance
+      };
+    });
 
     // Get user info for audit log
     let userId = null;
@@ -229,9 +272,18 @@ export async function POST(request) {
       userId: userId,
       userName: userName,
       action: 'add',
-      remarks: `Expense added: ${title} - ₹${amount} to ${paid_to || 'N/A'}. Cash balance: ₹${oldBalance} → ₹${newBalance}`,
-      oldValue: { balance: oldBalance },
-      newValue: { balance: newBalance, expense: { title, amount, paid_to, reason, payment_date } },
+      remarks: `Expense added: ${title} - ₹${amount} to ${paid_to || 'N/A'}. Cash balance: ₹${result.oldBalance} → ₹${result.newBalance}`,
+      oldValue: { balance: result.oldBalance },
+      newValue: { 
+        balance: result.newBalance, 
+        expense: { 
+          title, 
+          amount: parseFloat(amount), 
+          paid_to, 
+          reason, 
+          payment_date 
+        } 
+      },
       fieldName: 'cash_balance',
       recordType: 'cash_expense',
       recordId: result.insertId
@@ -245,12 +297,20 @@ export async function POST(request) {
         payment_date,
         title,
         amount: parseFloat(amount),
-        new_balance: newBalance
+        new_balance: result.newBalance
       }
     }, { status: 201 });
 
   } catch (error) {
     console.error('Error creating expense:', error);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState,
+      sqlMessage: error.sqlMessage
+    });
+    
     return NextResponse.json(
       { 
         success: false, 
