@@ -94,13 +94,72 @@ async function getCurrentUserFromToken() {
   }
 }
 
-// GET - Fetch expenses
+// GET - Fetch expenses (combined from expenses and recharge_wallets)
 export async function GET(request) {
   console.log('🚀 API: nb-expenses GET called');
   
   try {
     const { searchParams } = new URL(request.url);
+    const endpoint = searchParams.get('endpoint');
     
+    // Cash balance endpoint
+    if (endpoint === 'cash-balance') {
+      console.log('📊 nb-balance endpoint called');
+      
+      const page = parseInt(searchParams.get('page')) || 1;
+      const limit = parseInt(searchParams.get('limit')) || 10;
+      const offset = (page - 1) * limit;
+
+      console.log('📊 nb-balance GET called with:', { page, limit, offset });
+
+      // Get total cash balance
+      const cashBalance = await executeQuery(
+        'SELECT COALESCE(balance, 0) as balance FROM cash_balance LIMIT 1'
+      );
+
+      // Use string interpolation for LIMIT/OFFSET to avoid parameter issues
+      const cashHistoryQuery = `
+        SELECT r.id, c.name, r.amount, r.payment_date, 
+               r.comments, r.payment_type 
+        FROM recharge_wallets r 
+        JOIN customers c ON r.com_id = c.id 
+        WHERE r.payment_type = 'Cash' 
+        ORDER BY r.id DESC 
+        LIMIT ${limit} OFFSET ${offset}
+      `;
+      
+      const cashHistory = await executeQuery(cashHistoryQuery);
+
+      // Get total count for pagination
+      const totalCountResult = await executeQuery(`
+        SELECT COUNT(*) as count 
+        FROM recharge_wallets r 
+        WHERE r.payment_type = 'Cash'
+      `);
+      
+      const totalCount = totalCountResult[0]?.count || 0;
+
+      console.log('✅ Cash data fetched successfully:', {
+        cashBalance: cashBalance[0]?.balance || 0,
+        cashHistoryCount: cashHistory?.length || 0,
+        totalCount
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: {
+          totalCash: cashBalance[0]?.balance || 0,
+          cashHistory: cashHistory || [],
+          pagination: {
+            currentPage: page,
+            totalPages: Math.ceil(totalCount / limit),
+            totalRecords: totalCount
+          }
+        }
+      });
+    }
+    
+    // Regular expenses endpoint - COMBINE DATA FROM BOTH TABLES
     // Get current user
     const currentUser = await getCurrentUserFromToken();
     
@@ -143,112 +202,154 @@ export async function GET(request) {
     
     console.log(`📄 Pagination: page=${page}, limit=${limit}, offset=${offset}`);
     
-    // Build base query
-    let query = `
-      SELECT 
-        id,
-        payment_date,
-        title,
-        details,
-        paid_to,
-        reason,
-        amount
-      FROM expenses 
-      WHERE 1=1
-    `;
+    // Get expense type filter
+    const expenseType = searchParams.get('expenseType') || 'all';
     
-    let params = [];
-    
-    // Search filter
+    // Get search parameters
     const search = searchParams.get('search');
-    if (search && search.trim() !== '') {
-      query += " AND (title LIKE ? OR details LIKE ? OR paid_to LIKE ? OR reason LIKE ?) ";
-      const searchTerm = `%${search.trim()}%`;
-      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
-    }
-    
-    // Date filters
     const dateFrom = searchParams.get('dateFrom');
     const dateTo = searchParams.get('dateTo');
-    
-    if (dateFrom && dateFrom.trim() !== '') {
-      query += " AND payment_date >= ? ";
-      params.push(dateFrom.trim());
-    }
-    
-    if (dateTo && dateTo.trim() !== '') {
-      query += " AND payment_date <= ? ";
-      params.push(dateTo.trim());
-    }
-    
-    // Amount filters
     const minAmount = searchParams.get('minAmount');
     const maxAmount = searchParams.get('maxAmount');
     
-    if (minAmount && minAmount.trim() !== '') {
-      query += " AND amount >= ? ";
-      params.push(parseFloat(minAmount));
-    }
+    // Build WHERE conditions for expenses table
+    let expenseWhere = [];
+    let expenseParams = [];
     
-    if (maxAmount && maxAmount.trim() !== '') {
-      query += " AND amount <= ? ";
-      params.push(parseFloat(maxAmount));
-    }
+    // Build WHERE conditions for recharge_wallets table
+    let cashWhere = [];
+    let cashParams = [];
     
-    // Add ordering
-    query += " ORDER BY payment_date DESC, id DESC ";
-    
-    // **FIX: MySQL prepared statements issue with LIMIT/OFFSET**
-    // Add pagination directly in query string (not as parameters)
-    query += ` LIMIT ${limit} OFFSET ${offset}`;
-    
-    console.log('🔍 Final Query:', query);
-    console.log('🔍 Query Params:', params);
-    
-    // Execute query
-    const expenses = await executeQuery(query, params);
-    console.log(`✅ Retrieved ${expenses?.length || 0} expenses`);
-    
-    // Get total count (without pagination)
-    let countQuery = "SELECT COUNT(*) as total FROM expenses WHERE 1=1";
-    let countParams = [];
-    
-    // Apply same filters to count query
     if (search && search.trim() !== '') {
-      countQuery += " AND (title LIKE ? OR details LIKE ? OR paid_to LIKE ? OR reason LIKE ?) ";
+      expenseWhere.push(`(e.title LIKE ? OR e.reason LIKE ?)`);
+      cashWhere.push(`(c.name LIKE ? OR r.comments LIKE ?)`);
       const searchTerm = `%${search.trim()}%`;
-      countParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      expenseParams.push(searchTerm, searchTerm);
+      cashParams.push(searchTerm, searchTerm);
     }
     
     if (dateFrom && dateFrom.trim() !== '') {
-      countQuery += " AND payment_date >= ? ";
-      countParams.push(dateFrom.trim());
+      expenseWhere.push(`e.payment_date >= ?`);
+      cashWhere.push(`r.payment_date >= ?`);
+      expenseParams.push(dateFrom.trim());
+      cashParams.push(dateFrom.trim());
     }
     
     if (dateTo && dateTo.trim() !== '') {
-      countQuery += " AND payment_date <= ? ";
-      countParams.push(dateTo.trim());
+      expenseWhere.push(`e.payment_date <= ?`);
+      cashWhere.push(`r.payment_date <= ?`);
+      expenseParams.push(dateTo.trim());
+      cashParams.push(dateTo.trim());
     }
     
     if (minAmount && minAmount.trim() !== '') {
-      countQuery += " AND amount >= ? ";
-      countParams.push(parseFloat(minAmount));
+      expenseWhere.push(`e.amount >= ?`);
+      cashWhere.push(`r.amount >= ?`);
+      expenseParams.push(parseFloat(minAmount));
+      cashParams.push(parseFloat(minAmount));
     }
     
     if (maxAmount && maxAmount.trim() !== '') {
-      countQuery += " AND amount <= ? ";
-      countParams.push(parseFloat(maxAmount));
+      expenseWhere.push(`e.amount <= ?`);
+      cashWhere.push(`r.amount <= ?`);
+      expenseParams.push(parseFloat(maxAmount));
+      cashParams.push(parseFloat(maxAmount));
     }
     
-    const countResult = await executeQuery(countQuery, countParams);
-    const totalCount = countResult[0]?.total || 0;
+    // Build the combined query
+    const combinedQuery = `
+      SELECT 
+        e.id,
+        e.payment_date,
+        e.title as customer_name,
+        '' as details,
+        e.paid_to,
+        e.reason as remark,
+        e.amount,
+        'expense' as source_table,
+        'Outward' as type,
+        'Cash' as payment_type,  -- Default value since expenses table doesn't have payment_type
+        e.created_at
+      FROM expenses e
+      WHERE 1=1
+      ${expenseWhere.length > 0 ? 'AND ' + expenseWhere.join(' AND ') : ''}
+      
+      UNION ALL
+      
+      SELECT 
+        r.id,
+        r.payment_date,
+        COALESCE(c.name, 'Customer') as customer_name,
+        r.comments as details,
+        '' as paid_to,
+        r.comments as remark,
+        r.amount,
+        'recharge_wallet' as source_table,
+        'Inward' as type,
+        r.payment_type,
+        r.created_at
+      FROM recharge_wallets r
+      LEFT JOIN customers c ON r.com_id = c.id
+      WHERE r.payment_type = 'Cash'
+      ${cashWhere.length > 0 ? 'AND ' + cashWhere.join(' AND ') : ''}
+      
+      ORDER BY payment_date DESC, id DESC
+      LIMIT ? OFFSET ?
+    `;
     
-    console.log(`📊 Total expenses count: ${totalCount}`);
+    // Combine parameters for the query
+    const queryParams = [...expenseParams, ...cashParams, limit, offset];
+    
+    console.log('🔍 Combined Query:', combinedQuery);
+    console.log('🔍 Query Params:', queryParams);
+    
+    // Execute combined query
+    const expenses = await executeQuery(combinedQuery, queryParams);
+    console.log(`✅ Retrieved ${expenses?.length || 0} combined records`);
+    
+    // Get total count for combined query
+    let totalCountQuery = `
+      SELECT (
+        (SELECT COUNT(*) FROM expenses e WHERE 1=1 ${expenseWhere.length > 0 ? 'AND ' + expenseWhere.join(' AND ') : ''}) +
+        (SELECT COUNT(*) FROM recharge_wallets r 
+         LEFT JOIN customers c ON r.com_id = c.id 
+         WHERE r.payment_type = 'Cash' 
+         ${cashWhere.length > 0 ? 'AND ' + cashWhere.join(' AND ') : ''})
+      ) as total
+    `;
+    
+    // Prepare parameters for total count query
+    const totalCountParams = [...expenseParams, ...cashParams];
+    const totalCountResult = await executeQuery(totalCountQuery, totalCountParams);
+    const totalCount = totalCountResult[0]?.total || 0;
+    
+    console.log(`📊 Total combined records count: ${totalCount}`);
+    
+    // Get cash balance total
+    const cashBalanceResult = await executeQuery(
+      'SELECT COALESCE(balance, 0) as totalCash FROM cash_balance LIMIT 1'
+    );
+    const totalCash = cashBalanceResult[0]?.totalCash || 0;
+    
+    // Calculate inward/outward totals
+    const inwardTotal = expenses
+      .filter(e => e.type === 'Inward')
+      .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
+    
+    const outwardTotal = expenses
+      .filter(e => e.type === 'Outward')
+      .reduce((sum, e) => sum + (parseFloat(e.amount) || 0), 0);
     
     return NextResponse.json({
       success: true,
       expenses: expenses || [],
       permissions: permissions,
+      summary: {
+        totalCash,
+        inwardTotal,
+        outwardTotal,
+        netBalance: inwardTotal - outwardTotal
+      },
       pagination: {
         page: page,
         limit: limit,
@@ -264,18 +365,20 @@ export async function GET(request) {
     
   } catch (error) {
     console.error("❌ Error in nb-expenses GET:", error);
+    console.error("❌ Error details:", error);
     
     return NextResponse.json(
       { 
         success: false,
-        error: error.message 
+        error: error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );
   }
 }
 
-// POST - Create new expense
+// POST - Create new expense (only for outward expenses)
 export async function POST(request) {
   try {
     // Get current user
@@ -310,14 +413,21 @@ export async function POST(request) {
     }
     
     const body = await request.json();
-    const { payment_date, title, details, paid_to, reason, amount } = body;
+    const { 
+      payment_date, 
+      customer_name, 
+      details, 
+      paid_to, 
+      remark, 
+      amount
+    } = body;
     
     // Validate required fields
-    if (!payment_date || !title || !amount) {
+    if (!payment_date || !customer_name || !amount) {
       return NextResponse.json(
         { 
           success: false,
-          error: "Payment date, title and amount are required fields." 
+          error: "Payment date, customer name and amount are required fields." 
         },
         { status: 400 }
       );
@@ -335,7 +445,7 @@ export async function POST(request) {
       );
     }
     
-    // Insert query
+    // Insert query (all new expenses are Outward)
     const query = `
       INSERT INTO expenses 
         (payment_date, title, details, paid_to, reason, amount, created_at)
@@ -345,10 +455,10 @@ export async function POST(request) {
     
     const params = [
       payment_date, 
-      title || '', 
+      customer_name, 
       details || '', 
       paid_to || '', 
-      reason || '', 
+      remark || '', 
       amountNum
     ];
     
@@ -362,15 +472,16 @@ export async function POST(request) {
       userId: userId,
       userName: userName,
       action: 'add',
-      remarks: `Expense added: ${title} - ₹${amountNum} to ${paid_to}`,
+      remarks: `Outward expense added: ${customer_name} - ₹${amountNum}`,
       oldValue: null,
       newValue: { 
         id: result.insertId,
-        title, 
+        customer_name, 
         amount: amountNum, 
         paid_to, 
-        reason, 
-        payment_date
+        remark, 
+        payment_date,
+        type: 'Outward'
       },
       recordType: 'nb_expense',
       recordId: result.insertId
@@ -378,7 +489,7 @@ export async function POST(request) {
     
     return NextResponse.json({
       success: true,
-      message: "Expense created successfully",
+      message: "Outward expense created successfully",
       id: result.insertId
     });
     
@@ -395,7 +506,7 @@ export async function POST(request) {
   }
 }
 
-// PUT - Update expense
+// PUT - Update expense (can update both expenses and recharge_wallets)
 export async function PUT(request) {
   try {
     // Get current user
@@ -430,13 +541,22 @@ export async function PUT(request) {
     }
     
     const body = await request.json();
-    const { id, payment_date, title, details, paid_to, reason, amount } = body;
+    const { 
+      id, 
+      payment_date, 
+      customer_name, 
+      details, 
+      paid_to, 
+      remark, 
+      amount,
+      source_table 
+    } = body;
     
     if (!id) {
       return NextResponse.json(
         { 
           success: false,
-          error: "Expense ID is required" 
+          error: "Record ID is required" 
         },
         { status: 400 }
       );
@@ -457,71 +577,182 @@ export async function PUT(request) {
       }
     }
     
-    // Get old data
-    const oldExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
-    const oldExpenseData = await executeQuery(oldExpenseQuery, [id]);
+    // Check if it's from expenses table or recharge_wallets
+    const tableName = source_table || 'expenses';
     
-    if (oldExpenseData.length === 0) {
+    if (tableName === 'expense') {
+      // Update expenses table (Outward)
+      const oldExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
+      const oldExpenseData = await executeQuery(oldExpenseQuery, [id]);
+      
+      if (oldExpenseData.length === 0) {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: "Expense not found" 
+          },
+          { status: 404 }
+        );
+      }
+      
+      const oldExpense = oldExpenseData[0];
+      
+      // Update query for expenses (without payment_type since column doesn't exist)
+      const updateQuery = `
+        UPDATE expenses 
+        SET 
+          payment_date = ?,
+          title = ?,
+          details = ?,
+          paid_to = ?,
+          reason = ?,
+          amount = ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `;
+      
+      await executeQuery(updateQuery, [
+        payment_date || oldExpense.payment_date,
+        customer_name || oldExpense.title,
+        details || oldExpense.details,
+        paid_to || oldExpense.paid_to,
+        remark || oldExpense.reason,
+        amountNum !== null ? amountNum : oldExpense.amount,
+        id
+      ]);
+      
+      // Get updated data
+      const newExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
+      const newExpenseData = await executeQuery(newExpenseQuery, [id]);
+      const newExpense = newExpenseData[0];
+      
+      // Create audit log
+      await createAuditLog({
+        page: 'NB Expenses',
+        uniqueCode: `EXPENSE-${id}`,
+        section: 'Edit Expense',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Outward expense updated: ${newExpense.title} - ₹${newExpense.amount}`,
+        oldValue: oldExpense,
+        newValue: newExpense,
+        recordType: 'nb_expense',
+        recordId: parseInt(id)
+      });
+      
+      return NextResponse.json({
+        success: true,
+        message: "Outward expense updated successfully",
+        expense: {
+          id: newExpense.id,
+          customer_name: newExpense.title,
+          amount: newExpense.amount,
+          payment_date: newExpense.payment_date,
+          remark: newExpense.reason,
+          type: 'Outward',
+          source_table: 'expense'
+        }
+      });
+      
+    } else if (tableName === 'recharge_wallet') {
+      // Update recharge_wallets table (Inward cash transactions)
+      const oldCashQuery = "SELECT * FROM recharge_wallets WHERE id = ?";
+      const oldCashData = await executeQuery(oldCashQuery, [id]);
+      
+      if (oldCashData.length === 0) {
+        return NextResponse.json(
+          { 
+            success: false,
+            error: "Cash record not found" 
+          },
+          { status: 404 }
+        );
+      }
+      
+      const oldCash = oldCashData[0];
+      
+      // Get payment_type from body or use old value
+      const payment_type = body.payment_type || oldCash.payment_type;
+      
+      // Update query for recharge_wallets
+      const updateQuery = `
+        UPDATE recharge_wallets 
+        SET 
+          payment_date = ?,
+          comments = ?,
+          amount = ?,
+          payment_type = ?,
+          updated_at = NOW()
+        WHERE id = ?
+      `;
+      
+      await executeQuery(updateQuery, [
+        payment_date || oldCash.payment_date,
+        remark || oldCash.comments,
+        amountNum !== null ? amountNum : oldCash.amount,
+        payment_type,
+        id
+      ]);
+      
+      // Get updated data
+      const newCashQuery = `
+        SELECT r.*, c.name as customer_name 
+        FROM recharge_wallets r
+        LEFT JOIN customers c ON r.com_id = c.id
+        WHERE r.id = ?
+      `;
+      const newCashData = await executeQuery(newCashQuery, [id]);
+      const newCash = newCashData[0];
+      
+      // Update cash balance
+      if (oldCash.amount !== newCash.amount) {
+        const diff = newCash.amount - oldCash.amount;
+        await executeQuery(`
+          UPDATE cash_balance 
+          SET balance = COALESCE(balance, 0) + ? 
+          WHERE id = 1
+        `, [diff]);
+      }
+      
+      // Create audit log
+      await createAuditLog({
+        page: 'Cash Balance',
+        uniqueCode: `CASH-${id}`,
+        section: 'Edit Cash',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Cash record updated: ₹${newCash.amount}`,
+        oldValue: oldCash,
+        newValue: newCash,
+        recordType: 'cash_balance',
+        recordId: parseInt(id)
+      });
+      
+      return NextResponse.json({
+        success: true,
+        message: "Inward cash record updated successfully",
+        expense: {
+          id: newCash.id,
+          customer_name: newCash.customer_name || 'Customer',
+          amount: newCash.amount,
+          payment_date: newCash.payment_date,
+          payment_type: newCash.payment_type,
+          remark: newCash.comments,
+          type: 'Inward',
+          source_table: 'recharge_wallet'
+        }
+      });
+    } else {
       return NextResponse.json(
         { 
           success: false,
-          error: "Expense not found" 
+          error: "Invalid source table" 
         },
-        { status: 404 }
+        { status: 400 }
       );
     }
-    
-    const oldExpense = oldExpenseData[0];
-    
-    // Update query
-    const updateQuery = `
-      UPDATE expenses 
-      SET 
-        payment_date = ?,
-        title = ?,
-        details = ?,
-        paid_to = ?,
-        reason = ?,
-        amount = ?,
-        updated_at = NOW()
-      WHERE id = ?
-    `;
-    
-    await executeQuery(updateQuery, [
-      payment_date || oldExpense.payment_date,
-      title || oldExpense.title,
-      details || oldExpense.details,
-      paid_to || oldExpense.paid_to,
-      reason || oldExpense.reason,
-      amountNum !== null ? amountNum : oldExpense.amount,
-      id
-    ]);
-    
-    // Get updated data
-    const newExpenseQuery = "SELECT * FROM expenses WHERE id = ?";
-    const newExpenseData = await executeQuery(newExpenseQuery, [id]);
-    const newExpense = newExpenseData[0];
-    
-    // Create audit log
-    await createAuditLog({
-      page: 'NB Expenses',
-      uniqueCode: `EXPENSE-${id}`,
-      section: 'Edit Expense',
-      userId: userId,
-      userName: userName,
-      action: 'edit',
-      remarks: `Expense updated: ${newExpense.title} - ₹${newExpense.amount}`,
-      oldValue: oldExpense,
-      newValue: newExpense,
-      recordType: 'nb_expense',
-      recordId: parseInt(id)
-    });
-    
-    return NextResponse.json({
-      success: true,
-      message: "Expense updated successfully",
-      expense: newExpense
-    });
     
   } catch (error) {
     console.error("❌ Error in nb-expenses PUT:", error);
@@ -529,7 +760,7 @@ export async function PUT(request) {
     return NextResponse.json(
       { 
         success: false,
-        error: "Failed to update expense: " + error.message 
+        error: "Failed to update record: " + error.message 
       },
       { status: 500 }
     );
