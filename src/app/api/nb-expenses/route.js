@@ -1,3 +1,4 @@
+// src/app/api/nb-expenses/route.js
 import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from "@/lib/db";
@@ -116,7 +117,7 @@ export async function GET(request) {
         'SELECT COALESCE(balance, 0) as balance FROM cash_balance LIMIT 1'
       );
 
-      // Modified: Use parameters properly
+      // Use string interpolation for LIMIT/OFFSET
       const cashHistoryQuery = `
         SELECT r.id, c.name, r.amount, r.payment_date, 
                r.comments, r.payment_type 
@@ -124,10 +125,10 @@ export async function GET(request) {
         JOIN customers c ON r.com_id = c.id 
         WHERE r.payment_type = 'Cash' 
         ORDER BY r.id DESC 
-        LIMIT ? OFFSET ?
+        LIMIT ${limit} OFFSET ${offset}
       `;
       
-      const cashHistory = await executeQuery(cashHistoryQuery, [limit, offset]);
+      const cashHistory = await executeQuery(cashHistoryQuery);
 
       // Get total count for pagination
       const totalCountResult = await executeQuery(`
@@ -206,7 +207,6 @@ export async function GET(request) {
     const dateTo = searchParams.get('dateTo');
     const minAmount = searchParams.get('minAmount');
     const maxAmount = searchParams.get('maxAmount');
-    const expenseType = searchParams.get('expenseType') || 'all';
     
     // Build WHERE conditions and parameters for EACH TABLE
     let expenseWhere = [];
@@ -216,22 +216,22 @@ export async function GET(request) {
     
     if (search && search.trim() !== '') {
       const searchTerm = `%${search.trim()}%`;
-      expenseWhere.push(`(e.title LIKE ? OR e.reason LIKE ? OR e.paid_to LIKE ?)`);
+      expenseWhere.push(`(e.title LIKE ? OR e.reason LIKE ?)`);
       cashWhere.push(`(c.name LIKE ? OR r.comments LIKE ?)`);
-      expenseParams.push(searchTerm, searchTerm, searchTerm);
+      expenseParams.push(searchTerm, searchTerm);
       cashParams.push(searchTerm, searchTerm);
     }
     
     if (dateFrom && dateFrom.trim() !== '') {
-      expenseWhere.push(`DATE(e.payment_date) >= ?`);
-      cashWhere.push(`DATE(r.payment_date) >= ?`);
+      expenseWhere.push(`e.payment_date >= ?`);
+      cashWhere.push(`r.payment_date >= ?`);
       expenseParams.push(dateFrom.trim());
       cashParams.push(dateFrom.trim());
     }
     
     if (dateTo && dateTo.trim() !== '') {
-      expenseWhere.push(`DATE(e.payment_date) <= ?`);
-      cashWhere.push(`DATE(r.payment_date) <= ?`);
+      expenseWhere.push(`e.payment_date <= ?`);
+      cashWhere.push(`r.payment_date <= ?`);
       expenseParams.push(dateTo.trim());
       cashParams.push(dateTo.trim());
     }
@@ -296,30 +296,17 @@ export async function GET(request) {
       cashQuery += ` AND ${cashWhere.join(' AND ')}`;
     }
     
-    // Apply expense type filter
-    if (expenseType !== 'all') {
-      if (expenseType === 'inward') {
-        // Only cash inward
-        expenseQuery += expenseWhere.length > 0 ? ` AND 1=0` : ` WHERE 1=0`;
-      } else if (expenseType === 'outward') {
-        // Only outward expenses
-        cashQuery += ` AND 1=0`;
-      }
-    }
-    
-    // Build final UNION ALL query with LIMIT/OFFSET
+    // Build final UNION ALL query with string interpolation for LIMIT/OFFSET
     const finalQuery = `
-      SELECT * FROM (
-        ${expenseQuery}
-        UNION ALL
-        ${cashQuery}
-      ) AS combined_data
+      (${expenseQuery})
+      UNION ALL
+      (${cashQuery})
       ORDER BY payment_date DESC, id DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${limit} OFFSET ${offset}
     `;
     
     // Combine all parameters
-    const allParams = [...expenseParams, ...cashParams, limit, offset];
+    const allParams = [...expenseParams, ...cashParams];
     
     console.log('🔍 Final Query:', finalQuery);
     console.log('🔍 All Params:', allParams);
@@ -328,37 +315,25 @@ export async function GET(request) {
     const expenses = await executeQuery(finalQuery, allParams);
     console.log(`✅ Retrieved ${expenses?.length || 0} combined records`);
     
-    // Get total counts for pagination
+    // Get total counts separately
     let totalExpenseCount = 0;
     let totalCashCount = 0;
     
     // Count expenses
-    let expenseCountQuery = `SELECT COUNT(*) as count FROM expenses e`;
-    if (expenseWhere.length > 0) {
-      expenseCountQuery += ` WHERE ${expenseWhere.join(' AND ')}`;
-    }
+    const expenseCountQuery = expenseWhere.length > 0 
+      ? `SELECT COUNT(*) as count FROM expenses e WHERE ${expenseWhere.join(' AND ')}`
+      : `SELECT COUNT(*) as count FROM expenses e`;
     
-    if (expenseType !== 'inward') {
-      const expenseCountResult = await executeQuery(expenseCountQuery, expenseParams);
-      totalExpenseCount = expenseCountResult[0]?.count || 0;
-    }
+    const expenseCountResult = await executeQuery(expenseCountQuery, expenseParams);
+    totalExpenseCount = expenseCountResult[0]?.count || 0;
     
     // Count cash records
-    let cashCountQuery = `
-      SELECT COUNT(*) as count 
-      FROM recharge_wallets r
-      LEFT JOIN customers c ON r.com_id = c.id
-      WHERE r.payment_type = 'Cash'
-    `;
+    const cashCountQuery = cashWhere.length > 0
+      ? `SELECT COUNT(*) as count FROM recharge_wallets r LEFT JOIN customers c ON r.com_id = c.id WHERE r.payment_type = 'Cash' AND ${cashWhere.join(' AND ')}`
+      : `SELECT COUNT(*) as count FROM recharge_wallets r WHERE r.payment_type = 'Cash'`;
     
-    if (cashWhere.length > 0) {
-      cashCountQuery += ` AND ${cashWhere.join(' AND ')}`;
-    }
-    
-    if (expenseType !== 'outward') {
-      const cashCountResult = await executeQuery(cashCountQuery, cashParams);
-      totalCashCount = cashCountResult[0]?.count || 0;
-    }
+    const cashCountResult = await executeQuery(cashCountQuery, cashParams);
+    totalCashCount = cashCountResult[0]?.count || 0;
     
     const totalCount = totalExpenseCount + totalCashCount;
     
@@ -616,7 +591,7 @@ export async function PUT(request) {
     }
     
     // Check if it's from expenses table or recharge_wallets
-    const tableName = source_table || 'expense';
+    const tableName = source_table || 'expenses';
     
     if (tableName === 'expense') {
       // Update expenses table (Outward)
