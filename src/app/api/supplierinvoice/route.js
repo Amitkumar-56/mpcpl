@@ -1,33 +1,33 @@
-// src/app/api/supplierinvoice/route.js
-import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
+import { executeQuery, getConnection } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
-// GET handler for fetching supplier invoices
+/* =====================================================
+   GET : Supplier Invoice List
+===================================================== */
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
+    const supplierId = searchParams.get('id');
     const fromDate = searchParams.get('from_date');
     const toDate = searchParams.get('to_date');
 
-    if (!id) {
-      return NextResponse.json({ error: 'ID is required' }, { status: 400 });
+    if (!supplierId) {
+      return NextResponse.json({ error: 'Supplier ID required' }, { status: 400 });
     }
 
-    // Build the query
     let query = `
-      SELECT s.*, 
-             p.pname as product_name,
-             f.station_name as station_name
+      SELECT s.*,
+             p.pname AS product_name,
+             f.station_name
       FROM stock s
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN filling_stations f ON s.fs_id = f.id
       WHERE s.supplier_id = ?
     `;
 
-    const params = [id];
+    const params = [supplierId];
 
     if (fromDate) {
       query += ` AND s.invoice_date >= ?`;
@@ -41,187 +41,132 @@ export async function GET(request) {
 
     query += ` ORDER BY s.id DESC`;
 
-    // Fetch supplier details
-    const supplierQuery = `SELECT name FROM suppliers WHERE id = ?`;
-    const supplierRows = await executeQuery(supplierQuery, [id]);
-    const supplierName = supplierRows.length > 0 ? supplierRows[0].name : 'Unknown Supplier';
+    const invoices = await executeQuery(query, params);
 
-    // Fetch invoice data
-    const rows = await executeQuery(query, params);
-
-    // ✅ Enrich each invoice with DNCN and payment data
-    const enrichedInvoices = await Promise.all(
-      (rows || []).map(async (invoice) => {
-        // Get DNCN records for this stock entry
-        const dncnQuery = `
-          SELECT id, sup_id, amount, type, dncn_date, remarks 
-          FROM dncn 
-          WHERE sup_id = ?
-          ORDER BY dncn_date DESC, id DESC
-        `;
-        const dncns = await executeQuery(dncnQuery, [invoice.id]);
-
-        // Get payment records
-        const paymentQuery = `
-          SELECT id, supply_id, v_invoice, payment, date, remarks, type, COALESCE(tds_deduction, 0) as tds_deduction 
-          FROM update_invoice 
-          WHERE type = 1 AND supply_id = ?
-          ORDER BY date DESC, id DESC
-        `;
-        const payments = await executeQuery(paymentQuery, [invoice.id]);
-
-        return {
-          ...invoice,
-          dncns: dncns || [],
-          payments: payments || []
-        };
-      })
+    const supplier = await executeQuery(
+      `SELECT name FROM suppliers WHERE id = ?`,
+      [supplierId]
     );
 
     return NextResponse.json({
       success: true,
-      supplierName,
-      invoices: enrichedInvoices,
-      total: enrichedInvoices.length
+      supplierName: supplier?.[0]?.name || 'Unknown Supplier',
+      invoices: invoices || []
     });
 
   } catch (error) {
-    console.error('Error fetching supplier invoices:', error);
+    console.error('GET supplierinvoice error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
 
-// POST handler for making payments
+/* =====================================================
+   POST : Make Supplier Payment (NO TRANSACTION)
+===================================================== */
 export async function POST(request) {
+  const conn = await getConnection();
+
   try {
-    const formData = await request.json();
-    const { id, amount, pay_date, remarks, v_invoice, tds_deduction } = formData;
+    const body = await request.json();
+    const { id, amount, pay_date, remarks, v_invoice, tds_deduction } = body;
 
-    // Validate inputs
-    if (!id || !amount || !pay_date) {
-      return NextResponse.json({ error: 'All fields are required' }, { status: 400 });
+    if (!id || amount === undefined || !pay_date) {
+      return NextResponse.json({ error: 'Invalid input' }, { status: 400 });
     }
 
+    const paymentAmount = parseFloat(amount);
     const tdsAmount = parseFloat(tds_deduction || 0);
-    const netAmount = parseFloat(amount) - tdsAmount;
+    const netAmount = paymentAmount - tdsAmount;
 
-    // Start transaction
-    await executeQuery('START TRANSACTION');
-
-    // Update stock payment (use net amount after TDS)
-    const updateStockQuery = `
-      UPDATE stock 
-      SET payment = payment + ?, 
-          pay_date = ?, 
-          payable = payable - ? 
-      WHERE id = ?
-    `;
-    await executeQuery(updateStockQuery, [netAmount, pay_date, netAmount, id]);
-
-    // Insert into update_invoice - check if tds_deduction column exists
-    try {
-      const insertInvoiceQuery = `
-        INSERT INTO update_invoice (supply_id, v_invoice, payment, date, remarks, type, tds_deduction) 
-        VALUES (?, ?, ?, ?, ?, 1, ?)
-      `;
-      await executeQuery(insertInvoiceQuery, [id, v_invoice, netAmount, pay_date, remarks, tdsAmount]);
-    } catch (error) {
-      // If tds_deduction column doesn't exist, insert without it
-      if (error.message.includes('tds_deduction') || error.message.includes('Unknown column')) {
-        const insertInvoiceQuery = `
-          INSERT INTO update_invoice (supply_id, v_invoice, payment, date, remarks, type) 
-          VALUES (?, ?, ?, ?, ?, 1)
-        `;
-        await executeQuery(insertInvoiceQuery, [id, v_invoice, netAmount, pay_date, remarks]);
-      } else {
-        throw error;
-      }
+    if (netAmount <= 0) {
+      return NextResponse.json(
+        { error: 'Net amount must be greater than zero' },
+        { status: 400 }
+      );
     }
 
-    // Commit transaction
-    await executeQuery('COMMIT');
+    /* 🔹 Fetch stock */
+    const [stock] = await conn.query(
+      `SELECT payable, payment 
+       FROM stock 
+       WHERE id = ?`,
+      [id]
+    );
 
-    // ✅ Create Audit Log for Payment
+    if (!stock || stock.length === 0) {
+      return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
+    }
+
+    if (netAmount > stock[0].payable) {
+      return NextResponse.json(
+        { error: 'Payment exceeds payable amount' },
+        { status: 400 }
+      );
+    }
+
+    /* 🔹 Update stock (AUTO COMMIT) */
+    await conn.query(
+      `UPDATE stock
+       SET payment = payment + ?,
+           payable = payable - ?,
+           pay_date = ?
+       WHERE id = ?`,
+      [netAmount, netAmount, pay_date, id]
+    );
+
+    /* 🔹 Insert payment record */
+    await conn.query(
+      `INSERT INTO update_invoice
+       (supply_id, v_invoice, payment, date, remarks, type, tds_deduction)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+      [
+        id,
+        v_invoice || null,
+        netAmount,
+        pay_date,
+        remarks || null,
+        tdsAmount
+      ]
+    );
+
+    /* 🔹 Audit Log (optional, non-blocking) */
     try {
-      let userId = null;
-      let userName = null;
-      
-      try {
-        const currentUser = await getCurrentUser();
-        if (currentUser && currentUser.userId) {
-          userId = currentUser.userId;
-          userName = currentUser.userName;
-          // If userName not found, fetch from employee_profile
-          if (!userName && userId) {
-            const users = await executeQuery(
-              `SELECT name FROM employee_profile WHERE id = ?`,
-              [userId]
-            );
-            if (users.length > 0 && users[0].name) {
-              userName = users[0].name;
-            }
-          }
-        }
-      } catch (getUserError) {
-        // Silent fail - continue without audit log if auth fails
-      }
-
-      // Fetch supplier name for audit log
-      const supplierQuery = `SELECT name FROM suppliers WHERE id = (SELECT supplier_id FROM stock WHERE id = ?)`;
-      const supplierResult = await executeQuery(supplierQuery, [id]);
-      const supplierName = supplierResult.length > 0 ? supplierResult[0].name : 'Unknown';
-
-      // Fetch invoice details
-      const invoiceQuery = `SELECT invoice_no, invoice_date, total_amount, payment, payable FROM stock WHERE id = ?`;
-      const invoiceResult = await executeQuery(invoiceQuery, [id]);
-      const invoice = invoiceResult.length > 0 ? invoiceResult[0] : null;
+      const currentUser = await getCurrentUser();
 
       await createAuditLog({
         page: 'Supplier Invoice',
-        uniqueCode: `PAYMENT-${id}-${Date.now()}`,
         section: 'Supplier Payment',
-        userId,
-        userName,
         action: 'payment',
-        remarks: `Payment made: ₹${netAmount.toFixed(2)}${tdsAmount > 0 ? ` (TDS: ₹${tdsAmount.toFixed(2)})` : ''}. ${remarks ? `Remarks: ${remarks}` : ''}`,
-        oldValue: invoice ? {
-          invoice_id: id,
-          invoice_no: invoice.invoice_no,
-          supplier_name: supplierName,
-          previous_payment: parseFloat(invoice.payment) - netAmount,
-          previous_payable: parseFloat(invoice.payable) + netAmount,
-          previous_total: parseFloat(invoice.total_amount)
-        } : null,
-        newValue: {
-          invoice_id: id,
-          invoice_no: invoice?.invoice_no || 'N/A',
-          supplier_name: supplierName,
-          payment_amount: netAmount,
-          tds_deduction: tdsAmount,
-          payment_date: pay_date,
-          v_invoice: v_invoice || null,
-          new_payment: invoice ? parseFloat(invoice.payment) : netAmount,
-          new_payable: invoice ? parseFloat(invoice.payable) : 0,
-          remarks: remarks || null
-        },
-        fieldName: 'payment',
         recordType: 'supplier_invoice',
-        recordId: id
+        recordId: id,
+        userId: currentUser?.userId || null,
+        userName: currentUser?.userName || null,
+        remarks: `Payment ₹${netAmount} (TDS ₹${tdsAmount})`,
+        oldValue: {
+          payable: stock[0].payable,
+          payment: stock[0].payment
+        },
+        newValue: {
+          payable: stock[0].payable - netAmount,
+          payment: stock[0].payment + netAmount
+        }
       });
     } catch (auditError) {
-      // Don't fail the payment if audit log fails
-      console.error('Error creating audit log for payment:', auditError);
+      console.warn('Audit log failed:', auditError.message);
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Payment recorded successfully',
-      redirectUrl: `/supplierinvoice?id=${id}`
+      message: 'Payment recorded successfully'
     });
 
   } catch (error) {
-    await executeQuery('ROLLBACK');
-    console.error('Error processing payment:', error);
-    return NextResponse.json({ error: 'Failed to process payment' }, { status: 500 });
+    console.error('POST supplierinvoice error:', error);
+    return NextResponse.json(
+      { error: error.message || 'Payment failed' },
+      { status: 500 }
+    );
+  } finally {
+    conn.release();
   }
 }
