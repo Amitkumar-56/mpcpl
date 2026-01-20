@@ -1,3 +1,5 @@
+//src/app/nb-expenses/page.jsx
+
 'use client';
 
 import Footer from "@/components/Footer";

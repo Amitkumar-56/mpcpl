@@ -149,310 +149,347 @@ function NbStockHistoryContent() {
         <Header />
       </div>
 
-      {/* Main Content */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
-        {/* Back Button and Station Info */}
-        <div className="mb-8">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center space-x-4">
-              <button
-                onClick={() => router.push('/nb-stock')}
-                className="flex items-center text-blue-600 hover:text-blue-800 transition duration-200"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Back to NB Stock
-              </button>
-              <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg">
-                <span className="font-medium">Station ID:</span> {stationId}
-              </div>
-            </div>
-            
-            {/* Stock Info and Expense Button */}
-            <div className="flex items-center space-x-4">
-              <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-                <div className="text-sm text-green-600">Current Stock Available</div>
-                <div className="text-xl font-bold text-green-800">
-                  {data.summary.currentStock ? `${formatCurrency(data.summary.currentStock)} Ltr` : 'Loading...'}
+      {/* Main Content - Fixed height and proper scrolling */}
+      <main className="flex-1 overflow-hidden">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-6 py-4 w-full h-full">
+          {/* Back Button and Station Info */}
+          <div className="mb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={() => router.push('/nb-stock')}
+                  className="flex items-center text-blue-600 hover:text-blue-800 transition duration-200 text-sm"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                  </svg>
+                  Back to NB Stock
+                </button>
+                <div className="bg-blue-100 text-blue-800 px-3 py-1.5 rounded-lg text-sm">
+                  <span className="font-medium">Station ID:</span> {stationId}
                 </div>
               </div>
               
-              <button
-                onClick={() => router.push(`/nb-stock/expense?station_id=${stationId}`)}
-                className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-lg font-medium transition duration-200 flex items-center"
-              >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                Add New Expense
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Cards - Responsive Grid */}
-        {!loading && !error && data.expenseData.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-blue-500">
-              <div className="text-sm font-medium text-gray-500 mb-2">Total Expenses</div>
-              <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {formatCurrency(data.summary.totalExpenses || 0)} Ltr
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-green-500">
-              <div className="text-sm font-medium text-gray-500 mb-2">Total Records</div>
-              <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {data.summary.totalRecords || 0}
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-purple-500">
-              <div className="text-sm font-medium text-gray-500 mb-2">Products</div>
-              <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {data.summary.uniqueProducts || 0}
-              </div>
-            </div>
-            
-            <div className="bg-white rounded-xl shadow p-6 border-l-4 border-amber-500">
-              <div className="text-sm font-medium text-gray-500 mb-2">Unique Users</div>
-              <div className="text-2xl sm:text-3xl font-bold text-gray-900">
-                {data.summary.uniqueUsers || 0}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Main Card */}
-        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
-          <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-0">Expense Details</h2>
-              {!loading && !error && (
-                <div className="flex items-center space-x-2">
-                  <div className="text-sm text-gray-500">
-                    Showing <span className="font-semibold">{data.expenseData.length}</span> records
+              {/* Stock Info and Expense Button */}
+              <div className="flex items-center space-x-3">
+                <div className="bg-green-50 border border-green-200 rounded-lg p-2">
+                  <div className="text-xs text-green-600">Current Stock</div>
+                  <div className="text-base sm:text-lg font-bold text-green-800">
+                    {data.summary.currentStock ? `${formatCurrency(data.summary.currentStock)} Ltr` : 'Loading...'}
                   </div>
-                  <button
-                    onClick={fetchData}
-                    className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition duration-200"
-                    title="Refresh"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                    </svg>
-                  </button>
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-6">
-            {loading ? (
-              <div className="py-20">
-                <div className="flex flex-col items-center justify-center">
-                  <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
-                  <p className="text-gray-600">Loading expense history...</p>
-                </div>
-              </div>
-            ) : error ? (
-              <div className="py-10 sm:py-20 text-center">
-                <div className="text-red-500 mb-4">
-                  <svg className="w-16 h-16 sm:w-20 sm:h-20 mx-auto" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">Error Loading Data</h3>
-                <p className="text-gray-600 mb-6 max-w-md mx-auto">{error}</p>
+                
                 <button
-                  onClick={fetchData}
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition duration-200"
+                  onClick={() => router.push(`/nb-stock/create-nb-expense?station_id=${stationId}`)}
+                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium transition duration-200 flex items-center text-sm"
                 >
-                  Try Again
+                  <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Add Expense
                 </button>
               </div>
-            ) : data.expenseData.length === 0 ? (
-              <div className="py-10 sm:py-20 text-center">
-                <div className="text-gray-400 mb-4">
-                  <svg className="w-16 h-16 sm:w-20 sm:h-20 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2">No Expense Records Found</h3>
-                <p className="text-gray-600 mb-6">No expense history available for Station ID: {stationId}</p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                  <button
-                    onClick={() => router.push(`/nb-stock/expense?station_id=${stationId}`)}
-                    className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-lg font-medium transition duration-200"
-                  >
-                    Add First Expense
-                  </button>
-                  <button
-                    onClick={() => router.push('/nb-stock')}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition duration-200"
-                  >
-                    Go Back
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="overflow-x-auto -mx-4 sm:mx-0">
-                <div className="min-w-full inline-block align-middle">
-                  {/* Mobile Card View */}
-                  <div className="sm:hidden space-y-4">
-                    {data.expenseData.map((row, index) => (
-                      <div key={row.id} className="bg-gray-50 rounded-lg p-4 border border-gray-200">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <div className="text-xs text-gray-500">Date</div>
-                            <div className="text-sm font-medium text-gray-900">
-                              {formatDate(row.payment_date)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Expense</div>
-                            <span className="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                              {formatCurrency(row.amount)} Ltr
-                            </span>
-                          </div>
-                          <div className="col-span-2">
-                            <div className="text-xs text-gray-500">Title</div>
-                            <div className="text-sm font-medium text-gray-900 truncate">{row.title}</div>
-                          </div>
-                          <div className="col-span-2">
-                            <div className="text-xs text-gray-500">Product</div>
-                            <div className="text-sm text-gray-900">{row.product_name}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Stock Before</div>
-                            <div className="text-sm font-medium text-blue-600">
-                              {row.total_stock?.toFixed(2) || '0.00'} Ltr
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Stock After</div>
-                            <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                              row.remaining_stock >= 0 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {(row.remaining_stock || 0).toFixed(2)} Ltr
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Desktop Table View */}
-                  <table className="min-w-full divide-y divide-gray-200 hidden sm:table">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Date
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Title
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Reason
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Expense (Ltr)
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Product
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Stock Before
-                        </th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Stock After
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {data.expenseData.map((row, index) => (
-                        <tr 
-                          key={row.id} 
-                          className={`hover:bg-gray-50 transition duration-150 ${
-                            index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
-                          }`}
-                        >
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-900">{formatDate(row.payment_date)}</div>
-                            <div className="text-xs text-gray-500">
-                              {new Date(row.payment_date).toLocaleTimeString('en-IN', {
-                                hour: '2-digit',
-                                minute: '2-digit'
-                              })}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4">
-                            <div className="text-sm font-medium text-gray-900">{row.title}</div>
-                            <div className="text-xs text-gray-500">Paid to: {row.paid_to}</div>
-                          </td>
-                          <td className="px-4 py-4 max-w-xs">
-                            <div className="text-sm text-gray-900 line-clamp-2">{row.reason || '-'}</div>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <span className="px-3 py-1 inline-flex text-sm font-semibold rounded-full bg-red-100 text-red-800">
-                              {formatCurrency(row.amount)} Ltr
-                            </span>
-                            <div className="text-xs text-gray-500 mt-1">
-                              By: {getUserBadge(row.created_by_name, row.created_by_id)}
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <div className="text-sm font-medium text-gray-900">{row.product_name}</div>
-                            <div className="text-xs text-gray-500">ID: {row.product_id}</div>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                            <div className="font-medium text-blue-600">
-                              {row.total_stock?.toFixed(2) || '0.00'} Ltr
-                            </div>
-                          </td>
-                          <td className="px-4 py-4 whitespace-nowrap">
-                            <span className={`px-3 py-1 inline-flex text-sm font-semibold rounded-full ${
-                              row.remaining_stock >= 0 
-                                ? 'bg-green-100 text-green-800' 
-                                : 'bg-red-100 text-red-800'
-                            }`}>
-                              {(row.remaining_stock || 0).toFixed(2)} Ltr
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
-          {/* Footer with summary */}
+          {/* Summary Cards - Compact Grid */}
           {!loading && !error && data.expenseData.length > 0 && (
-            <div className="px-4 sm:px-6 py-4 border-t border-gray-200 bg-gray-50">
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-                <div className="text-sm text-gray-600 mb-2 sm:mb-0">
-                  <span className="font-medium">Last updated:</span> {new Date().toLocaleString('en-IN')}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+              <div className="bg-white rounded-lg shadow p-3 border-l-4 border-blue-500">
+                <div className="text-xs font-medium text-gray-500 mb-1">Total Expenses</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {formatCurrency(data.summary.totalExpenses || 0)} Ltr
                 </div>
-                <div className="text-sm text-gray-600">
-                  <span className="font-medium">Total deduction:</span>{' '}
-                  <span className="font-bold text-red-600">
-                    {formatCurrency(data.summary.totalExpenses)} Ltr
-                  </span>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-3 border-l-4 border-green-500">
+                <div className="text-xs font-medium text-gray-500 mb-1">Total Records</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {data.summary.totalRecords || 0}
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-3 border-l-4 border-purple-500">
+                <div className="text-xs font-medium text-gray-500 mb-1">Products</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {data.summary.uniqueProducts || 0}
+                </div>
+              </div>
+              
+              <div className="bg-white rounded-lg shadow p-3 border-l-4 border-amber-500">
+                <div className="text-xs font-medium text-gray-500 mb-1">Unique Users</div>
+                <div className="text-lg font-bold text-gray-900">
+                  {data.summary.uniqueUsers || 0}
                 </div>
               </div>
             </div>
           )}
+
+          {/* Main Card - Fixed height with internal scrolling */}
+          <div className="bg-white rounded-lg shadow-lg overflow-hidden h-[calc(100vh-180px)] flex flex-col">
+            <div className="px-3 sm:px-4 py-2.5 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-white flex-shrink-0">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-800 mb-1 sm:mb-0">NB Expense History</h2>
+                {!loading && !error && (
+                  <div className="flex items-center space-x-2">
+                    <div className="text-xs text-gray-500">
+                      Showing <span className="font-semibold">{data.expenseData.length}</span> records
+                    </div>
+                    <button
+                      onClick={fetchData}
+                      className="p-1 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded transition duration-200"
+                      title="Refresh"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Scrollable Content Area */}
+            <div className="flex-1 overflow-auto p-2 sm:p-3">
+              {loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="flex flex-col items-center">
+                    <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full animate-spin mb-3"></div>
+                    <p className="text-gray-600 text-sm">Loading expense history...</p>
+                  </div>
+                </div>
+              ) : error ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className="text-red-500 mb-3">
+                    <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-800 mb-2">Error Loading Data</h3>
+                  <p className="text-gray-600 text-sm mb-4 max-w-md text-center">{error}</p>
+                  <button
+                    onClick={fetchData}
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-medium transition duration-200 text-sm"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              ) : data.expenseData.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full">
+                  <div className="text-gray-400 mb-3">
+                    <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-base font-semibold text-gray-800 mb-2">No Expense Records</h3>
+                  <p className="text-gray-600 text-sm mb-4 text-center">No expense history for Station ID: {stationId}</p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      onClick={() => router.push(`/nb-stock/create-nb-expense?station_id=${stationId}`)}
+                      className="bg-red-600 hover:bg-red-700 text-white px-4 py-1.5 rounded-lg font-medium transition duration-200 text-sm"
+                    >
+                      Add First Expense
+                    </button>
+                    <button
+                      onClick={() => router.push('/nb-stock')}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-lg font-medium transition duration-200 text-sm"
+                    >
+                      Go Back
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <div className="min-w-full inline-block align-middle">
+                    {/* Mobile Card View */}
+                    <div className="sm:hidden space-y-3">
+                      {data.expenseData.map((row, index) => (
+                        <div key={row.id} className="bg-gray-50 rounded border border-gray-200 p-3">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <div className="text-xs text-gray-500">Invoice Date</div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {formatDate(row.payment_date)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Stock Deducted</div>
+                              <span className="px-1.5 py-0.5 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                {formatCurrency(row.amount)} Ltr
+                              </span>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500">Invoice No.</div>
+                              <div className="text-sm font-medium text-gray-900 truncate">{row.title}</div>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500">Customer</div>
+                              <div className="text-sm font-medium text-gray-600">
+                                {row.paid_to || '-'}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-gray-500">Stock After</div>
+                              <span className={`px-1.5 py-0.5 text-xs font-semibold rounded-full ${
+                                row.remaining_stock >= 0 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {(row.remaining_stock || 0).toFixed(2)} Ltr
+                              </span>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500">Product</div>
+                              <div className="text-sm text-gray-900">{row.product_name}</div>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500">Remarks</div>
+                              <div className="text-sm text-gray-700 line-clamp-2">{row.reason || '-'}</div>
+                            </div>
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500">Created by</div>
+                              <div className="text-sm font-medium text-blue-600">
+                                {getUserBadge(row.created_by_name, row.created_by_id)}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-0.5">
+                                At: {new Date(row.created_at).toLocaleTimeString('en-IN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop Table View - Compact */}
+                    <table className="min-w-full divide-y divide-gray-200 hidden sm:table text-sm">
+                      <thead>
+                        <tr className="bg-gray-50">
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Date
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Invoice No.
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Customer
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Stock (Ltr)
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Product
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Before
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            After
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Remarks
+                          </th>
+                          <th className="px-2 py-1.5 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Created by
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {data.expenseData.map((row, index) => (
+                          <tr 
+                            key={row.id} 
+                            className={`hover:bg-gray-50 transition duration-150 ${
+                              index % 2 === 0 ? 'bg-white' : 'bg-gray-50'
+                            }`}
+                          >
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <div className="text-xs text-gray-900">{formatDate(row.payment_date)}</div>
+                              <div className="text-[10px] text-gray-500">
+                                {new Date(row.payment_date).toLocaleTimeString('en-IN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <div className="text-xs font-medium text-gray-900 truncate max-w-[120px]">{row.title}</div>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <div className="text-xs font-medium text-gray-900 truncate max-w-[100px]">{row.paid_to || '-'}</div>
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className="px-1.5 py-0.5 inline-flex text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                                {formatCurrency(row.amount)} Ltr
+                              </span>
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <div className="text-xs font-medium text-gray-900 truncate max-w-[100px]">{row.product_name}</div>
+                              <div className="text-[10px] text-gray-500">ID: {row.product_id}</div>
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap text-xs text-gray-900">
+                              <div className="font-medium text-blue-600">
+                                {row.total_stock?.toFixed(2) || '0.00'} Ltr
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5 whitespace-nowrap">
+                              <span className={`px-1.5 py-0.5 inline-flex text-xs font-semibold rounded-full ${
+                                row.remaining_stock >= 0 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : 'bg-red-100 text-red-800'
+                              }`}>
+                                {(row.remaining_stock || 0).toFixed(2)} Ltr
+                              </span>
+                            </td>
+                            <td className="px-2 py-1.5 max-w-[120px]">
+                              <div className="text-xs text-gray-700 line-clamp-2">{row.reason || '-'}</div>
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <div className="flex flex-col">
+                                {getUserBadge(row.created_by_name, row.created_by_id)}
+                                <div className="text-[10px] text-gray-500 mt-0.5">
+                                  {new Date(row.created_at).toLocaleTimeString('en-IN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit'
+                                  })}
+                                </div>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Footer - Compact */}
+            {!loading && !error && data.expenseData.length > 0 && (
+              <div className="px-3 py-1.5 border-t border-gray-200 bg-gray-50 flex-shrink-0">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-xs text-gray-600 mb-1 sm:mb-0">
+                    <span className="font-medium">Last updated:</span> {new Date().toLocaleTimeString('en-IN')}
+                  </div>
+                  <div className="text-xs text-gray-600">
+                    <span className="font-medium">Total deducted:</span>{' '}
+                    <span className="font-bold text-red-600">
+                      {formatCurrency(data.summary.totalExpenses)} Ltr
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </main>
 
-      {/* Fixed Footer at bottom */}
-      <div className="sticky bottom-0 bg-white border-t border-gray-200">
-        <Footer />
+      {/* Compact Footer */}
+      <div className="flex-shrink-0">
+        <div className="h-12">
+          <Footer />
+        </div>
       </div>
     </div>
   );

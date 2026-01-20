@@ -35,10 +35,10 @@ function CreateExpenseForm() {
   const [submitting, setSubmitting] = useState(false);
   const [selectedStation, setSelectedStation] = useState('');
   const [formData, setFormData] = useState({
-    payment_date: new Date().toISOString().split('T')[0],
-    title: '',
-    reason: '',
-    paid_to: '',
+    payment_date: new Date().toISOString().split('T')[0], // Will be changed to invoice_date
+    title: '', // Will be changed to invoice_number
+    reason: '', // Will be changed to remark
+    paid_to: '', // Will be changed to customer_name
     amount: ''
   });
 
@@ -316,11 +316,11 @@ function CreateExpenseForm() {
                 </div>
               )}
 
-              {/* Payment Date and Amount */}
+              {/* Invoice Date and Amount */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Payment Date *
+                    Invoice Date *
                   </label>
                   <input
                     type="date"
@@ -351,18 +351,18 @@ function CreateExpenseForm() {
                 </div>
               </div>
 
-              {/* Title and Paid To */}
+              {/* Invoice Number and Customer Name */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Expense Title *
+                    Invoice Number *
                   </label>
                   <input
                     type="text"
                     name="title"
                     value={formData.title}
                     onChange={handleInputChange}
-                    placeholder="e.g., Maintenance, Repair, Supplies"
+                    placeholder="e.g., INV-001, NB-2024-001"
                     required
                     className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 text-sm sm:text-base"
                   />
@@ -370,30 +370,30 @@ function CreateExpenseForm() {
 
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Paid To / Vendor *
+                    Customer Name *
                   </label>
                   <input
                     type="text"
                     name="paid_to"
                     value={formData.paid_to}
                     onChange={handleInputChange}
-                    placeholder="Enter vendor or recipient name"
+                    placeholder="Enter customer name"
                     required
                     className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 text-sm sm:text-base"
                   />
                 </div>
               </div>
 
-              {/* Reason */}
+              {/* Remark */}
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  Description / Reason
+                  Remark
                 </label>
                 <textarea
                   name="reason"
                   value={formData.reason}
                   onChange={handleInputChange}
-                  placeholder="Describe the purpose of this expense..."
+                  placeholder="Enter any remarks or notes..."
                   rows="3"
                   className="w-full px-3 sm:px-4 py-2 sm:py-3 border border-gray-300 rounded-lg sm:rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors duration-200 resize-none text-sm sm:text-base"
                 ></textarea>
