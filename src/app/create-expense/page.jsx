@@ -15,6 +15,7 @@ function CreateExpenseContent() {
   const [formData, setFormData] = useState({
     payment_date: new Date().toISOString().split('T')[0],
     title: '',
+    details: '',
     paid_to: '',
     reason: '',
     amount: ''
@@ -119,6 +120,7 @@ function CreateExpenseContent() {
     setFormData({
       payment_date: new Date().toISOString().split('T')[0],
       title: '',
+      details: '',
       paid_to: '',
       reason: '',
       amount: ''
@@ -207,7 +209,7 @@ function CreateExpenseContent() {
 
                       <div>
                         <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
-                          Title
+                          Customer Name
                         </label>
                         <input
                           type="text"
@@ -216,8 +218,39 @@ function CreateExpenseContent() {
                           value={formData.title}
                           onChange={handleInputChange}
                           className="block w-full border border-gray-300 rounded-md shadow-sm py-3 px-4 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Enter expense title"
+                          placeholder="Enter customer name"
                           required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="paid_to" className="block text-sm font-medium text-gray-700 mb-1">
+                          Receiver
+                        </label>
+                        <input
+                          type="text"
+                          id="paid_to"
+                          name="paid_to"
+                          value={formData.paid_to}
+                          onChange={handleInputChange}
+                          className="block w-full border border-gray-300 rounded-md shadow-sm py-3 px-4 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter receiver name"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <label htmlFor="details" className="block text-sm font-medium text-gray-700 mb-1">
+                          Details
+                        </label>
+                        <textarea
+                          id="details"
+                          name="details"
+                          value={formData.details}
+                          onChange={handleInputChange}
+                          rows={3}
+                          className="block w-full border border-gray-300 rounded-md shadow-sm py-3 px-4 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          placeholder="Enter expense details"
                         />
                       </div>
 
@@ -233,21 +266,6 @@ function CreateExpenseContent() {
                           rows={4}
                           className="block w-full border border-gray-300 rounded-md shadow-sm py-3 px-4 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           placeholder="Enter expense reason"
-                        />
-                      </div>
-
-                      <div>
-                        <label htmlFor="paid_to" className="block text-sm font-medium text-gray-700 mb-1">
-                          Paid To
-                        </label>
-                        <input
-                          type="text"
-                          id="paid_to"
-                          name="paid_to"
-                          value={formData.paid_to}
-                          onChange={handleInputChange}
-                          className="block w-full border border-gray-300 rounded-md shadow-sm py-3 px-4 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                          placeholder="Enter recipient name"
                           required
                         />
                       </div>

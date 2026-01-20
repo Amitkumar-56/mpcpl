@@ -229,6 +229,12 @@ function CashHistoryTable({ onEditClick }) {
                 </div>
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <div className="flex items-center">
+                  <BiTransferAlt className="mr-2" />
+                  Type
+                </div>
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Action
               </th>
             </tr>
@@ -236,7 +242,7 @@ function CashHistoryTable({ onEditClick }) {
           <tbody className="bg-white divide-y divide-gray-200">
             {cashData.cashHistory.length === 0 ? (
               <tr>
-                <td colSpan="6" className="px-6 py-8 text-center text-gray-500">
+                <td colSpan="7" className="px-6 py-8 text-center text-gray-500">
                   No cash records found.
                 </td>
               </tr>
@@ -265,6 +271,12 @@ function CashHistoryTable({ onEditClick }) {
                     <div className="text-sm text-gray-500 max-w-xs truncate">
                       {record.comments || '-'}
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {/* Type कॉलम - यहां सभी transactions Inward हैं */}
+                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                      Inward
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <button

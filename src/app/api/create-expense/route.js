@@ -9,7 +9,7 @@ export async function POST(request) {
     const formData = await request.json();
     
     // Extract and validate form data
-    const { payment_date, title, paid_to, reason, amount } = formData;
+    const { payment_date, title, details, paid_to, reason, amount } = formData;
 
     // Validate required fields
     if (!payment_date || !title || !paid_to || !reason || !amount) {
@@ -42,15 +42,16 @@ export async function POST(request) {
       );
     }
 
-    // Insert expense record
+    // Insert expense record - UPDATED to include details field
     const expenseQuery = `
-      INSERT INTO expenses (payment_date, title, paid_to, reason, amount) 
-      VALUES (?, ?, ?, ?, ?)
+      INSERT INTO expenses (payment_date, title, details, paid_to, reason, amount) 
+      VALUES (?, ?, ?, ?, ?, ?)
     `;
     
     const expenseResult = await executeQuery(expenseQuery, [
       payment_date,
       title,
+      details || '', // Handle empty details
       paid_to,
       reason,
       amountNum
@@ -107,6 +108,7 @@ export async function POST(request) {
         newValue: {
           expense_id: expenseId,
           title: title,
+          details: details,
           paid_to: paid_to,
           reason: reason,
           amount: amountNum,

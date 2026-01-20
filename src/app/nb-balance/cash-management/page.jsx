@@ -1,12 +1,12 @@
-//src/app/nb-balance/cash-managemnet/page.jsx
+//src/app/nb-balance/cash-management/page.jsx
 'use client';
+import { useSession } from '@/context/SessionContext';
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useState } from 'react';
-import { useSession } from '@/context/SessionContext';
 
 // Format amount to Indian Rupee
 function formatIndianRupee(amount) {
@@ -24,6 +24,15 @@ function LoadingSpinner() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-purple-600"></div>
     </div>
+  );
+}
+
+// Only Outward Badge Component
+function OutwardBadge() {
+  return (
+    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 border border-red-200">
+      ↗️ Outward
+    </span>
   );
 }
 
@@ -66,7 +75,14 @@ function CashManagementContent() {
       const result = await response.json();
 
       if (result.success) {
-        setCashData(result.data.expenses);
+        // Agar recharge data hai to bhi filter karke sirf outward show kare
+        const filteredData = result.data.expenses.map(expense => ({
+          ...expense,
+          // Force type to be outward for all entries
+          transaction_type: 'outward'
+        }));
+        
+        setCashData(filteredData);
         setTotalCash(result.data.totalCash);
         setPagination(prev => ({
           ...prev,
@@ -138,7 +154,7 @@ function CashManagementContent() {
   // Handle filter changes with debounce
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({ ...prev, [key]: value }));
-    setPagination(prev => ({ ...prev, currentPage: 1 })); // Reset to first page on filter change
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
   };
 
   // Clear all filters
@@ -171,7 +187,6 @@ function CashManagementContent() {
       setPagination(prev => ({ ...prev, currentPage: prev.currentPage - 1 }));
     }
   };
-
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -216,7 +231,6 @@ function CashManagementContent() {
                   </p>
                 </div>
                 <div className="text-white">
-                  {/* Indian Rupee Symbol */}
                   <svg className="w-12 h-12 opacity-50" fill="currentColor" viewBox="0 0 24 24">
                     <path d="M11.5 2C6.81 2 3 5.81 3 10.5S6.81 19 11.5 19h.5v3c4.86-2.34 8-7 8-11.5C20 5.81 16.19 2 11.5 2zm1 13h-2v-2h2v2zm0-4h-2V7h2v4z"/>
                   </svg>
@@ -236,33 +250,36 @@ function CashManagementContent() {
                     Clear Filters
                   </button>
                   {permissions.can_create && (
-                    <div className="flex gap-3">
-                      <Link 
-                        href="/nb-balance/recharge"
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
-                      >
-                        Add Recharge
-                      </Link>
-                      <Link 
-                        href="/nb-balance/create-expense"
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
-                      >
-                        Create Expense
-                      </Link>
-                    </div>
+                    <Link 
+                      href="/nb-balance/create-expense"
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors text-sm sm:text-base text-center"
+                    >
+                      Create Expense
+                    </Link>
                   )}
                 </div>
               </div>
 
               {/* Search and Filters */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                   <input
                     type="text"
                     value={filters.search}
                     onChange={(e) => handleFilterChange('search', e.target.value)}
-                    placeholder="Search title, details..."
+                    placeholder="Search title, receiver, details..."
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Receiver</label>
+                  <input
+                    type="text"
+                    value={filters.paidTo}
+                    onChange={(e) => handleFilterChange('paidTo', e.target.value)}
+                    placeholder="Receiver name"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
@@ -298,6 +315,18 @@ function CashManagementContent() {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
+                
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Max Amount</label>
+                  <input
+                    type="number"
+                    value={filters.maxAmount}
+                    onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+                    placeholder="0.00"
+                    step="0.01"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
               </div>
 
               {/* Loading Indicator */}
@@ -315,9 +344,10 @@ function CashManagementContent() {
                       <thead className="bg-gray-50">
                         <tr>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Date</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title/Desc</th>
-                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid to</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                          <th className="px6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
@@ -325,11 +355,8 @@ function CashManagementContent() {
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
                         {cashData.length > 0 ? (
-                          cashData.map((expense, index) => {
-                            const isRecharge = expense.title?.startsWith('[RECHARGE]') || expense.transaction_type === 'recharge';
-                            const displayTitle = isRecharge ? expense.title.replace('[RECHARGE]', '').trim() : expense.title;
-                            return (
-                            <tr key={expense.id} className={`hover:bg-gray-50 transition-colors ${isRecharge ? 'bg-green-50' : ''}`}>
+                          cashData.map((expense, index) => (
+                            <tr key={expense.id} className="hover:bg-gray-50 transition-colors">
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {(pagination.currentPage - 1) * pagination.limit + index + 1}
                               </td>
@@ -337,13 +364,8 @@ function CashManagementContent() {
                                 {new Date(expense.payment_date).toLocaleDateString('en-IN')}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
-                                <div className="font-medium flex items-center gap-2">
-                                  {displayTitle}
-                                  {isRecharge && (
-                                    <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                      Recharge
-                                    </span>
-                                  )}
+                                <div className="font-medium">
+                                  {expense.title || '-'}
                                 </div>
                                 {expense.details && (
                                   <div className="text-gray-500 text-xs mt-1">{expense.details}</div>
@@ -352,28 +374,28 @@ function CashManagementContent() {
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {expense.paid_to || '-'}
                               </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                <OutwardBadge />
+                              </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {expense.reason || '-'}
                               </td>
-                              <td className={`px-6 py-4 whitespace-nowrap text-sm font-semibold ${isRecharge ? 'text-green-700' : 'text-green-600'}`}>
-                                {isRecharge ? '+' : ''}{formatIndianRupee(expense.amount)}
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-600">
+                                -{formatIndianRupee(expense.amount)}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                                <div className="flex space-x-2">
-                                  <button
-                                    onClick={() => router.push(`/edit-expense/${expense.id}`)}
-                                    className="text-blue-600 hover:text-blue-900 transition-colors"
-                                  >
-                                    Edit
-                                  </button>
-                                </div>
+                                <button
+                                  onClick={() => router.push(`/nb-balance/edit-expense/${expense.id}`)}
+                                  className="text-blue-600 hover:text-blue-900 transition-colors px-3 py-1 hover:bg-blue-50 rounded-lg"
+                                >
+                                  Edit
+                                </button>
                               </td>
                             </tr>
-                            );
-                          })
+                          ))
                         ) : (
                           <tr>
-                            <td colSpan="7" className="px-6 py-4 text-center text-sm text-gray-500">
+                            <td colSpan="8" className="px-6 py-4 text-center text-sm text-gray-500">
                               No expenses found
                             </td>
                           </tr>
@@ -385,35 +407,25 @@ function CashManagementContent() {
                   {/* Mobile Cards */}
                   <div className="md:hidden space-y-4">
                     {cashData.length > 0 ? (
-                      cashData.map((expense, index) => {
-                        const isRecharge = expense.title?.startsWith('[RECHARGE]') || expense.transaction_type === 'recharge';
-                        const displayTitle = isRecharge ? expense.title.replace('[RECHARGE]', '').trim() : expense.title;
-                        return (
-                        <div key={expense.id} className={`border rounded-lg p-4 space-y-3 ${isRecharge ? 'border-green-300 bg-green-50' : 'border-gray-200'}`}>
+                      cashData.map((expense, index) => (
+                        <div key={expense.id} className="border border-gray-200 rounded-lg p-4 space-y-3">
                           <div className="flex justify-between items-start">
                             <span className="text-sm font-medium text-gray-500">
                               #{(pagination.currentPage - 1) * pagination.limit + index + 1}
                             </span>
-                            <span className={`text-lg font-semibold ${isRecharge ? 'text-green-700' : 'text-green-600'}`}>
-                              {isRecharge ? '+' : ''}{formatIndianRupee(expense.amount)}
-                            </span>
+                            <OutwardBadge />
                           </div>
                           
                           <div>
-                            <h3 className="font-medium text-gray-900 text-lg flex items-center gap-2">
-                              {displayTitle}
-                              {isRecharge && (
-                                <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
-                                  Recharge
-                                </span>
-                              )}
+                            <h3 className="font-medium text-gray-900 text-lg">
+                              {expense.title || '-'}
                             </h3>
                             {expense.details && (
                               <p className="text-sm text-gray-500 mt-1">{expense.details}</p>
                             )}
                           </div>
                           
-                          <div className="grid grid-cols-1 gap-2 text-sm">
+                          <div className="grid grid-cols-2 gap-2 text-sm">
                             <div className="flex justify-between">
                               <span className="text-gray-500">Date:</span>
                               <span className="text-gray-900">
@@ -421,26 +433,31 @@ function CashManagementContent() {
                               </span>
                             </div>
                             <div className="flex justify-between">
-                              <span className="text-gray-500">Paid to:</span>
+                              <span className="text-gray-500">Receiver:</span>
                               <span className="text-gray-900">{expense.paid_to || '-'}</span>
                             </div>
                             <div className="flex justify-between">
                               <span className="text-gray-500">Reason:</span>
                               <span className="text-gray-900">{expense.reason || '-'}</span>
                             </div>
+                            <div className="flex justify-between">
+                              <span className="text-gray-500">Amount:</span>
+                              <span className="text-red-600 font-semibold">
+                                -{formatIndianRupee(expense.amount)}
+                              </span>
+                            </div>
                           </div>
                           
                           <div className="flex space-x-3 pt-2 border-t border-gray-100">
                             <button
-                              onClick={() => router.push(`/edit-expense/${expense.id}`)}
+                              onClick={() => router.push(`/nb-balance/edit-expense/${expense.id}`)}
                               className="flex-1 bg-blue-600 text-white py-2 px-3 rounded-lg text-sm hover:bg-blue-700 transition-colors"
                             >
                               Edit
                             </button>
                           </div>
                         </div>
-                        );
-                      })
+                      ))
                     ) : (
                       <div className="text-center py-8 text-gray-500">
                         No expenses found

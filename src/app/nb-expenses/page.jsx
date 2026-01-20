@@ -1,4 +1,3 @@
-// src/app/nb-expenses/page.jsx
 'use client';
 
 import { useSession } from "@/context/SessionContext";
@@ -8,7 +7,7 @@ import Sidebar from "components/sidebar";
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, { Suspense, useEffect, useState } from 'react';
-import { BiChevronDown, BiChevronUp, BiEdit, BiFilterAlt, BiRefresh, BiRupee, BiSearch } from "react-icons/bi";
+import { BiChevronDown, BiChevronUp, BiDownload, BiEdit, BiFilterAlt, BiRefresh, BiRupee, BiSearch, BiUpload, BiUser } from "react-icons/bi";
 
 // Component to fetch and display expense logs
 function ExpenseLogs({ expenseId }) {
@@ -49,32 +48,137 @@ function ExpenseLogs({ expenseId }) {
     );
   }
 
+  const parseValue = (value) => {
+    if (!value) return null;
+    try {
+      return typeof value === 'string' ? JSON.parse(value) : value;
+    } catch (e) {
+      console.error('Error parsing value:', e);
+      return null;
+    }
+  };
+
   return (
     <div className="space-y-2">
-      {logs.map((log, idx) => (
-        <div key={idx} className="bg-white rounded border p-3 text-sm">
-          <div className="flex justify-between items-start">
-            <div>
-              <span className={`font-medium px-2 py-1 rounded text-xs ${
-                log.action === 'add' ? 'bg-green-100 text-green-800' :
-                log.action === 'edit' ? 'bg-blue-100 text-blue-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
-                {log.action?.toUpperCase() || 'ACTION'}
-              </span>
-              <span className="ml-2 font-medium text-gray-700">
-                {log.user_name || log.userName || 'Unknown User'}
+      {logs.map((log, idx) => {
+        const newValue = parseValue(log.newValue);
+        const oldValue = parseValue(log.oldValue);
+        
+        return (
+          <div key={idx} className="bg-white rounded border p-3 text-sm">
+            <div className="flex justify-between items-start">
+              <div className="flex items-center gap-2">
+                <span className={`font-medium px-2 py-1 rounded text-xs ${
+                  log.action === 'add' ? 'bg-green-100 text-green-800' :
+                  log.action === 'edit' ? 'bg-blue-100 text-blue-800' :
+                  'bg-gray-100 text-gray-800'
+                }`}>
+                  {log.action?.toUpperCase() || 'ACTION'}
+                </span>
+                <span className="font-medium text-gray-700">
+                  {log.user_name || log.userName || 'Unknown User'}
+                </span>
+              </div>
+              <span className="text-xs text-gray-500 whitespace-nowrap">
+                {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
               </span>
             </div>
-            <span className="text-xs text-gray-500">
-              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
-            </span>
+            
+            <div className="mt-3 space-y-2">
+              {newValue?.title && (
+                <div className="flex items-start gap-2">
+                  <BiUser className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-500">Customer:</span>
+                    <p className="text-sm font-medium text-gray-800">
+                      {newValue.title}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {newValue?.paid_to && (
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <div>
+                    <span className="text-xs text-gray-500">Receiver:</span>
+                    <p className="text-sm font-medium text-gray-800">
+                      {newValue.paid_to}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {newValue?.amount && (
+                <div className="flex items-start gap-2">
+                  <BiRupee className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                  <div>
+                    <span className="text-xs text-gray-500">Amount:</span>
+                    <p className="text-sm font-medium text-gray-800">
+                      ₹{new Intl.NumberFormat('en-IN').format(newValue.amount)}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {newValue?.reason && (
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  <div>
+                    <span className="text-xs text-gray-500">Reason:</span>
+                    <p className="text-sm font-medium text-gray-800">
+                      {newValue.reason}
+                    </p>
+                  </div>
+                </div>
+              )}
+              
+              {log.remarks && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs text-gray-600">{log.remarks}</p>
+                </div>
+              )}
+              
+              {log.action === 'edit' && oldValue && newValue && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs font-medium text-gray-700 mb-2">Changes:</p>
+                  <div className="space-y-1">
+                    {oldValue.title !== newValue.title && (
+                      <div className="text-xs bg-gray-50 p-2 rounded">
+                        <span className="font-medium">Title:</span> "{oldValue.title}" → "{newValue.title}"
+                      </div>
+                    )}
+                    {oldValue.amount !== newValue.amount && (
+                      <div className="text-xs bg-gray-50 p-2 rounded">
+                        <span className="font-medium">Amount:</span> ₹{oldValue.amount} → ₹{newValue.amount}
+                      </div>
+                    )}
+                    {oldValue.paid_to !== newValue.paid_to && (
+                      <div className="text-xs bg-gray-50 p-2 rounded">
+                        <span className="font-medium">Receiver:</span> "{oldValue.paid_to}" → "{newValue.paid_to}"
+                      </div>
+                    )}
+                    {oldValue.payment_date !== newValue.payment_date && (
+                      <div className="text-xs bg-gray-50 p-2 rounded">
+                        <span className="font-medium">Date:</span> {oldValue.payment_date} → {newValue.payment_date}
+                      </div>
+                    )}
+                    {oldValue.reason !== newValue.reason && (
+                      <div className="text-xs bg-gray-50 p-2 rounded">
+                        <span className="font-medium">Reason:</span> "{oldValue.reason}" → "{newValue.reason}"
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
-          {log.remarks && (
-            <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -98,7 +202,8 @@ function ExpensesContent() {
     dateFrom: '',
     dateTo: '',
     minAmount: '',
-    maxAmount: ''
+    maxAmount: '',
+    expenseType: 'outward' // 'outward' or 'all'
   });
   const [expandedExpenses, setExpandedExpenses] = useState({});
   const [showFilters, setShowFilters] = useState(false);
@@ -110,7 +215,6 @@ function ExpensesContent() {
     }));
   };
 
-  // Check authentication
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login');
@@ -123,7 +227,6 @@ function ExpensesContent() {
     }
   }, [user, authLoading]);
 
-  // Filter effect
   useEffect(() => {
     if (user && !authLoading && user.id && !loading) {
       const timer = setTimeout(() => {
@@ -138,7 +241,6 @@ function ExpensesContent() {
       setLoading(true);
       setError('');
       
-      // Build query string with filters
       const params = new URLSearchParams();
       params.append('page', page);
       params.append('limit', pagination.limit);
@@ -148,8 +250,7 @@ function ExpensesContent() {
       if (filters.dateTo) params.append('dateTo', filters.dateTo);
       if (filters.minAmount) params.append('minAmount', filters.minAmount);
       if (filters.maxAmount) params.append('maxAmount', filters.maxAmount);
-      
-      console.log('📡 Fetching expenses with params:', params.toString());
+      if (filters.expenseType) params.append('expenseType', filters.expenseType);
       
       const response = await fetch(`/api/nb-expenses?${params.toString()}`, {
         credentials: 'include',
@@ -160,11 +261,9 @@ function ExpensesContent() {
         }
       });
       
-      // Check response content type
       const contentType = response.headers.get('content-type');
       if (!contentType || !contentType.includes('application/json')) {
         const text = await response.text();
-        console.error('❌ Non-JSON response:', text.substring(0, 200));
         
         if (response.status === 401) {
           router.push('/login');
@@ -200,8 +299,6 @@ function ExpensesContent() {
         return;
       }
       
-      console.log('✅ Expenses loaded:', data.expenses?.length || 0);
-      
       setExpenses(data.expenses || []);
       setPermissions(data.permissions || {});
       setPagination(data.pagination || {
@@ -212,7 +309,7 @@ function ExpensesContent() {
       });
       
     } catch (err) {
-      console.error('❌ Error fetching expenses:', err);
+      console.error('Error fetching expenses:', err);
       
       if (err instanceof SyntaxError && err.message.includes('JSON')) {
         setError('Server returned an invalid response. Please refresh the page.');
@@ -234,20 +331,20 @@ function ExpensesContent() {
       dateFrom: '',
       dateTo: '',
       minAmount: '',
-      maxAmount: ''
+      maxAmount: '',
+      expenseType: 'outward'
     });
   };
 
-  // Format currency
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 2
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount || 0);
   };
 
-  // Format date
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
     try {
@@ -261,16 +358,13 @@ function ExpensesContent() {
     }
   };
 
-  // Get today's date for date input max
   const getTodayDate = () => {
     const today = new Date();
     return today.toISOString().split('T')[0];
   };
 
-  // Calculate total amount of displayed expenses
   const totalAmount = expenses.reduce((sum, expense) => sum + (parseFloat(expense.amount) || 0), 0);
 
-  // Show loading skeleton
   if (loading && expenses.length === 0) {
     return (
       <div className="h-screen flex bg-gray-50">
@@ -307,7 +401,6 @@ function ExpensesContent() {
           <Header />
         </div>
         <main className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
-          {/* Error Message */}
           {error && (
             <div className="max-w-7xl mx-auto mb-4">
               <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -331,7 +424,6 @@ function ExpensesContent() {
             </div>
           )}
 
-          {/* Header Section */}
           <div className="max-w-7xl mx-auto mb-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
@@ -389,8 +481,7 @@ function ExpensesContent() {
               </div>
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-white rounded-lg shadow p-4 border">
                 <div className="flex items-center justify-between">
                   <div>
@@ -432,10 +523,36 @@ function ExpensesContent() {
                   </div>
                 </div>
               </div>
+              
+              <div className="bg-white rounded-lg shadow p-4 border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-gray-500">Expense Type</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className={`px-2 py-1 rounded text-xs font-medium ${
+                        filters.expenseType === 'outward' 
+                          ? 'bg-red-100 text-red-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        <BiUpload className="inline w-3 h-3 mr-1" />
+                        Outward
+                      </div>
+                      {filters.expenseType !== 'outward' && (
+                        <div className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800">
+                          <BiDownload className="inline w-3 h-3 mr-1" />
+                          All
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-3 bg-red-50 rounded-lg">
+                    <BiUpload className="w-6 h-6 text-red-600" />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Filters Section */}
           {showFilters && (
             <div className="max-w-7xl mx-auto mb-6">
               <div className="bg-white shadow rounded-lg p-4 md:p-6 border">
@@ -449,8 +566,7 @@ function ExpensesContent() {
                   </button>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {/* Search */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Search</label>
                     <div className="relative">
@@ -459,13 +575,12 @@ function ExpensesContent() {
                         type="text"
                         value={filters.search}
                         onChange={(e) => handleFilterChange('search', e.target.value)}
-                        placeholder="Search expenses..."
+                        placeholder="Search by customer name, receiver..."
                         className="w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                   </div>
                   
-                  {/* Date From */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
                     <input
@@ -477,7 +592,6 @@ function ExpensesContent() {
                     />
                   </div>
                   
-                  {/* Date To */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
                     <input
@@ -489,7 +603,6 @@ function ExpensesContent() {
                     />
                   </div>
                   
-                  {/* Min Amount */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Min Amount</label>
                     <div className="relative">
@@ -498,15 +611,13 @@ function ExpensesContent() {
                         type="number"
                         value={filters.minAmount}
                         onChange={(e) => handleFilterChange('minAmount', e.target.value)}
-                        placeholder="0.00"
-                        step="0.01"
+                        placeholder="0"
                         min="0"
                         className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
                   </div>
                   
-                  {/* Max Amount */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Max Amount</label>
                     <div className="relative">
@@ -515,12 +626,23 @@ function ExpensesContent() {
                         type="number"
                         value={filters.maxAmount}
                         onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
-                        placeholder="10000.00"
-                        step="0.01"
+                        placeholder="10000"
                         min="0"
                         className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       />
                     </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Expense Type</label>
+                    <select
+                      value={filters.expenseType}
+                      onChange={(e) => handleFilterChange('expenseType', e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      <option value="outward">Outward Expenses (Paid)</option>
+                      <option value="all">All Expenses</option>
+                    </select>
                   </div>
                 </div>
                 
@@ -547,11 +669,9 @@ function ExpensesContent() {
             </div>
           )}
 
-          {/* Expenses Table */}
           <div className="max-w-7xl mx-auto">
             {expenses.length > 0 ? (
               <>
-                {/* Desktop View */}
                 <div className="hidden lg:block">
                   <div className="bg-white shadow rounded-lg overflow-hidden border">
                     <div className="overflow-x-auto">
@@ -560,11 +680,12 @@ function ExpensesContent() {
                           <tr>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer Name</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Paid To</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Receiver</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reason</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                             <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                           </tr>
@@ -598,6 +719,25 @@ function ExpensesContent() {
                                     {formatCurrency(expense.amount)}
                                   </span>
                                 </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                                    expense.expense_type === 'outward' || !expense.expense_type
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-green-100 text-green-800'
+                                  }`}>
+                                    {expense.expense_type === 'outward' || !expense.expense_type ? (
+                                      <>
+                                        <BiUpload className="w-3 h-3 mr-1" />
+                                        Outward
+                                      </>
+                                    ) : (
+                                      <>
+                                        <BiDownload className="w-3 h-3 mr-1" />
+                                        Inward
+                                      </>
+                                    )}
+                                  </span>
+                                </td>
                                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                                   {permissions.can_edit && (
                                     <Link
@@ -629,10 +769,9 @@ function ExpensesContent() {
                                   </button>
                                 </td>
                               </tr>
-                              {/* Expandable Logs Row */}
                               {expandedExpenses[expense.id] && (
                                 <tr className="bg-gray-50">
-                                  <td colSpan="9" className="px-6 py-4">
+                                  <td colSpan="10" className="px-6 py-4">
                                     <div className="max-w-4xl">
                                       <h3 className="text-sm font-semibold text-gray-700 mb-3">
                                         Activity Logs for Expense #{expense.id}
@@ -650,7 +789,6 @@ function ExpensesContent() {
                   </div>
                 </div>
 
-                {/* Mobile View */}
                 <div className="lg:hidden space-y-4">
                   {expenses.map((expense) => (
                     <div key={`expense-mobile-${expense.id}`} className="bg-white shadow rounded-lg border p-4">
@@ -659,7 +797,20 @@ function ExpensesContent() {
                           <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 mb-2">
                             #{expense.id}
                           </span>
-                          <h3 className="font-bold text-gray-900">{expense.title}</h3>
+                          <div className="flex items-center gap-2">
+                            <h3 className="font-bold text-gray-900">{expense.title}</h3>
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              expense.expense_type === 'outward' || !expense.expense_type
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-green-100 text-green-800'
+                            }`}>
+                              {expense.expense_type === 'outward' || !expense.expense_type ? (
+                                <BiUpload className="w-3 h-3" />
+                              ) : (
+                                <BiDownload className="w-3 h-3" />
+                              )}
+                            </span>
+                          </div>
                           <p className="text-sm text-gray-600 mt-1">{formatDate(expense.payment_date)}</p>
                         </div>
                         <span className="font-bold text-gray-900 text-lg">
@@ -670,7 +821,7 @@ function ExpensesContent() {
                       <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                         {expense.paid_to && (
                           <>
-                            <div className="font-medium text-gray-500">Paid To:</div>
+                            <div className="font-medium text-gray-500">Receiver:</div>
                             <div className="text-gray-900">{expense.paid_to}</div>
                           </>
                         )}
@@ -721,7 +872,6 @@ function ExpensesContent() {
                         </button>
                       </div>
                       
-                      {/* Mobile Logs Section */}
                       {expandedExpenses[expense.id] && (
                         <div className="mt-4 pt-4 border-t">
                           <h4 className="font-medium text-gray-700 mb-3">Activity Logs</h4>
@@ -738,7 +888,7 @@ function ExpensesContent() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
                 <p className="text-gray-500 text-lg mb-2">No expenses found</p>
-                {(filters.search || filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount) ? (
+                {(filters.search || filters.dateFrom || filters.dateTo || filters.minAmount || filters.maxAmount || filters.expenseType !== 'all') ? (
                   <>
                     <p className="text-gray-400 text-sm mb-4">Try adjusting your filters</p>
                     <button
@@ -755,7 +905,6 @@ function ExpensesContent() {
             )}
           </div>
 
-          {/* Pagination */}
           {pagination.totalPages > 1 && (
             <div className="max-w-7xl mx-auto mt-6">
               <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white shadow rounded-lg p-4 border">
@@ -840,7 +989,6 @@ function ExpensesContent() {
   );
 }
 
-// Main Page Component with Suspense
 export default function ExpensesPage() {
   return (
     <Suspense fallback={null}>
