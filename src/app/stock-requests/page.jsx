@@ -1,12 +1,12 @@
 'use client';
 
+import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 import Head from 'next/head';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import Footer from '@/components/Footer';
 
 function StockRequestsContent() {
   const [stockRequests, setStockRequests] = useState([]);
@@ -146,13 +146,23 @@ function StockRequestsContent() {
                   <span className="text-gray-900">Requests</span>
                 </nav>
               </div>
-              
-              <Link
-                href="/outstanding-history"
-                className="mt-4 sm:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-              >
-                Outstanding History
-              </Link>
+              <div className="mt-4 sm:mt-0 flex flex-wrap gap-2">
+                <Link
+                  href="/tds-history"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm sm:text-base whitespace-nowrap"
+                >
+                  TDS History
+                </Link>
+                
+                <Link
+                  href="/outstanding-history"
+                  className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors text-sm sm:text-base whitespace-nowrap"
+                >
+                  Outstanding History
+                </Link>
+                
+               
+              </div>
             </div>
 
             {/* Stock Requests Table */}
