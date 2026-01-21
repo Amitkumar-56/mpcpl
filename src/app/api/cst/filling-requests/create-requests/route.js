@@ -1,4 +1,3 @@
-// src/app/api/cst/filling-requests/create-requests/route.js
 import { createAuditLog } from "@/lib/auditLog";
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
@@ -99,67 +98,103 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
-    // ✅ FIXED: Day limit check - SAME AS YOUR POST ROUTE LOGIC
+    // ✅ FIXED: SIMPLIFIED DAY LIMIT CHECK - CORRECT LOGIC
     if (dayLimitVal > 0) {
       console.log('🔍 Checking day limit for customer:', customer_id);
       
-      // For day_limit customers: Check if oldest unpaid day is cleared
-      // Get oldest unpaid day's total amount
-      const oldestUnpaidDay = await executeQuery(
+      // Step 1: Get all unpaid completed transactions grouped by day
+      const unpaidDays = await executeQuery(
         `SELECT 
            DATE(completed_date) as day_date,
            SUM(totalamt) as day_total,
            COUNT(*) as transaction_count
          FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         WHERE cid = ? 
+           AND status = 'Completed' 
+           AND payment_status = 0 
          GROUP BY DATE(completed_date)
-         ORDER BY DATE(completed_date) ASC
-         LIMIT 1`,
+         ORDER BY DATE(completed_date) ASC`,
         [parseInt(customer_id)]
       );
       
-      console.log('📅 Oldest unpaid day:', oldestUnpaidDay[0]);
+      console.log('📅 Unpaid days found:', unpaidDays);
       
-      if (oldestUnpaidDay.length > 0 && oldestUnpaidDay[0].day_date) {
-        const dayTotal = parseFloat(oldestUnpaidDay[0].day_total) || 0;
-        const transactionCount = parseInt(oldestUnpaidDay[0].transaction_count) || 0;
-        const dayDate = oldestUnpaidDay[0].day_date;
+      if (unpaidDays.length > 0) {
+        // Step 2: Check if we have reached the day limit
+        // Example: if dayLimitVal = 2, we allow 2 days of unpaid transactions
+        // If unpaidDays count >= dayLimitVal, then block new requests
         
-        // Check if this day has unpaid amount - if yes, block new requests
-        if (dayTotal > 0 && transactionCount > 0) {
+        if (unpaidDays.length >= dayLimitVal) {
+          // Get the oldest unpaid day details for error message
+          const oldestUnpaidDay = unpaidDays[0];
+          const dayDate = oldestUnpaidDay.day_date;
+          const dayTotal = parseFloat(oldestUnpaidDay.day_total) || 0;
+          const transactionCount = parseInt(oldestUnpaidDay.transaction_count) || 0;
+          
+          // Format date for display
+          const formattedDate = new Date(dayDate).toLocaleDateString('en-IN', {
+            day: '2-digit',
+            month: 'short',
+            year: 'numeric'
+          });
+          
           return NextResponse.json({
             success: false,
-            message: `Day limit: Please clear the payment for ${dayDate} (₹${dayTotal.toFixed(2)}) before making new requests. Total ${transactionCount} transaction(s) pending for this day.`
+            message: `Day limit reached! You have ${unpaidDays.length} unpaid day(s) out of ${dayLimitVal} allowed.\nPlease clear payment for ${formattedDate} (₹${dayTotal.toFixed(2)}) to make new requests.`
           }, { status: 403 });
+        }
+        
+        // Step 3: Additional check - if oldest transaction is beyond allowed days
+        const oldestTransaction = await executeQuery(
+          `SELECT completed_date FROM filling_requests 
+           WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+           ORDER BY completed_date ASC LIMIT 1`,
+          [parseInt(customer_id)]
+        );
+        
+        if (oldestTransaction.length > 0 && oldestTransaction[0].completed_date) {
+          const completed = new Date(oldestTransaction[0].completed_date);
+          const today = new Date();
+          const daysElapsed = Math.floor((today - completed) / (1000 * 60 * 60 * 24));
+          
+          console.log('📆 Days elapsed calculation:', {
+            oldestDate: oldestTransaction[0].completed_date,
+            daysElapsed,
+            dayLimitVal
+          });
+          
+          // If oldest unpaid transaction is older than allowed days
+          if (daysElapsed >= dayLimitVal) {
+            const formattedDate = completed.toLocaleDateString('en-IN', {
+              day: '2-digit',
+              month: 'short',
+              year: 'numeric'
+            });
+            
+            return NextResponse.json({
+              success: false,
+              message: `Day limit exceeded! Oldest unpaid transaction from ${formattedDate} is ${daysElapsed} days old (limit: ${dayLimitVal} days).\nPlease clear oldest payment to continue.`
+            }, { status: 403 });
+          }
         }
       }
-      
-      // Also check day limit expiry (days elapsed since oldest unpaid transaction)
-      const earliestRows = await executeQuery(
-        `SELECT completed_date FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
-         ORDER BY completed_date ASC LIMIT 1`,
-        [parseInt(customer_id)]
-      );
-      
-      console.log('📅 Earliest unpaid transaction:', earliestRows[0]);
-      
-      if (earliestRows.length > 0 && earliestRows[0].completed_date) {
-        const completed = new Date(earliestRows[0].completed_date);
-        const daysUsed = Math.max(0, Math.floor((Date.now() - completed.getTime()) / (1000 * 60 * 60 * 24)));
-        
-        console.log('📆 Days calculation:', {
-          completedDate: earliestRows[0].completed_date,
-          daysUsed,
-          dayLimitVal
-        });
-        
-        if (daysUsed >= dayLimitVal) {
-          return NextResponse.json({
-            success: false,
-            message: `Day limit exceeded (${daysUsed}/${dayLimitVal} days). Please pay the oldest day's amount to continue.`
-          }, { status: 403 });
-        }
+    }
+
+    // Check credit limit for type 2 customers (but NOT for day_limit customers)
+    const typeRows = await executeQuery(
+      'SELECT client_type FROM customers WHERE id = ?',
+      [parseInt(customer_id)]
+    );
+    const clientType = typeRows.length > 0 ? String(typeRows[0].client_type) : '';
+    
+    // ✅ FIXED: Only check credit limit if NOT a day_limit customer
+    if (clientType === '2' && dayLimitVal === 0) {
+      const requestedAmount = price * (parseFloat(qty) || 0);
+      if (requestedAmount > amtLimit) {
+        return NextResponse.json({
+          success: false,
+          message: 'Insufficient credit limit. Please recharge to continue.'
+        }, { status: 403 });
       }
     }
 
@@ -308,24 +343,6 @@ export async function POST(request) {
       price = parseFloat(priceResult[0].price) || 0;
     }
 
-    // Check credit limit for type 2 customers (but NOT for day_limit customers)
-    const typeRows = await executeQuery(
-      'SELECT client_type FROM customers WHERE id = ?',
-      [parseInt(customer_id)]
-    );
-    const clientType = typeRows.length > 0 ? String(typeRows[0].client_type) : '';
-    
-    // ✅ FIXED: Only check credit limit if NOT a day_limit customer
-    if (clientType === '2' && dayLimitVal === 0) {
-      const requestedAmount = price * (parseFloat(qty) || 0);
-      if (requestedAmount > amtLimit) {
-        return NextResponse.json({
-          success: false,
-          message: 'Insufficient credit limit. Please recharge to continue.'
-        }, { status: 403 });
-      }
-    }
-
     console.log('📊 Insert Data:', {
       rid: newRid,
       fs_id: station_id,
@@ -352,9 +369,13 @@ export async function POST(request) {
         created, 
         product, 
         sub_product_id,
-        price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        price,
+        totalamt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
+
+    // Calculate total amount
+    const totalAmount = price * (parseFloat(qty) || 0);
 
     const result = await executeQuery(insertQuery, [
       newRid,
@@ -371,7 +392,8 @@ export async function POST(request) {
       currentDateStr,
       productData.product_id,
       productData.sub_product_id,
-      price
+      price,
+      totalAmount
     ]);
 
     console.log('✅ Database insert result:', result);
@@ -431,7 +453,7 @@ export async function POST(request) {
             vehicle_number: licence_plate.toUpperCase(),
             qty: parseFloat(qty) || 0,
             price: price,
-            total_amount: (price * parseFloat(qty || 0)).toFixed(2),
+            total_amount: totalAmount.toFixed(2),
             permissions: customerPermissions
           }
         });
@@ -490,7 +512,7 @@ export async function POST(request) {
         station: stationName,
         quantity: qty,
         price: price,
-        total_amount: (price * parseFloat(qty || 0)).toFixed(2),
+        total_amount: totalAmount.toFixed(2),
         request_type: request_type || 'Liter',
         message: 'Filling request created successfully'
       });

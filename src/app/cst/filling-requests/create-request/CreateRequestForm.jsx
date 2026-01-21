@@ -38,6 +38,8 @@ export default function CreateRequestForm() {
   const [selectedSubProductId, setSelectedSubProductId] = useState('')
   const [loadingSubProducts, setLoadingSubProducts] = useState(false)
   const [filterType, setFilterType] = useState('')
+  const [dayLimitStatus, setDayLimitStatus] = useState(null)
+  const [checkingEligibility, setCheckingEligibility] = useState(false)
 
   // Product configuration based on product_id
   const productConfig = {
@@ -65,6 +67,37 @@ export default function CreateRequestForm() {
     setCustomerData(user);
     fetchCustomerData(user.id);
   }, [router]);
+
+  // Check eligibility when customerId changes
+  useEffect(() => {
+    if (customerId) {
+      checkEligibility();
+    }
+  }, [customerId]);
+
+  const checkEligibility = async () => {
+    try {
+      setCheckingEligibility(true);
+      const response = await fetch('/api/cst/check-eligibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customerId })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setDayLimitStatus(data);
+        
+        if (data.success && !data.isEligible) {
+          console.log('⚠️ Customer not eligible:', data.reason);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking eligibility:', error);
+    } finally {
+      setCheckingEligibility(false);
+    }
+  };
 
   const fetchCustomerData = async (cid) => {
     try {
@@ -153,7 +186,7 @@ export default function CreateRequestForm() {
           console.log('💰 Price API Response:', data);
 
           if (data.success && data.data) {
-            const latestPrice = parseFloat(data.data.price) || 0; // ✅ Convert to number
+            const latestPrice = parseFloat(data.data.price) || 0;
             const total = latestPrice * parseFloat(formData.qty || 0);
             
             setPriceDetails({
@@ -340,9 +373,6 @@ export default function CreateRequestForm() {
           newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${unit}`;
         }
         
-        // ✅ FIX: Changed 'quantity' to 'quantityLiters'
-        // Only validate maxQuantity for non-bucket products
-        // For bucket products, allow any number of buckets
         if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantityLiters > selectedProduct.maxQuantity) {
           const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
           newErrors.qty = `Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}`;
@@ -398,7 +428,6 @@ export default function CreateRequestForm() {
       console.log('🔄 Selected Product:', product);
       
       if (product) {
-        // product.id is now the product id, not product_code id
         const productId = product.id || product.product_id;
         const productConfigData = productConfig[productId] || null;
         console.log('🎯 Product config for product_id', productId, ':', productConfigData);
@@ -548,26 +577,43 @@ export default function CreateRequestForm() {
       return;
     }
 
-    // ✅ Eligibility pre-check: block if day limit/overdue makes customer ineligible
+    // ✅ Enhanced Eligibility pre-check with detailed feedback
+    setCheckingEligibility(true);
     try {
-      const eligibilityResponse = await fetch('/api/customers/eligibility', {
+      const eligibilityResponse = await fetch('/api/cst/check-eligibility', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customerId })
+        body: JSON.stringify({ customer_id: customerId })
       });
+      
       if (eligibilityResponse.ok) {
         const eligibility = await eligibilityResponse.json();
-        if (!eligibility.isEligible) {
+        
+        if (eligibility.success && !eligibility.isEligible) {
           const msg = eligibility.reason || 'You are not eligible to create a request right now.';
-          alert(`❌ ${msg}`);
+          
+          // Show detailed alert with payment information
+          let alertMsg = `❌ ${msg}`;
+          
+          if (eligibility.pendingDays && eligibility.dayLimit) {
+            alertMsg += `\n\nPending Days: ${eligibility.pendingDays}/${eligibility.dayLimit}`;
+          }
+          
+          if (eligibility.creditUsed && eligibility.creditLimit) {
+            alertMsg += `\nCredit Used: ₹${eligibility.creditUsed.toFixed(2)} of ₹${eligibility.creditLimit.toFixed(2)}`;
+          }
+          
+          alert(alertMsg);
+          setCheckingEligibility(false);
           return;
         }
       } else {
-        // If eligibility API fails, proceed to backend which enforces checks
         console.warn('Eligibility API returned non-OK status:', eligibilityResponse.status);
       }
     } catch (eligError) {
-      console.warn('Eligibility check failed, backend will enforce eligibility:', eligError);
+      console.warn('Eligibility check failed:', eligError);
+    } finally {
+      setCheckingEligibility(false);
     }
 
     setLoading(true)
@@ -588,14 +634,14 @@ export default function CreateRequestForm() {
         console.warn('Vehicle check failed, but continuing...', checkError);
       }
 
-      // Prepare data for backend - use sub_product_id if available, otherwise product_id
+      // Prepare data for backend
       const requestData = {
-        product_id: formData.product_id, // Main product ID
-        sub_product_id: selectedSubProductId, // Sub-product (product code) ID - this is what we send
+        product_id: formData.product_id,
+        sub_product_id: selectedSubProductId,
         station_id: formData.station_id,
         licence_plate: formData.licence_plate,
         phone: formData.phone,
-        request_type: 'Liter', // Default value
+        request_type: 'Liter',
         qty: formData.qty || '0',
         remarks: formData.remarks,
         customer_id: customerId
@@ -607,7 +653,7 @@ export default function CreateRequestForm() {
       });
 
       // Create new request
-      const response = await fetch('/api/cst/create-requests', {
+      const response = await fetch('/api/cst/filling-requests/create-requests', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -640,6 +686,15 @@ export default function CreateRequestForm() {
         return;
       }
 
+      // Handle day limit error
+      if (!response.ok && result.message && (result.message.includes('day limit') || result.message.includes('Day limit'))) {
+        alert(`❌ ${result.message}`);
+        setLoading(false);
+        // Refresh eligibility status
+        checkEligibility();
+        return;
+      }
+
       if (response.ok && result.success) {
         setCreatedRequest({
           rid: result.rid,
@@ -652,6 +707,8 @@ export default function CreateRequestForm() {
           total_amount: result.total_amount
         })
         setShowOtpModal(true)
+        // Refresh eligibility status after successful creation
+        checkEligibility();
       } else {
         alert(result.message || 'Error creating request: ' + (result.message || 'Unknown error'))
       }
@@ -687,6 +744,7 @@ export default function CreateRequestForm() {
     setCalculatedBarrels(0)
     setShowFullTankMessage(false)
     setMaxQuantity(0)
+    setSelectedSubProductId('')
   }
 
   if (fetchLoading) {
@@ -835,34 +893,120 @@ export default function CreateRequestForm() {
               </div>
 
               {/* Customer Info Card */}
-              {customerData && (
-                <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-200 mb-6">
-                  <div className="flex flex-wrap gap-4 text-sm">
-                    <div className="flex items-center">
-                      <span className="font-semibold text-gray-700 mr-2">Customer:</span>
-                      <span className="text-gray-900">{customerData.name}</span>
-                    </div>
-                   
-                    {customerData.blocklocation && (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                {customerData && (
+                  <div className="bg-white rounded-xl p-5 shadow-sm border border-gray-200">
+                    <h3 className="font-semibold text-gray-700 mb-3">Customer Information</h3>
+                    <div className="space-y-2">
                       <div className="flex items-center">
-                        <span className="font-semibold text-gray-700 mr-2">Assigned Station ID:</span>
-                        <span className="text-gray-900">{customerData.blocklocation}</span>
+                        <span className="font-medium text-gray-600 mr-2">Name:</span>
+                        <span className="text-gray-900">{customerData.name}</span>
                       </div>
-                    )}
+                      {customerData.blocklocation && (
+                        <div className="flex items-center">
+                          <span className="font-medium text-gray-600 mr-2">Assigned Stations:</span>
+                          <span className="text-gray-900">{customerData.blocklocation}</span>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
+
+                {/* Day Limit Status Card */}
+                {dayLimitStatus && dayLimitStatus.dayLimit > 0 && (
+                  <div className={`rounded-xl p-5 shadow-sm border ${
+                    dayLimitStatus.isEligible === false 
+                      ? 'bg-red-50 border-red-200' 
+                      : 'bg-blue-50 border-blue-200'
+                  }`}>
+                    <div className="flex items-center mb-3">
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
+                        dayLimitStatus.isEligible === false 
+                          ? 'bg-red-100 text-red-600' 
+                          : 'bg-blue-100 text-blue-600'
+                      }`}>
+                        {dayLimitStatus.isEligible === false ? (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
+                      </div>
+                      <h3 className="font-semibold text-gray-700">Day Limit Status</h3>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Allowed Days:</span>
+                        <span className="font-semibold">{dayLimitStatus.dayLimit} days</span>
+                      </div>
+                      
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">Pending Days:</span>
+                        <span className={`font-semibold ${
+                          dayLimitStatus.pendingDays >= dayLimitStatus.dayLimit 
+                            ? 'text-red-600' 
+                            : 'text-green-600'
+                        }`}>
+                          {dayLimitStatus.pendingDays} days
+                        </span>
+                      </div>
+                      
+                      {dayLimitStatus.isEligible === false && dayLimitStatus.reason && (
+                        <div className="mt-3 p-3 bg-red-100 rounded-lg">
+                          <p className="text-sm text-red-700">{dayLimitStatus.reason}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Form Card */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden">
               <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
-                <h2 className="text-xl font-semibold text-white">New Filling Request</h2>
-                <p className="text-blue-100 text-sm mt-1">Fill in the details below to create a new request</p>
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h2 className="text-xl font-semibold text-white">New Filling Request</h2>
+                    <p className="text-blue-100 text-sm mt-1">Fill in the details below to create a new request</p>
+                  </div>
+                  {checkingEligibility && (
+                    <div className="flex items-center text-white text-sm">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Checking eligibility...
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div className="p-6">
                 <form onSubmit={handleSubmit} className="space-y-8">
+                  {/* Eligibility Warning */}
+                  {dayLimitStatus && dayLimitStatus.isEligible === false && (
+                    <div className="p-4 bg-red-50 border border-red-300 rounded-xl">
+                      <div className="flex items-center">
+                        <svg className="w-5 h-5 text-red-600 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <div>
+                          <p className="font-semibold text-red-700">Cannot Create Request</p>
+                          <p className="text-sm text-red-600 mt-1">{dayLimitStatus.reason}</p>
+                          <button
+                            type="button"
+                            onClick={() => router.push('/cst/payments')}
+                            className="mt-3 text-sm bg-red-600 text-white px-4 py-2 rounded-lg hover:bg-red-700 transition-colors"
+                          >
+                            Go to Payments
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Vehicle & Contact Section */}
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {/* Vehicle Number */}
@@ -876,9 +1020,10 @@ export default function CreateRequestForm() {
                         name="licence_plate"
                         value={formData.licence_plate}
                         onChange={handleInputChange}
+                        disabled={dayLimitStatus?.isEligible === false}
                         className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
                           errors.licence_plate ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        }`}
+                        } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder="Enter vehicle number (e.g., MP09AB1234)"
                       />
                       {errors.licence_plate && (
@@ -935,9 +1080,10 @@ export default function CreateRequestForm() {
                         name="phone"
                         value={formData.phone}
                         onChange={handleInputChange}
+                        disabled={dayLimitStatus?.isEligible === false}
                         className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
                           errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        }`}
+                        } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder="Driver phone number (10-15 digits)"
                       />
                       {errors.phone && (
@@ -964,10 +1110,11 @@ export default function CreateRequestForm() {
                           name="product_id"
                           value={formData.product_id}
                           onChange={handleChange}
+                          disabled={dayLimitStatus?.isEligible === false}
                           required
                           className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
                             errors.product_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                          }`}
+                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <option value="">Select Product</option>
                           {products.map(product => (
@@ -991,7 +1138,7 @@ export default function CreateRequestForm() {
                         </p>
                       )}
                       
-                      {/* Sub-Product Selection - Show when product is selected */}
+                      {/* Sub-Product Selection */}
                       {formData.product_id && (
                         <div className="mt-4">
                           <label htmlFor="sub_product_id" className="block text-sm font-semibold text-gray-700 mb-2">
@@ -1008,7 +1155,7 @@ export default function CreateRequestForm() {
                               name="sub_product_id"
                               value={selectedSubProductId}
                               onChange={(e) => setSelectedSubProductId(e.target.value)}
-                              disabled={loadingSubProducts || productCodes.length === 0}
+                              disabled={loadingSubProducts || productCodes.length === 0 || dayLimitStatus?.isEligible === false}
                               required={!!formData.product_id}
                               className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
                                 loadingSubProducts || productCodes.length === 0
@@ -1016,7 +1163,7 @@ export default function CreateRequestForm() {
                                   : 'border-gray-300 hover:border-gray-400'
                               } ${
                                 errors.sub_product_id ? 'border-red-500 bg-red-50' : ''
-                              }`}
+                              } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                               {loadingSubProducts ? (
                                 <option value="">Loading sub-products...</option>
@@ -1074,10 +1221,11 @@ export default function CreateRequestForm() {
                           name="station_id"
                           value={formData.station_id}
                           onChange={handleChange}
+                          disabled={dayLimitStatus?.isEligible === false}
                           required
                           className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
                             errors.station_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                          }`}
+                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <option value="">Select Filling Station</option>
                           {stations.map(station => (
@@ -1120,7 +1268,7 @@ export default function CreateRequestForm() {
                               : `Liters (Min ${selectedProduct.min}) *`
                             : "Enter Quantity *"}
                         </label>
-                        {selectedProduct?.maxQuantity && (
+                        {selectedProduct?.maxQuantity && dayLimitStatus?.isEligible !== false && (
                           <button
                             type="button"
                             onClick={handleFullTank}
@@ -1136,9 +1284,10 @@ export default function CreateRequestForm() {
                         name="aty"
                         value={formData.aty}
                         onChange={handleInputChange}
+                        disabled={dayLimitStatus?.isEligible === false}
                         className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
                           errors.qty ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        }`}
+                        } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder={selectedProduct
                           ? selectedProduct.type === "bucket"
                             ? "Enter number of buckets"
@@ -1169,7 +1318,7 @@ export default function CreateRequestForm() {
                             ? `${calculatedBarrels} Barrel${calculatedBarrels > 1 ? "s" : ""} (${formData.qty}L)`
                             : `${formData.qty} Liters`
                         }
-                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl bg-gray-50 text-center font-medium cursor-not-allowed"
+                        className="w-full px-4 py-3 border-2 border-gray-300 rounded-xl bg-gray-50 text-center font-medium cursor-not-allowed opacity-70"
                         disabled
                         placeholder="Auto-calculated"
                       />
@@ -1180,6 +1329,26 @@ export default function CreateRequestForm() {
                       )}
                     </div>
                   </div>
+
+                  {/* Price Information */}
+                  {priceDetails.price > 0 && (
+                    <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="text-center">
+                          <p className="text-sm text-gray-600">Price per Liter</p>
+                          <p className="text-xl font-bold text-blue-700">₹{priceDetails.price.toFixed(2)}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-gray-600">Quantity</p>
+                          <p className="text-xl font-bold text-gray-800">{formData.qty || 0} Ltr</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm text-gray-600">Total Amount</p>
+                          <p className="text-xl font-bold text-green-700">₹{priceDetails.totalAmount.toFixed(2)}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Full Tank Message */}
                   {showFullTankMessage && (
@@ -1201,9 +1370,10 @@ export default function CreateRequestForm() {
                       name="remarks"
                       value={formData.remarks}
                       onChange={handleInputChange}
+                      disabled={dayLimitStatus?.isEligible === false}
                       className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 resize-none ${
                         showFullTankMessage ? 'bg-red-50 border-red-300' : 'border-gray-300'
-                      }`}
+                      } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                       placeholder="Type 'full tank' to set maximum quantity automatically"
                       rows="4"
                     />
@@ -1219,7 +1389,7 @@ export default function CreateRequestForm() {
                   <div className="flex flex-col sm:flex-row gap-4 pt-6 border-t border-gray-200">
                     <button
                       type="submit"
-                      disabled={loading || !customerId}
+                      disabled={loading || !customerId || dayLimitStatus?.isEligible === false || checkingEligibility}
                       className="flex-1 bg-gradient-to-r from-blue-600 to-blue-700 text-white py-4 rounded-xl hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-4 focus:ring-blue-500 focus:ring-opacity-50 disabled:opacity-50 disabled:cursor-not-allowed font-semibold transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
                     >
                       {loading ? (
@@ -1242,7 +1412,8 @@ export default function CreateRequestForm() {
                     <button
                       type="button"
                       onClick={resetForm}
-                      className="px-8 py-4 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-xl hover:from-gray-200 hover:to-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-500 focus:ring-opacity-50 font-semibold transition-all duration-200 shadow-sm hover:shadow-md border border-gray-300"
+                      disabled={dayLimitStatus?.isEligible === false}
+                      className="px-8 py-4 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-xl hover:from-gray-200 hover:to-gray-300 focus:outline-none focus:ring-4 focus:ring-gray-500 focus:ring-opacity-50 font-semibold transition-all duration-200 shadow-sm hover:shadow-md border border-gray-300 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="flex items-center justify-center">
                         <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1265,14 +1436,14 @@ export default function CreateRequestForm() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="font-semibold text-blue-900 mb-2">Need Help?</h3>
+                  <h3 className="font-semibold text-blue-900 mb-2">About Day Limit</h3>
                   <ul className="text-sm text-blue-800 space-y-1">
-                    <li>• Ensure vehicle number is correct and matches registration</li>
-                    <li>• Driver phone number should be active and accessible</li>
-                    <li>• Select the appropriate product from the list</li>
-                    <li>• Station is auto-selected based on your assigned location</li>
-                    <li>• OTP will be generated and must be shared with the driver</li>
-                    <li>• Use "Full Tank" button or type "full tank" in remarks for maximum quantity</li>
+                    <li>• Day limit means you can have unpaid transactions for a certain number of days</li>
+                    <li>• Example: If your day limit is 2, you can have unpaid transactions for 2 days</li>
+                    <li>• Once you reach the limit, you must clear the oldest day's payment</li>
+                    <li>• Each day is counted based on transaction completion date</li>
+                    <li>• Multiple transactions on the same day count as 1 day</li>
+                    <li>• Clear your pending payments to continue creating requests</li>
                   </ul>
                 </div>
               </div>
