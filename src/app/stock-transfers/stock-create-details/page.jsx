@@ -1,3 +1,4 @@
+// src/app/stock-transfers/stock-create-details/page.jsx
 'use client';
 
 import Link from 'next/link';

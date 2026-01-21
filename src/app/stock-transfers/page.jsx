@@ -343,7 +343,7 @@ function StockTransfersContent() {
                                         onClick={() => {
                                           console.log('View Details clicked for transfer:', transfer, 'ID:', transferId);
                                           // Update URL with query parameter
-                                          router.push(`/stock-transfers?id=${transferId}`, { scroll: false });
+                                          router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
                                           // Expand the row
                                           setExpandedRows(prev => new Set([...prev, transferId]));
                                         }}
