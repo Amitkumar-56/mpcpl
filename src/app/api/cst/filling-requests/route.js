@@ -1,4 +1,3 @@
-// src/app/api/cst/filling-requests/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -12,6 +11,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
       return parseFloat(exactRows[0].price);
     }
   }
+  
   if (sub_product_id) {
     const stationRows = await executeQuery(
       "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND is_active = 1 LIMIT 1",
@@ -21,6 +21,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
       return parseFloat(stationRows[0].price);
     }
   }
+  
   const customerRows = await executeQuery(
     "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1",
     [station_id, product_id, com_id]
@@ -28,6 +29,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   if (Array.isArray(customerRows) && customerRows.length > 0) {
     return parseFloat(customerRows[0].price);
   }
+  
   const productRows = await executeQuery(
     "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND is_active = 1 LIMIT 1",
     [station_id, product_id]
@@ -35,7 +37,23 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   if (Array.isArray(productRows) && productRows.length > 0) {
     return parseFloat(productRows[0].price);
   }
+  
   return defaultPrice;
+}
+
+function getStatusClass(status) {
+  switch (status) {
+    case 'Pending':
+      return "text-yellow-600";
+    case 'Cancelled':
+      return "text-red-600";
+    case 'Processing':
+      return "text-blue-600";
+    case 'Completed':
+      return "text-green-600";
+    default:
+      return "text-gray-600";
+  }
 }
 
 export async function GET(request) {
@@ -75,19 +93,19 @@ export async function GET(request) {
         [customerIdInt]
       );
       
-      if (customerCheck.length === 0) {
+      if (!Array.isArray(customerCheck) || customerCheck.length === 0) {
         console.log("⚠️ CST API: Customer not found with ID:", customerIdInt);
         return NextResponse.json(
           { success: false, message: 'Customer not found', requests: [] },
           { status: 404 }
         );
       }
-      console.log("✅ CST API: Customer found:", customerCheck[0].name);
+      console.log("✅ CST API: Customer found:", customerCheck[0]?.name);
     } catch (checkError) {
       console.error("⚠️ CST API: Error checking customer:", checkError);
     }
 
-    // Build query based on filters - SIMPLIFIED FOR CST
+    // Build query based on filters
     let query = `
       SELECT 
         fr.*, 
@@ -162,167 +180,92 @@ export async function GET(request) {
       WHERE fr.cid = ?
     `;
     
-    let params = [customerIdInt];
-    let conditions = [];
-
-    // Add status filter if provided and not 'All'
-    if (status && status !== 'All') {
-      conditions.push(`LOWER(fr.status) = ?`);
-      params.push(status.toLowerCase());
-    }
-
-    // Add conditions to query
-    if (conditions.length > 0) {
-      query += ` AND ` + conditions.join(' AND ');
+    let queryParams = [customerIdInt];
+    
+    // Add status filter if provided
+    if (status) {
+      query += " AND fr.status = ?";
+      queryParams.push(status);
     }
     
-    // Add ordering
-    query += ` ORDER BY fr.created DESC, fr.id DESC`;
-
-    console.log("📝 CST API: Executing query");
+    // Add ORDER BY to show latest requests first
+    query += " ORDER BY fr.created DESC";
     
-    // Execute query with error handling
-    let rows = [];
-    try {
-      rows = await executeQuery(query, params);
-      console.log("✅ CST API: Query executed successfully");
-      
-      // ✅ Ensure rows is an array
-      if (!Array.isArray(rows)) {
-        console.error("❌ CST API: Query did not return an array:", typeof rows);
-        rows = [];
-      }
-      
-      console.log("✅ CST API: Found requests:", rows.length);
-      
-      // ✅ Process requests WITH eligibility check (Admin वाली तरह)
-      const processedRequests = await Promise.all(rows.map(async (request) => {
-        const createdName =
-          request.created_by_name &&
-          typeof request.created_by_name === 'string' &&
-          request.created_by_name.toUpperCase() === 'SWIFT'
-            ? null
-            : request.created_by_name;
-        let eligibility = 'N/A';
-        let eligibility_reason = '';
-
-        const qty = parseFloat(request.qty) || 0;
-        const balance = parseFloat(request.balance) || 0;
-
-        if (request.status === 'Pending' || request.status === 'pending') {
-          // Check eligibility based on customer type and limits
-          const dayLimit = request.day_limit ? parseInt(request.day_limit) || 0 : 0;
-          const amtLimit = request.credit_limit ? parseFloat(request.credit_limit) || 0 : 0;
-          const isDayLimitCustomer = dayLimit > 0;
-          
-          console.log('🔍 Eligibility Check for Request:', {
-            requestId: request.rid,
-            status: request.status,
-            dayLimit,
-            amtLimit,
-            balance,
-            isDayLimitCustomer,
-            qty
-          });
-          
-          // For day limit customers, check day limit eligibility
-          if (isDayLimitCustomer) {
-            // Get unpaid days count for this customer
-            try {
-              const unpaidDaysQuery = `
-                SELECT COUNT(DISTINCT DATE(completed_date)) as unpaid_days
-                FROM filling_requests 
-                WHERE cid = ? 
-                  AND status = 'Completed' 
-                  AND payment_status = 0
-              `;
-              const unpaidDaysResult = await executeQuery(unpaidDaysQuery, [request.cid]);
-              const unpaidDays = unpaidDaysResult[0]?.unpaid_days || 0;
-              
-              console.log('📊 Day Limit Check:', {
-                unpaidDays,
-                dayLimit
-              });
-              
-              if (unpaidDays >= dayLimit) {
-                eligibility = 'No';
-                eligibility_reason = `Day limit reached (${unpaidDays}/${dayLimit} days)`;
-              } else {
-                eligibility = 'Yes';
-              }
-            } catch (error) {
-              console.error('Error checking day limit:', error);
-              eligibility = 'Yes'; // Default to Yes if error
-            }
-          } 
-          // For amount limit customers, check against Quantity × Price ≤ Limit
-          else if (amtLimit > 0) {
-            try {
-              const price = await getFuelPrice(request.fs_id, request.product_id, request.sub_product_id, request.cid, 0);
-              const totalAmount = (parseFloat(qty) || 0) * (parseFloat(price) || 0);
-              if (totalAmount <= amtLimit) {
-                eligibility = 'Yes';
-              } else {
-                eligibility = 'No';
-                eligibility_reason = `Insufficient balance (Total: ₹${totalAmount.toFixed(2)}, Limit: ₹${amtLimit.toFixed(2)}, Price: ₹${price.toFixed(2)})`;
-              }
-            } catch (error) {
-              eligibility = 'Yes';
-            }
-          }
-          // No limits set - eligible by default
-          else {
-            eligibility = 'Yes';
-          }
-        }
-
-        // Format dates
-        const createdDate = new Date(request.created);
-        const formattedDate = createdDate.toLocaleDateString('en-GB');
-        const formattedTime = createdDate.toLocaleTimeString('en-US', { 
-          hour: '2-digit', 
-          minute: '2-digit',
-          hour12: true 
-        });
-        
-        return {
-          ...request,
-          created_by_name: createdName,
-          eligibility,
-          eligibility_reason,
-          formatted_date: formattedDate,
-          formatted_time: formattedTime,
-          can_edit: (request.status === 'Pending' || request.status === 'pending') && eligibility === 'Yes'
-        };
-      }));
-
-      return NextResponse.json({ 
-        success: true, 
-        requests: processedRequests || [],
-        count: processedRequests?.length || 0 
-      });
-      
-    } catch (queryError) {
-      console.error("❌ CST API: Query execution error:", queryError);
-      console.error("❌ CST API: Error message:", queryError.message);
-      
+    console.log("📝 CST API: Executing query with params:", queryParams);
+    
+    // Execute the main query
+    const requests = await executeQuery(query, queryParams);
+    
+    if (!Array.isArray(requests)) {
+      console.log("⚠️ CST API: No requests found or query returned invalid data");
       return NextResponse.json(
         { 
-          success: false, 
-          message: `Database error: ${queryError.message}`, 
-          requests: [],
-          error: queryError.message
+          success: true, 
+          message: 'No requests found', 
+          requests: [] 
         }, 
-        { status: 500 }
+        { status: 200 }
       );
     }
+    
+    console.log(`✅ CST API: Found ${requests.length} requests`);
+    
+    // Calculate eligibility and fetch prices for each request
+    const enrichedRequests = await Promise.all(
+      requests.map(async (request) => {
+        try {
+          // Get price for this request
+          const price = await getFuelPrice(
+            request.fs_id,
+            request.product_id,
+            request.sub_product_id,
+            customerIdInt,
+            request.price || 0
+          );
+          
+          const totalPrice = request.qty * price;
+          const isEligible = totalPrice <= (request.credit_limit || 0);
+          
+          return {
+            ...request,
+            price: price,
+            totalPrice,
+            isEligible,
+            eligibility: isEligible ? "Yes" : "No",
+            eligibilityClass: isEligible ? "text-green-600" : "text-red-600",
+            statusClass: getStatusClass(request.status)
+          };
+        } catch (priceError) {
+          console.error("Error fetching price for request:", request.rid, priceError);
+          return {
+            ...request,
+            price: request.price || 0,
+            totalPrice: request.qty * (request.price || 0),
+            isEligible: false,
+            eligibility: "Error",
+            eligibilityClass: "text-red-600",
+            statusClass: getStatusClass(request.status)
+          };
+        }
+      })
+    );
+    
+    // Return successful response
+    return NextResponse.json(
+      { 
+        success: true, 
+        message: `Found ${enrichedRequests.length} requests`, 
+        requests: enrichedRequests 
+      }, 
+      { status: 200 }
+    );
     
   } catch (error) {
     console.error("❌ CST API GET error:", error);
     return NextResponse.json(
       { 
         success: false, 
-        message: error.message, 
+        message: error.message || 'Internal server error', 
         requests: [] 
       }, 
       { status: 500 }

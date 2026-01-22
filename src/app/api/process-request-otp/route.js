@@ -15,6 +15,14 @@ export async function POST(request) {
         { status: 401 }
       );
     }
+    
+    const roleNum = Number(currentUser.role);
+    if (![1, 2].includes(roleNum)) {
+      return NextResponse.json(
+        { success: false, error: 'Not allowed on this page. Use admin processing page.' },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json();
     const { requestId, otp } = body;
@@ -78,23 +86,13 @@ export async function POST(request) {
       );
     }
     
-    // ✅✅✅ FIX: ALWAYS ACCEPT OTP - NO PRODUCTION CHECK
-    console.log('✅ OTP Accepted (Always):', otp);
+    console.log('OTP Accepted:', otp);
     
-    // ✅ Optional: Check if we should bypass OTP verification for specific users
-    const userRolesForBypass = [5, 3, 2]; // Admin, Team Leader, Incharge
-    const shouldBypassOTP = currentUser.role && userRolesForBypass.includes(Number(currentUser.role));
-    
-    if (shouldBypassOTP) {
-      console.log(`👤 User ${currentUser.userId} (Role: ${currentUser.role}) - OTP bypassed`);
-    }
-    
-    // ✅ Log OTP verification for audit
     try {
       await executeQuery(
         `INSERT INTO otp_logs (request_id, otp_entered, verified_by, verified_at, bypassed) 
          VALUES (?, ?, ?, NOW(), ?)`,
-        [requestId, otp, currentUser.userId, shouldBypassOTP ? 1 : 0]
+        [requestId, otp, currentUser.userId, 0]
       );
     } catch (logError) {
       console.log('📝 OTP log skipped (table may not exist):', logError.message);

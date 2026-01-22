@@ -20,6 +20,8 @@ export async function GET(request) {
         ui.remarks,
         ui.type,
         ui.tds_deduction as tds_amount,
+        ui.tds_status,
+        ui.tds_payment_date,
         s.invoice_number,
         s.invoice_date,
         s.v_invoice_value,
@@ -50,24 +52,50 @@ export async function GET(request) {
 
     tdsQuery += ' ORDER BY ui.date DESC, sup.name ASC';
 
-    const tdsRows = await executeQuery(tdsQuery, params);
+    let tdsRows;
+    try {
+      tdsRows = await executeQuery(tdsQuery, params);
+    } catch (err) {
+      // Auto-migration: If column missing, add it and retry
+      if (err.code === 'ER_BAD_FIELD_ERROR' || err.message.includes('Unknown column')) {
+        console.log('⚠️ TDS columns missing, adding them...');
+        try {
+          await executeQuery("ALTER TABLE update_invoice ADD COLUMN tds_status ENUM('Due', 'Paid') DEFAULT 'Due'");
+          await executeQuery("ALTER TABLE update_invoice ADD COLUMN tds_payment_date DATETIME NULL");
+          console.log('✅ TDS columns added');
+          // Retry query
+          tdsRows = await executeQuery(tdsQuery, params);
+        } catch (alterErr) {
+           // If retry fails (e.g. only one column was missing), just fail or try simpler
+           console.error('Migration failed:', alterErr);
+           throw err; 
+        }
+      } else {
+        throw err;
+      }
+    }
 
     // Group by supplier and calculate totals
     const supplierSummary = {};
     const allData = tdsRows.map(row => {
       const supplierId = row.supplier_id;
       const tdsAmount = parseFloat(row.tds_amount || 0);
+      const isPaid = row.tds_status === 'Paid';
       
       if (!supplierSummary[supplierId]) {
         supplierSummary[supplierId] = {
           supplier_id: supplierId,
           supplier_name: row.supplier_name,
           total_tds: 0,
+          pending_tds: 0,
           entries: 0
         };
       }
       
       supplierSummary[supplierId].total_tds += tdsAmount;
+      if (!isPaid) {
+        supplierSummary[supplierId].pending_tds += tdsAmount;
+      }
       supplierSummary[supplierId].entries += 1;
 
       return {
@@ -80,6 +108,8 @@ export async function GET(request) {
         remarks: row.remarks,
         type: row.type,
         tds_amount: tdsAmount,
+        tds_status: row.tds_status || 'Due',
+        tds_payment_date: row.tds_payment_date,
         payment: parseFloat(row.payment || 0),
         v_invoice_value: parseFloat(row.v_invoice_value || 0)
       };
@@ -90,6 +120,7 @@ export async function GET(request) {
     
     // Calculate overall totals
     const overallTotal = summaryArray.reduce((sum, supplier) => sum + supplier.total_tds, 0);
+    const overallPending = summaryArray.reduce((sum, supplier) => sum + supplier.pending_tds, 0);
     const totalEntries = allData.length;
 
     return NextResponse.json({
@@ -97,6 +128,7 @@ export async function GET(request) {
       summary: summaryArray,
       totals: {
         overall_tds: overallTotal,
+        overall_pending: overallPending,
         total_entries: totalEntries,
         total_suppliers: summaryArray.length
       }
@@ -104,6 +136,37 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('Error fetching all TDS history:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request) {
+  try {
+    const { ids } = await request.json();
+    
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'No IDs provided' }, { status: 400 });
+    }
+
+    const placeholders = ids.map(() => '?').join(',');
+    const query = `
+      UPDATE update_invoice 
+      SET tds_status = 'Paid', tds_payment_date = NOW() 
+      WHERE id IN (${placeholders})
+    `;
+
+    await executeQuery(query, ids);
+
+    return NextResponse.json({ 
+      success: true, 
+      message: `${ids.length} TDS entries marked as Paid` 
+    });
+
+  } catch (error) {
+    console.error('Error updating TDS status:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }

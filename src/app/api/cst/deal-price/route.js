@@ -4,117 +4,224 @@ import { NextResponse } from "next/server";
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    const customer_id = searchParams.get("customer_id");
+    const com_id = searchParams.get("com_id"); // Customer company ID
     const station_id = searchParams.get("station_id");
     const product_id = searchParams.get("product_id");
     const sub_product_id = searchParams.get("sub_product_id");
 
-    console.log('🔍 Deal Price Search Params:', {
-      customer_id,
+    console.log('🔍 Deal Price Search Parameters:', {
+      com_id,
       station_id,
       product_id,
       sub_product_id
     });
 
-    if (!customer_id || !station_id || !product_id) {
+    // Validate required parameters
+    if (!com_id || !station_id || !product_id) {
       return NextResponse.json(
         {
           success: false,
-          message: "Missing required parameters",
+          message: "Missing required parameters: com_id, station_id, and product_id are required",
         },
         { status: 400 }
       );
     }
 
-    const priceQuery = `
-      SELECT 
-        dp.price,
-        p.pname AS product_name,
-        fs.station_name,
-        pc.pcode as sub_product_code
-      FROM deal_price dp
-      LEFT JOIN products p ON dp.product_id = p.id
-      LEFT JOIN filling_stations fs ON dp.station_id = fs.id
-      LEFT JOIN product_codes pc ON dp.sub_product_id = pc.id
-      WHERE dp.com_id = ? 
-        AND dp.station_id = ?
-        AND dp.product_id = ?
-        ${sub_product_id ? 'AND dp.sub_product_id = ?' : ''}
-        AND dp.is_active = 1
-        AND dp.status = 'active'
-      ORDER BY dp.updated_date DESC
-      LIMIT 1
-    `;
+    // Parse IDs
+    const parsedComId = parseInt(com_id);
+    const parsedStationId = parseInt(station_id);
+    const parsedProductId = parseInt(product_id);
+    const parsedSubProductId = sub_product_id ? parseInt(sub_product_id) : null;
 
-    const queryParams = [
-      customer_id,
-      station_id,
-      product_id,
-    ];
-    
-    if (sub_product_id) {
-      queryParams.push(sub_product_id);
+    if (isNaN(parsedComId) || isNaN(parsedStationId) || isNaN(parsedProductId)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid ID parameters",
+        },
+        { status: 400 }
+      );
     }
 
-    const prices = await executeQuery(priceQuery, queryParams);
+    let priceData = null;
+    let priceType = '';
 
-    console.log('💰 Deal Price Results:', {
-      found: prices.length > 0,
-      price: prices[0]?.price || 0,
-      product_name: prices[0]?.product_name,
-      sub_product_code: prices[0]?.sub_product_code
-    });
-
-    // If no price found for sub-product, try to get price for main product
-    if (prices.length === 0 && sub_product_id) {
-      console.log('🔄 No sub-product price found, trying main product price...');
-      
-      const fallbackQuery = `
+    // STRATEGY 1: First try to get exact match with sub_product_id
+    if (parsedSubProductId && !isNaN(parsedSubProductId)) {
+      const exactQuery = `
         SELECT 
+          dp.id,
           dp.price,
+          dp.com_id,
+          dp.station_id,
+          dp.product_id,
+          dp.sub_product_id,
+          dp.Schedule_Date,
+          dp.Schedule_Time,
+          dp.updated_date,
           p.pname AS product_name,
           fs.station_name,
-          'Main Product' as sub_product_code
+          pc.pcode as sub_product_code,
+          pc.name as sub_product_name
+        FROM deal_price dp
+        LEFT JOIN products p ON dp.product_id = p.id
+        LEFT JOIN filling_stations fs ON dp.station_id = fs.id
+        LEFT JOIN product_codes pc ON dp.sub_product_id = pc.id
+        WHERE dp.com_id = ? 
+          AND dp.station_id = ?
+          AND dp.product_id = ?
+          AND dp.sub_product_id = ?
+          AND dp.is_active = 1
+          AND dp.status = 'active'
+          AND dp.is_applied = 1
+        ORDER BY dp.updated_date DESC
+        LIMIT 1
+      `;
+
+      const exactResult = await executeQuery({
+        query: exactQuery,
+        values: [parsedComId, parsedStationId, parsedProductId, parsedSubProductId]
+      });
+
+      if (exactResult && exactResult.length > 0) {
+        priceData = exactResult[0];
+        priceType = 'exact_sub_product';
+        console.log('✅ Found exact sub-product price');
+      }
+    }
+
+    // STRATEGY 2: If no exact sub-product match, try main product price (sub_product_id IS NULL or 0)
+    if (!priceData) {
+      const mainProductQuery = `
+        SELECT 
+          dp.id,
+          dp.price,
+          dp.com_id,
+          dp.station_id,
+          dp.product_id,
+          dp.sub_product_id,
+          dp.Schedule_Date,
+          dp.Schedule_Time,
+          dp.updated_date,
+          p.pname AS product_name,
+          fs.station_name,
+          NULL as sub_product_code,
+          NULL as sub_product_name
         FROM deal_price dp
         LEFT JOIN products p ON dp.product_id = p.id
         LEFT JOIN filling_stations fs ON dp.station_id = fs.id
         WHERE dp.com_id = ? 
           AND dp.station_id = ?
           AND dp.product_id = ?
+          AND (dp.sub_product_id IS NULL OR dp.sub_product_id = 0 OR dp.sub_product_id = '')
           AND dp.is_active = 1
           AND dp.status = 'active'
-          AND (dp.sub_product_id IS NULL OR dp.sub_product_id = '')
+          AND dp.is_applied = 1
         ORDER BY dp.updated_date DESC
         LIMIT 1
       `;
 
-      const fallbackPrices = await executeQuery(fallbackQuery, [
-        customer_id,
-        station_id,
-        product_id
-      ]);
+      const mainProductResult = await executeQuery({
+        query: mainProductQuery,
+        values: [parsedComId, parsedStationId, parsedProductId]
+      });
 
-      if (fallbackPrices.length > 0) {
-        console.log('✅ Using main product price as fallback');
-        return NextResponse.json({
-          success: true,
-          data: fallbackPrices[0] || null,
-          message: 'Using main product price (sub-product price not found)'
-        });
+      if (mainProductResult && mainProductResult.length > 0) {
+        priceData = mainProductResult[0];
+        priceType = 'main_product';
+        console.log('✅ Found main product price');
+        
+        // If sub_product_id was requested but we're using main product price,
+        // we can still fetch sub-product details
+        if (parsedSubProductId && !isNaN(parsedSubProductId)) {
+          const subProductQuery = `
+            SELECT pcode, name 
+            FROM product_codes 
+            WHERE id = ? 
+            LIMIT 1
+          `;
+          
+          const subProductResult = await executeQuery({
+            query: subProductQuery,
+            values: [parsedSubProductId]
+          });
+          
+          if (subProductResult && subProductResult.length > 0) {
+            priceData.sub_product_code = subProductResult[0].pcode;
+            priceData.sub_product_name = subProductResult[0].name;
+          }
+        }
       }
     }
 
+    // STRATEGY 3: Check if there's any price for this customer at this station (any product)
+    if (!priceData) {
+      const anyProductQuery = `
+        SELECT 
+          dp.id,
+          dp.price,
+          dp.com_id,
+          dp.station_id,
+          dp.product_id,
+          dp.sub_product_id,
+          p.pname AS product_name,
+          fs.station_name
+        FROM deal_price dp
+        LEFT JOIN products p ON dp.product_id = p.id
+        LEFT JOIN filling_stations fs ON dp.station_id = fs.id
+        WHERE dp.com_id = ? 
+          AND dp.station_id = ?
+          AND dp.is_active = 1
+          AND dp.status = 'active'
+          AND dp.is_applied = 1
+        ORDER BY dp.updated_date DESC
+        LIMIT 1
+      `;
+
+      const anyProductResult = await executeQuery({
+        query: anyProductQuery,
+        values: [parsedComId, parsedStationId]
+      });
+
+      if (anyProductResult && anyProductResult.length > 0) {
+        priceData = anyProductResult[0];
+        priceType = 'any_product';
+        console.log('⚠️ Using any available product price as fallback');
+      }
+    }
+
+    // If still no price found
+    if (!priceData) {
+      console.log('❌ No active price found for the given parameters');
+      return NextResponse.json({
+        success: false,
+        data: null,
+        message: 'No active price found for this customer, station, and product combination',
+        price_type: 'not_found'
+      }, { status: 404 });
+    }
+
+    console.log('💰 Final Price Data:', {
+      price: priceData.price,
+      product_name: priceData.product_name,
+      sub_product: priceData.sub_product_name || 'Main Product',
+      price_type: priceType
+    });
+
     return NextResponse.json({
       success: true,
-      data: prices[0] || null,
-      count: prices.length,
+      data: priceData,
+      price_type: priceType,
+      message: `Price found (${priceType})`
     });
+
   } catch (error) {
     console.error("❌ Deal Price API Error:", error);
     return NextResponse.json(
       {
         success: false,
-        message: "Server error: " + error.message,
+        message: "Internal server error: " + error.message,
+        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );

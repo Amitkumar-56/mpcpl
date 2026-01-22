@@ -110,31 +110,58 @@ export async function PUT(request) {
       );
     }
 
-    // Update the request
+    // First, let's check what columns exist in the table
+    const checkColumnsQuery = 'SHOW COLUMNS FROM filling_requests';
+    const columnsResult = await executeQuery(checkColumnsQuery);
+    const columnNames = columnsResult.map(col => col.Field);
+    console.log('📋 Available columns:', columnNames);
+
+    // Check if vehicle_number and phone columns exist
+    const hasVehicleColumn = columnNames.includes('vehicle_number');
+    const hasPhoneColumn = columnNames.includes('phone');
+    
+    console.log(`Has vehicle_number: ${hasVehicleColumn}, Has phone: ${hasPhoneColumn}`);
+
+    // Build dynamic update query based on available columns
+    let updateFields = [];
+    let updateValues = [];
+
+    // Always update these fields
+    updateFields.push('sub_product_id = ?', 'fs_id = ?', 'cid = ?', 'qty = ?', 'updated_at = NOW()');
+    updateValues.push(product, station, customer, qty);
+
+    // Add vehicle_number if column exists
+    if (hasVehicleColumn && vehicle_number !== undefined) {
+      updateFields.push('vehicle_number = ?');
+      updateValues.push(vehicle_number);
+    }
+
+    // Add phone if column exists
+    if (hasPhoneColumn && driver_number !== undefined) {
+      updateFields.push('phone = ?');
+      updateValues.push(driver_number);
+    }
+
+    // Add aqty if provided
+    if (aqty !== undefined) {
+      updateFields.push('aqty = ?');
+      updateValues.push(aqty);
+    }
+
+    // Add id for WHERE clause
+    updateValues.push(id);
+
+    // Create the update query
     const updateQuery = `
       UPDATE filling_requests 
-      SET 
-        sub_product_id = ?,
-        fs_id = ?,
-        cid = ?,
-        licence_plate = ?,
-        phone = ?,
-        qty = ?,
-        aqty = ?,
-        updated_at = NOW()
+      SET ${updateFields.join(', ')}
       WHERE id = ?
     `;
 
-    await executeQuery(updateQuery, [
-      product,
-      station,
-      customer,
-      vehicle_number,
-      driver_number,
-      qty,
-      aqty || null,
-      id
-    ]);
+    console.log('🔄 Update query:', updateQuery);
+    console.log('📊 Update values:', updateValues);
+
+    await executeQuery(updateQuery, updateValues);
 
     console.log('✅ Request updated successfully');
 

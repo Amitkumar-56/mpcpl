@@ -18,7 +18,8 @@ export async function POST(request) {
       request_type,
       qty,
       remarks,
-      customer_id
+      customer_id,
+      sub_product_id
     } = body;
 
     // Validate required fields
@@ -97,55 +98,99 @@ export async function POST(request) {
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
     const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // Get product details - product_id is now a product id, not product_code id
-    // Get the first product_code for this product
-    const productQuery = `
+    let chosenSubProductId = sub_product_id ? parseInt(sub_product_id) : null;
+    let productData = null;
+    const allCodesQuery = `
       SELECT 
-        pc.id as product_code_id,
+        pc.id as sub_product_id,
         pc.pcode,
         pc.product_id,
-        pc.id as sub_product_id,
-        p.pname as product_name,
-        p.id as main_product_id
-      FROM products p
-      LEFT JOIN product_codes pc ON pc.product_id = p.id
-      WHERE p.id = ?
+        p.pname as product_name
+      FROM product_codes pc
+      LEFT JOIN products p ON pc.product_id = p.id
+      WHERE pc.product_id = ?
       ORDER BY pc.id ASC
-      LIMIT 1
     `;
-    const productResult = await executeQuery(productQuery, [product_id]);
-    
-    if (productResult.length === 0 || !productResult[0].product_code_id) {
+    const codeRows = await executeQuery(allCodesQuery, [product_id]);
+    if (!codeRows || codeRows.length === 0) {
       return NextResponse.json({
         success: false,
-        message: 'Invalid product selected or no product code found for this product'
+        message: 'No product codes found for this product'
       }, { status: 400 });
     }
-
-    const productData = productResult[0];
+    const classify = (pcode) => {
+      const code = (pcode || '').toUpperCase().replace(/\s+/g, '');
+      if (product_id === 2 || product_id === 3) {
+        const isRetail = code.endsWith('R') || code.includes('-R') || code.includes('RTL') || code.includes('RETAIL');
+        return isRetail ? 'retail' : 'bulk';
+      } else if (product_id === 4) {
+        if (code.includes('BULK') || code.includes('DEFLB')) return 'bulk';
+        return 'retail';
+      } else if (product_id === 5) {
+        if (code.includes('BUCKET')) return 'bulk';
+        return 'retail';
+      }
+      return 'retail';
+    };
+    const qtyNum = parseFloat(qty) || 0;
+    const desired = qtyNum >= 1000 ? 'bulk' : 'retail';
+    if (!chosenSubProductId) {
+      const match = codeRows.find(r => classify(r.pcode) === desired);
+      chosenSubProductId = match ? match.sub_product_id : codeRows[0].sub_product_id;
+    }
+    const chosenRow = codeRows.find(r => r.sub_product_id === chosenSubProductId) || codeRows[0];
+    productData = {
+      product_id: chosenRow.product_id,
+      product_name: chosenRow.product_name,
+      sub_product_id: chosenRow.sub_product_id,
+      pcode: chosenRow.pcode
+    };
 
     // Get price
-    const priceQuery = `
+    let price = 0;
+    const exactPriceQuery = `
       SELECT price 
       FROM deal_price 
       WHERE com_id = ? 
         AND station_id = ?
         AND product_id = ?
+        AND sub_product_id = ?
         AND is_active = 1
         AND status = 'active'
+        AND is_applied = 1
       ORDER BY updated_date DESC
       LIMIT 1
     `;
-
-    const priceResult = await executeQuery(priceQuery, [
-      customer_id,
-      station_id,
-      productData.product_id
+    const mainPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE com_id = ? 
+        AND station_id = ?
+        AND product_id = ?
+        AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+        AND is_active = 1
+        AND status = 'active'
+        AND is_applied = 1
+      ORDER BY updated_date DESC
+      LIMIT 1
+    `;
+    const exactRes = await executeQuery(exactPriceQuery, [
+      parseInt(customer_id),
+      parseInt(station_id),
+      parseInt(productData.product_id),
+      parseInt(productData.sub_product_id)
     ]);
-
-    let price = 0;
-    if (priceResult.length > 0) {
-      price = parseFloat(priceResult[0].price) || 0;
+    if (exactRes && exactRes.length > 0) {
+      price = parseFloat(exactRes[0].price) || 0;
+    } else {
+      const mainRes = await executeQuery(mainPriceQuery, [
+        parseInt(customer_id),
+        parseInt(station_id),
+        parseInt(productData.product_id)
+      ]);
+      if (mainRes && mainRes.length > 0) {
+        price = parseFloat(mainRes[0].price) || 0;
+      }
     }
 
     console.log('📊 Insert Data:', {

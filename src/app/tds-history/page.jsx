@@ -26,13 +26,86 @@ function TDSHistoryContent() {
   });
   const [showFilter, setShowFilter] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [selectedTdsIds, setSelectedTdsIds] = useState([]);
   const [data, setData] = useState([]);
   const [summary, setSummary] = useState([]);
   const [totals, setTotals] = useState({
     overall_tds: 0,
+    overall_pending: 0,
     total_entries: 0,
     total_suppliers: 0
   });
+
+  // Handle Selection
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allDueIds = filteredData
+        .filter(item => item.tds_status !== 'Paid')
+        .map(item => item.id);
+      setSelectedTdsIds(allDueIds);
+    } else {
+      setSelectedTdsIds([]);
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    if (selectedTdsIds.includes(id)) {
+      setSelectedTdsIds(selectedTdsIds.filter(sid => sid !== id));
+    } else {
+      setSelectedTdsIds([...selectedTdsIds, id]);
+    }
+  };
+
+  const handleBulkPayment = async () => {
+    if (selectedTdsIds.length === 0) return;
+    
+    if (!confirm(`Are you sure you want to mark ${selectedTdsIds.length} TDS entries as Paid?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/tds-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selectedTdsIds })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Payment failed');
+
+      alert('TDS entries marked as Paid successfully!');
+      setSelectedTdsIds([]);
+      fetchData();
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePayOne = async (id) => {
+    if (!confirm('Mark this TDS entry as Paid?')) return;
+
+    try {
+      setLoading(true);
+      const response = await fetch('/api/tds-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [id] })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Payment failed');
+
+      alert('TDS entry marked as Paid successfully!');
+      fetchData();
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Check screen size for responsiveness
   useEffect(() => {
@@ -176,6 +249,7 @@ function TDSHistoryContent() {
       setSummary(result.summary || []);
       setTotals(result.totals || {
         overall_tds: 0,
+        overall_pending: 0,
         total_entries: 0,
         total_suppliers: 0
       });
@@ -185,6 +259,7 @@ function TDSHistoryContent() {
       setSummary([]);
       setTotals({
         overall_tds: 0,
+        overall_pending: 0,
         total_entries: 0,
         total_suppliers: 0
       });
@@ -382,6 +457,16 @@ function TDSHistoryContent() {
                 </div>
                 
                 <div className="flex items-center space-x-2 sm:space-x-3 w-full sm:w-auto">
+                  {permissions.can_edit && selectedTdsIds.length > 0 && (
+                    <button
+                      onClick={handleBulkPayment}
+                      className="flex items-center px-3 py-2 sm:px-4 sm:py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm sm:text-base transition-colors"
+                    >
+                      <IndianRupee className="h-4 w-4 mr-2" />
+                      <span className="hidden sm:inline">Pay Selected ({selectedTdsIds.length})</span>
+                      <span className="sm:hidden">Pay ({selectedTdsIds.length})</span>
+                    </button>
+                  )}
                   <button
                     onClick={() => setShowFilter(!showFilter)}
                     className={`flex items-center px-3 py-2 sm:px-4 sm:py-2 border rounded-lg text-sm sm:text-base transition-colors ${
@@ -493,6 +578,20 @@ function TDSHistoryContent() {
                     <p className="text-sm text-gray-500">Total TDS</p>
                     <p className="text-2xl font-bold text-purple-700">
                       ₹{totals.overall_tds.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-xl shadow-sm p-4 sm:p-6 border border-gray-200">
+                <div className="flex items-center">
+                  <div className="p-2 bg-red-100 rounded-lg">
+                    <IndianRupee className="h-6 w-6 text-red-600" />
+                  </div>
+                  <div className="ml-4">
+                    <p className="text-sm text-gray-500">Pending TDS</p>
+                    <p className="text-2xl font-bold text-red-700">
+                      ₹{totals.overall_pending?.toFixed(2) || '0.00'}
                     </p>
                   </div>
                 </div>
@@ -609,6 +708,23 @@ function TDSHistoryContent() {
                           className="hover:bg-gray-50 transition-colors"
                         >
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            {permissions.can_edit && tds.tds_status !== 'Paid' && (
+                              <input 
+                                type="checkbox"
+                                checked={selectedTdsIds.includes(tds.id)}
+                                onChange={() => handleSelectOne(tds.id)}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                              />
+                            )}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                             <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                               tds.tds_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                             }`}>
+                               {tds.tds_status || 'Due'}
+                             </span>
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <Building className="h-5 w-5 text-gray-400 mr-3" />
                               <div>
@@ -677,6 +793,19 @@ function TDSHistoryContent() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
+                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                          {permissions.can_edit && (
+                            <input 
+                              type="checkbox" 
+                              onChange={handleSelectAll}
+                              checked={filteredData.some(i => i.tds_status !== 'Paid') && filteredData.filter(i => i.tds_status !== 'Paid').every(i => selectedTdsIds.includes(i.id))}
+                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                            />
+                          )}
+                        </th>
+                        <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
+                          Status
+                        </th>
                         <th className="px-4 sm:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">
                           Supplier
                         </th>
@@ -758,6 +887,14 @@ function TDSHistoryContent() {
                             >
                               View Supplier
                             </button>
+                            {permissions.can_edit && tds.tds_status !== 'Paid' && (
+                              <button
+                                onClick={() => handlePayOne(tds.id)}
+                                className="text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-lg ml-2 transition-colors"
+                              >
+                                Pay
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -813,6 +950,13 @@ function TDSHistoryContent() {
                           <div>
                             <p className="font-medium text-gray-900">{tds.supplier_name}</p>
                             <p className="text-sm text-gray-500">{tds.invoice_number || '-'}</p>
+                            <div className="mt-1">
+                              <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
+                                tds.tds_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                              }`}>
+                                {tds.tds_status || 'Due'}
+                              </span>
+                            </div>
                           </div>
                           <div className="text-right">
                             <p className="text-lg font-bold text-purple-700">
@@ -856,6 +1000,14 @@ function TDSHistoryContent() {
                           >
                             View Supplier History
                           </button>
+                          {permissions.can_edit && tds.tds_status !== 'Paid' && (
+                            <button
+                              onClick={() => handlePayOne(tds.id)}
+                              className="w-full text-center text-green-600 hover:text-green-800 bg-green-50 hover:bg-green-100 py-2 rounded-lg transition-colors mt-2"
+                            >
+                              Pay TDS
+                            </button>
+                          )}
                         </div>
                       </div>
                     ))}

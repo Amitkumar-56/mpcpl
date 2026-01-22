@@ -85,6 +85,18 @@ export async function POST(request) {
       );
     }
 
+    /* 🔹 Ensure TDS columns exist */
+    try {
+      const check = await conn.query("SHOW COLUMNS FROM update_invoice LIKE 'tds_status'");
+      if (check[0].length === 0) {
+        await conn.query("ALTER TABLE update_invoice ADD COLUMN tds_status ENUM('Due', 'Paid') DEFAULT 'Due'");
+        await conn.query("ALTER TABLE update_invoice ADD COLUMN tds_payment_date DATETIME NULL");
+        console.log("✅ Added tds_status columns");
+      }
+    } catch (err) {
+      console.warn("⚠️ TDS column check warning:", err.message);
+    }
+
     /* 🔹 Fetch stock */
     const [stock] = await conn.query(
       `SELECT payable, payment 
@@ -105,20 +117,22 @@ export async function POST(request) {
     }
 
     /* 🔹 Update stock (AUTO COMMIT) */
+    // Payment increases by netAmount (cash paid)
+    // Payable decreases by paymentAmount (total liability reduction: cash + TDS)
     await conn.query(
       `UPDATE stock
        SET payment = payment + ?,
            payable = payable - ?,
            pay_date = ?
        WHERE id = ?`,
-      [netAmount, netAmount, pay_date, id]
+      [netAmount, paymentAmount, pay_date, id]
     );
 
     /* 🔹 Insert payment record */
     await conn.query(
       `INSERT INTO update_invoice
-       (supply_id, v_invoice, payment, date, remarks, type, tds_deduction)
-       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+       (supply_id, v_invoice, payment, date, remarks, type, tds_deduction, tds_status)
+       VALUES (?, ?, ?, ?, ?, 1, ?, 'Due')`,
       [
         id,
         v_invoice || null,

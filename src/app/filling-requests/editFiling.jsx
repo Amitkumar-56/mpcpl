@@ -303,6 +303,7 @@ const Icons = ({
   
   // View button logic
   const canView = permissions.can_view && (
+    (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) ||
     (request.status === "Pending" && request.eligibility === "Yes") ||
     request.status === "Processing" ||
     request.status === "Completed"
@@ -337,7 +338,9 @@ const Icons = ({
       {permissions.can_view ? (
         <button
           onClick={() => {
-            if (request.status === "Pending" && request.eligibility === "Yes" && onOtpVerify) {
+            if (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) {
+              onView(request.id);
+            } else if (request.status === "Pending" && request.eligibility === "Yes" && onOtpVerify) {
               onOtpVerify(request);
             } else {
               onView(request.id);
@@ -1652,95 +1655,12 @@ export default function FillingRequests() {
       const request = requests.find(req => req.id === requestId);
       
       if (!request) {
-        console.error("Request not found:", requestId);
         alert("Request not found");
         return;
       }
-      
-      console.log("Viewing request:", {
-        id: requestId,
-        rid: request.rid,
-        status: request.status,
-        eligibility: request.eligibility
-      });
-      
-      // If Pending and eligible, auto-process
-      if (request.status === "Pending" && request.eligibility === "Yes") {
-        console.log("Auto-processing request:", request.rid);
-        
-        try {
-          // Show loading indicator
-          const viewButton = document.querySelector(`button[onclick*="${requestId}"]`);
-          if (viewButton) {
-            viewButton.disabled = true;
-            viewButton.innerHTML = '<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>';
-          }
-          
-          // Call auto-process API
-          const processResponse = await fetch('/api/auto-process-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requestId: request.id })
-          });
-          
-          const processResult = await processResponse.json();
-          
-          // Reset button
-          if (viewButton) {
-            viewButton.disabled = false;
-            viewButton.innerHTML = `
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            `;
-          }
-          
-          if (processResponse.ok && processResult.success) {
-            console.log("Auto-process successful:", processResult.message);
-            
-            // Show success message
-            alert(`✅ ${processResult.message}\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
-            
-            // Update local state
-            setRequests(prevRequests => 
-              prevRequests.map(req => 
-                req.id === requestId 
-                  ? { ...req, status: 'Processing', eligibility: 'N/A' }
-                  : req
-              )
-            );
-            
-            // Navigate to details page
-            setTimeout(() => {
-              router.push(`/filling-details-admin?id=${requestId}`);
-            }, 500);
-            return;
-            
-          } else {
-            console.error("Auto-process failed:", processResult.error);
-            alert(`❌ ${processResult.error || 'Failed to process request'}`);
-            return;
-          }
-        } catch (apiError) {
-          console.error("API call error:", apiError);
-          alert("Network error. Please check your connection and try again.");
-          return;
-        }
-      }
-      
-      // If not eligible, show error
-      if (request.status === "Pending" && request.eligibility === "No") {
-        alert(`❌ Cannot process request:\n\n${request.eligibility_reason || "Not eligible"}`);
-        return;
-      }
-      
-      // If already Processing/Completed or not eligible, just navigate
-      console.log("Navigating to details page for request:", request.rid);
       router.push(`/filling-details-admin?id=${requestId}`);
       
     } catch (error) {
-      console.error("Error in handleView:", error);
       alert("Error processing request. Please try again.");
     }
   }, [requests, router]);

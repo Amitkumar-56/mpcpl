@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export default function EditRequestPage() {
   const router = useRouter();
@@ -42,17 +42,19 @@ export default function EditRequestPage() {
       const data = await response.json();
       
       if (data.success) {
+        // Use actual column names from database
+        const request = data.request;
         setFormData({
-          id: data.request.id,
-          rid: data.request.rid,
-          product: data.request.sub_product_id || data.request.product,
-          station: data.request.fs_id || data.request.station,
-          customer: data.request.cid || data.request.customer,
-          vehicle_number: data.request.vehicle_number || data.request.licence_plate,
-          driver_number: data.request.driver_number || data.request.phone,
-          qty: data.request.qty,
-          aqty: data.request.aqty || '',
-          status: data.request.status
+          id: request.id,
+          rid: request.rid,
+          product: request.sub_product_id || request.product,
+          station: request.fs_id || request.station,
+          customer: request.cid || request.customer,
+          vehicle_number: request.vehicle_number || '',
+          driver_number: request.phone || request.driver_number || '',
+          qty: request.qty,
+          aqty: request.aqty || '',
+          status: request.status
         });
       } else {
         setError(data.message || 'Failed to fetch request');
