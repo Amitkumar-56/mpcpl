@@ -580,22 +580,6 @@ export default function CustomerDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-4">
-                  <div className="flex items-center">
-                    <div className="p-2 rounded bg-purple-100">
-                      <BiWallet className="w-4 h-4 text-purple-600" />
-                    </div>
-                    <div className="ml-3">
-                      <h4 className="text-sm text-gray-500">Wallet</h4>
-                      <button 
-                        onClick={() => setShowRechargeModal(true)}
-                        className="text-sm text-purple-600 hover:text-purple-700"
-                      >
-                        Recharge
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Quick Actions */}
@@ -628,19 +612,7 @@ export default function CustomerDashboardPage() {
                     </div>
                   </button>
 
-                  <button 
-                    onClick={() => setShowRechargeModal(true)}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <div className="p-2 bg-purple-100 text-purple-600 rounded">
-                      <BiWallet className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-medium text-gray-800">Recharge</h4>
-                      <p className="text-sm text-gray-600">Add balance</p>
-                    </div>
-                  </button>
-
+                 
                  
                 </div>
               </div>
@@ -657,8 +629,10 @@ export default function CustomerDashboardPage() {
                     <div className="text-sm text-gray-600 mb-1">Today</div>
                     <div className="text-xl font-bold text-gray-900">₹{outstandingToday.toLocaleString()}</div>
                   </div>
-                  
-                
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <div className="text-sm text-gray-600 mb-1">Total Outstanding</div>
+                    <div className="text-xl font-bold text-purple-900">₹{outstandingTotal.toLocaleString()}</div>
+                  </div>
                 </div>
               </div>
             </div>

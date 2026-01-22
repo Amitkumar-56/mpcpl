@@ -280,11 +280,24 @@ function SupplierInvoiceHistoryContent() {
 
   const calculateRunningBalance = (transactions) => {
     let balance = 0;
+    let totalTds = 0;
+    let dueTds = 0;
+    
     return transactions.map(t => {
       if (t.type === 'Purchase') {
         balance += parseFloat(t.v_invoice_value || 0);
       } else if (t.type === 'Payment') {
-        balance -= parseFloat(t.payment || 0);
+        const paymentAmount = parseFloat(t.payment || 0);
+        const tdsAmount = parseFloat(t.tds_deduction || 0);
+        
+        // Subtract both payment and TDS from balance
+        balance -= (paymentAmount + tdsAmount);
+        
+        // Track TDS
+        totalTds += tdsAmount;
+        if (tdsAmount > 0) {
+          dueTds += tdsAmount;
+        }
       } else if (t.type === 'DNCN') {
         if (t.dncn_type === 1) { // Debit
           balance -= parseFloat(t.amount || 0);
@@ -292,7 +305,20 @@ function SupplierInvoiceHistoryContent() {
           balance += parseFloat(t.amount || 0);
         }
       }
-      return { ...t, balance: balance.toFixed(2) };
+      
+      // Check if balance is zero or less (paid)
+      const isPaid = balance <= 0;
+      
+      // Show zero instead of negative values when paid
+      const displayBalance = isPaid ? 0 : balance;
+      
+      return { 
+        ...t, 
+        balance: displayBalance.toFixed(2),
+        isPaid: isPaid,
+        totalTds: totalTds.toFixed(2),
+        dueTds: dueTds.toFixed(2)
+      };
     });
   };
 
@@ -664,12 +690,17 @@ function SupplierInvoiceHistoryContent() {
                             <span className={`text-sm font-semibold px-3 py-1 rounded ${
                               parseFloat(transaction.balance) > 0 
                                 ? 'text-red-700 bg-red-50' 
-                                : parseFloat(transaction.balance) < 0
+                                : parseFloat(transaction.balance) <= 0
                                 ? 'text-green-700 bg-green-50'
                                 : 'text-gray-700 bg-gray-50'
                             }`}>
                               ₹{parseFloat(transaction.balance || 0).toFixed(2)}
                             </span>
+                            {transaction.isPaid && (
+                              <div className="text-xs text-green-600 mt-1 font-medium">
+                                ✓ Paid
+                              </div>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -713,7 +744,9 @@ function SupplierInvoiceHistoryContent() {
                           {transaction.date ? new Date(transaction.date).toLocaleDateString('en-GB') : '-'}
                         </p>
                         <p className={`text-lg font-semibold mt-1 ${
-                          parseFloat(transaction.balance) > 0 
+                          transaction.isPaid 
+                            ? 'text-green-700' 
+                            : parseFloat(transaction.balance) > 0 
                             ? 'text-red-700' 
                             : parseFloat(transaction.balance) < 0
                             ? 'text-green-700'
@@ -721,6 +754,11 @@ function SupplierInvoiceHistoryContent() {
                         }`}>
                           ₹{parseFloat(transaction.balance || 0).toFixed(2)}
                         </p>
+                        {transaction.isPaid && (
+                          <div className="text-xs text-green-600 mt-1 font-medium">
+                            ✓ Paid
+                          </div>
+                        )}
                       </div>
                     </div>
                     

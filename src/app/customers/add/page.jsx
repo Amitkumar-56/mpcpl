@@ -1,11 +1,12 @@
+//src/app/customers/add/page.jsx
 "use client";
 
+import { useSession } from '@/context/SessionContext';
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { useSession } from '@/context/SessionContext';
 
 export default function AddCustomer() {
   const router = useRouter();
@@ -237,7 +238,6 @@ export default function AddCustomer() {
                   className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
                 >
                   <option value="1">Client</option>
-                  <option value="3">Super Client</option>
                 </select>
               </div>
               
@@ -257,6 +257,16 @@ export default function AddCustomer() {
                   type="email" 
                   name="email" 
                   className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Customer Image (Optional)</label>
+                <input
+                  type="file"
+                  name="customer_image"
+                  accept="image/*"
+                  className="w-full border p-2 sm:p-2.5 rounded text-sm sm:text-base"
                 />
               </div>
 

@@ -58,12 +58,20 @@ function FillingDetailsContent() {
 
   const handleImageChange = (imageKey, file) => {
     if (file) {
+      console.log("🖼️ Image Upload Detected:");
+      console.log("📎 Image Key:", imageKey);
+      console.log("📁 File Name:", file.name);
+      console.log("📏 File Size:", file.size, "bytes");
+      console.log("🔧 File Type:", file.type);
+      
       setImages(prev => ({
         ...prev,
         [imageKey]: file
       }));
+      
       const reader = new FileReader();
       reader.onloadend = () => {
+        console.log("✅ Image Preview Generated for:", imageKey);
         setImagePreviews(prev => ({
           ...prev,
           [imageKey]: reader.result
@@ -77,7 +85,17 @@ function FillingDetailsContent() {
     e.preventDefault();
     setSubmitting(true);
     setError('');
+
+    console.log("🟡 CST Details Form Submission Started");
+    console.log("📋 Request ID:", request?.id);
+    console.log("📊 Status:", request?.status);
+    console.log("📏 Actual Quantity:", request?.aqty);
+    console.log("💬 Remarks:", request?.remark);
+    console.log("🖼️ Images:", Object.keys(images).filter(key => images[key]).length, "files uploaded");
+
     try {
+      console.log("🌐 Sending API Request to /api/cst/filling-details");
+      
       const formData = new FormData();
       formData.append('id', request.id);
       formData.append('status', request.status);
@@ -86,31 +104,61 @@ function FillingDetailsContent() {
       Object.keys(images).forEach(key => {
         if (images[key]) {
           formData.append(key, images[key]);
+          console.log("📎 Uploading Image:", key, images[key].name);
         }
       });
+      
       const response = await fetch('/api/cst/filling-details', {
         method: 'POST',
         body: formData
       });
+
+      console.log("📡 API Response Status:", response.status);
+      
       const data = await response.json();
+      console.log("📦 API Response Data:", data);
+
       if (data.success) {
+        console.log("✅ CST Details Updated Successfully");
+        console.log("🔄 Redirecting to /cst/filling-requests");
         router.push('/cst/filling-requests');
       } else {
+        console.log("❌ API Error:", data.message);
         setError(data.message || 'Failed to update request');
       }
     } catch (error) {
+      console.error("🔴 Network Error:", error);
       setError('Error updating request: ' + error.message);
     } finally {
+      console.log("🏁 Submitting State Set to False");
       setSubmitting(false);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    console.log("🔄 Input Change Detected in Details:");
+    console.log("📝 Field Name:", name);
+    console.log("💭 New Value:", value);
+    
+    // ✅ Automatic quantity update logic
+    if (name === 'aqty') {
+      console.log("⛽ Actual Quantity Updated - Automatic Update Triggered");
+      console.log("📏 Old Actual Quantity:", request?.aqty);
+      console.log("📏 New Actual Quantity:", value);
+    }
+    
+    if (name === 'status') {
+      console.log("📊 Status Updated:", value);
+    }
+    
     setRequest(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    console.log("✅ Request State Updated");
   };
 
   if (loading) {
@@ -429,16 +477,57 @@ function FillingDetailsContent() {
             </div>
 
             <div className="mt-8 flex justify-end space-x-4">
+              {/* ✅ View Mode - Read Only */}
               <button
                 type="button"
                 onClick={() => router.back()}
                 className="px-6 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
               >
-                Cancel
+                Back to Requests
               </button>
+              
+              {/* ✅ Edit Button - Automatic Edit Enable */}
+              {request?.status === 'Pending' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log("🔧 Edit Button Clicked - Automatic Edit Mode Enabled");
+                    console.log("📋 Request ID:", request?.id);
+                    console.log("🔄 Enabling Edit Mode for All Fields");
+                    
+                    // Enable all input fields
+                    const inputs = document.querySelectorAll('input[name="aqty"], select[name="status"], textarea[name="remark"]');
+                    inputs.forEach(input => {
+                      input.removeAttribute('readonly');
+                      input.classList.remove('bg-gray-50', 'text-gray-500', 'cursor-not-allowed');
+                      input.classList.add('bg-white', 'text-gray-900');
+                    });
+                    
+                    // Show submit button
+                    const submitBtn = document.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                      submitBtn.style.display = 'inline-flex';
+                    }
+                    
+                    // Hide edit button
+                    const editBtn = document.querySelector('button[onclick*="Edit Button Clicked"]');
+                    if (editBtn) {
+                      editBtn.style.display = 'none';
+                    }
+                    
+                    console.log("✅ Edit Mode Enabled Successfully");
+                  }}
+                  className="px-6 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                >
+                  Edit Request
+                </button>
+              )}
+              
+              {/* ✅ Submit Button - Hidden by default, shown when edit mode enabled */}
               <button
                 type="submit"
                 disabled={submitting}
+                style={{ display: 'none' }}
                 className={`px-6 py-2 rounded-md font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 ${
                   submitting
                     ? 'bg-blue-400 cursor-not-allowed'

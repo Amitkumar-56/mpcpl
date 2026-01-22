@@ -211,7 +211,18 @@ function FillingRequestsPage() {
     const displayStatus = mapStatus(request.status);
     
     // ✅ केवल Pending में ही edit allow करें
-    return displayStatus === 'Pending';
+    if (displayStatus !== 'Pending') {
+      return false;
+    }
+    
+    // ✅ Day limit check
+    if (customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit) {
+      return false;
+    }
+    
+    // ✅ Regular eligibility check
+    const isEligible = request.eligibility === 'Yes';
+    return isEligible;
   };
 
   // ✅ Get edit button title/message
@@ -220,6 +231,14 @@ function FillingRequestsPage() {
     
     if (displayStatus !== 'Pending') {
       return `Cannot edit ${displayStatus} request`;
+    }
+    
+    if (customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit) {
+      return `Daily limit reached (${customerEligibility.dayCount}/${customerEligibility.dayLimit})`;
+    }
+    
+    if (request.eligibility !== 'Yes') {
+      return `Not eligible: ${request.eligibility_reason || 'Credit limit exceeded'}`;
     }
     
     return 'Edit Request';
@@ -358,7 +377,7 @@ function FillingRequestsPage() {
                 </div>
                 
                 {/* Stats Cards */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
                   <div className="bg-white rounded-lg p-3 shadow border">
                     <div className="text-sm text-gray-600">Total</div>
                     <div className="text-xl font-bold text-gray-900">{requests.length}</div>
@@ -379,6 +398,12 @@ function FillingRequestsPage() {
                     <div className="text-sm text-green-700">Completed</div>
                     <div className="text-xl font-bold text-green-800">
                       {requests.filter(r => r.status === 'completed' || r.status === 'Completed').length}
+                    </div>
+                  </div>
+                  <div className="bg-red-50 rounded-lg p-3 shadow border border-red-200">
+                    <div className="text-sm text-red-700">Cancelled</div>
+                    <div className="text-xl font-bold text-red-800">
+                      {requests.filter(r => r.status === 'cancelled' || r.status === 'Cancelled').length}
                     </div>
                   </div>
                 </div>
@@ -465,237 +490,235 @@ function FillingRequestsPage() {
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {requests.map((request, index) => (
-                          <React.Fragment key={request.id}>
-                            {/* Main Row */}
-                            <tr 
-                              className={`hover:bg-gray-50 transition-colors ${getRowBgClass(request.status)}`}
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 font-mono">
-                                {request.rid}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-medium">
-                                  {request.product_name || request.product_code || 'N/A'}
-                                </div>
-                                {request.product_code && (
-                                  <div className="text-xs text-gray-500">Code: {request.product_code}</div>
+                        {requests.flatMap((request, index) => [
+                          // Main Row
+                          <tr 
+                            key={`${request.id}-main`} 
+                            className={`hover:bg-gray-50 transition-colors ${getRowBgClass(request.status)}`}
+                          >
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 font-mono">
+                              {request.rid}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="font-medium">
+                                {request.product_name || request.product_code || 'N/A'}
+                              </div>
+                              {request.product_code && (
+                                <div className="text-xs text-gray-500">Code: {request.product_code}</div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {request.station_name || 'N/A'}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="font-medium">{request.vehicle_number}</div>
+                              <div className="text-xs text-gray-500">{request.driver_number}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <span className="font-semibold">{request.qty}</span> Ltr
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusClass(request.status)}`}>
+                                  {mapStatus(request.status)}
+                                </span>
+                                {/* ✅ Processing By */}
+                                {mapStatus(request.status) === 'Processing' && request.processing_by_name && (
+                                  <div className="text-xs text-gray-600">
+                                    Processing by: {request.processing_by_name}
+                                    {request.processed_date && (
+                                      <div className="text-gray-500">
+                                        {formatDateTime(request.processed_date)}
+                                      </div>
+                                    )}
+                                  </div>
                                 )}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {request.station_name || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-medium">{request.vehicle_number}</div>
-                                <div className="text-xs text-gray-500">{request.driver_number}</div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <span className="font-semibold">{request.qty}</span> Ltr
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
+                                {/* ✅ Completed By */}
+                                {mapStatus(request.status) === 'Completed' && request.completed_by_name && (
+                                  <div className="text-xs text-gray-600">
+                                    Completed by: {request.completed_by_name}
+                                    {request.completed_date && (
+                                      <div className="text-gray-500">
+                                        {formatDateTime(request.completed_date)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                                {/* ✅ Cancelled By */}
+                                {mapStatus(request.status) === 'Cancelled' && request.cancelled_by_name && (
+                                  <div className="text-xs text-gray-600">
+                                    Cancelled by: {request.cancelled_by_name}
+                                    {request.cancelled_date && (
+                                      <div className="text-gray-500">
+                                        {formatDateTime(request.cancelled_date)}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            {/* ✅ Eligibility Cell - केवल Pending में दिखेगा, बाकी में खाली */}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {shouldShowEligibility(request) ? (
                                 <div className="flex flex-col gap-1">
-                                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${getStatusClass(request.status)}`}>
-                                    {mapStatus(request.status)}
+                                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${
+                                    request.eligibility === 'Yes' 
+                                      ? 'bg-green-100 text-green-800 border-green-200'
+                                      : request.eligibility === 'No'
+                                      ? 'bg-red-100 text-red-800 border-red-200'
+                                      : 'bg-gray-100 text-gray-800 border-gray-200'
+                                  }`}>
+                                    {request.eligibility || 'N/A'}
                                   </span>
-                                  {/* ✅ Processing By */}
-                                  {mapStatus(request.status) === 'Processing' && request.processing_by_name && (
-                                    <div className="text-xs text-gray-600">
-                                      Processing by: {request.processing_by_name}
-                                      {request.processed_date && (
-                                        <div className="text-gray-500">
-                                          {formatDateTime(request.processed_date)}
-                                        </div>
-                                      )}
+                                  {request.eligibility_reason && request.eligibility !== 'N/A' && (
+                                    <div className="text-xs text-gray-600 max-w-xs truncate" title={request.eligibility_reason}>
+                                      {request.eligibility_reason}
                                     </div>
                                   )}
-                                  {/* ✅ Completed By */}
-                                  {mapStatus(request.status) === 'Completed' && request.completed_by_name && (
-                                    <div className="text-xs text-gray-600">
-                                      Completed by: {request.completed_by_name}
-                                      {request.completed_date && (
-                                        <div className="text-gray-500">
-                                          {formatDateTime(request.completed_date)}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-                                  {/* ✅ Cancelled By */}
-                                  {mapStatus(request.status) === 'Cancelled' && request.cancelled_by_name && (
-                                    <div className="text-xs text-gray-600">
-                                      Cancelled by: {request.cancelled_by_name}
-                                      {request.cancelled_date && (
-                                        <div className="text-gray-500">
-                                          {formatDateTime(request.cancelled_date)}
-                                        </div>
-                                      )}
+                                  {/* ✅ Day Limit Info (केवल Pending में) */}
+                                  {customerEligibility.dayLimit > 0 && (
+                                    <div className={`text-xs ${
+                                      customerEligibility.dayCount >= customerEligibility.dayLimit 
+                                        ? 'text-red-600 font-medium' 
+                                        : 'text-gray-500'
+                                    }`}>
+                                      Day: {customerEligibility.dayCount}/{customerEligibility.dayLimit}
                                     </div>
                                   )}
                                 </div>
-                              </td>
-                              {/* ✅ Eligibility Cell - केवल Pending में दिखेगा, बाकी में खाली */}
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                {shouldShowEligibility(request) ? (
-                                  <div className="flex flex-col gap-1">
-                                    <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${
-                                      request.eligibility === 'Yes' 
-                                        ? 'bg-green-100 text-green-800 border-green-200'
-                                        : request.eligibility === 'No'
-                                        ? 'bg-red-100 text-red-800 border-red-200'
-                                        : 'bg-gray-100 text-gray-800 border-gray-200'
-                                    }`}>
-                                      {request.eligibility || 'N/A'}
-                                    </span>
-                                    {request.eligibility_reason && request.eligibility !== 'N/A' && (
-                                      <div className="text-xs text-gray-600 max-w-xs truncate" title={request.eligibility_reason}>
-                                        {request.eligibility_reason}
-                                      </div>
-                                    )}
-                                    {/* ✅ Day Limit Info (केवल Pending में) */}
-                                    {customerEligibility.dayLimit > 0 && (
-                                      <div className={`text-xs ${
-                                        customerEligibility.dayCount >= customerEligibility.dayLimit 
-                                          ? 'text-red-600 font-medium' 
-                                          : 'text-gray-500'
-                                      }`}>
-                                        Day: {customerEligibility.dayCount}/{customerEligibility.dayLimit}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  // ✅ Processing/Completed/Cancelled requests में खाली (कोई text नहीं)
-                                  <div className="text-sm">
-                                    {/* खाली रहेगा */}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div>{formatDateTime(request.created)}</div>
-                                {/* ✅ Created By */}
-                                {request.created_by_name && (
-                                  <div className="text-xs text-gray-500">
-                                    By: {request.created_by_name}
-                                  </div>
-                                )}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center space-x-2">
+                              ) : (
+                                // ✅ Processing/Completed/Cancelled requests में खाली (कोई text नहीं)
+                                <div className="text-sm">
+                                  {/* खाली रहेगा */}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div>{formatDateTime(request.created)}</div>
+                              {/* ✅ Created By */}
+                              {request.created_by_name && (
+                                <div className="text-xs text-gray-500">
+                                  By: {request.created_by_name}
+                                </div>
+                              )}
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center space-x-2">
+                                <Link
+                                  href={`/cst/filling-details?id=${request.id}`}
+                                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
+                                  title="View Details"
+                                >
+                                  <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                    <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                    <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                  </svg>
+                                  View
+                                </Link>
+                                
+                                {/* ✅ Edit Button - केवल Pending में enable */}
+                                {canEditRequest(request) ? (
                                   <Link
-                                    href={`/cst/filling-details?id=${request.id}`}
-                                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500"
-                                    title="View Details"
+                                    href={`/cst/filling-requests/edit?id=${request.id}`}
+                                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-yellow-700 bg-yellow-50 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
+                                    title={getEditButtonTitle(request)}
                                   >
                                     <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                      <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
                                     </svg>
-                                    View
+                                    Edit
                                   </Link>
-                                  
-                                  {/* ✅ Edit Button - केवल Pending में हमेशा enable (eligibility से कोई मतलब नहीं) */}
-                                  {canEditRequest(request) ? (
-                                    <Link
-                                      href={`/cst/filling-requests/edit?id=${request.id}`}
-                                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-yellow-700 bg-yellow-50 hover:bg-yellow-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-yellow-500"
-                                      title="Edit Request"
-                                    >
-                                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                      </svg>
-                                      Edit
-                                    </Link>
-                                  ) : (
-                                    // ✅ Processing/Completed/Cancelled में disabled
-                                    <button
-                                      disabled
-                                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed"
-                                      title={`Cannot edit ${mapStatus(request.status)} request`}
-                                    >
-                                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                                        <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-                                      </svg>
-                                      Edit
-                                    </button>
-                                  )}
+                                ) : (
+                                  <button
+                                    disabled
+                                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-400 bg-gray-100 cursor-not-allowed"
+                                    title={getEditButtonTitle(request)}
+                                  >
+                                    <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                                    </svg>
+                                    Edit
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>,
+                          
+                          // Expanded Row (if expanded)
+                          expandedRows.has(request.id) && (
+                            <tr key={`${request.id}-expanded`} className="bg-gray-50">
+                              <td colSpan={10} className="px-6 py-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                  <div>
+                                    <div className="text-gray-500 text-sm">Created By</div>
+                                    <div className="font-medium text-gray-900">
+                                      {request.created_by_name || 'System'}
+                                    </div>
+                                    {request.created_date && (
+                                      <div className="text-xs text-gray-600 mt-1">
+                                        {formatDateTime(request.created_date)}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <div>
+                                    <div className="text-gray-500 text-sm">Remarks</div>
+                                    <div className="text-sm text-gray-900">
+                                      {request.remark || 'No remarks'}
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <div className="text-gray-500 text-sm">Additional Info</div>
+                                    <div className="text-sm text-gray-900 space-y-1">
+                                      {/* ✅ केवल Pending में Eligibility दिखाएं */}
+                                      {mapStatus(request.status) === 'Pending' && (
+                                        <div>
+                                          <span className="font-medium">Eligibility:</span> 
+                                          <span className={`ml-2 px-2 py-1 text-xs rounded ${
+                                            request.eligibility === 'Yes' 
+                                              ? 'bg-green-100 text-green-800'
+                                              : request.eligibility === 'No'
+                                              ? 'bg-red-100 text-red-800'
+                                              : 'bg-gray-100 text-gray-800'
+                                          }`}>
+                                            {request.eligibility || 'N/A'}
+                                          </span>
+                                          {request.eligibility_reason && (
+                                            <div className="text-xs text-gray-600 mt-1">
+                                              Reason: {request.eligibility_reason}
+                                            </div>
+                                          )}
+                                          {/* ✅ Day Limit in expanded view */}
+                                          {customerEligibility.dayLimit > 0 && (
+                                            <div className="text-xs mt-1">
+                                              <span className="font-medium">Day Limit:</span> 
+                                              <span className={`ml-1 ${
+                                                customerEligibility.dayCount >= customerEligibility.dayLimit 
+                                                  ? 'text-red-600 font-medium' 
+                                                  : 'text-gray-600'
+                                              }`}>
+                                                {customerEligibility.dayCount}/{customerEligibility.dayLimit}
+                                              </span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )}
+                                      {request.processing_by_name && (
+                                        <div>Processing by: {request.processing_by_name}</div>
+                                      )}
+                                      {request.completed_by_name && (
+                                        <div>Completed by: {request.completed_by_name}</div>
+                                      )}
+                                      {request.cancelled_by_name && (
+                                        <div>Cancelled by: {request.cancelled_by_name}</div>
+                                      )}
+                                    </div>
+                                  </div>
                                 </div>
                               </td>
                             </tr>
-                            
-                            {/* Expanded Row (if expanded) */}
-                            {expandedRows.has(request.id) && (
-                              <tr className="bg-gray-50">
-                                <td colSpan={10} className="px-6 py-4">
-                                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                                    <div>
-                                      <div className="text-gray-500 text-sm">Created By</div>
-                                      <div className="font-medium text-gray-900">
-                                        {request.created_by_name || 'System'}
-                                      </div>
-                                      {request.created_date && (
-                                        <div className="text-xs text-gray-600 mt-1">
-                                          {formatDateTime(request.created_date)}
-                                        </div>
-                                      )}
-                                    </div>
-                                    <div>
-                                      <div className="text-gray-500 text-sm">Remarks</div>
-                                      <div className="text-sm text-gray-900">
-                                        {request.remark || 'No remarks'}
-                                      </div>
-                                    </div>
-                                    <div>
-                                      <div className="text-gray-500 text-sm">Additional Info</div>
-                                      <div className="text-sm text-gray-900 space-y-1">
-                                        {/* ✅ केवल Pending में Eligibility दिखाएं */}
-                                        {mapStatus(request.status) === 'Pending' && (
-                                          <div>
-                                            <span className="font-medium">Eligibility:</span> 
-                                            <span className={`ml-2 px-2 py-1 text-xs rounded ${
-                                              request.eligibility === 'Yes' 
-                                                ? 'bg-green-100 text-green-800'
-                                                : request.eligibility === 'No'
-                                                ? 'bg-red-100 text-red-800'
-                                                : 'bg-gray-100 text-gray-800'
-                                            }`}>
-                                              {request.eligibility || 'N/A'}
-                                            </span>
-                                            {request.eligibility_reason && (
-                                              <div className="text-xs text-gray-600 mt-1">
-                                                Reason: {request.eligibility_reason}
-                                              </div>
-                                            )}
-                                            {/* ✅ Day Limit in expanded view */}
-                                            {customerEligibility.dayLimit > 0 && (
-                                              <div className="text-xs mt-1">
-                                                <span className="font-medium">Day Limit:</span> 
-                                                <span className={`ml-1 ${
-                                                  customerEligibility.dayCount >= customerEligibility.dayLimit 
-                                                    ? 'text-red-600 font-medium' 
-                                                    : 'text-gray-600'
-                                                }`}>
-                                                  {customerEligibility.dayCount}/{customerEligibility.dayLimit}
-                                                </span>
-                                              </div>
-                                            )}
-                                          </div>
-                                        )}
-                                        {request.processing_by_name && (
-                                          <div>Processing by: {request.processing_by_name}</div>
-                                        )}
-                                        {request.completed_by_name && (
-                                          <div>Completed by: {request.completed_by_name}</div>
-                                        )}
-                                        {request.cancelled_by_name && (
-                                          <div>Cancelled by: {request.cancelled_by_name}</div>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            )}
-                          </React.Fragment>
-                        ))}
+                          )
+                        ])}
                       </tbody>
                     </table>
                   </div>
@@ -837,7 +860,7 @@ function FillingRequestsPage() {
                               >
                                 View Details
                               </Link>
-                              {/* ✅ Mobile Edit Button - केवल Pending में हमेशा enable */}
+                              {/* ✅ Mobile Edit Button - केवल Pending में enable */}
                               {canEditRequest(request) ? (
                                 <Link 
                                   href={`/cst/filling-requests/edit?id=${request.id}`}
@@ -849,7 +872,7 @@ function FillingRequestsPage() {
                                 <button
                                   disabled
                                   className="flex-1 bg-gray-400 text-white px-3 py-2 rounded text-sm cursor-not-allowed text-center"
-                                  title={`Cannot edit ${mapStatus(request.status)} request`}
+                                  title={getEditButtonTitle(request)}
                                 >
                                   Edit
                                 </button>
@@ -898,7 +921,7 @@ function FillingRequestsPage() {
                             >
                               View
                             </Link>
-                            {/* ✅ Mobile Edit Button - केवल Pending में enable */}
+                            {/* ✅ Mobile Edit Button */}
                             {canEditRequest(request) ? (
                               <Link 
                                 href={`/cst/filling-requests/edit?id=${request.id}`}
@@ -910,7 +933,7 @@ function FillingRequestsPage() {
                               <button
                                 disabled
                                 className="bg-gray-400 text-white px-3 py-1.5 rounded text-sm cursor-not-allowed"
-                                title={`Cannot edit ${mapStatus(request.status)} request`}
+                                title={getEditButtonTitle(request)}
                               >
                                 Edit
                               </button>

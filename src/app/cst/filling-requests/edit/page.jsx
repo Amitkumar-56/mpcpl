@@ -101,10 +101,24 @@ export default function EditRequestPage() {
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
+    
+    console.log("🔄 Input Change Detected:");
+    console.log("📝 Field Name:", name);
+    console.log("💭 New Value:", value);
+    
+    // ✅ Automatic quantity update logic
+    if (name === 'qty') {
+      console.log("⛽ Quantity Updated - Automatic Update Triggered");
+      console.log("📏 Old Quantity:", formData.qty);
+      console.log("📏 New Quantity:", value);
+    }
+    
     setFormData(prev => ({
       ...prev,
       [name]: value
     }));
+    
+    console.log("✅ Form State Updated");
   };
 
   const handleSubmit = async (e) => {
@@ -112,7 +126,15 @@ export default function EditRequestPage() {
     setSubmitting(true);
     setError('');
 
+    console.log("🟡 CST Edit Form Submission Started");
+    console.log("📋 Form Data:", formData);
+    console.log("🔍 Request ID:", formData.id);
+    console.log("⛽ Product:", formData.product);
+    console.log("📏 Quantity:", formData.qty);
+
     try {
+      console.log("🌐 Sending API Request to /api/cst/filling-requests/edit");
+      
       const response = await fetch('/api/cst/filling-requests/edit', {
         method: 'PUT',
         headers: {
@@ -121,16 +143,24 @@ export default function EditRequestPage() {
         body: JSON.stringify(formData)
       });
 
+      console.log("📡 API Response Status:", response.status);
+      
       const data = await response.json();
+      console.log("📦 API Response Data:", data);
 
       if (data.success) {
+        console.log("✅ CST Request Updated Successfully");
+        console.log("🔄 Redirecting to /cst/filling-requests");
         router.push('/cst/filling-requests');
       } else {
+        console.log("❌ API Error:", data.message);
         setError(data.message || 'Failed to update request');
       }
     } catch (error) {
+      console.error("🔴 Network Error:", error);
       setError('Error updating request: ' + error.message);
     } finally {
+      console.log("🏁 Submitting State Set to False");
       setSubmitting(false);
     }
   };

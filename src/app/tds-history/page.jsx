@@ -57,51 +57,149 @@ function TDSHistoryContent() {
   };
 
   const handleBulkPayment = async () => {
-    if (selectedTdsIds.length === 0) return;
+    if (selectedTdsIds.length === 0) {
+      alert('Please select TDS entries to pay!');
+      return;
+    }
     
-    if (!confirm(`Are you sure you want to mark ${selectedTdsIds.length} TDS entries as Paid?`)) {
+    // Calculate total amount
+    const selectedEntries = data.filter(item => selectedTdsIds.includes(item.id));
+    const totalAmount = selectedEntries.reduce((sum, item) => sum + parseFloat(item.tds_amount || 0), 0);
+    
+    if (totalAmount <= 0) {
+      alert('No TDS amount to pay!');
+      return;
+    }
+
+    if (!confirm(`Pay ₹${totalAmount.toFixed(2)} TDS for ${selectedTdsIds.length} entries?`)) {
       return;
     }
 
     try {
+      console.log("💰 Processing Bulk TDS Payment:");
+      console.log("📋 Selected IDs:", selectedTdsIds);
+      console.log("💰 Total Amount:", totalAmount);
+      console.log("📊 Entries Count:", selectedTdsIds.length);
+      
       setLoading(true);
       const response = await fetch('/api/tds-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: selectedTdsIds })
+        body: JSON.stringify({ 
+          ids: selectedTdsIds,
+          payment_amount: totalAmount,
+          payment_date: new Date().toISOString().split('T')[0]
+        })
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Payment failed');
+      if (!response.ok) throw new Error(result.error || 'Bulk TDS payment failed');
 
-      alert('TDS entries marked as Paid successfully!');
+      console.log("✅ Bulk TDS Payment Successful:");
+      console.log("📦 Response:", result);
+      
+      alert(`TDS of ₹${totalAmount.toFixed(2)} paid successfully for ${selectedTdsIds.length} entries!`);
       setSelectedTdsIds([]);
-      fetchData();
+      await fetchData();
     } catch (error) {
-      alert(error.message);
+      console.error("❌ Bulk TDS Payment Error:", error);
+      alert(`Bulk payment failed: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkPaymentForSupplier = async (ids, amount, supplierName) => {
+    try {
+      console.log("💰 Processing Supplier Bulk TDS Payment:");
+      console.log("📋 Supplier:", supplierName);
+      console.log("📋 TDS IDs:", ids);
+      console.log("💰 Total Amount:", amount);
+      console.log("📊 Entries Count:", ids.length);
+      
+      setLoading(true);
+      const response = await fetch('/api/tds-history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ids: ids,
+          payment_amount: amount,
+          payment_date: new Date().toISOString().split('T')[0]
+        })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || 'Supplier TDS payment failed');
+
+      console.log("✅ Supplier Bulk TDS Payment Successful:");
+      console.log("📦 Response:", result);
+      
+      alert(`TDS of ₹${amount.toFixed(2)} paid successfully for ${supplierName} (${ids.length} entries)!`);
+      
+      // Remove from selected IDs if they were selected
+      setSelectedTdsIds(prev => prev.filter(selectedId => !ids.includes(selectedId)));
+      
+      // Refresh data to update the list
+      await fetchData();
+      
+    } catch (error) {
+      console.error("❌ Supplier Bulk TDS Payment Error:", error);
+      alert(`Supplier payment failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
   };
 
   const handlePayOne = async (id) => {
-    if (!confirm('Mark this TDS entry as Paid?')) return;
+    // Find the TDS entry to get amount
+    const tdsEntry = data.find(item => item.id === id);
+    if (!tdsEntry) {
+      alert('TDS entry not found!');
+      return;
+    }
+
+    const tdsAmount = parseFloat(tdsEntry.tds_amount || 0);
+    if (tdsAmount <= 0) {
+      alert('No TDS amount to pay!');
+      return;
+    }
+
+    if (!confirm(`Pay ₹${tdsAmount.toFixed(2)} TDS for ${tdsEntry.supplier_name}?`)) return;
 
     try {
+      console.log("💰 Processing TDS Payment:");
+      console.log("📋 TDS ID:", id);
+      console.log("💰 Amount:", tdsAmount);
+      console.log("🏪 Supplier:", tdsEntry.supplier_name);
+      
       setLoading(true);
       const response = await fetch('/api/tds-history', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [id] })
+        body: JSON.stringify({ 
+          ids: [id],
+          payment_amount: tdsAmount,
+          payment_date: new Date().toISOString().split('T')[0]
+        })
       });
 
       const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Payment failed');
+      if (!response.ok) throw new Error(result.error || 'TDS payment failed');
 
-      alert('TDS entry marked as Paid successfully!');
-      fetchData();
+      console.log("✅ TDS Payment Successful:");
+      console.log("📦 Response:", result);
+      
+      alert(`TDS of ₹${tdsAmount.toFixed(2)} paid successfully for ${tdsEntry.supplier_name}!`);
+      
+      // Remove from selected IDs if it was selected
+      setSelectedTdsIds(prev => prev.filter(selectedId => selectedId !== id));
+      
+      // Refresh data to update the list
+      await fetchData();
+      
     } catch (error) {
-      alert(error.message);
+      console.error("❌ TDS Payment Error:", error);
+      alert(`Payment failed: ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -352,16 +450,27 @@ function TDSHistoryContent() {
 
   // Memoized data for better performance
   const filteredData = useMemo(() => {
-    if (!filters.supplier_name || filters.supplier_name.trim() === '') {
-      return data;
+    let filtered = data;
+    
+    // Filter by supplier name or invoice number
+    if (filters.supplier_name && filters.supplier_name.trim() !== '') {
+      const searchTerm = filters.supplier_name.toLowerCase();
+      filtered = filtered.filter(item => 
+        item.supplier_name?.toLowerCase().includes(searchTerm) ||
+        item.invoice_number?.toLowerCase().includes(searchTerm)
+      );
     }
     
-    const searchTerm = filters.supplier_name.toLowerCase();
-    return data.filter(item => 
-      item.supplier_name?.toLowerCase().includes(searchTerm) ||
-      item.invoice_number?.toLowerCase().includes(searchTerm)
-    );
+    // Hide paid entries - show only due entries
+    filtered = filtered.filter(item => item.tds_status !== 'Paid');
+    
+    return filtered;
   }, [data, filters.supplier_name]);
+
+  // Memoized summary for better performance - show only due suppliers
+  const filteredSummary = useMemo(() => {
+    return summary.filter(supplier => supplier.due_entries > 0);
+  }, [summary]);
 
   // ✅ Show loading while checking authentication
   if (authLoading) {
@@ -702,26 +811,26 @@ function TDSHistoryContent() {
                     </thead>
                     
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {summary.map((supplier, index) => (
+                      {filteredSummary.map((supplier, index) => (
                         <tr 
                           key={index} 
                           className="hover:bg-gray-50 transition-colors"
                         >
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            {permissions.can_edit && tds.tds_status !== 'Paid' && (
+                            {permissions.can_edit && supplier.supplier_status !== 'Paid' && (
                               <input 
                                 type="checkbox"
-                                checked={selectedTdsIds.includes(tds.id)}
-                                onChange={() => handleSelectOne(tds.id)}
+                                checked={selectedTdsIds.includes(supplier.id)}
+                                onChange={() => handleSelectOne(supplier.id)}
                                 className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
                               />
                             )}
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                               tds.tds_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                               supplier.supplier_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                              }`}>
-                               {tds.tds_status || 'Due'}
+                               {supplier.supplier_status || 'Due'}
                              </span>
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -742,6 +851,11 @@ function TDSHistoryContent() {
                               <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
                                 {supplier.entries} entries
                               </span>
+                              {supplier.due_entries > 0 && (
+                                <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
+                                  {supplier.due_entries} due
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
@@ -760,11 +874,37 @@ function TDSHistoryContent() {
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
                               onClick={() => supplier.supplier_id && navigateToSupplierHistory(supplier.supplier_id, supplier.supplier_name)}
-                              className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors"
+                              className="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors mr-2"
                               disabled={!supplier.supplier_id}
                             >
                               View Details
                             </button>
+                            {permissions.can_edit && supplier.due_entries > 0 && (
+                              <button
+                                onClick={() => {
+                                  // Get all due TDS IDs for this supplier
+                                  const supplierDueIds = data
+                                    .filter(item => item.supplier_id === supplier.supplier_id && item.tds_status !== 'Paid')
+                                    .map(item => item.id);
+                                  
+                                  if (supplierDueIds.length === 0) {
+                                    alert('No due TDS entries found for this supplier!');
+                                    return;
+                                  }
+                                  
+                                  const totalAmount = data
+                                    .filter(item => supplierDueIds.includes(item.id))
+                                    .reduce((sum, item) => sum + parseFloat(item.tds_amount || 0), 0);
+                                  
+                                  if (confirm(`Pay ₹${totalAmount.toFixed(2)} TDS for ${supplier.supplier_name} (${supplierDueIds.length} entries)?`)) {
+                                    handleBulkPaymentForSupplier(supplierDueIds, totalAmount, supplier.supplier_name);
+                                  }
+                                }}
+                                className="text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1 rounded-lg transition-colors"
+                              >
+                                Pay All
+                              </button>
+                            )}
                           </td>
                         </tr>
                       ))}
@@ -861,7 +1001,7 @@ function TDSHistoryContent() {
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {tds.payment_date ? new Date(tds.payment_date).toLocaleDateString('en-GB') : '-'}
                           </td>
-                          <td className="px-4 sm:px-6 py-4 text-sm text-gray-900 max-w-xs">
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-900 max-w-xs">
                             <div className="truncate" title={tds.remarks}>
                               {tds.remarks || '-'}
                             </div>
@@ -876,9 +1016,16 @@ function TDSHistoryContent() {
                             </span>
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
-                            <span className="text-purple-700 font-medium bg-purple-50 px-3 py-1 rounded-lg">
+                            <span className={`text-purple-700 font-medium bg-purple-50 px-3 py-1 rounded-lg ${
+                              tds.tds_status === 'Paid' ? 'bg-green-100 text-green-800 border-green-200' : ''
+                            }`}>
                               ₹{parseFloat(tds.tds_amount || 0).toFixed(2)}
                             </span>
+                            {tds.tds_status === 'Paid' && (
+                              <div className="text-xs text-green-600 mt-1 font-medium">
+                                ✓ Paid
+                              </div>
+                            )}
                           </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
@@ -908,11 +1055,11 @@ function TDSHistoryContent() {
             {!loading && filteredData.length > 0 && isMobile && (
               <div className="space-y-4">
                 {/* Summary Mobile */}
-                {summary.length > 0 && (
+                {filteredSummary.length > 0 && (
                   <div className="bg-white rounded-xl shadow-sm p-4">
                     <h2 className="text-lg font-semibold text-gray-900 mb-4">Top Suppliers</h2>
                     <div className="space-y-3">
-                      {summary.slice(0, 5).map((supplier, index) => (
+                      {filteredSummary.slice(0, 5).map((supplier, index) => (
                         <div key={index} className="flex justify-between items-center p-3 border border-gray-200 rounded-lg">
                           <div>
                             <p className="font-medium text-gray-900">{supplier.supplier_name}</p>
@@ -954,8 +1101,13 @@ function TDSHistoryContent() {
                               <span className={`inline-flex px-2 py-0.5 rounded text-xs font-medium ${
                                 tds.tds_status === 'Paid' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
                               }`}>
-                                {tds.tds_status || 'Due'}
+                                {tds.tds_status === 'Paid' ? 'Paid' : 'Due'}
                               </span>
+                              {tds.tds_status === 'Paid' && (
+                                <div className="text-xs text-green-600 mt-1 font-medium">
+                                  ✓ Paid
+                                </div>
+                              )}
                             </div>
                           </div>
                           <div className="text-right">

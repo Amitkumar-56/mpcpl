@@ -4,6 +4,8 @@ import { verifyToken } from '@/lib/auth';
 import { executeQuery } from "@/lib/db";
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import { writeFile, mkdir } from 'fs/promises';
+import path from 'path';
 
 export async function GET(req) {
   try {
@@ -368,13 +370,13 @@ export async function POST(request) {
     });
 
     if (doc1File && doc1File.size > 0) {
-      doc1Path = await handleFileUpload(doc1File);
+      doc1Path = await handleFileUpload(doc1File, rid, 'doc1');
     }
     if (doc2File && doc2File.size > 0) {
-      doc2Path = await handleFileUpload(doc2File);
+      doc2Path = await handleFileUpload(doc2File, rid, 'doc2');
     }
     if (doc3File && doc3File.size > 0) {
-      doc3Path = await handleFileUpload(doc3File);
+      doc3Path = await handleFileUpload(doc3File, rid, 'doc3');
     }
 
     console.log('🔁 Starting database operations...');
@@ -1368,20 +1370,17 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
     return false;
   }
 }
-async function handleFileUpload(file) {
+async function handleFileUpload(file, rid, docKey) {
   if (!file || file.size === 0) return null;
-
-  try {
-    const maxSize = 5 * 1024 * 1000;
-    if (file.size > maxSize) {
-      throw new Error('File size exceeds 5MB limit');
-    }
-
-    // For now, return a dummy path since file upload might be causing issues
-    return `/uploads/temp_${Date.now()}.jpg`;
-    
-  } catch (error) {
-    console.error('❌ File upload error:', error);
-    return null;
-  }
+  const maxSize = 5 * 1024 * 1000;
+  if (file.size > maxSize) return null;
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'filling-requests');
+  await mkdir(uploadDir, { recursive: true });
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+  const filename = `${rid}_${docKey}_${Date.now()}.${ext}`;
+  const filepath = path.join(uploadDir, filename);
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  await writeFile(filepath, buffer);
+  return `/uploads/filling-requests/${filename}`;
 }

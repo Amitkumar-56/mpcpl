@@ -106,6 +106,8 @@ export async function GET(request) {
         fh.credit_date,
         fh.new_amount,
         fh.remaining_limit,
+        fh.in_amount,
+        fh.d_amount,
         ${remainingDayLimitField}
         fh.payment_status,
         fh.filling_date,

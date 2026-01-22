@@ -1,4 +1,6 @@
 // app/api/tds-history/route.js
+import { createAuditLog } from '@/lib/auditLog';
+import { getCurrentUser } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -159,6 +161,39 @@ export async function POST(request) {
     `;
 
     await executeQuery(query, ids);
+
+    const detailsQuery = `
+      SELECT 
+        ui.id,
+        ui.tds_deduction AS tds_amount,
+        ui.supply_id,
+        s.invoice_number,
+        s.supplier_id,
+        sup.name AS supplier_name
+      FROM update_invoice ui
+      LEFT JOIN stock s ON ui.supply_id = s.id
+      LEFT JOIN suppliers sup ON s.supplier_id = sup.id
+      WHERE ui.id IN (${placeholders})
+    `;
+    const rows = await executeQuery(detailsQuery, ids);
+    const currentUser = await getCurrentUser();
+    const userId = currentUser?.userId || null;
+    const userName = currentUser?.userName || null;
+    for (const row of rows) {
+      await createAuditLog({
+        page: 'TDS History',
+        uniqueCode: `UI-${row.id}`,
+        section: 'Mark TDS Paid',
+        userId,
+        userName,
+        action: 'update',
+        remarks: `TDS Paid ₹${parseFloat(row.tds_amount || 0)} for ${row.supplier_name || ''} Invoice ${row.invoice_number || ''}`,
+        oldValue: { tds_status: 'Due' },
+        newValue: { tds_status: 'Paid' },
+        recordType: 'tds',
+        recordId: row.id
+      });
+    }
 
     return NextResponse.json({ 
       success: true, 

@@ -51,12 +51,16 @@ export async function GET(request) {
       );
     }
 
-    console.log('✅ Request found:', result[0]);
-
-    return NextResponse.json({
-      success: true,
-      request: result[0]
-    });
+    const req = result[0];
+    let imagesObj = {};
+    if (req.images) {
+      try { imagesObj = JSON.parse(req.images); } catch {}
+    }
+    if (!imagesObj.image1 && req.doc1) imagesObj.image1 = req.doc1;
+    if (!imagesObj.image2 && req.doc2) imagesObj.image2 = req.doc2;
+    if (!imagesObj.image3 && req.doc3) imagesObj.image3 = req.doc3;
+    req.images = JSON.stringify(imagesObj);
+    return NextResponse.json({ success: true, request: req });
 
   } catch (error) {
     console.error('❌ Error fetching filling details:', error);
