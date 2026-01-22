@@ -1,3 +1,4 @@
+// src/app/api/cst/check-eligibility/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -15,7 +16,7 @@ export async function POST(request) {
     
     // Get customer balance info
     const customerBalanceRows = await executeQuery(
-      'SELECT day_limit, is_active, amtlimit FROM customer_balances WHERE com_id = ?',
+      'SELECT day_limit, is_active, amtlimit, balance FROM customer_balances WHERE com_id = ?',
       [parseInt(customer_id)]
     );
     
@@ -30,6 +31,10 @@ export async function POST(request) {
     const isActive = customerBalanceRows[0].is_active === 1;
     const dayLimitVal = parseInt(customerBalanceRows[0].day_limit) || 0;
     const amtLimit = parseFloat(customerBalanceRows[0].amtlimit) || 0;
+    const balance = parseFloat(customerBalanceRows[0].balance) || 0;
+    
+    // Calculate available balance
+    const availableBalance = amtLimit - balance;
     
     // Check if customer is active
     if (!isActive) {
@@ -135,25 +140,33 @@ export async function POST(request) {
       const clientType = typeRows.length > 0 ? String(typeRows[0].client_type) : '';
       
       if (clientType === '2') {
-        // Get current used credit
-        const creditUsedRows = await executeQuery(
-          `SELECT SUM(totalamt) as total_used 
-           FROM filling_requests 
-           WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
-          [parseInt(customer_id)]
-        );
+        console.log('💰 Available Balance Check:', {
+          amtLimit,
+          balance,
+          availableBalance
+        });
         
-        const creditUsed = parseFloat(creditUsedRows[0]?.total_used) || 0;
-        const availableCredit = amtLimit - creditUsed;
-        
-        if (availableCredit <= 0) {
+        // Check if available balance is sufficient (available balance should be greater than 0)
+        if (availableBalance > 0) {
+          // All checks passed
+          return NextResponse.json({
+            success: true,
+            isEligible: true,
+            reason: null,
+            pendingDays: 0,
+            dayLimit: dayLimitVal,
+            creditLimit: amtLimit,
+            currentBalance: balance,
+            availableBalance: availableBalance
+          });
+        } else {
           return NextResponse.json({
             success: true,
             isEligible: false,
-            reason: 'Insufficient credit limit. Please recharge to continue.',
-            creditUsed: creditUsed,
+            reason: `Insufficient balance (Available: ₹${availableBalance.toFixed(2)}, Limit: ₹${amtLimit.toFixed(2)}, Used: ₹${balance.toFixed(2)})`,
             creditLimit: amtLimit,
-            availableCredit: availableCredit
+            currentBalance: balance,
+            availableBalance: availableBalance
           });
         }
       }
@@ -165,7 +178,10 @@ export async function POST(request) {
       isEligible: true,
       reason: null,
       pendingDays: 0,
-      dayLimit: dayLimitVal
+      dayLimit: dayLimitVal,
+      creditLimit: amtLimit,
+      currentBalance: balance,
+      availableBalance: availableBalance
     });
     
   } catch (error) {
