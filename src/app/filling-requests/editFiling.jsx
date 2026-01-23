@@ -674,6 +674,7 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
 // Request Row Component for Desktop
 const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, onOtpVerify, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
     Processing: "bg-blue-100 text-blue-800",
@@ -695,6 +696,24 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
     return null;
   }
 
+  const getRequestImages = () => {
+    const imgs = [];
+    if (request.images) {
+      try {
+        const parsed = typeof request.images === 'string' ? JSON.parse(request.images) : request.images;
+        if (parsed?.image1) imgs.push(parsed.image1);
+        if (parsed?.image2) imgs.push(parsed.image2);
+        if (parsed?.image3) imgs.push(parsed.image3);
+      } catch {}
+    }
+    if (imgs.length === 0) {
+      if (request.doc1) imgs.push(request.doc1);
+      if (request.doc2) imgs.push(request.doc2);
+      if (request.doc3) imgs.push(request.doc3);
+    }
+    return imgs.filter(Boolean);
+  };
+
   return (
     <>
       <tr className={`transition-colors border-b ${rowBgClass}`}>
@@ -705,6 +724,23 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         <td className="py-3 px-4 text-sm font-medium">{request.vehicle_number}</td>
         <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
         <td className="py-3 px-4 text-sm">{request.driver_number}</td>
+        <td className="py-3 px-4 text-sm">
+          <div className="flex items-center gap-2">
+            {getRequestImages().slice(0,3).map((src, idx) => (
+              <button
+                key={idx}
+                onClick={() => setImagePreview(src)}
+                className="w-10 h-10 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+                aria-label="Preview image"
+              >
+                <img src={src} alt="doc" className="w-full h-full object-cover" />
+              </button>
+            ))}
+            {getRequestImages().length === 0 && (
+              <span className="text-xs text-gray-500">No images</span>
+            )}
+          </div>
+        </td>
         <td className="py-3 px-4 text-sm">
           <div>{request.created_formatted ? request.created_formatted.split(' ')[0] : (request.created_date_formatted ? request.created_date_formatted.split(' ')[0] : (request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"))}</div>
           <div className="text-xs text-gray-500">
@@ -740,7 +776,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
       </tr>
       {isExpanded && (
         <tr className="bg-green-50 border-b">
-          <td colSpan="9" className="py-3 px-4">
+          <td colSpan="10" className="py-3 px-4">
             <div className="space-y-4">
               <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -861,6 +897,32 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
             </div>
           </td>
         </tr>
+      )}
+      {imagePreview && (
+        <>
+          <tr>
+            <td colSpan="10" className="p-0">
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setImagePreview(null)}></div>
+              <div className="fixed inset-0 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4">
+                  <div className="flex justify-between items-center p-3 border-b">
+                    <div className="font-medium">Image Preview</div>
+                    <button
+                      onClick={() => setImagePreview(null)}
+                      className="text-gray-500 hover:text-gray-700"
+                      aria-label="Close preview"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <img src={imagePreview} alt="preview" className="w-full h-auto object-contain max-h-[75vh]" />
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </>
       )}
     </>
   );
@@ -1915,6 +1977,7 @@ export default function FillingRequests() {
                         <th className="py-3 px-4 border-b">Vehicle No</th>
                         <th className="py-3 px-4 border-b">Client Name</th>
                         <th className="py-3 px-4 border-b">Driver Phone</th>
+                        <th className="py-3 px-4 border-b">Images</th>
                         <th className="py-3 px-4 border-b">Date & Time</th>
                         <th className="py-3 px-4 border-b">Completed Date</th>
                       </tr>

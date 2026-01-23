@@ -226,6 +226,17 @@ export async function GET(request) {
           const totalPrice = request.qty * price;
           const isEligible = totalPrice <= (request.credit_limit || 0);
           
+          let imagesObj = {};
+          if (request.images) {
+            try {
+              imagesObj = typeof request.images === 'string' ? JSON.parse(request.images) : request.images;
+            } catch {}
+          }
+          if (!imagesObj.image1 && request.doc1) imagesObj.image1 = request.doc1;
+          if (!imagesObj.image2 && request.doc2) imagesObj.image2 = request.doc2;
+          if (!imagesObj.image3 && request.doc3) imagesObj.image3 = request.doc3;
+          const images = JSON.stringify(imagesObj);
+          
           return {
             ...request,
             price: price,
@@ -233,7 +244,8 @@ export async function GET(request) {
             isEligible,
             eligibility: isEligible ? "Yes" : "No",
             eligibilityClass: isEligible ? "text-green-600" : "text-red-600",
-            statusClass: getStatusClass(request.status)
+            statusClass: getStatusClass(request.status),
+            images
           };
         } catch (priceError) {
           console.error("Error fetching price for request:", request.rid, priceError);
@@ -244,7 +256,19 @@ export async function GET(request) {
             isEligible: false,
             eligibility: "Error",
             eligibilityClass: "text-red-600",
-            statusClass: getStatusClass(request.status)
+            statusClass: getStatusClass(request.status),
+            images: (() => {
+              let imagesObj = {};
+              if (request.images) {
+                try {
+                  imagesObj = typeof request.images === 'string' ? JSON.parse(request.images) : request.images;
+                } catch {}
+              }
+              if (!imagesObj.image1 && request.doc1) imagesObj.image1 = request.doc1;
+              if (!imagesObj.image2 && request.doc2) imagesObj.image2 = request.doc2;
+              if (!imagesObj.image3 && request.doc3) imagesObj.image3 = request.doc3;
+              return JSON.stringify(imagesObj);
+            })()
           };
         }
       })

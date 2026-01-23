@@ -21,6 +21,7 @@ function FillingRequestsPage() {
     dayLimit: 0, 
     dayCount: 0 
   });
+  const [imagePreview, setImagePreview] = useState(null);
 
   // Load customer ID from localStorage
   useEffect(() => {
@@ -186,6 +187,23 @@ function FillingRequestsPage() {
       case 'Cancelled': return 'border-l-4 border-red-500';
       default: return 'border-l-4 border-gray-300';
     }
+  };
+  const getRequestImages = (request) => {
+    let imgs = [];
+    if (request.images) {
+      try {
+        const parsed = typeof request.images === 'string' ? JSON.parse(request.images) : request.images;
+        if (parsed?.image1) imgs.push(parsed.image1);
+        if (parsed?.image2) imgs.push(parsed.image2);
+        if (parsed?.image3) imgs.push(parsed.image3);
+      } catch {}
+    }
+    if (imgs.length === 0) {
+      if (request.doc1) imgs.push(request.doc1);
+      if (request.doc2) imgs.push(request.doc2);
+      if (request.doc3) imgs.push(request.doc3);
+    }
+    return imgs.filter(Boolean);
   };
 
   // Format date function
@@ -479,6 +497,7 @@ function FillingRequestsPage() {
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Images</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                           {/* ✅ Eligibility column - केवल Pending के लिए */}
@@ -514,6 +533,23 @@ function FillingRequestsPage() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               <div className="font-medium">{request.vehicle_number}</div>
                               <div className="text-xs text-gray-500">{request.driver_number}</div>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              <div className="flex items-center gap-2">
+                                {getRequestImages(request).slice(0,3).map((src, idx) => (
+                                  <button
+                                    key={idx}
+                                    onClick={() => setImagePreview(src)}
+                                    className="w-10 h-10 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+                                    aria-label="Preview image"
+                                  >
+                                    <img src={src} alt="doc" className="w-full h-full object-cover" />
+                                  </button>
+                                ))}
+                                {getRequestImages(request).length === 0 && (
+                                  <span className="text-xs text-gray-500">No images</span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               <span className="font-semibold">{request.qty}</span> Ltr
@@ -755,6 +791,21 @@ function FillingRequestsPage() {
                             )}
                           </div>
                         </div>
+                        <div className="flex items-center gap-2">
+                          {getRequestImages(request).slice(0,3).map((src, idx) => (
+                            <button
+                              key={idx}
+                              onClick={() => setImagePreview(src)}
+                              className="w-16 h-16 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+                              aria-label="Preview image"
+                            >
+                              <img src={src} alt="doc" className="w-full h-full object-cover" />
+                            </button>
+                          ))}
+                          {getRequestImages(request).length === 0 && (
+                            <span className="text-xs text-gray-500">No images</span>
+                          )}
+                        </div>
                         
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
@@ -976,6 +1027,31 @@ function FillingRequestsPage() {
         <div className="fixed bottom-0 left-0 md:left-64 right-0 bg-white z-40">
           <Footer />
         </div>
+        {imagePreview && (
+          <>
+            <div
+              className="fixed inset-0 bg-black bg-opacity-50 z-40"
+              onClick={() => setImagePreview(null)}
+            ></div>
+            <div className="fixed inset-0 flex items-center justify-center z-50">
+              <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4">
+                <div className="flex justify-between items-center p-3 border-b">
+                  <div className="font-medium">Image Preview</div>
+                  <button
+                    onClick={() => setImagePreview(null)}
+                    className="text-gray-500 hover:text-gray-700"
+                    aria-label="Close preview"
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="p-3">
+                  <img src={imagePreview} alt="preview" className="w-full h-auto object-contain max-h-[75vh]" />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

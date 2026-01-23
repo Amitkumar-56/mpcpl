@@ -162,6 +162,16 @@ export default function ChatWidget({ showChat, setShowChat }) {
           loadActiveChatSessions();
         });
 
+        // Admin/Employees broadcast notification listener
+        socketInstance.on('customer_message_notification', (data) => {
+          console.log('ChatWidget: customer_message_notification:', data);
+          // Increment badge if not viewing the chat
+          if (!showChat) {
+            setSocketConnected(true);
+          }
+          loadActiveChatSessions();
+        });
+
       } catch (error) {
         console.error('ChatWidget: Error initializing socket:', error);
         setSocketConnected(false);

@@ -344,6 +344,9 @@ export default function CustomerHistoryContent() {
                             Vehicle
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Customer Type
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Type
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -352,6 +355,16 @@ export default function CustomerHistoryContent() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Amount (₹)
                           </th>
+                          {customerInfo?.client_type === 2 && (
+                            <>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Increase (₹)
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Decrease (₹)
+                              </th>
+                            </>
+                          )}
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Outstanding (₹)
                           </th>
@@ -378,6 +391,9 @@ export default function CustomerHistoryContent() {
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                               {transaction.vehicle_number}
                             </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {getClientTypeText(customerInfo?.client_type)}
+                            </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm">
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                                 transaction.trans_type === 'credit' 
@@ -399,6 +415,24 @@ export default function CustomerHistoryContent() {
                                 <span className="text-gray-400">₹0</span>
                               )}
                             </td>
+                            {customerInfo?.client_type === 2 && (
+                              <>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
+                                  {transaction.in_amount ? (
+                                    <span className="text-purple-600">₹{formatCurrency(transaction.in_amount)}</span>
+                                  ) : (
+                                    <span className="text-gray-400">₹0</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
+                                  {transaction.d_amount ? (
+                                    <span className="text-red-600">₹{formatCurrency(transaction.d_amount)}</span>
+                                  ) : (
+                                    <span className="text-gray-400">₹0</span>
+                                  )}
+                                </td>
+                              </>
+                            )}
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
                               {transaction.new_amount ? (
                                 <span className="text-orange-600">₹{formatCurrency(transaction.new_amount)}</span>

@@ -39,6 +39,7 @@ export default function FillingDetailsAdmin() {
   const [hasPermission, setHasPermission] = useState(false);
   const [imageModalSrc, setImageModalSrc] = useState(null);
   const [cropModal, setCropModal] = useState({ open: false, src: null, docKey: null });
+  const [brokenImages, setBrokenImages] = useState({ doc1: false, doc2: false, doc3: false });
 
   useEffect(() => {
     if (id) fetchRequestDetails();
@@ -103,6 +104,19 @@ export default function FillingDetailsAdmin() {
 
   const openImageModal = (src) => setImageModalSrc(src);
   const closeImageModal = () => setImageModalSrc(null);
+  const isImageUrl = (url) => {
+    if (!url || typeof url !== 'string') return false;
+    const u = url.split('?')[0].toLowerCase();
+    return /\.(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(u);
+  };
+  const normalizeDocUrl = (url) => {
+    if (!url || typeof url !== 'string') return '';
+    let u = url.replace(/\\/g, '/');
+    if (u.startsWith('http://') || u.startsWith('https://')) return u;
+    if (u.startsWith('/')) return u;
+    if (u.startsWith('public/')) return '/' + u.substring(7);
+    return '/' + u;
+  };
   const openCrop = (docKey) => {
     const src = uploadedFiles[docKey];
     if (src) setCropModal({ open: true, src, docKey });
@@ -858,31 +872,47 @@ export default function FillingDetailsAdmin() {
                                     Document {docNum}
                                   </label>
                                   {requestData[`doc${docNum}`] ? (
-                                    <a 
-                                      href={requestData[`doc${docNum}`]} 
-                                      target="_blank" 
-                                      rel="noopener noreferrer"
-                                      className="block group"
-                                    >
-                                      <div className="relative w-32 h-32 mx-auto">
-                                        <img 
-                                          src={requestData[`doc${docNum}`]} 
-                                          alt={`Document ${docNum}`} 
-                                          className="w-full h-full object-cover rounded-lg border-2 border-gray-300 group-hover:border-blue-500 transition-colors"
-                                        />
-                                        <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all rounded-lg flex items-center justify-center">
-                                          <svg className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 20 20">
-                                            <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                                          </svg>
-                                        </div>
-                                      </div>
-                                      <span className="text-xs text-blue-600 mt-1 inline-block group-hover:text-blue-800 transition-colors">View Document</span>
-                                    </a>
-                                  ) : (
-                                    <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center mx-auto">
-                                      <span className="text-gray-400 text-sm">No document</span>
-                                    </div>
-                                  )}
+                                    (() => {
+                                      const rawUrl = requestData[`doc${docNum}`];
+                                      const url = normalizeDocUrl(rawUrl);
+                                      const showImage = isImageUrl(url) && !brokenImages[`doc${docNum}`];
+                                      return showImage ? (
+                                        <>
+                                          <button
+                                            type="button"
+                                            onClick={() => openImageModal(url)}
+                                            className="block"
+                                            aria-label={`Preview Document ${docNum}`}
+                                          >
+                                            <div className="w-32 h-32 mx-auto">
+                                              <img
+                                                src={url}
+                                                alt={`Document ${docNum}`}
+                                                className="w-full h-full object-cover rounded-lg border-2 border-gray-300 bg-white"
+                                                onError={() => setBrokenImages(prev => ({ ...prev, [`doc${docNum}`]: true }))}
+                                              />
+                                            </div>
+                                          </button>
+                                          <span className="text-xs text-blue-600 mt-1 inline-block">Preview</span>
+                                        </>
+                                      ) : (
+                                        <a
+                                          href={url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="block group"
+                                          aria-label={`Open Document ${docNum}`}
+                                        >
+                                          <div className="w-32 h-32 border-2 border-gray-300 rounded-lg flex items-center justify-center mx-auto bg-gray-50">
+                                            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
+                                            </svg>
+                                          </div>
+                                          <span className="text-xs text-blue-600 mt-1 inline-block">Open Document</span>
+                                        </a>
+                                      );
+                                    })()
+                                  ) : null}
                                 </div>
                               ))}
                             </div>

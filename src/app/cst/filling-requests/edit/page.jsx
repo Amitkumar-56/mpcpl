@@ -111,6 +111,14 @@ export default function EditRequestPage() {
       console.log("⛽ Quantity Updated - Automatic Update Triggered");
       console.log("📏 Old Quantity:", formData.qty);
       console.log("📏 New Quantity:", value);
+      // qty change par aqty ko same value set karo
+      setFormData(prev => ({
+        ...prev,
+        qty: value,
+        aqty: value
+      }));
+      console.log("✅ aqty auto-updated:", value);
+      return;
     }
     
     setFormData(prev => ({

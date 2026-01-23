@@ -1168,6 +1168,9 @@ function ReportHistoryContent() {
                                           <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
                                             <div className="text-xs text-green-700">
                                               <span className="font-medium">✓ Checked:</span> {record.checked_by_name}
+                                              {record.checked_by && (
+                                                <span className="text-green-600 ml-1 text-xs">[ID: {record.checked_by}]</span>
+                                              )}
                                               {record.checked_at && (
                                                 <span className="text-green-600 ml-1 text-xs">
                                                   ({new Date(record.checked_at).toLocaleString('en-IN', {
@@ -1187,6 +1190,9 @@ function ReportHistoryContent() {
                                           <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
                                             <div className="text-xs text-purple-700">
                                               <span className="font-medium">📄 Invoiced:</span> {record.invoiced_by_name}
+                                              {record.invoiced_by && (
+                                                <span className="text-purple-600 ml-1 text-xs">[ID: {record.invoiced_by}]</span>
+                                              )}
                                               {record.invoiced_at && (
                                                 <span className="text-purple-600 ml-1 text-xs">
                                                   ({new Date(record.invoiced_at).toLocaleString('en-IN', {
@@ -1213,6 +1219,9 @@ function ReportHistoryContent() {
                                             <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
                                               <p className="text-xs text-blue-700">
                                                 <span className="font-medium">📝 Created by:</span> {record.created_by_name}
+                                                {record.created_by_id && (
+                                                  <span className="text-blue-600 ml-1 text-xs">[ID: {record.created_by_id}]</span>
+                                                )}
                                                 {record.created_date && (
                                                   <span className="text-blue-600 ml-1 text-xs">
                                                     ({new Date(record.created_date).toLocaleString('en-IN', {
@@ -1232,6 +1241,9 @@ function ReportHistoryContent() {
                                             <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
                                               <p className="text-xs text-yellow-700">
                                                 <span className="font-medium">⚙️ Processed by:</span> {record.processed_by_name}
+                                                {record.processed_by_id && (
+                                                  <span className="text-yellow-600 ml-1 text-xs">[ID: {record.processed_by_id}]</span>
+                                                )}
                                                 {record.processed_date && (
                                                   <span className="text-yellow-600 ml-1 text-xs">
                                                     ({new Date(record.processed_date).toLocaleString('en-IN', {
@@ -1251,6 +1263,9 @@ function ReportHistoryContent() {
                                             <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
                                               <p className="text-xs text-green-700">
                                                 <span className="font-medium">✅ Completed by:</span> {record.completed_by_name}
+                                                {record.completed_by_id && (
+                                                  <span className="text-green-600 ml-1 text-xs">[ID: {record.completed_by_id}]</span>
+                                                )}
                                                 {record.completed_date && (
                                                   <span className="text-green-600 ml-1 text-xs">
                                                     ({new Date(record.completed_date).toLocaleString('en-IN', {

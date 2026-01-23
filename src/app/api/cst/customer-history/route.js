@@ -98,6 +98,14 @@ export async function GET(request) {
         fh.new_amount,
         fh.remaining_limit,
         fh.remaining_day_limit,
+        CASE 
+          WHEN LOWER(fh.trans_type) IN ('outward', 'debit') THEN COALESCE(fh.amount, 0)
+          ELSE NULL
+        END AS in_amount,
+        CASE 
+          WHEN LOWER(fh.trans_type) IN ('credit', 'inward') THEN COALESCE(fh.credit, 0)
+          ELSE NULL
+        END AS d_amount,
         COALESCE(p.pname, 'Unknown Product') as pname,
         COALESCE(fs.station_name, 'Unknown Station') as station_name,
         COALESCE(fr.vehicle_number, 'N/A') as vehicle_number

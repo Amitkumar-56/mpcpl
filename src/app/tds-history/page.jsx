@@ -461,15 +461,15 @@ function TDSHistoryContent() {
       );
     }
     
-    // Hide paid entries - show only due entries
-    filtered = filtered.filter(item => item.tds_status !== 'Paid');
+    // Show all entries including paid ones - don't filter out paid entries
+    // Paid entries will show with "Paid" status
     
     return filtered;
   }, [data, filters.supplier_name]);
 
-  // Memoized summary for better performance - show only due suppliers
+  // Memoized summary for better performance - show all suppliers
   const filteredSummary = useMemo(() => {
-    return summary.filter(supplier => supplier.due_entries > 0);
+    return summary; // Show all suppliers including paid ones
   }, [summary]);
 
   // ✅ Show loading while checking authentication
@@ -979,6 +979,31 @@ function TDSHistoryContent() {
                           key={index} 
                           className="hover:bg-gray-50 transition-colors"
                         >
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            {permissions.can_edit && (
+                              <input 
+                                type="checkbox"
+                                checked={selectedTdsIds.includes(tds.id)}
+                                onChange={() => handleSelectOne(tds.id)}
+                                disabled={tds.tds_status === 'Paid'}
+                                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 h-4 w-4"
+                              />
+                            )}
+                          </td>
+                          <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                            <span className={`inline-flex px-2 py-1 rounded text-xs font-medium ${
+                              tds.tds_status === 'Paid' 
+                                ? 'bg-green-100 text-green-800 border border-green-200' 
+                                : 'bg-red-100 text-red-800 border border-red-200'
+                            }`}>
+                              {tds.tds_status === 'Paid' ? 'Paid' : 'Due'}
+                            </span>
+                            {tds.tds_status === 'Paid' && (
+                              <div className="text-xs text-green-600 mt-1 font-medium">
+                                ✓ Paid
+                              </div>
+                            )}
+                          </td>
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex items-center">
                               <Building className="h-5 w-5 text-gray-400 mr-3" />
