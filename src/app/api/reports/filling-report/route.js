@@ -64,39 +64,18 @@ export async function POST(request) {
       LEFT JOIN (
         SELECT 
           fl.request_id,
-          fl.created_by,
+          fl.created_by AS created_by_id,
           fl.created_date,
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
             NULL
-          ) as created_by_name,
+          ) AS created_by_name,
           CASE 
             WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
             WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
             ELSE 'system'
-          END as created_by_type
-        FROM filling_logs fl
-        WHERE fl.created_by IS NOT NULL
-        AND fl.id = (
-          SELECT fl2.id 
-          FROM filling_logs fl2 
-          WHERE fl2.request_id = fl.request_id 
-          AND fl2.created_by IS NOT NULL
-          ORDER BY fl2.created_date DESC, fl2.id DESC
-          LIMIT 1
-        )
-      /* created_by_id expose */
-      LEFT JOIN (
-        SELECT 
-          fl.request_id,
-          fl.created_by as created_by_id,
-          fl.created_date,
-          COALESCE(
-            (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
-            (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-            NULL
-          ) as created_by_name
+          END AS created_by_type
         FROM filling_logs fl
         WHERE fl.created_by IS NOT NULL
         AND fl.id = (

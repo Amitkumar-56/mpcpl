@@ -374,6 +374,45 @@ export async function POST(request) {
             user_id
           ]
         );
+
+        try {
+          const [colsInfoRows] = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
+          let insertQuery = '';
+          let insertParams = [];
+          if (colsInfoRows && colsInfoRows.length > 0) {
+            insertQuery = `
+              INSERT INTO stock_transfer_logs 
+                (transfer_id, action, performed_by, performed_by_name, performed_at, station_from, station_to, quantity, product_id)
+              VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+            `;
+            insertParams = [
+              id,
+              action,
+              user_id,
+              null,
+              station_from,
+              station_to,
+              transfer_quantity,
+              product
+            ];
+          } else {
+            insertQuery = `
+              INSERT INTO stock_transfer_logs 
+                (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
+              VALUES (?, ?, ?, NOW(), ?, ?, ?, ?)
+            `;
+            insertParams = [
+              id,
+              action,
+              user_id,
+              station_from,
+              station_to,
+              transfer_quantity,
+              product
+            ];
+          }
+          await connection.execute(insertQuery, insertParams);
+        } catch {}
       }
 
       // Check if status is "Completed" (3) to update stock
@@ -461,6 +500,45 @@ export async function POST(request) {
               user_id
             ]
           );
+
+          try {
+            const [colsInfoRows2] = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
+            let insertQuery2 = '';
+            let insertParams2 = [];
+            if (colsInfoRows2 && colsInfoRows2.length > 0) {
+              insertQuery2 = `
+                INSERT INTO stock_transfer_logs 
+                  (transfer_id, action, performed_by, performed_by_name, performed_at, station_from, station_to, quantity, product_id)
+                VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+              `;
+              insertParams2 = [
+                id,
+                'Stock updated',
+                user_id,
+                null,
+                station_from,
+                station_to,
+                transfer_quantity,
+                product
+              ];
+            } else {
+              insertQuery2 = `
+                INSERT INTO stock_transfer_logs 
+                  (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
+                VALUES (?, ?, ?, NOW(), ?, ?, ?, ?)
+              `;
+              insertParams2 = [
+                id,
+                'Stock updated',
+                user_id,
+                station_from,
+                station_to,
+                transfer_quantity,
+                product
+              ];
+            }
+            await connection.execute(insertQuery2, insertParams2);
+          } catch {}
         }
       }
 
