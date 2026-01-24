@@ -47,34 +47,52 @@ export async function POST(request) {
     
     // Day limit check
     if (dayLimitVal > 0) {
-      // Get unpaid days count
-      const unpaidDays = await executeQuery(
-        `SELECT DATE(completed_date) as day_date
-         FROM filling_requests 
-         WHERE cid = ? 
-           AND status = 'Completed' 
-           AND payment_status = 0 
-         GROUP BY DATE(completed_date)`,
+      // Count distinct completed unpaid days (case-insensitive status)
+      const [{ used_days: usedDaysTotal }] = await executeQuery(
+        `SELECT COUNT(DISTINCT DATE(completed_date)) AS used_days
+         FROM filling_requests
+         WHERE cid = ?
+           AND UPPER(status) = 'COMPLETED'
+           AND payment_status = 0`,
         [parseInt(customer_id)]
-      );
-      
-      if (unpaidDays.length >= dayLimitVal) {
-        // Get oldest unpaid day for message
+      ).catch(() => [{ used_days: 0 }]);
+
+      // Check if today already has a completed unpaid transaction
+      const [{ count: todayCompleted }] = await executeQuery(
+        `SELECT COUNT(*) AS count
+         FROM filling_requests
+         WHERE cid = ?
+           AND UPPER(status) = 'COMPLETED'
+           AND payment_status = 0
+           AND DATE(completed_date) = CURDATE()`,
+        [parseInt(customer_id)]
+      ).catch(() => [{ count: 0 }]);
+
+      // Rule:
+      // - Each distinct completed date counts as 1 day
+      // - Unlimited requests within the same counted day
+      // - If usedDaysTotal < dayLimitVal => allow
+      // - If usedDaysTotal >= dayLimitVal:
+      //     - allow only if today already counted (todayCompleted > 0)
+      //     - otherwise block
+      const withinLimit = usedDaysTotal < dayLimitVal || todayCompleted > 0;
+
+      if (!withinLimit) {
+        // Prepare message with oldest unpaid day info
         const oldestDay = await executeQuery(
           `SELECT DATE(completed_date) as day_date, 
-                  SUM(totalamt) as day_total,
-                  COUNT(*) as count
+                  SUM(totalamt) as day_total
            FROM filling_requests 
            WHERE cid = ? 
-             AND status = 'Completed' 
+             AND UPPER(status) = 'COMPLETED' 
              AND payment_status = 0 
            GROUP BY DATE(completed_date)
            ORDER BY DATE(completed_date) ASC
            LIMIT 1`,
           [parseInt(customer_id)]
-        );
+        ).catch(() => []);
         
-        let reason = `Day limit reached! You have ${unpaidDays.length} unpaid day(s) out of ${dayLimitVal} allowed.`;
+        let reason = `Day limit reached (${usedDaysTotal}/${dayLimitVal}). Please recharge or clear overdue balance.`;
         
         if (oldestDay.length > 0) {
           const dayDate = new Date(oldestDay[0].day_date).toLocaleDateString('en-IN', {
@@ -83,14 +101,14 @@ export async function POST(request) {
             year: 'numeric'
           });
           const dayTotal = parseFloat(oldestDay[0].day_total) || 0;
-          reason += `\nPlease clear payment for ${dayDate} (₹${dayTotal.toFixed(2)})`;
+          reason += `\nOldest unpaid day ${dayDate} total ₹${dayTotal.toFixed(2)}`;
         }
         
         return NextResponse.json({
           success: true,
           isEligible: false,
-          reason: reason,
-          pendingDays: unpaidDays.length,
+          reason,
+          pendingDays: usedDaysTotal,
           dayLimit: dayLimitVal,
           requiresPayment: true
         });

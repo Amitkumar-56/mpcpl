@@ -222,7 +222,7 @@ export async function GET(request) {
       FROM filling_requests fr
       WHERE fr.cid = ?
         AND fr.new_amount > 0
-        AND fr.status = 'Completed'
+        AND UPPER(fr.status) = 'COMPLETED'
         AND fr.completed_date IS NOT NULL
         AND DATE(fr.completed_date) = ?
     `;
@@ -241,7 +241,7 @@ export async function GET(request) {
       FROM filling_requests fr
       WHERE fr.cid = ?
         AND fr.new_amount > 0
-        AND fr.status = 'Completed'
+        AND UPPER(fr.status) = 'COMPLETED'
         AND fr.completed_date IS NOT NULL
         AND DATE(fr.completed_date) < ?
     `;
@@ -269,7 +269,7 @@ export async function GET(request) {
         `SELECT COUNT(*) as count 
          FROM filling_requests fr
          WHERE fr.cid = ? 
-           AND fr.status = 'Completed' 
+           AND UPPER(fr.status) = 'COMPLETED' 
            AND fr.payment_status = 0
            AND DATE(fr.completed_date) < DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
         [customerId, dayLimit]

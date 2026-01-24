@@ -19,13 +19,9 @@ function FillingRequestsPage() {
     eligibility: 'Yes', 
     reason: '', 
     dayLimit: 0, 
-    dayCount: 0,
-    sameDayAllowed: false,
-    unpaidDaysSummary: [],
-    totalOutstanding: 0,
-    oldestUnpaidDayDate: null,
-    oldestUnpaidDayTotal: 0
+    dayCount: 0 
   });
+  const [eligibility, setEligibility] = useState({ isEligible: true, reason: '', dayLimit: 0, pendingDays: 0 });
   const [imagePreview, setImagePreview] = useState(null);
 
   // Load customer ID from localStorage
@@ -36,7 +32,9 @@ function FillingRequestsPage() {
         if (savedUser) {
           const user = JSON.parse(savedUser);
           if (user && user.id) {
-            setCustomerId(String(user.id).trim());
+            // Use com_id if present (for sub-users), otherwise id
+            const cid = user.com_id || user.id;
+            setCustomerId(String(cid).trim());
           }
         }
       } catch (e) {
@@ -44,6 +42,29 @@ function FillingRequestsPage() {
       }
     }
   }, []);
+
+  useEffect(() => {
+    const checkEligibility = async () => {
+      try {
+        if (!customerId) return;
+        const res = await fetch('/api/cst/check-eligibility', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ customer_id: customerId })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setEligibility({
+            isEligible: data.isEligible !== false,
+            reason: data.reason || '',
+            dayLimit: Number(data.dayLimit) || 0,
+            pendingDays: Number(data.pendingDays) || 0
+          });
+        }
+      } catch (e) {}
+    };
+    checkEligibility();
+  }, [customerId]);
 
   // ✅ Fetch filling requests
   const fetchFillingRequests = React.useCallback(async (filter = 'All') => {
@@ -89,32 +110,40 @@ function FillingRequestsPage() {
         const requestsArray = Array.isArray(data.requests) ? data.requests : [];
         console.log("✅ CST: Setting requests:", requestsArray.length, "items");
         
-        // ✅ Server-side eligibility check to reflect day_limit and same-day allowance
-        try {
-          const eligRes = await fetch('/api/cst/check-eligibility', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ customer_id: parseInt(customerId) })
-          });
-          if (eligRes.ok) {
-            const eligData = await eligRes.json();
-            const status = {
-              eligibility: eligData.isEligible ? 'Yes' : 'No',
-              reason: eligData.reason || '',
-              dayLimit: eligData.dayLimit || 0,
-              dayCount: eligData.pendingDays || 0,
-              sameDayAllowed: Boolean(eligData.sameDayAllowed),
-              unpaidDaysSummary: Array.isArray(eligData.unpaidDaysSummary) ? eligData.unpaidDaysSummary : [],
-              totalOutstanding: typeof eligData.totalOutstanding === 'number' ? eligData.totalOutstanding : 0,
-              oldestUnpaidDayDate: eligData.oldestUnpaidDayDate || null,
-              oldestUnpaidDayTotal: typeof eligData.oldestUnpaidDayTotal === 'number' ? eligData.oldestUnpaidDayTotal : 0
-            };
-            setCustomerEligibility(status);
-          }
-        } catch (eligErr) {
-          console.warn('Eligibility check failed:', eligErr);
+        // ✅ Calculate customer eligibility status based on day_limit
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        
+        // Get today's pending requests count
+        const todayPendingRequests = requestsArray.filter(req => {
+          const isPending = req.status === 'pending' || req.status === 'Pending';
+          if (!isPending) return false;
+          
+          const requestDate = req.created ? new Date(req.created).toISOString().split('T')[0] : null;
+          return requestDate === today;
+        });
+        
+        // Get day_limit from any request (assuming all have same day_limit for customer)
+        const dayLimit = requestsArray[0]?.day_limit || 0;
+        const dayCount = todayPendingRequests.length;
+        
+        let customerEligibilityStatus = { 
+          eligibility: 'Yes', 
+          reason: '', 
+          dayLimit: dayLimit, 
+          dayCount: dayCount 
+        };
+        
+        // Check day_limit eligibility
+        if (dayLimit > 0 && dayCount >= dayLimit) {
+          customerEligibilityStatus = {
+            eligibility: 'No',
+            reason: `Daily limit reached (${dayCount}/${dayLimit})`,
+            dayLimit: dayLimit,
+            dayCount: dayCount
+          };
         }
         
+        setCustomerEligibility(customerEligibilityStatus);
         setRequests(requestsArray);
       } else {
         const errorMsg = data.message || data.error || 'Failed to fetch requests';
@@ -380,56 +409,34 @@ function FillingRequestsPage() {
                   <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Filling Requests</h1>
                   <p className="text-gray-600 mt-2">Track and manage your fuel filling requests</p>
                   
-                  {customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit && !customerEligibility.sameDayAllowed && (
-                    <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
-                      <div className="text-red-700 font-medium">
-                        Day limit reached ({customerEligibility.dayCount}/{customerEligibility.dayLimit})
-                      </div>
-                      {customerEligibility.reason && (
-                        <div className="text-sm text-red-600 mt-1 whitespace-pre-line">
-                          {customerEligibility.reason}
-                        </div>
-                      )}
-                      {customerEligibility.unpaidDaysSummary.length > 0 && (
-                        <div className="mt-2">
-                          <div className="text-sm text-gray-700 font-medium">Unpaid days:</div>
-                          <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                            {customerEligibility.unpaidDaysSummary.slice(0, 6).map((d, idx) => (
-                              <div key={idx} className="text-xs text-gray-700 bg-white border rounded px-2 py-1">
-                                <span className="font-semibold">{new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                                <span className="ml-2">₹{(d.total || 0).toFixed(2)}</span>
-                                <span className="ml-2">({d.count} req)</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="text-sm text-gray-800 font-semibold mt-2">
-                            Total outstanding: ₹{(customerEligibility.totalOutstanding || 0).toFixed(2)}
-                          </div>
-                        </div>
-                      )}
+                  {eligibility.isEligible ? (
+                    <Link 
+                      href="/cst/filling-requests/create-request"
+                      className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 w-fit mt-2"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      <span>Create New Request</span>
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => alert(eligibility.reason || 'Day limit reached')}
+                      className="bg-gray-300 text-gray-600 px-6 py-3 rounded-lg inline-flex items-center gap-2 w-fit mt-2 cursor-not-allowed"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                      </svg>
+                      <span>Create New Request</span>
+                    </button>
+                  )}
+                  {eligibility.dayLimit > 0 && (
+                    <div className={`mt-2 text-sm px-3 py-2 rounded ${eligibility.isEligible ? 'bg-blue-50 text-blue-700 border border-blue-200' : 'bg-red-50 text-red-700 border border-red-200'}`}>
+                      <span>Day Limit: {eligibility.pendingDays}/{eligibility.dayLimit}</span>
+                      {eligibility.reason && <span className="ml-2">{eligibility.reason}</span>}
                     </div>
                   )}
-                  
-                  {customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit && customerEligibility.sameDayAllowed && (
-                    <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-                      <div className="text-yellow-800 font-medium">
-                        Daily limit reached ({customerEligibility.dayCount}/{customerEligibility.dayLimit})
-                      </div>
-                      <div className="text-sm text-yellow-700 mt-1">
-                        Same-day request allowed. Clear overdue to unlock new-day requests.
-                      </div>
-                    </div>
-                  )}
-                  
-                  <Link 
-                    href="/cst/filling-requests/create-request"
-                    className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 w-fit mt-2"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                    </svg>
-                    <span>Create New Request</span>
-                  </Link>
                 </div>
                 
                 {/* Stats Cards */}
@@ -1051,12 +1058,22 @@ function FillingRequestsPage() {
                 <div className="text-gray-500 text-xs mb-4">
                   Customer ID: {customerId} | Filter: {statusFilter}
                 </div>
-                <Link 
-                  href="/cst/filling-requests/create-request"
-                  className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
-                >
-                  Create your first request
-                </Link>
+                {eligibility.isEligible ? (
+                  <Link 
+                    href="/cst/filling-requests/create-request"
+                    className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
+                  >
+                    Create your first request
+                  </Link>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => alert(eligibility.reason || 'Day limit reached')}
+                    className="inline-block bg-gray-300 text-gray-600 px-6 py-2 rounded-lg cursor-not-allowed"
+                  >
+                    Create your first request
+                  </button>
+                )}
               </div>
             )}
           </div>

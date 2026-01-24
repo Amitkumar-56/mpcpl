@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
   if (sub_product_id) {
     const exactRows = await executeQuery(
-      "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND com_id = ? AND is_active = 1 AND status = 'active' AND is_applied = 1 ORDER BY updated_date DESC LIMIT 1",
+      "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1",
       [station_id, product_id, sub_product_id, com_id]
     );
     if (Array.isArray(exactRows) && exactRows.length > 0) {
@@ -14,7 +14,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   
   if (sub_product_id) {
     const stationRows = await executeQuery(
-      "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND is_active = 1 AND status = 'active' AND is_applied = 1 ORDER BY updated_date DESC LIMIT 1",
+      "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND is_active = 1 LIMIT 1",
       [station_id, product_id, sub_product_id]
     );
     if (Array.isArray(stationRows) && stationRows.length > 0) {
@@ -23,7 +23,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   }
   
   const customerRows = await executeQuery(
-    "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ? AND is_active = 1 AND status = 'active' AND is_applied = 1 ORDER BY updated_date DESC LIMIT 1",
+    "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1",
     [station_id, product_id, com_id]
   );
   if (Array.isArray(customerRows) && customerRows.length > 0) {
@@ -31,7 +31,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   }
   
   const productRows = await executeQuery(
-    "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND is_active = 1 AND status = 'active' AND is_applied = 1 ORDER BY updated_date DESC LIMIT 1",
+    "SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND is_active = 1 LIMIT 1",
     [station_id, product_id]
   );
   if (Array.isArray(productRows) && productRows.length > 0) {
@@ -286,16 +286,13 @@ export async function GET(request) {
     
   } catch (error) {
     console.error("❌ CST API GET error:", error);
-    const msg = error?.message || '';
-    const isConnBusy = msg.includes('Database busy') || msg.includes('Too many connections') || error?.code === 'ER_CON_COUNT_ERROR';
-    const statusCode = isConnBusy ? 200 : 500;
     return NextResponse.json(
       { 
         success: false, 
-        message: msg || 'Internal server error', 
+        message: error.message || 'Internal server error', 
         requests: [] 
       }, 
-      { status: statusCode }
+      { status: 500 }
     );
   }
 }

@@ -8,6 +8,7 @@ export async function GET(request) {
     const station_id = searchParams.get("station_id");
     const product_id = searchParams.get("product_id");
     const sub_product_id = searchParams.get("sub_product_id");
+    const customer_id = searchParams.get("customer_id"); // Simple list branch
 
     console.log('🔍 Deal Price Search Parameters:', {
       com_id,
@@ -15,6 +16,28 @@ export async function GET(request) {
       product_id,
       sub_product_id
     });
+
+    // Simple branch: match customers page API shape (returns plain array)
+    if (customer_id) {
+      const parsedCustomerId = parseInt(customer_id);
+      if (!parsedCustomerId || isNaN(parsedCustomerId)) {
+        return NextResponse.json([]);
+      }
+      const data = await executeQuery(
+        `SELECT dp.*,
+                p.pname AS product_name,
+                pc.pcode AS sub_product_code,
+                s.station_name
+         FROM deal_price dp
+         LEFT JOIN product_codes pc ON dp.sub_product_id = pc.id
+         LEFT JOIN products p ON dp.product_id = p.id
+         LEFT JOIN filling_stations s ON dp.station_id = s.id
+         WHERE dp.com_id = ? AND dp.is_active = 1
+         ORDER BY s.station_name, p.pname, pc.pcode`,
+        [parsedCustomerId]
+      );
+      return NextResponse.json(Array.isArray(data) ? data : []);
+    }
 
     // Validate required parameters
     if (!com_id) {
@@ -53,16 +76,22 @@ export async function GET(request) {
           dp.sub_product_id,
           dp.price,
           dp.is_active,
-          COALESCE(s.station_name, 'Station ' + dp.station_id) as station_name,
-          COALESCE(p.pname, 'Product ' + dp.product_id) as product_name,
-          COALESCE(sp.sub_product_name, 'Sub-Product ' + dp.sub_product_id) as sub_product_name,
-          COALESCE(sp.sub_product_code, 'CODE' + dp.sub_product_id) as sub_product_code
-        FROM deal_prices dp
+          dp.updated_date,
+          dp.Schedule_Date,
+          dp.Schedule_Time,
+          s.station_name,
+          p.pname AS product_name,
+          pc.pcode AS sub_product_code,
+          pc.name AS sub_product_name
+        FROM deal_price dp
         LEFT JOIN filling_stations s ON dp.station_id = s.id
         LEFT JOIN products p ON dp.product_id = p.id
-        LEFT JOIN sub_products sp ON dp.sub_product_id = sp.id
-        WHERE dp.com_id = ? AND dp.is_active = 1
-        ORDER BY s.station_name, p.pname, sp.sub_product_code
+        LEFT JOIN product_codes pc ON dp.sub_product_id = pc.id
+        WHERE dp.com_id = ? 
+          AND dp.is_active = 1
+          AND dp.status = 'active'
+          AND dp.is_applied = 1
+        ORDER BY s.station_name, p.pname, pc.pcode
         LIMIT 500
       `;
       
@@ -73,7 +102,7 @@ export async function GET(request) {
       return NextResponse.json({
         success: true,
         priceData: allPrices,
-        message: `Found ${allPrices.length} deal prices`
+        message: `Found ${allPrices.length} deal_price`
       });
     }
 

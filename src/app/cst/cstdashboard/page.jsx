@@ -9,16 +9,16 @@ import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  BiCheckDouble,
-  BiMessageRounded,
-  BiMinus,
-  BiReceipt,
-  BiSend,
-  BiTime,
-  BiUser,
-  BiWifi,
-  BiWifiOff,
-  BiX
+    BiCheckDouble,
+    BiMessageRounded,
+    BiMinus,
+    BiReceipt,
+    BiSend,
+    BiTime,
+    BiUser,
+    BiWifi,
+    BiWifiOff,
+    BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -140,7 +140,8 @@ export default function CustomerDashboardPage() {
     if (!user?.id) return;
     const fetchOutstanding = async () => {
       try {
-        const response = await fetch(`/api/cst/customer-history?cl_id=${user.id}`);
+        const cid = user.com_id || user.id;
+        const response = await fetch(`/api/cst/customer-history?cl_id=${cid}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.outstandings) {
@@ -598,18 +599,20 @@ export default function CustomerDashboardPage() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <button 
-                    onClick={redirectToMyUsers}
-                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
-                  >
-                    <div className="p-2 bg-blue-100 text-blue-600 rounded">
-                      <BiUser className="w-5 h-5" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-medium text-gray-800">My Users</h4>
-                      <p className="text-sm text-gray-600">Manage users</p>
-                    </div>
-                  </button>
+                  {user?.roleid === 1 && (
+                    <button 
+                      onClick={redirectToMyUsers}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
+                    >
+                      <div className="p-2 bg-blue-100 text-blue-600 rounded">
+                        <BiUser className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-medium text-gray-800">My Users</h4>
+                        <p className="text-sm text-gray-600">Manage users</p>
+                      </div>
+                    </button>
+                  )}
 
                   <button 
                     onClick={redirectToCustomerHistory}
