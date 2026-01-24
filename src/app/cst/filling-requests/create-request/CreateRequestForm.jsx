@@ -58,14 +58,19 @@ export default function CreateRequestForm() {
     }
     
     const user = JSON.parse(savedUser);
-    if (Number(user.roleid) !== 1) {
+    const roleId = Number(user.roleid);
+    
+    if (roleId !== 1 && roleId !== 2) {
+      console.error("CreateRequest: Invalid role", user.roleid);
+      alert("Invalid user role. Please login again.");
       router.push('/cst/login');
       return;
     }
     
-    setCustomerId(user.id);
+    const cid = user.com_id || user.id;
+    setCustomerId(cid);
     setCustomerData(user);
-    fetchCustomerData(user.id);
+    fetchCustomerData(cid);
   }, [router]);
 
   // Check eligibility when customerId changes
@@ -179,7 +184,7 @@ export default function CreateRequestForm() {
           });
 
           const response = await fetch(
-            `/api/cst/deal-price?customer_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
+            `/api/cst/deal-price?com_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
           );
           const data = await response.json();
           

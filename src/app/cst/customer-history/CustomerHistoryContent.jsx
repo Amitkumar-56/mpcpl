@@ -33,7 +33,8 @@ export default function CustomerHistoryContent() {
       if (savedCustomer) {
         const customerData = JSON.parse(savedCustomer);
         if (customerData.id) {
-          return customerData.id.toString();
+          // Use com_id if present (for sub-users), otherwise id
+          return (customerData.com_id || customerData.id).toString();
         }
       }
     } catch (error) {
@@ -154,6 +155,19 @@ export default function CustomerHistoryContent() {
       case 2: return 'Postpaid';
       case 3: return 'Day Limit';
       default: return 'Unknown';
+    }
+  };
+
+  const getBillingTypeText = (transType) => {
+    switch(transType) {
+      case 'credit':
+      case 'inward':
+        return 'Credit/Inward';
+      case 'debit':
+      case 'outward':
+        return 'Debit/Outward';
+      default:
+        return transType || 'N/A';
     }
   };
 
@@ -344,9 +358,6 @@ export default function CustomerHistoryContent() {
                             Vehicle
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Customer Type
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Type
                           </th>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -390,9 +401,6 @@ export default function CustomerHistoryContent() {
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                               {transaction.vehicle_number}
-                            </td>
-                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                              {getClientTypeText(customerInfo?.client_type)}
                             </td>
                             <td className="px-4 py-3 whitespace-nowrap text-sm">
                               <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${

@@ -1,5 +1,24 @@
-import { executeQuery } from "@/lib/db";
+import { getConnection } from "@/lib/db";
 import { NextResponse } from "next/server";
+
+async function getConnWithRetry(retries = 3, delayMs = 300) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const conn = await getConnection();
+      return conn;
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err?.message || "");
+      if (err?.code === "ER_CON_COUNT_ERROR" || msg.includes("Too many connections")) {
+        await new Promise(res => setTimeout(res, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
 
 export async function GET(request) {
   try {
@@ -36,11 +55,18 @@ export async function GET(request) {
     `;
 
     const searchPattern = `%${query}%`;
-    const vehicles = await executeQuery(vehiclesQuery, [
-      customerId, 
-      searchPattern, 
-      searchPattern
-    ]);
+    const connection = await getConnWithRetry();
+    let vehicles = [];
+    try {
+      const [rows] = await connection.execute(vehiclesQuery, [
+        customerId,
+        searchPattern,
+        searchPattern
+      ]);
+      vehicles = rows;
+    } finally {
+      connection.release();
+    }
 
     console.log('🔍 Found vehicles:', vehicles.length);
 

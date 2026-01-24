@@ -79,6 +79,44 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
+    // ✅ Enforce Day Limit creation rule for day limit customers
+    try {
+      const dayInfoRows = await executeQuery(
+        `SELECT c.client_type, cb.day_limit 
+         FROM customers c 
+         LEFT JOIN customer_balances cb ON c.id = cb.com_id 
+         WHERE c.id = ?`,
+        [parseInt(customer_id)]
+      );
+      const clientType = String(dayInfoRows?.[0]?.client_type || '');
+      const dayLimitVal = parseInt(dayInfoRows?.[0]?.day_limit || 0) || 0;
+      if (clientType === '3' && dayLimitVal > 0) {
+        const unpaidDays = await executeQuery(
+          `SELECT DATE(completed_date) as day_date
+           FROM filling_requests 
+           WHERE cid = ? 
+             AND status = 'Completed' 
+             AND payment_status = 0 
+           GROUP BY DATE(completed_date)`,
+          [parseInt(customer_id)]
+        );
+        const unpaidDistinctDays = Array.isArray(unpaidDays) ? unpaidDays.map(r => (r.day_date instanceof Date ? r.day_date.toISOString().slice(0,10) : String(r.day_date))) : [];
+        const todayStr = new Date().toISOString().slice(0,10);
+        if (unpaidDistinctDays.length >= dayLimitVal) {
+          const isSameDayAllowed = unpaidDistinctDays.includes(todayStr);
+          if (!isSameDayAllowed) {
+            const oldestDay = unpaidDistinctDays.sort()[0] || '';
+            return NextResponse.json({
+              success: false,
+              message: `Day limit reached (${unpaidDistinctDays.length}/${dayLimitVal}). You can create multiple requests only on existing unpaid day (${oldestDay}). Please clear payment for oldest day to create requests on a new date.`
+            }, { status: 403 });
+          }
+        }
+      }
+    } catch (eligErr) {
+      console.warn('Day limit eligibility check failed, continuing:', eligErr?.message || eligErr);
+    }
+
     // Generate RID
     const lastRequestQuery = `SELECT rid FROM filling_requests ORDER BY id DESC LIMIT 1`;
     const lastRequest = await executeQuery(lastRequestQuery);

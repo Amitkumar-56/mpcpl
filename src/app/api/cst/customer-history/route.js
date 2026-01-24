@@ -8,14 +8,18 @@ export async function GET(request) {
     const pname = searchParams.get('pname');
     const cl_id = searchParams.get('cl_id');
     
-    if (!cl_id) {
+    // Get customer ID from parameter or use logged-in customer logic
+    let customerId;
+    if (cl_id) {
+      customerId = parseInt(cl_id);
+    } else {
+      // For CST users, we need to get the customer ID from the session
+      // For now, we'll require cl_id parameter
       return NextResponse.json({
         success: false,
-        message: 'Customer ID (cl_id) is required'
+        message: 'Customer ID (cl_id) is required for customer history'
       }, { status: 400 });
     }
-    
-    const customerId = parseInt(cl_id);
     
     if (isNaN(customerId) || customerId <= 0) {
       return NextResponse.json({
@@ -84,7 +88,19 @@ export async function GET(request) {
       totalDayAmount = balanceInfo.total_day_amount || 0;
     }
 
-    // 3. Get filling_history data - FIXED SQL QUERY
+    // 3. Get filling_history data - FIXED SQL QUERY with correct inward/outward logic
+    // First, let's debug what trans_types exist for this customer
+    console.log('🔍 Debugging transaction types for customer:', customerId);
+    const debugTypesQuery = `
+      SELECT DISTINCT fh.trans_type, COUNT(*) as count
+      FROM filling_history fh
+      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+      WHERE (fh.cl_id = ? OR fr.cid = ?)
+      GROUP BY fh.trans_type
+    `;
+    const debugTypes = await executeQuery(debugTypesQuery, [customerId, customerId]);
+    console.log('📊 Available transaction types:', debugTypes);
+
     // Check both fh.cl_id and fr.cid to handle cases where cl_id might be NULL
     let sql = `
       SELECT 
@@ -99,11 +115,11 @@ export async function GET(request) {
         fh.remaining_limit,
         fh.remaining_day_limit,
         CASE 
-          WHEN LOWER(fh.trans_type) IN ('outward', 'debit') THEN COALESCE(fh.amount, 0)
+          WHEN fh.trans_type = 'credit' OR fh.trans_type = 'inward' THEN COALESCE(fh.credit, 0)
           ELSE NULL
         END AS in_amount,
         CASE 
-          WHEN LOWER(fh.trans_type) IN ('credit', 'inward') THEN COALESCE(fh.credit, 0)
+          WHEN fh.trans_type = 'debit' OR fh.trans_type = 'outward' THEN COALESCE(fh.amount, 0)
           ELSE NULL
         END AS d_amount,
         COALESCE(p.pname, 'Unknown Product') as pname,
@@ -134,6 +150,14 @@ export async function GET(request) {
     try {
       transactions = await executeQuery(sql, params);
       console.log('✅ Transactions found:', transactions.length);
+      
+      // Debug: Show sample transactions with their amounts
+      if (transactions.length > 0) {
+        console.log('📋 Sample transactions:');
+        transactions.slice(0, 3).forEach((t, i) => {
+          console.log(`  ${i+1}. Type: ${t.trans_type}, Amount: ${t.amount}, Credit: ${t.credit}, In_amount: ${t.in_amount}, D_amount: ${t.d_amount}`);
+        });
+      }
       
       // Debug: Check if cl_id is NULL in filling_history
       if (transactions.length === 0) {
@@ -183,7 +207,7 @@ export async function GET(request) {
       openingBalance = currentBalance;
     }
 
-    // 6. Calculate Yesterday's and Today's Outstandings based on cl_id
+    // 6. Calculate Yesterday's and Today's Outstandings - FIXED LOGIC
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
@@ -192,34 +216,42 @@ export async function GET(request) {
     const todayFormatted = today.toISOString().split('T')[0];
     const yesterdayFormatted = yesterday.toISOString().split('T')[0];
 
-    // ✅ FIX: Today's outstanding (using completed_date only, not created_at)
+    // ✅ FIX: Today's outstanding (sum of new_amount from completed transactions today)
     const todayOutstandingQuery = `
-      SELECT COALESCE(SUM(fh.new_amount), 0) as total 
-      FROM filling_history fh
-      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-      WHERE (fh.cl_id = ? OR fr.cid = ?)
-        AND fh.new_amount > 0
+      SELECT COALESCE(SUM(fr.new_amount), 0) as total 
+      FROM filling_requests fr
+      WHERE fr.cid = ?
+        AND fr.new_amount > 0
+        AND fr.status = 'Completed'
         AND fr.completed_date IS NOT NULL
         AND DATE(fr.completed_date) = ?
     `;
+    console.log('🔍 Today outstanding query:', todayOutstandingQuery);
+    console.log('🔍 Today outstanding params:', [customerId, todayFormatted]);
+    
     const todayOutstandingResult = await executeQuery(todayOutstandingQuery, [
-      customerId, customerId, todayFormatted
+      customerId, todayFormatted
     ]).catch(() => [{ total: 0 }]);
+    console.log('🔍 Today outstanding result:', todayOutstandingResult);
     const todayOutstanding = parseFloat(todayOutstandingResult[0]?.total) || 0;
 
-    // ✅ FIX: Yesterday's outstanding (using completed_date only, not created_at)
+    // ✅ FIX: Yesterday's outstanding (sum of new_amount from transactions before today)
     const yesterdayOutstandingQuery = `
-      SELECT COALESCE(SUM(fh.new_amount), 0) as total 
-      FROM filling_history fh
-      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-      WHERE (fh.cl_id = ? OR fr.cid = ?)
-        AND fh.new_amount > 0
+      SELECT COALESCE(SUM(fr.new_amount), 0) as total 
+      FROM filling_requests fr
+      WHERE fr.cid = ?
+        AND fr.new_amount > 0
+        AND fr.status = 'Completed'
         AND fr.completed_date IS NOT NULL
         AND DATE(fr.completed_date) < ?
     `;
+    console.log('🔍 Yesterday outstanding query:', yesterdayOutstandingQuery);
+    console.log('🔍 Yesterday outstanding params:', [customerId, todayFormatted]);
+    
     const yesterdayOutstandingResult = await executeQuery(yesterdayOutstandingQuery, [
-      customerId, customerId, todayFormatted
+      customerId, todayFormatted
     ]).catch(() => [{ total: 0 }]);
+    console.log('🔍 Yesterday outstanding result:', yesterdayOutstandingResult);
     const yesterdayOutstanding = parseFloat(yesterdayOutstandingResult[0]?.total) || 0;
 
     // 7. Check for low balance notifications
@@ -256,14 +288,14 @@ export async function GET(request) {
       remaining_limit: transaction.remaining_limit
     }));
 
-    // 9. Calculate summary
+    // 9. Calculate summary - FIXED CREDIT/DEBIT LOGIC
     const totalCredit = finalTransactions
-      .filter(t => t.trans_type === 'credit')
-      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
+      .filter(t => t.trans_type === 'credit' || t.trans_type === 'inward')
+      .reduce((sum, t) => sum + (Number(t.credit) || 0), 0);
 
     const totalDebit = finalTransactions
-      .filter(t => t.trans_type === 'debit')
-      .reduce((sum, t) => sum + (Number(t.credit) || 0), 0);
+      .filter(t => t.trans_type === 'debit' || t.trans_type === 'outward')
+      .reduce((sum, t) => sum + (Number(t.amount) || 0), 0);
 
     const totalFillingQty = finalTransactions
       .reduce((sum, t) => sum + (Number(t.filling_qty) || 0), 0);

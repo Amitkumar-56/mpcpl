@@ -1,32 +1,57 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FaBars, FaFileInvoice, FaHome, FaSignOutAlt, FaTimes, FaTruck } from "react-icons/fa";
+import { FaBars, FaFileInvoice, FaHome, FaSignOutAlt, FaTag, FaTags, FaTimes, FaTruck } from "react-icons/fa";
 
-export default function Sidebar() {
-  const [user, setUser] = useState(null);
+export default function Sidebar({ user: propUser }) {
+  const [user, setUser] = useState(propUser || null);
   const [isOpen, setIsOpen] = useState(false);
+  const [permissions, setPermissions] = useState({});
   const router = useRouter();
   const pathname = usePathname();
 
   useEffect(() => {
-    const savedUser = localStorage.getItem("customer");
-    if (!savedUser) {
-      router.push("/cst/login");
+    // If user passed via props, use it
+    if (propUser) {
+      setUser(propUser);
+      fetchPermissions(propUser.id);
       return;
     }
-    setUser(JSON.parse(savedUser));
-  }, []);
+
+    // Otherwise load from localStorage
+    try {
+      const savedUser = localStorage.getItem("customer");
+      if (savedUser) {
+        const parsedUser = JSON.parse(savedUser);
+        setUser(parsedUser);
+        fetchPermissions(parsedUser.id);
+      }
+    } catch (error) {
+      console.error("Error parsing customer data in Sidebar:", error);
+    }
+  }, [propUser]);
+
+  const fetchPermissions = async (userId) => {
+    try {
+      const res = await fetch(`/api/cst/customer-permission?customer_id=${userId}`);
+      const data = await res.json();
+      if (data.success && data.permissions) {
+        setPermissions(data.permissions);
+      }
+    } catch (err) {
+      console.error("Error fetching permissions:", err);
+    }
+  };
 
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
     } else {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = '';
     }
     
     return () => {
-      document.body.style.overflow = 'unset';
+      document.body.style.overflow = '';
     };
   }, [isOpen]);
 
@@ -46,13 +71,54 @@ export default function Sidebar() {
     }
   };
 
-  if (!user) return null;
+  // Don't render sidebar content until user is loaded, but return empty fragment instead of null
+  // so we don't break layout if it expects an element
+  // if (!user) return <div className="hidden md:block w-64 bg-blue-200 h-screen"></div>;
 
   const menuItems = [
     { name: "Dashboard", icon: <FaHome />, path: "/cst/cstdashboard" },
     { name: "Filling Requests", icon: <FaFileInvoice />, path: "/cst/filling-requests" },
     { name: "Loading Stations", icon: <FaTruck />, path: "/cst/loading-stations" },
+    {
+      name: "Deal Price",
+      icon: <FaTag />,
+      path: user && user.id ? `/cst/deal-price` : "/cst/deal-price",
+    },
   ];
+
+  // Filter menu items based on permissions
+  // If no permissions loaded yet, show all or default safe ones?
+  // Current logic: If permissions exist, filter. If not, show all (or assume allowed for backward compat)
+  // Adjust logic as per strict requirements. Here assuming "can_view" controls visibility.
+  const filteredMenuItems = menuItems.filter(item => {
+    // Dashboard is always visible
+    if (item.path === "/cst/cstdashboard") return true;
+
+    // Deal Price - Only for main customers (roleid != 2)
+    if (item.path.startsWith("/cst/deal-price")) {
+      return user && user.roleid !== 2;
+    }
+    
+    // Map paths to module names (matching DB snake_case)
+    let moduleName = "";
+    if (item.path === "/cst/filling-requests") moduleName = "filling_requests";
+    if (item.path === "/cst/loading-stations") moduleName = "loading_stations";
+    if (item.path === "/cst/customer-history") moduleName = "customer_history";
+    if (item.path === "/cst/user") moduleName = "my_users";
+
+    // If it's a dashboard link, always show
+    if (item.path === "/cst/cstdashboard") return true;
+
+    // If we have permissions data and the module exists in it
+    if (permissions && permissions[moduleName]) {
+      // console.log(`Sidebar: Permission check for ${moduleName}:`, permissions[moduleName]);
+      return permissions[moduleName].can_view;
+    }
+    
+    // Fallback: If no specific permission found (or permission not loaded yet), allow it
+    // console.log(`Sidebar: No permission found for ${moduleName}, defaulting to visible`);
+    return true; 
+  });
 
   return (
     <>
@@ -94,13 +160,14 @@ export default function Sidebar() {
         </div>
         
         <nav className="flex-1 overflow-y-auto py-2 px-2">
-          {menuItems.map(item => {
-            const isActive = pathname.startsWith(item.path);
+          {filteredMenuItems.map(item => {
+            const basePath = item.path.split("?")[0];
+            const isActive = pathname.startsWith(basePath);
             return (
               <button
                 key={item.name}
                 onClick={() => {
-                  window.location.href = item.path;
+                  router.push(item.path);
                   setIsOpen(false);
                 }}
                 className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${

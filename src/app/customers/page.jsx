@@ -358,11 +358,14 @@ function CustomersPage() {
   }, []);
   const [expandedRows, setExpandedRows] = useState(new Set());
 
-  // Calculate outstanding for day limit customers
-  const calculateDayLimitOutstanding = useCallback((balance, totalDayAmount) => {
+  // Day limit customers के लिए सिर्फ balance fetch करें (no calculation)
+  const getDayLimitBalance = useCallback((balance) => {
     const bal = Number(balance) || 0;
-    const total = Number(totalDayAmount) || 0;
-    return Math.max(0, bal - total);
+    return {
+      balance: bal,
+      display: `₹${bal.toLocaleString('en-IN')}`,
+      color: bal >= 0 ? 'text-green-600' : 'text-red-600'
+    };
   }, []);
 
   const actionButtons = useMemo(() => [
@@ -667,6 +670,7 @@ function CustomersPage() {
                             const dayLimitStatus = getDayLimitStatus(c);
                             const isDayLimit = c.client_type === "3";
                             const remainingLimitInfo = !isDayLimit ? getRemainingLimitStatus(c.balance, c.cst_limit) : null;
+                            const dayLimitBalance = isDayLimit ? getDayLimitBalance(c.balance) : null;
                             
                             return (
                               <React.Fragment key={c.id}>
@@ -770,21 +774,16 @@ function CustomersPage() {
                                             )}
                                           </div>
 
-                                          {/* Outstanding */}
+                                          {/* Outstanding - सिर्फ balance fetch करें */}
                                           <div className="bg-white rounded-lg p-3 border border-gray-200">
                                             <div className="text-xs font-medium text-gray-500 mb-1">Outstanding</div>
                                             {isDayLimit ? (
-                                              <div className={`text-sm font-bold ${
-                                                calculateDayLimitOutstanding(c.balance, c.total_day_amount) > 0 
-                                                  ? 'text-red-600' 
-                                                  : 'text-green-600'
-                                              }`}>
-                                                ₹{calculateDayLimitOutstanding(c.balance, c.total_day_amount).toLocaleString('en-IN', { 
-                                                  minimumFractionDigits: 2, 
-                                                  maximumFractionDigits: 2 
-                                                })}
+                                              // Day limit: सिर्फ balance दिखाएं
+                                              <div className={`text-sm font-bold ${dayLimitBalance?.color || 'text-gray-600'}`}>
+                                                {dayLimitBalance?.display || '₹0'}
                                               </div>
                                             ) : (
+                                              // Prepaid/Postpaid: balance दिखाएं (यह कर्ज है)
                                               <div className="text-sm font-bold text-red-600">
                                                 ₹{(c.balance || 0).toLocaleString('en-IN')}
                                               </div>
@@ -821,6 +820,14 @@ function CustomersPage() {
                                               <span className="text-xs text-gray-400">N/A</span>
                                             )}
                                           </div>
+
+                                          {/* Day Limit Info */}
+                                          {isDayLimit && (
+                                            <div className="bg-white rounded-lg p-3 border border-gray-200">
+                                              <div className="text-xs font-medium text-gray-500 mb-1">Day Limit</div>
+                                              <div className="text-sm font-bold text-indigo-700">{c.day_limit || 0} days</div>
+                                            </div>
+                                          )}
 
                                           {/* Actions */}
                                           <div className="bg-white rounded-lg p-3 border border-gray-200">
@@ -910,6 +917,7 @@ function CustomersPage() {
                         const dayLimitStatus = getDayLimitStatus(c);
                         const isDayLimit = c.client_type === "3";
                         const remainingLimitInfo = !isDayLimit ? getRemainingLimitStatus(c.balance, c.cst_limit) : null;
+                        const dayLimitBalance = isDayLimit ? getDayLimitBalance(c.balance) : null;
                         
                         return (
                           <div key={c.id} className="bg-white rounded-xl shadow-lg border border-purple-100 p-4 hover:shadow-xl transition-all duration-200">
@@ -1032,21 +1040,16 @@ function CustomersPage() {
                                     )}
                                   </div>
 
-                                  {/* Outstanding */}
+                                  {/* Outstanding - सिर्फ balance fetch करें */}
                                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                                     <div className="text-xs font-medium text-gray-500 mb-1">Outstanding</div>
                                     {isDayLimit ? (
-                                      <div className={`text-sm font-bold ${
-                                        calculateDayLimitOutstanding(c.balance, c.total_day_amount) > 0 
-                                          ? 'text-red-600' 
-                                          : 'text-green-600'
-                                      }`}>
-                                        ₹{calculateDayLimitOutstanding(c.balance, c.total_day_amount).toLocaleString('en-IN', { 
-                                          minimumFractionDigits: 2, 
-                                          maximumFractionDigits: 2 
-                                        })}
+                                      // Day limit: सिर्फ balance दिखाएं
+                                      <div className={`text-sm font-bold ${dayLimitBalance?.color || 'text-gray-600'}`}>
+                                        {dayLimitBalance?.display || '₹0'}
                                       </div>
                                     ) : (
+                                      // Prepaid/Postpaid: balance दिखाएं (यह कर्ज है)
                                       <div className="text-sm font-bold text-red-600">
                                         ₹{(c.balance || 0).toLocaleString('en-IN')}
                                       </div>

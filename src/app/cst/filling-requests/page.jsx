@@ -19,7 +19,12 @@ function FillingRequestsPage() {
     eligibility: 'Yes', 
     reason: '', 
     dayLimit: 0, 
-    dayCount: 0 
+    dayCount: 0,
+    sameDayAllowed: false,
+    unpaidDaysSummary: [],
+    totalOutstanding: 0,
+    oldestUnpaidDayDate: null,
+    oldestUnpaidDayTotal: 0
   });
   const [imagePreview, setImagePreview] = useState(null);
 
@@ -84,40 +89,32 @@ function FillingRequestsPage() {
         const requestsArray = Array.isArray(data.requests) ? data.requests : [];
         console.log("✅ CST: Setting requests:", requestsArray.length, "items");
         
-        // ✅ Calculate customer eligibility status based on day_limit
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        
-        // Get today's pending requests count
-        const todayPendingRequests = requestsArray.filter(req => {
-          const isPending = req.status === 'pending' || req.status === 'Pending';
-          if (!isPending) return false;
-          
-          const requestDate = req.created ? new Date(req.created).toISOString().split('T')[0] : null;
-          return requestDate === today;
-        });
-        
-        // Get day_limit from any request (assuming all have same day_limit for customer)
-        const dayLimit = requestsArray[0]?.day_limit || 0;
-        const dayCount = todayPendingRequests.length;
-        
-        let customerEligibilityStatus = { 
-          eligibility: 'Yes', 
-          reason: '', 
-          dayLimit: dayLimit, 
-          dayCount: dayCount 
-        };
-        
-        // Check day_limit eligibility
-        if (dayLimit > 0 && dayCount >= dayLimit) {
-          customerEligibilityStatus = {
-            eligibility: 'No',
-            reason: `Daily limit reached (${dayCount}/${dayLimit})`,
-            dayLimit: dayLimit,
-            dayCount: dayCount
-          };
+        // ✅ Server-side eligibility check to reflect day_limit and same-day allowance
+        try {
+          const eligRes = await fetch('/api/cst/check-eligibility', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ customer_id: parseInt(customerId) })
+          });
+          if (eligRes.ok) {
+            const eligData = await eligRes.json();
+            const status = {
+              eligibility: eligData.isEligible ? 'Yes' : 'No',
+              reason: eligData.reason || '',
+              dayLimit: eligData.dayLimit || 0,
+              dayCount: eligData.pendingDays || 0,
+              sameDayAllowed: Boolean(eligData.sameDayAllowed),
+              unpaidDaysSummary: Array.isArray(eligData.unpaidDaysSummary) ? eligData.unpaidDaysSummary : [],
+              totalOutstanding: typeof eligData.totalOutstanding === 'number' ? eligData.totalOutstanding : 0,
+              oldestUnpaidDayDate: eligData.oldestUnpaidDayDate || null,
+              oldestUnpaidDayTotal: typeof eligData.oldestUnpaidDayTotal === 'number' ? eligData.oldestUnpaidDayTotal : 0
+            };
+            setCustomerEligibility(status);
+          }
+        } catch (eligErr) {
+          console.warn('Eligibility check failed:', eligErr);
         }
         
-        setCustomerEligibility(customerEligibilityStatus);
         setRequests(requestsArray);
       } else {
         const errorMsg = data.message || data.error || 'Failed to fetch requests';
@@ -382,6 +379,47 @@ function FillingRequestsPage() {
                 <div className="flex flex-col gap-2">
                   <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Filling Requests</h1>
                   <p className="text-gray-600 mt-2">Track and manage your fuel filling requests</p>
+                  
+                  {customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit && !customerEligibility.sameDayAllowed && (
+                    <div className="mt-3 bg-red-50 border border-red-200 rounded-lg p-3">
+                      <div className="text-red-700 font-medium">
+                        Day limit reached ({customerEligibility.dayCount}/{customerEligibility.dayLimit})
+                      </div>
+                      {customerEligibility.reason && (
+                        <div className="text-sm text-red-600 mt-1 whitespace-pre-line">
+                          {customerEligibility.reason}
+                        </div>
+                      )}
+                      {customerEligibility.unpaidDaysSummary.length > 0 && (
+                        <div className="mt-2">
+                          <div className="text-sm text-gray-700 font-medium">Unpaid days:</div>
+                          <div className="mt-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {customerEligibility.unpaidDaysSummary.slice(0, 6).map((d, idx) => (
+                              <div key={idx} className="text-xs text-gray-700 bg-white border rounded px-2 py-1">
+                                <span className="font-semibold">{new Date(d.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
+                                <span className="ml-2">₹{(d.total || 0).toFixed(2)}</span>
+                                <span className="ml-2">({d.count} req)</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="text-sm text-gray-800 font-semibold mt-2">
+                            Total outstanding: ₹{(customerEligibility.totalOutstanding || 0).toFixed(2)}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  
+                  {customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit && customerEligibility.sameDayAllowed && (
+                    <div className="mt-3 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                      <div className="text-yellow-800 font-medium">
+                        Daily limit reached ({customerEligibility.dayCount}/{customerEligibility.dayLimit})
+                      </div>
+                      <div className="text-sm text-yellow-700 mt-1">
+                        Same-day request allowed. Clear overdue to unlock new-day requests.
+                      </div>
+                    </div>
+                  )}
                   
                   <Link 
                     href="/cst/filling-requests/create-request"

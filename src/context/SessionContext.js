@@ -2,7 +2,7 @@
 "use client";
 
 import { usePathname, useRouter } from 'next/navigation';
-import { createContext, useCallback, useContext, useEffect, useState, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 const SessionContext = createContext();
 
@@ -37,7 +37,7 @@ export function SessionProvider({ children }) {
           if (savedCustomer) {
             try {
               const customerData = JSON.parse(savedCustomer);
-              if (Number(customerData.roleid) === 1) {
+              if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
                 setUser(customerData);
               }
             } catch (e) {
@@ -116,22 +116,18 @@ export function SessionProvider({ children }) {
         if (savedCustomer) {
           try {
             const customerData = JSON.parse(savedCustomer);
-            // Verify customer has valid roleid
-            if (Number(customerData.roleid) === 1) {
+            // Verify customer has valid roleid (allow customer=1 and sub-user=2)
+            if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
               setUser(customerData);
               // Sync to both storages for consistency
               localStorage.setItem("customer", savedCustomer);
               sessionStorage.setItem("customer", savedCustomer);
             } else {
-              // Invalid role, clear and set user to null
-              localStorage.removeItem("customer");
-              sessionStorage.removeItem("customer");
+              // Invalid role, set user to null (don't clear storages aggressively)
               setUser(null);
             }
           } catch (e) {
             console.error('Error parsing customer data:', e);
-            localStorage.removeItem("customer");
-            sessionStorage.removeItem("customer");
             setUser(null);
           }
         } else {
@@ -336,7 +332,7 @@ export function SessionProvider({ children }) {
         if (savedCustomer) {
           try {
             const customerData = JSON.parse(savedCustomer);
-            if (Number(customerData.roleid) === 1) {
+            if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
               // Customer exists and is valid, set user and don't redirect
               setUser(customerData);
               return;

@@ -2,10 +2,10 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaBell, FaBars, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
+import { FaBars, FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
-export default function CstHeader() {
-  const [user, setUser] = useState(null);
+export default function CstHeader({ user: propUser }) {
+  const [user, setUser] = useState(propUser || null);
   const [notifCount, setNotifCount] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -13,16 +13,34 @@ export default function CstHeader() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const userData = localStorage.getItem('customer');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(prevUser => {
-        if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
-          return parsedUser;
-        }
-        return prevUser;
-      });
+    if (propUser) {
+      setUser(propUser);
+      console.log("Header: Using prop user:", propUser);
+      console.log("Header: Prop user name:", propUser?.name);
+      return;
     }
+    
+    try {
+      const userData = localStorage.getItem('customer') || sessionStorage.getItem('customer');
+      console.log("Header: Checking storage for user data");
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        console.log("Header: Parsed user from storage:", parsedUser);
+        console.log("Header: Parsed user name:", parsedUser?.name);
+        setUser(prevUser => {
+          if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
+            console.log("Header: Updating user state");
+            return parsedUser;
+          }
+          return prevUser;
+        });
+      } else {
+        console.log("Header: No user data found in storage");
+      }
+    } catch (error) {
+      console.error("Error parsing customer data in Header:", error);
+    }
+
     try {
       const c = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
       setNotifCount(prevCount => (isNaN(c) ? 0 : c));

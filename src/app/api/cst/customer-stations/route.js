@@ -1,5 +1,24 @@
-import { executeQuery } from "@/lib/db";
+import { getConnection } from "@/lib/db";
 import { NextResponse } from "next/server";
+
+async function getConnWithRetry(retries = 3, delayMs = 300) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const conn = await getConnection();
+      return conn;
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err?.message || "");
+      if (err?.code === "ER_CON_COUNT_ERROR" || msg.includes("Too many connections")) {
+        await new Promise(res => setTimeout(res, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
 
 export async function GET(request) {
   try {
@@ -15,12 +34,14 @@ export async function GET(request) {
 
     console.log("👤 Fetching stations for customer:", customerId);
 
+    const connection = await getConnWithRetry();
+    try {
     const customerQuery = `
       SELECT name, blocklocation 
       FROM customers 
       WHERE id = ?
     `;
-    const customerResult = await executeQuery(customerQuery, [customerId]);
+      const [customerResult] = await connection.execute(customerQuery, [customerId]);
 
     if (customerResult.length === 0) {
       return NextResponse.json(
@@ -61,7 +82,7 @@ export async function GET(request) {
       WHERE id IN (${placeholders})
       ORDER BY station_name
     `;
-    const stations = await executeQuery(stationsQuery, stationIds);
+      const [stations] = await connection.execute(stationsQuery, stationIds);
 
     console.log("🏭 Found stations:", stations);
 
@@ -73,6 +94,9 @@ export async function GET(request) {
         station_id: blocklocation,
       },
     });
+    } finally {
+      connection.release();
+    }
   } catch (error) {
     console.error("❌ Stations API Error:", error);
     return NextResponse.json(

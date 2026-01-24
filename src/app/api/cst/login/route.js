@@ -1,8 +1,8 @@
 //src/app/api/cst/login/route.js
+import { signToken } from "@/lib/cstauth";
 import { executeQuery } from "@/lib/db";
 import crypto from "crypto";
 import { NextResponse } from "next/server";
-import { signToken } from "@/lib/cstauth";
 
 export async function POST(req) {
   try {
@@ -46,8 +46,8 @@ export async function POST(req) {
       }, { status: 403 });
     }
 
-    // Only allow customers with roleid = 1
-    if (customer.roleid !== 1) {
+    // Allow customers (roleid=1) and sub-users (roleid=2)
+    if (customer.roleid !== 1 && customer.roleid !== 2) {
       return NextResponse.json({ error: "Access denied" }, { status: 403 });
     }
 
@@ -75,6 +75,7 @@ export async function POST(req) {
         station: customer.station,
         client: customer.client,
         roleid: customer.roleid,
+        com_id: customer.com_id,
       },
       token
     });

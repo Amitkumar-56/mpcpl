@@ -26,7 +26,7 @@ export async function GET(req) {
 
     // ✅ Check if customer exists
     const customerResult = await executeQuery(
-      "SELECT id, name, roleid FROM customers WHERE id = ?",
+      "SELECT id, name, roleid, com_id FROM customers WHERE id = ?",
       [customer_id]
     );
 
@@ -38,13 +38,22 @@ export async function GET(req) {
     }
 
     const customer = customerResult[0];
+    
+    // ✅ Determine which ID to use for permission lookup
+    // If it's a sub-user (roleid=2), use their com_id (parent customer ID)
+    // If com_id is missing for roleid=2, fallback to own id (shouldn't happen for valid sub-users)
+    const permissionLookupId = (customer.roleid === 2 && customer.com_id) 
+      ? customer.com_id 
+      : customer.id;
 
-    // ✅ Fetch permissions for this customer
+    console.log(`API: Lookup permissions for ID: ${permissionLookupId} (Role: ${customer.roleid})`);
+
+    // ✅ Fetch permissions using the correct lookup ID
     const permissionRows = await executeQuery(
       `SELECT module_name, can_view, can_edit, can_create
        FROM customer_permissions
        WHERE customer_id = ?`,
-      [customer_id]
+      [permissionLookupId]
     );
 
     console.log("API: Found permissions:", permissionRows.length);

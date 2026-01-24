@@ -17,11 +17,11 @@ export async function GET(request) {
     });
 
     // Validate required parameters
-    if (!com_id || !station_id || !product_id) {
+    if (!com_id) {
       return NextResponse.json(
         {
           success: false,
-          message: "Missing required parameters: com_id, station_id, and product_id are required",
+          message: "Missing required parameter: com_id is required",
         },
         { status: 400 }
       );
@@ -29,15 +29,64 @@ export async function GET(request) {
 
     // Parse IDs
     const parsedComId = parseInt(com_id);
+
+    if (isNaN(parsedComId)) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "Invalid com_id parameter",
+        },
+        { status: 400 }
+      );
+    }
+
+    // NEW: If only com_id is provided, return all deal prices for this customer
+    if (!station_id && !product_id) {
+      console.log('📋 Fetching all deal prices for customer:', parsedComId);
+      
+      // Optimized query with LIMIT to prevent slow loading
+      const allPricesQuery = `
+        SELECT 
+          dp.com_id,
+          dp.station_id,
+          dp.product_id,
+          dp.sub_product_id,
+          dp.price,
+          dp.is_active,
+          COALESCE(s.station_name, 'Station ' + dp.station_id) as station_name,
+          COALESCE(p.pname, 'Product ' + dp.product_id) as product_name,
+          COALESCE(sp.sub_product_name, 'Sub-Product ' + dp.sub_product_id) as sub_product_name,
+          COALESCE(sp.sub_product_code, 'CODE' + dp.sub_product_id) as sub_product_code
+        FROM deal_prices dp
+        LEFT JOIN filling_stations s ON dp.station_id = s.id
+        LEFT JOIN products p ON dp.product_id = p.id
+        LEFT JOIN sub_products sp ON dp.sub_product_id = sp.id
+        WHERE dp.com_id = ? AND dp.is_active = 1
+        ORDER BY s.station_name, p.pname, sp.sub_product_code
+        LIMIT 500
+      `;
+      
+      const allPrices = await executeQuery(allPricesQuery, [parsedComId]);
+      
+      console.log('✅ Found', allPrices.length, 'deal prices for customer', parsedComId);
+      
+      return NextResponse.json({
+        success: true,
+        priceData: allPrices,
+        message: `Found ${allPrices.length} deal prices`
+      });
+    }
+
+    // Original logic for specific price lookup
     const parsedStationId = parseInt(station_id);
     const parsedProductId = parseInt(product_id);
     const parsedSubProductId = sub_product_id ? parseInt(sub_product_id) : null;
 
-    if (isNaN(parsedComId) || isNaN(parsedStationId) || isNaN(parsedProductId)) {
+    if (isNaN(parsedStationId) || isNaN(parsedProductId)) {
       return NextResponse.json(
         {
           success: false,
-          message: "Invalid ID parameters",
+          message: "Invalid station_id or product_id parameters",
         },
         { status: 400 }
       );

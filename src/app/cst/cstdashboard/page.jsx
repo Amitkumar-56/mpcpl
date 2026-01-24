@@ -16,7 +16,6 @@ import {
   BiSend,
   BiTime,
   BiUser,
-  BiWallet,
   BiWifi,
   BiWifiOff,
   BiX
@@ -52,29 +51,48 @@ export default function CustomerDashboardPage() {
 
   // Load user data
   useEffect(() => {
-    const savedUser = localStorage.getItem("customer");
-    if (!savedUser) {
+    try {
+      const savedUser = localStorage.getItem("customer");
+      console.log("Dashboard: Checking user", savedUser);
+      
+      if (!savedUser) {
+        console.log("Dashboard: No user found, redirecting to login");
+        router.push("/cst/login");
+        return;
+      }
+      
+      const parsedUser = JSON.parse(savedUser);
+      console.log("Dashboard: Parsed user", parsedUser);
+      
+      // Allow roleid 1 (Main Customer) and 2 (Sub-User)
+      const roleId = Number(parsedUser.roleid);
+      console.log("Dashboard: Validating role", roleId);
+      
+      if (roleId !== 1 && roleId !== 2) {
+        console.error("Dashboard: Invalid role detected", parsedUser.roleid);
+        alert(`Access Error: Invalid User Role (${parsedUser.roleid}). Please login again.`);
+        router.push("/cst/login");
+        return;
+      }
+      
+      setUser(parsedUser);
+      setLoading(false);
+    } catch (err) {
+      console.error("Dashboard: Error parsing user", err);
+      alert("Error reading user data. Please login again.");
       router.push("/cst/login");
-      return;
     }
-    
-    const parsedUser = JSON.parse(savedUser);
-    if (Number(parsedUser.roleid) !== 1) {
-      router.push("/cst/login");
-      return;
-    }
-    
-    setUser(parsedUser);
-    setLoading(false);
   }, [router]);
 
   // Fetch day limit status
   useEffect(() => {
     if (!user?.id) return;
     
+    const customerId = user.com_id || user.id;
+    
     const fetchDayLimitStatus = async () => {
       try {
-        const response = await fetch(`/api/customers/recharge-request?id=${user.id}`);
+        const response = await fetch(`/api/customers/recharge-request?id=${customerId}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.customer) {
@@ -147,40 +165,31 @@ export default function CustomerDashboardPage() {
     
     const initAndConnect = async () => {
       try {
-        try {
-          await fetch('/api/socket');
-        } catch (e) {
-          console.log('Socket endpoint initialization:', e);
-        }
-        
-        const socketUrl = typeof window !== 'undefined' 
-          ? window.location.origin 
-          : (process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
-        
-        newSocket = io(socketUrl, {
-          path: '/api/socket',
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000
+        await fetch('/api/socket');
+        newSocket = io({
+          path: '/api/socket/io',
+          addTrailingSlash: false,
         });
-        
+
         newSocket.on('connect', () => {
           setConnectionStatus('connected');
+          
+          // Use com_id for sub-users so they join the main customer's room
+          const roomId = user.com_id || user.id;
+          
+          console.log('Socket connected, joining room:', roomId);
           newSocket.emit('customer_join', {
-            customerId: user.id.toString(),
+            customerId: roomId.toString(),
             customerName: user.name || 'Customer'
           });
         });
-        
-        newSocket.on('disconnect', (reason) => {
+
+        newSocket.on('disconnect', () => {
           setConnectionStatus('disconnected');
-          if (reason === 'io server disconnect') {
-            newSocket.connect();
-          }
         });
         
         newSocket.on('connect_error', (err) => {
+          console.error('Socket connection error:', err);
           setConnectionStatus('error');
         });
         
@@ -190,8 +199,10 @@ export default function CustomerDashboardPage() {
         
         newSocket.on('reconnect', () => {
           setConnectionStatus('connected');
+          
+          const roomId = user.com_id || user.id;
           newSocket.emit('customer_join', {
-            customerId: user.id.toString(),
+            customerId: roomId.toString(),
             customerName: user.name || 'Customer'
           });
         });
@@ -287,7 +298,8 @@ export default function CustomerDashboardPage() {
     try {
       if (!user?.id) return;
       
-      const response = await fetch(`/api/chat/messages?customerId=${user.id}`);
+      const chatCustomerId = user.com_id || user.id;
+      const response = await fetch(`/api/chat/messages?customerId=${chatCustomerId}`);
       
       if (response.ok) {
         const data = await response.json();
@@ -483,10 +495,10 @@ export default function CustomerDashboardPage() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+      <Sidebar user={user} activePage={activePage} setActivePage={setActivePage} />
       
       <div className="flex flex-col flex-1 overflow-hidden">
-        <CstHeader />
+        <CstHeader user={user} />
         
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           
