@@ -10,13 +10,30 @@ const dbConfig = {
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  connectTimeout: parseInt(process.env.DB_CONNECT_TIMEOUT || "10000"),
 };
 
 // Create pool
 const pool = mysql.createPool(dbConfig);
 
 export async function getConnection() {
-  return await pool.getConnection();
+  let lastErr;
+  for (let i = 0; i < 3; i++) {
+    try {
+      const conn = await pool.getConnection();
+      return conn;
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err?.message || "");
+      const code = String(err?.code || "");
+      if (msg.includes("ETIMEDOUT") || code === "PROTOCOL_CONNECTION_LOST" || code === "ECONNRESET") {
+        await new Promise((res) => setTimeout(res, 500));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
 }
 
 export async function executeQuery(query, params = []) {
