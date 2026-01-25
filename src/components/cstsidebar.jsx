@@ -1,7 +1,7 @@
 "use client";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FaBars, FaFileInvoice, FaHome, FaSignOutAlt, FaTag, FaTags, FaTimes, FaTruck } from "react-icons/fa";
+import { FaBars, FaFileInvoice, FaHome, FaSignOutAlt, FaTimes, FaTruck } from "react-icons/fa";
 
 export default function Sidebar({ user: propUser }) {
   const [user, setUser] = useState(propUser || null);
@@ -79,11 +79,6 @@ export default function Sidebar({ user: propUser }) {
     { name: "Dashboard", icon: <FaHome />, path: "/cst/cstdashboard" },
     { name: "Filling Requests", icon: <FaFileInvoice />, path: "/cst/filling-requests" },
     { name: "Loading Stations", icon: <FaTruck />, path: "/cst/loading-stations" },
-    {
-      name: "Deal Price",
-      icon: <FaTag />,
-      path: user && user.id ? `/cst/deal-price` : "/cst/deal-price",
-    },
   ];
 
   // Filter menu items based on permissions
@@ -93,11 +88,6 @@ export default function Sidebar({ user: propUser }) {
   const filteredMenuItems = menuItems.filter(item => {
     // Dashboard is always visible
     if (item.path === "/cst/cstdashboard") return true;
-
-    // Deal Price - Only for main customers (roleid != 2)
-    if (item.path.startsWith("/cst/deal-price")) {
-      return user && user.roleid !== 2;
-    }
     
     // Map paths to module names (matching DB snake_case)
     let moduleName = "";
@@ -161,8 +151,7 @@ export default function Sidebar({ user: propUser }) {
         
         <nav className="flex-1 overflow-y-auto py-2 px-2">
           {filteredMenuItems.map(item => {
-            const basePath = item.path.split("?")[0];
-            const isActive = pathname.startsWith(basePath);
+            const isActive = pathname.startsWith(item.path);
             return (
               <button
                 key={item.name}

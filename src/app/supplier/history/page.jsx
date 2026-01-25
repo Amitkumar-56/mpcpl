@@ -1,10 +1,10 @@
 'use client';
 
-import { ArrowLeft, Download, Filter } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
 import SupplierHeader from '@/components/supplierHeader';
 import SupplierSidebar from '@/components/supplierSidebar';
+import { Download, Filter } from 'lucide-react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Suspense, useEffect, useState } from 'react';
 
 function SupplierHistoryContent() {
   const router = useRouter();
@@ -190,19 +190,35 @@ function SupplierHistoryContent() {
 
   const calculateRunningBalance = (transactions) => {
     let balance = 0;
+    let totalTds = 0;
+    let dueTds = 0;
     return transactions.map(t => {
       if (t.type === 'Purchase') {
         balance += parseFloat(t.v_invoice_value || 0);
       } else if (t.type === 'Payment') {
-        balance -= parseFloat(t.payment || 0);
+        const paymentAmount = parseFloat(t.payment || 0) || 0;
+        const tdsAmount = parseFloat(t.tds_deduction || 0) || 0;
+        balance -= (paymentAmount + tdsAmount);
+        totalTds += tdsAmount;
+        if (tdsAmount > 0) {
+          dueTds += tdsAmount;
+        }
       } else if (t.type === 'DNCN') {
-        if (t.dncn_type === 1) { // Debit
+        if (t.dncn_type === 1) {
           balance -= parseFloat(t.amount || 0);
-        } else if (t.dncn_type === 2) { // Credit
+        } else if (t.dncn_type === 2) {
           balance += parseFloat(t.amount || 0);
         }
       }
-      return { ...t, balance };
+      const isPaid = balance <= 0;
+      const displayBalance = isPaid ? 0 : balance;
+      return { 
+        ...t, 
+        balance: displayBalance,
+        isPaid,
+        totalTds: totalTds,
+        dueTds: dueTds
+      };
     });
   };
 

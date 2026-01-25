@@ -15,27 +15,19 @@ export default function CstHeader({ user: propUser }) {
   useEffect(() => {
     if (propUser) {
       setUser(propUser);
-      console.log("Header: Using prop user:", propUser);
-      console.log("Header: Prop user name:", propUser?.name);
       return;
     }
     
     try {
-      const userData = localStorage.getItem('customer') || sessionStorage.getItem('customer');
-      console.log("Header: Checking storage for user data");
+      const userData = localStorage.getItem('customer');
       if (userData) {
         const parsedUser = JSON.parse(userData);
-        console.log("Header: Parsed user from storage:", parsedUser);
-        console.log("Header: Parsed user name:", parsedUser?.name);
         setUser(prevUser => {
           if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
-            console.log("Header: Updating user state");
             return parsedUser;
           }
           return prevUser;
         });
-      } else {
-        console.log("Header: No user data found in storage");
       }
     } catch (error) {
       console.error("Error parsing customer data in Header:", error);

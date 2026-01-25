@@ -1,13 +1,13 @@
 // src/app/supplier/dashboard/page.jsx
 "use client";
 
-import SupplierHeader from "@/components/supplierHeader";
-import SupplierSidebar from "@/components/supplierSidebar";
 import Footer from "@/components/Footer";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import SupplierHeader from "@/components/supplierHeader";
+import SupplierSidebar from "@/components/supplierSidebar";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { FaBox, FaFileInvoice, FaHistory, FaMoneyBillWave, FaTruck } from "react-icons/fa";
+import { FaBox, FaFileInvoice, FaMoneyBillWave, FaTruck } from "react-icons/fa";
 
 export default function SupplierDashboardPage() {
   const router = useRouter();
@@ -35,13 +35,45 @@ export default function SupplierDashboardPage() {
 
   const fetchStats = async (supplierId) => {
     try {
-      // Fetch supplier statistics
-      // You can add API endpoints for these later
-      const response = await fetch(`/api/suppliers/stats?id=${supplierId}`);
-      if (response.ok) {
-        const data = await response.json();
-        setStats(data);
-      }
+      const res = await fetch(`/api/supplierinvoice?id=${supplierId}`);
+      if (!res.ok) return;
+      const json = await res.json();
+      const invoices = Array.isArray(json.invoices) ? json.invoices : [];
+
+      const totalInvoices = invoices.length;
+      const pendingAmount = invoices.reduce((sum, inv) => {
+        const payable = parseFloat(inv.payable || 0);
+        return sum + (isNaN(payable) ? 0 : payable);
+      }, 0);
+
+      const totalStockCalc = (() => {
+        const byLtr = invoices.reduce((sum, inv) => {
+          const q = parseFloat(inv.quantityInLtr || inv.qty_in_ltr || 0);
+          return sum + (isNaN(q) ? 0 : q);
+        }, 0);
+        if (byLtr > 0) return byLtr;
+        const byKg = invoices.reduce((sum, inv) => {
+          const q = parseFloat(inv.quantityInKg || inv.qty_in_kg || 0);
+          return sum + (isNaN(q) ? 0 : q);
+        }, 0);
+        if (byKg > 0) return byKg;
+        return totalInvoices;
+      })();
+
+      const now = new Date();
+      const recentOrders = invoices.filter(inv => {
+        const d = inv.invoice_date ? new Date(inv.invoice_date) : null;
+        if (!d || isNaN(d.getTime())) return false;
+        const diffDays = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+        return diffDays <= 7;
+      }).length;
+
+      setStats({
+        totalInvoices,
+        pendingAmount,
+        totalStock: totalStockCalc,
+        recentOrders
+      });
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
@@ -133,44 +165,7 @@ export default function SupplierDashboardPage() {
               </div>
             </div>
 
-            {/* Quick Actions */}
-            <div className="bg-white rounded-lg shadow p-4 sm:p-6 mb-4 sm:mb-6">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-3 sm:mb-4">Quick Actions</h2>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-                <button
-                  onClick={() => {
-                    const supplier = JSON.parse(localStorage.getItem("supplier") || "{}");
-                    router.push(`/supplierinvoice?id=${supplier.id}`);
-                  }}
-                  className="p-3 sm:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
-                >
-                  <FaFileInvoice className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mb-2" />
-                  <p className="font-semibold text-sm sm:text-base">View Invoices</p>
-                  <p className="text-xs sm:text-sm text-gray-600">Check all your invoices</p>
-                </button>
-
-                <button
-                  onClick={() => router.push('/suppliers')}
-                  className="p-3 sm:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
-                >
-                  <FaBox className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mb-2" />
-                  <p className="font-semibold text-sm sm:text-base">Stock Management</p>
-                  <p className="text-xs sm:text-sm text-gray-600">Manage your stock</p>
-                </button>
-
-                <button
-                  onClick={() => {
-                    const supplier = JSON.parse(localStorage.getItem("supplier") || "{}");
-                    router.push(`/supplierinvoice-history?id=${supplier.id}`);
-                  }}
-                  className="p-3 sm:p-4 border-2 border-dashed border-gray-300 rounded-lg hover:border-green-500 hover:bg-green-50 transition-colors text-left"
-                >
-                  <FaHistory className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 mb-2" />
-                  <p className="font-semibold text-sm sm:text-base">History</p>
-                  <p className="text-xs sm:text-sm text-gray-600">View transaction history</p>
-                </button>
-              </div>
-            </div>
+          {/* Quick Actions removed */}
 
             {/* Supplier Info */}
             <div className="bg-white rounded-lg shadow p-4 sm:p-6">
