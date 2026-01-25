@@ -5,6 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
 import {
   FaBars,
+  FaChevronLeft,
+  FaChevronRight,
   FaBox,
   FaBuilding,
   FaClipboard,
@@ -397,6 +399,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           backgroundColor: '#93c5fd',
           minHeight: '80px',
           display: 'flex',
+          flexDirection: isInitialized && isCollapsed ? 'column' : 'row',
+          gap: isInitialized && isCollapsed ? '0.5rem' : '0',
           alignItems: 'center',
           justifyContent: isInitialized && !isCollapsed ? 'flex-start' : 'center',
         }}>
@@ -450,6 +454,27 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                 </p>
               )}
             </div>
+          )}
+
+          {/* Toggle Button (Desktop) */}
+          {!isMobile && isInitialized && (
+            <button
+               onClick={handleToggle}
+               className="hover:bg-blue-400 rounded-full p-1.5 transition-colors"
+               style={{
+                 marginLeft: !isCollapsed ? 'auto' : 0,
+                 border: 'none',
+                 background: 'transparent',
+                 cursor: 'pointer',
+                 color: '#1e3a8a',
+                 display: 'flex',
+                 alignItems: 'center',
+                 justifyContent: 'center'
+               }}
+               title={isCollapsed ? "Expand" : "Collapse"}
+            >
+               {isCollapsed ? <FaChevronRight size={14} /> : <FaChevronLeft size={14} />}
+            </button>
           )}
         </div>
 
