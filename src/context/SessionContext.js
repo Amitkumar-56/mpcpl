@@ -171,17 +171,7 @@ export function SessionProvider({ children }) {
       if (cachedUser) {
         try {
           const userData = JSON.parse(cachedUser);
-          // ✅ Verify token exists before using cached user
           const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-          if (!token) {
-            // No token means logged out, clear cache
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            setLoading(false);
-            return;
-          }
-          
-          // ✅ Set user immediately from cache (prevents logout on page load)
           setUser(userData);
           // Sync to both storages for consistency
           if (!sessionUser && localUser) {
@@ -314,9 +304,13 @@ export function SessionProvider({ children }) {
       }
       // If user is logged in and on login page, redirect to dashboard (only once)
       if (user && pathname === '/agent/login') {
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        const justLoggedIn = typeof window !== 'undefined' ? sessionStorage.getItem('justLoggedIn') === 'true' : false;
+        if (justLoggedIn && !redirectingRef.current && lastPathnameRef.current === pathname) {
           redirectingRef.current = true;
           lastPathnameRef.current = '/agent/dashboard';
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('justLoggedIn');
+          }
           router.push('/agent/dashboard');
         }
       }
@@ -350,9 +344,13 @@ export function SessionProvider({ children }) {
       }
       // If user is logged in and on login page, redirect to dashboard (only once)
       if (user && pathname === '/cst/login') {
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        const justLoggedIn = typeof window !== 'undefined' ? sessionStorage.getItem('justLoggedIn') === 'true' : false;
+        if (justLoggedIn && !redirectingRef.current && lastPathnameRef.current === pathname) {
           redirectingRef.current = true;
           lastPathnameRef.current = '/cst/cstdashboard';
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('justLoggedIn');
+          }
           router.push('/cst/cstdashboard');
         }
       }
@@ -364,9 +362,13 @@ export function SessionProvider({ children }) {
       // Only redirect from login page to dashboard if user is logged in
       if (pathname === '/login') {
         // If user is logged in and on login page, redirect to dashboard (only once)
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        const justLoggedIn = typeof window !== 'undefined' ? sessionStorage.getItem('justLoggedIn') === 'true' : false;
+        if (justLoggedIn && !redirectingRef.current && lastPathnameRef.current === pathname) {
           redirectingRef.current = true;
           lastPathnameRef.current = '/dashboard';
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('justLoggedIn');
+          }
           router.push('/dashboard');
         }
       }
@@ -403,6 +405,7 @@ export function SessionProvider({ children }) {
       if (token) {
         sessionStorage.setItem('token', token);
       }
+      sessionStorage.setItem('justLoggedIn', 'true');
     }
   }, []);
 

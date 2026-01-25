@@ -20,6 +20,26 @@ export async function GET(request) {
             remarks TEXT
         )
       `);
+      // Ensure tds_amount and net_amount columns exist
+      try {
+        const cols = await executeQuery(`
+          SELECT COLUMN_NAME 
+          FROM INFORMATION_SCHEMA.COLUMNS 
+          WHERE TABLE_SCHEMA = DATABASE() 
+            AND TABLE_NAME = 'agent_payments'
+            AND COLUMN_NAME IN ('tds_amount','net_amount')
+        `);
+        const hasTds = cols.some(c => c.COLUMN_NAME === 'tds_amount');
+        const hasNet = cols.some(c => c.COLUMN_NAME === 'net_amount');
+        if (!hasTds) {
+          await executeQuery(`ALTER TABLE agent_payments ADD COLUMN tds_amount DECIMAL(10,2) DEFAULT 0`);
+        }
+        if (!hasNet) {
+          await executeQuery(`ALTER TABLE agent_payments ADD COLUMN net_amount DECIMAL(10,2) DEFAULT NULL`);
+        }
+      } catch (e) {
+        // ignore
+      }
 
       // Ensure agent_earnings table exists (if not created by allocate route)
       await executeQuery(`
@@ -86,10 +106,19 @@ export async function GET(request) {
       const totalCommission = history.reduce((sum, item) => sum + (parseFloat(item.commission_amount) || 0), 0);
 
       // 3. Fetch Payments
-      const payments = await executeQuery(
-          "SELECT id, agent_id, amount, payment_date, remarks FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
-          [agentId]
-      );
+      const payments = await executeQuery(`
+          SELECT 
+            id,
+            agent_id,
+            amount,
+            COALESCE(tds_amount, 0) as tds_amount,
+            COALESCE(net_amount, amount) as net_amount,
+            payment_date,
+            remarks
+          FROM agent_payments 
+          WHERE agent_id = ? 
+          ORDER BY payment_date DESC
+      `, [agentId]);
       
       const totalPaid = payments.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
       const remaining = Math.max(0, totalCommission - totalPaid);

@@ -1,8 +1,8 @@
+import { createAuditLog } from "@/lib/auditLog";
 import { verifyToken } from "@/lib/auth";
 import { executeQuery } from "@/lib/db";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { createAuditLog } from "@/lib/auditLog";
 
 // Ensure agent_payment_logs table exists
 async function ensurePaymentLogsTable() {
@@ -137,8 +137,8 @@ export async function GET(request) {
           ap.agent_id,
           ap.customer_id,
           ap.amount,
-          ap.tds_amount,
-          ap.net_amount,
+          COALESCE(ap.tds_amount, 0) as tds_amount,
+          COALESCE(ap.net_amount, ap.amount) as net_amount,
           ap.remarks,
           ap.payment_date,
           a.first_name,
@@ -183,8 +183,8 @@ export async function GET(request) {
         ap.id,
         ap.agent_id,
         ap.amount,
-        ap.tds_amount,
-        ap.net_amount,
+        COALESCE(ap.tds_amount, 0) as tds_amount,
+        COALESCE(ap.net_amount, ap.amount) as net_amount,
         ap.remarks,
         ap.payment_date,
         a.first_name,
@@ -303,16 +303,15 @@ export async function POST(request) {
       }, { status: 500 });
     }
 
-    // ✅ STRICT ROLE CHECK: Only Admin (role 5) can make payments
-    if (!userId || userRole !== 5) {
-      console.error(`Payment API: Access denied - userId: ${userId}, role: ${userRole}, required role 5`);
+    if (!userId || ![3,4,5,6].includes(userRole)) {
+      console.error(`Payment API: Access denied - userId: ${userId}, role: ${userRole}, allowed roles 3,4,5,6`);
       return NextResponse.json({ 
-        error: "Forbidden: Only Administrators can record payments",
-        details: `Your role (${userRole || 'Unknown'}) does not have permission. Required role: 5 (Admin). Please login as Administrator.`
+        error: "Forbidden: Insufficient permissions to record payments",
+        details: `Your role (${userRole || 'Unknown'}) does not have permission. Allowed roles: 3 (Teamleader), 4 (Accountant), 5 (Admin), 6 (Hardoperation).`
       }, { status: 403 });
     }
 
-    const { agentId, amount, remarks, customerId, tdsAmount } = await request.json();
+    const { agentId, amount, remarks, customerId, tdsAmount, requestId } = await request.json();
 
     if (!agentId || !amount) {
       return NextResponse.json(
@@ -335,6 +334,30 @@ export async function POST(request) {
     }
 
     await ensurePaymentLogsTable();
+    try {
+      const colsPay = await executeQuery(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'agent_payments'
+          AND COLUMN_NAME = 'request_id'
+      `);
+      if (colsPay.length === 0) {
+        await executeQuery(`ALTER TABLE agent_payments ADD COLUMN request_id INT DEFAULT NULL, ADD INDEX idx_request_id_pay (request_id)`);
+      }
+    } catch (e) {}
+    try {
+      const colsLog = await executeQuery(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+          AND TABLE_NAME = 'agent_payment_logs'
+          AND COLUMN_NAME = 'request_id'
+      `);
+      if (colsLog.length === 0) {
+        await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN request_id INT DEFAULT NULL, ADD INDEX idx_request_id_logs (request_id)`);
+      }
+    } catch (e) {}
 
     // Insert payment record (with optional customer_id)
     // If customer_id is not provided, use NULL (column should be nullable)
@@ -342,8 +365,8 @@ export async function POST(request) {
     const tds = tdsAmount !== undefined && tdsAmount !== null ? parseFloat(tdsAmount) : 0;
     const netAmount = Math.max(0, grossAmount - (isNaN(tds) ? 0 : tds));
     const result = await executeQuery(
-      `INSERT INTO agent_payments (agent_id, customer_id, amount, tds_amount, net_amount, remarks, payment_date) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [agentId, customerId ? parseInt(customerId) : null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, remarks || ""]
+      `INSERT INTO agent_payments (agent_id, customer_id, request_id, amount, tds_amount, net_amount, remarks, payment_date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [agentId, customerId ? parseInt(customerId) : null, requestId ? parseInt(requestId) : null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, remarks || ""]
     );
 
     const paymentId = result.insertId;
@@ -362,9 +385,9 @@ export async function POST(request) {
 
     // Insert into payment logs with who paid, when, etc.
     await executeQuery(
-      `INSERT INTO agent_payment_logs (payment_id, agent_id, customer_id, amount, tds_amount, net_amount, paid_by_user_id, paid_by_user_name, remarks, payment_date) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [paymentId, agentId, customerId || null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, userId, userName, remarks || ""]
+      `INSERT INTO agent_payment_logs (payment_id, agent_id, customer_id, request_id, amount, tds_amount, net_amount, paid_by_user_id, paid_by_user_name, remarks, payment_date) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [paymentId, agentId, customerId || null, requestId ? parseInt(requestId) : null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, userId, userName, remarks || ""]
     );
 
     // Create audit log
