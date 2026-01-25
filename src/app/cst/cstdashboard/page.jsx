@@ -595,6 +595,21 @@ export default function CustomerDashboardPage() {
 
               </div>
 
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="rounded-xl p-5 bg-gradient-to-r from-blue-500 to-blue-600 text-white">
+                  <div className="text-sm">Yesterday Outstanding</div>
+                  <div className="text-2xl font-bold">₹{Number(outstandingYesterday || 0).toLocaleString('en-IN')}</div>
+                </div>
+                <div className="rounded-xl p-5 bg-gradient-to-r from-green-500 to-green-600 text-white">
+                  <div className="text-sm">Today Outstanding</div>
+                  <div className="text-2xl font-bold">₹{Number(outstandingToday || 0).toLocaleString('en-IN')}</div>
+                </div>
+                <div className="rounded-xl p-5 bg-gradient-to-r from-orange-500 to-orange-600 text-white">
+                  <div className="text-sm">Total Outstanding</div>
+                  <div className="text-2xl font-bold">₹{Number(outstandingTotal || 0).toLocaleString('en-IN')}</div>
+                </div>
+              </div>
+
               {/* Quick Actions */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>

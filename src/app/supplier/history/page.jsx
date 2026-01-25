@@ -190,35 +190,19 @@ function SupplierHistoryContent() {
 
   const calculateRunningBalance = (transactions) => {
     let balance = 0;
-    let totalTds = 0;
-    let dueTds = 0;
     return transactions.map(t => {
       if (t.type === 'Purchase') {
         balance += parseFloat(t.v_invoice_value || 0);
       } else if (t.type === 'Payment') {
-        const paymentAmount = parseFloat(t.payment || 0) || 0;
-        const tdsAmount = parseFloat(t.tds_deduction || 0) || 0;
-        balance -= (paymentAmount + tdsAmount);
-        totalTds += tdsAmount;
-        if (tdsAmount > 0) {
-          dueTds += tdsAmount;
-        }
+        balance -= parseFloat(t.payment || 0);
       } else if (t.type === 'DNCN') {
-        if (t.dncn_type === 1) {
+        if (t.dncn_type === 1) { // Debit
           balance -= parseFloat(t.amount || 0);
-        } else if (t.dncn_type === 2) {
+        } else if (t.dncn_type === 2) { // Credit
           balance += parseFloat(t.amount || 0);
         }
       }
-      const isPaid = balance <= 0;
-      const displayBalance = isPaid ? 0 : balance;
-      return { 
-        ...t, 
-        balance: displayBalance,
-        isPaid,
-        totalTds: totalTds,
-        dueTds: dueTds
-      };
+      return { ...t, balance };
     });
   };
 
