@@ -1,7 +1,6 @@
 
 import { executeQuery, executeTransaction } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import { getCurrentUser } from '@/lib/auth';
 
 export async function GET(request) {
   try {
@@ -173,12 +172,7 @@ export async function GET(request) {
     }
     
     sql += ' ORDER BY fh.id DESC';
-    
-    // Add pagination
-    // Note: We need a separate count query for total pages if we want full pagination support
-    // For now, let's just add LIMIT/OFFSET
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    sql += ` LIMIT ${limit} OFFSET ${offset}`;
     
     let transactions = [];
     try {
@@ -205,13 +199,14 @@ export async function GET(request) {
            fr.payment_status,
            fr.payment_date,
            fr.vehicle_number,
-           fr.trans_type,
+           fh.trans_type,
            fr.aqty AS loading_qty,
            fs.station_name,
            p.pname
          FROM filling_requests fr
          LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
          LEFT JOIN products p ON fr.product = p.id
+         LEFT JOIN filling_history fh ON fh.rid = fr.rid
          WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
          ORDER BY fr.completed_date ASC`,
         [customerId]

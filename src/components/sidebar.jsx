@@ -50,12 +50,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         // Mobile पर हमेशा collapsed रखें
         setIsCollapsed(true);
       } else {
-        // Desktop पर: अगर saved state है तो वो use करें, नहीं तो expanded (false)
-        if (saved !== null) {
-          setIsCollapsed(JSON.parse(saved));
-        } else {
-          setIsCollapsed(false); // Desktop पर default expanded
-        }
+        // Desktop पर हमेशा expanded रखें
+        setIsCollapsed(false);
       }
       
       setIsInitialized(true);
@@ -70,6 +66,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
       if (mobile) {
         // Mobile पर collapsed रखें
         setIsCollapsed(true);
+      } else {
+        // Desktop पर हमेशा expanded रखें
+        setIsCollapsed(false);
       }
     };
     
@@ -80,9 +79,12 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   // ✅ localStorage में collapsed state save करें (client-side only)
   useEffect(() => {
     if (isInitialized && typeof window !== 'undefined') {
-      localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+      // केवल mobile पर persistence रखें
+      if (isMobile) {
+        localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+      }
     }
-  }, [isCollapsed, isInitialized]);
+  }, [isCollapsed, isInitialized, isMobile]);
 
   // ✅ साइडबार के बाहर क्लिक करने पर बंद करें (मोबाइल के लिए)
   useEffect(() => {
