@@ -60,7 +60,7 @@ export default function RootLayout({ children }) {
         <meta name="msapplication-TileColor" content="#7c3aed" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body>
+      <body suppressHydrationWarning={true}>
         <DynamicManifest />
         <PWARegister />
         <SessionProvider>

@@ -15,7 +15,14 @@ export function SessionProvider({ children }) {
   const lastPathnameRef = useRef(pathname); // Track pathname changes
   const redirectTimeoutRef = useRef(null); // Track redirect timeout
 
-  // ✅ Optimized auth check with useCallback
+      // ✅ Optimized auth check with useCallback
+  const isValidUser = (userData) => {
+    return userData && 
+           typeof userData === 'object' && 
+           (userData.id || userData.emp_code) && // Ensure some ID exists
+           userData.role; // Ensure role exists
+  };
+
   const checkAuth = useCallback(async () => {
     try {
       setLoading(true);
@@ -37,7 +44,7 @@ export function SessionProvider({ children }) {
           if (savedCustomer) {
             try {
               const customerData = JSON.parse(savedCustomer);
-              if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
+              if ((Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) && isValidUser(customerData)) {
                 setUser(customerData);
               }
             } catch (e) {
@@ -49,7 +56,9 @@ export function SessionProvider({ children }) {
           if (savedAgent) {
             try {
               const agentData = JSON.parse(savedAgent);
-              setUser(agentData);
+              if (isValidUser(agentData)) {
+                setUser(agentData);
+              }
             } catch (e) {
               // Invalid data
             }
@@ -59,7 +68,9 @@ export function SessionProvider({ children }) {
           if (savedSupplier) {
             try {
               const supplierData = JSON.parse(savedSupplier);
-              setUser(supplierData);
+              if (isValidUser(supplierData)) {
+                setUser(supplierData);
+              }
             } catch (e) {
               // Invalid data
             }
@@ -73,7 +84,7 @@ export function SessionProvider({ children }) {
             try {
               const userData = JSON.parse(cachedUser);
               const token = localStorage.getItem('token');
-              if (token) {
+              if (token && isValidUser(userData)) {
                 setUser(userData);
               }
             } catch (e) {
@@ -92,12 +103,16 @@ export function SessionProvider({ children }) {
         if (savedAgent) {
           try {
             const agentData = JSON.parse(savedAgent);
-            setUser(agentData);
-            // Sync to both storages for consistency
-            localStorage.setItem("agent", savedAgent);
-            sessionStorage.setItem("agent", savedAgent);
+            if (isValidUser(agentData)) {
+              setUser(agentData);
+              // Sync to both storages for consistency
+              localStorage.setItem("agent", savedAgent);
+              sessionStorage.setItem("agent", savedAgent);
+            } else {
+              throw new Error("Invalid agent data");
+            }
           } catch (e) {
-            console.error('Error parsing agent data:', e);
+            console.error('Invalid agent data, clearing session:', e);
             localStorage.removeItem("agent");
             sessionStorage.removeItem("agent");
             setUser(null);
@@ -116,8 +131,9 @@ export function SessionProvider({ children }) {
         if (savedCustomer) {
           try {
             const customerData = JSON.parse(savedCustomer);
+            
             // Verify customer has valid roleid (allow customer=1 and sub-user=2)
-            if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
+            if ((Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) && isValidUser(customerData)) {
               setUser(customerData);
               // Sync to both storages for consistency
               localStorage.setItem("customer", savedCustomer);
@@ -144,12 +160,16 @@ export function SessionProvider({ children }) {
         if (savedSupplier) {
           try {
             const supplierData = JSON.parse(savedSupplier);
-            setUser(supplierData);
-            // Sync to both storages for consistency
-            localStorage.setItem("supplier", savedSupplier);
-            sessionStorage.setItem("supplier", savedSupplier);
+            if (isValidUser(supplierData)) {
+              setUser(supplierData);
+              // Sync to both storages for consistency
+              localStorage.setItem("supplier", savedSupplier);
+              sessionStorage.setItem("supplier", savedSupplier);
+            } else {
+              throw new Error("Invalid supplier data");
+            }
           } catch (e) {
-            console.error('Error parsing supplier data:', e);
+            console.error('Invalid supplier data, clearing session:', e);
             localStorage.removeItem("supplier");
             sessionStorage.removeItem("supplier");
             setUser(null);
@@ -179,6 +199,16 @@ export function SessionProvider({ children }) {
             localStorage.removeItem('user');
             setLoading(false);
             return;
+          }
+
+          // ✅ Strict validation
+          if (!isValidUser(userData)) {
+            console.warn('⚠️ Found invalid user data in cache, clearing session');
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+            setUser(null);
+            setLoading(false);
+            return; // Don't proceed, let it behave as logged out
           }
           
           // ✅ Set user immediately from cache (prevents logout on page load)

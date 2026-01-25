@@ -6,13 +6,20 @@ import { createContext, useContext, useEffect, useState } from 'react';
 const SidebarContext = createContext(undefined);
 
 export function SidebarProvider({ children }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(() => {
-    // Check on client side only
-    if (typeof window === 'undefined') return false;
-    
-    const saved = localStorage.getItem('sidebar-open');
-    return saved ? JSON.parse(saved) : window.innerWidth >= 768;
-  });
+  // ✅ Initialize with deterministic value (false) to match server
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  // ✅ Hydrate state on method only
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('sidebar-open');
+      if (saved) {
+        setIsSidebarOpen(JSON.parse(saved));
+      } else {
+        setIsSidebarOpen(window.innerWidth >= 768);
+      }
+    }
+  }, []);
 
   const [isMobile, setIsMobile] = useState(false);
 
