@@ -2,9 +2,63 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+// Helper to process scheduled updates (Auto-Apply)
+async function processScheduledUpdates() {
+  try {
+    const now = new Date();
+    const currentDate = now.toISOString().split('T')[0];
+    const currentTime = now.toTimeString().slice(0, 8); // HH:MM:SS
+    
+    // 1. Activate scheduled prices whose time has come
+    await executeQuery(`
+      UPDATE deal_price 
+      SET status = 'active', is_applied = 1, applied_at = ?, updated_date = CURDATE()
+      WHERE Schedule_Date = ? 
+      AND (Schedule_Time = '00:00:00' OR Schedule_Time <= ?)
+      AND status = 'scheduled' 
+      AND is_applied = 0
+      AND is_active = 1
+    `, [now, currentDate, currentTime]);
+    
+    // 2. Deactivate old active prices that conflict with newly activated ones
+    // (This ensures only one active price per product/station exists)
+    await executeQuery(`
+      UPDATE deal_price dp1
+      INNER JOIN deal_price dp2 ON 
+        dp1.com_id = dp2.com_id 
+        AND dp1.station_id = dp2.station_id 
+        AND dp1.product_id = dp2.product_id 
+        AND dp1.sub_product_id = dp2.sub_product_id
+      SET dp1.status = 'expired', dp1.is_active = 0
+      WHERE dp2.status = 'active' 
+        AND dp2.is_applied = 1
+        AND dp2.Schedule_Date = ?
+        AND dp1.id != dp2.id
+        AND dp1.status = 'active'
+        AND dp1.is_active = 1
+    `, [currentDate]);
+
+    // 3. Expire old prices (from previous days)
+    await executeQuery(`
+      UPDATE deal_price 
+      SET status = 'expired', is_active = 0
+      WHERE Schedule_Date < ? 
+      AND status IN ('active', 'scheduled')
+      AND is_active = 1
+    `, [currentDate]);
+
+  } catch (err) {
+    console.error("Auto-apply error:", err);
+  }
+}
+
 // GET: Fetch setup data or scheduled prices
 export async function GET(req) {
   try {
+    // Run auto-update logic ONCE whenever data is fetched
+    // This ensures data is always fresh without needing a cron job
+    await processScheduledUpdates();
+
     const url = new URL(req.url);
     const customerIds = url.searchParams.get('customer_ids');
     const date = url.searchParams.get('date');
