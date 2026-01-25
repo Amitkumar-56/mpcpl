@@ -2,9 +2,9 @@
 import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from "@/lib/db";
+import { mkdir, writeFile } from 'fs/promises';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
-import { writeFile, mkdir } from 'fs/promises';
 import path from 'path';
 
 export async function GET(req) {
@@ -1030,16 +1030,10 @@ async function handleCompletedStatus(data) {
     sub_product_id, finalPrice, calculatedAmount, paymentStatus, id, rid
   ]);
 
-  // Get last new_amount from filling_history for this customer (for old_amount calculation)
-  const getLastNewAmountQuery = `
-    SELECT new_amount 
-    FROM filling_history 
-    WHERE cl_id = ? 
-    ORDER BY filling_date DESC, id DESC 
-    LIMIT 1
-  `;
-  const lastNewAmountRows = await executeQuery(getLastNewAmountQuery, [cl_id]);
-  const previous_new_amount = lastNewAmountRows.length > 0 ? parseFloat(lastNewAmountRows[0].new_amount) || 0 : 0;
+  // ✅ CORRECTED: Use customer_balances for amount tracking instead of filling_history
+  // This ensures consistency with the actual balance table
+  const previous_new_amount = old_used_amount; // From customer_balances
+  const current_new_amount = new_used_amount; // From customer_balances
 
   try {
     const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
@@ -1053,9 +1047,9 @@ async function handleCompletedStatus(data) {
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
-      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
-      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
+      previous_new_amount, // old_amount: From customer_balances (before update)
+      current_new_amount,  // new_amount: From customer_balances (after update)
+      isDayLimitCustomer ? null : new_available_balance, 
       paymentStatus
     ];
 
@@ -1091,9 +1085,9 @@ async function handleCompletedStatus(data) {
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
-      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
-      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
+      previous_new_amount, 
+      current_new_amount,
+      isDayLimitCustomer ? null : new_available_balance,
       paymentStatus
     ]);
   }
