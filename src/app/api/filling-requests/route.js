@@ -1,8 +1,7 @@
+import { getCurrentUser, verifyToken } from '@/lib/auth';
 import { executeQuery } from "@/lib/db";
-import { NextResponse } from "next/server";
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
-import { getCurrentUser } from '@/lib/auth';
+import { NextResponse } from "next/server";
 
 export async function GET(request) {
   try {
@@ -173,23 +172,33 @@ export async function GET(request) {
 
     // ✅ For staff (role 1) or incharge (role 2): Filter by assigned station and only show pending
     // ✅ Team Leader (role 3) and above: Multi-branch access (no station filter)
-    if ((userRole === 1 || userRole === 2) && userFsId) {
-      // Parse fs_id (can be comma-separated like "1,2,3")
-      const fsIdArray = String(userFsId).split(',').map(id => id.trim()).filter(id => id && id !== '');
-      if (fsIdArray.length > 0) {
-        // Use FIND_IN_SET or IN clause for multiple stations
-        const placeholders = fsIdArray.map(() => '?').join(',');
-        query += ` AND (fr.fs_id IN (${placeholders}))`;
-        countQuery += ` AND (fr.fs_id IN (${placeholders}))`;
-        params.push(...fsIdArray.map(id => parseInt(id)));
-        countParams.push(...fsIdArray.map(id => parseInt(id)));
-      }
+    if (userRole === 1 || userRole === 2) {
+      let hasAccess = false;
+      if (userFsId) {
+        // Parse fs_id (can be comma-separated like "1,2,3")
+        const fsIdArray = String(userFsId).split(',').map(id => id.trim()).filter(id => id && id !== '');
+        if (fsIdArray.length > 0) {
+          hasAccess = true;
+          // Use FIND_IN_SET or IN clause for multiple stations
+          const placeholders = fsIdArray.map(() => '?').join(',');
+          query += ` AND (fr.fs_id IN (${placeholders}))`;
+          countQuery += ` AND (fr.fs_id IN (${placeholders}))`;
+          params.push(...fsIdArray.map(id => parseInt(id)));
+          countParams.push(...fsIdArray.map(id => parseInt(id)));
 
-      // ✅ Only show pending and processing requests for staff/incharge (ignore status filter from URL)
-      query += ' AND fr.status = ?';
-      countQuery += ' AND fr.status = ?';
-      params.push('Pending', 'Processing');
+          // ✅ Only show pending and processing requests for staff/incharge (ignore status filter from URL)
+          query += ' AND fr.status IN (?, ?)';
+          countQuery += ' AND fr.status IN (?, ?)';
+          params.push('Pending', 'Processing');
           countParams.push('Pending', 'Processing');
+        }
+      }
+      
+      if (!hasAccess) {
+        // No station assigned or empty list -> Block access
+        query += ' AND 1=0';
+        countQuery += ' AND 1=0';
+      }
     } else if (status) {
       // ✅ Team Leader (role 3) and above: Apply status filter from URL if provided
       query += ' AND fr.status = ?';
