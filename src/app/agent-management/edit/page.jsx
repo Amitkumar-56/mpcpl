@@ -545,7 +545,18 @@ function EditAgentContent() {
                     type="checkbox"
                     name="status"
                     checked={formData.status === 1 || formData.status === true}
-                    onChange={(e) => setFormData(prev => ({ ...prev, status: e.target.checked ? 1 : 0 }))}
+                    onChange={(e) => {
+                      const nextStatus = e.target.checked ? 1 : 0;
+                      const wasActive = (formData.status === 1 || formData.status === true);
+                      if (wasActive && nextStatus === 0) {
+                        const ok = confirm("Agent ko Inactive karne se commission processing ruk jayegi. Kya aap sure hain?");
+                        if (!ok) {
+                          e.preventDefault();
+                          return;
+                        }
+                      }
+                      setFormData(prev => ({ ...prev, status: nextStatus }));
+                    }}
                     className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                   />
                   <span className="text-sm md:text-base text-gray-700 font-medium">

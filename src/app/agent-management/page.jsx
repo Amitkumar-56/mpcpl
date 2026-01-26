@@ -824,9 +824,9 @@ export default function AgentManagement() {
                                             </p>
                                           </div>
                                           <div className="text-right ml-2">
-                                            <p className="text-xs font-bold text-green-700">
-                                              ₹{parseFloat((payment.net_amount ?? payment.amount) || 0).toFixed(2)}
-                                            </p>
+                          <p className="text-xs font-bold text-green-700">
+                            ₹{(parseFloat(payment.net_amount ?? payment.amount) + parseFloat(payment.tds_amount || 0)).toFixed(2)}
+                          </p>
                                             {parseFloat(payment.tds_amount || 0) > 0 && (
                                               <p className="text-[10px] text-gray-600">
                                                 TDS: ₹{parseFloat(payment.tds_amount).toFixed(2)} • Net: ₹{parseFloat(payment.net_amount || ((payment.amount || 0) - (payment.tds_amount || 0))).toFixed(2)}
@@ -919,7 +919,7 @@ export default function AgentManagement() {
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Total Paid</p>
                     <p className="text-lg font-bold text-green-700">
-                      ₹{customerPayments.reduce((sum, p) => sum + parseFloat((p.net_amount ?? p.amount) || 0), 0).toFixed(2)}
+                      ₹{customerPayments.reduce((sum, p) => sum + (parseFloat(p.net_amount ?? p.amount) + parseFloat(p.tds_amount || 0)), 0).toFixed(2)}
                     </p>
                   </div>
                   <div>
@@ -930,7 +930,7 @@ export default function AgentManagement() {
               <div className="mt-3 pt-3 border-t border-green-300">
                 <p className="text-xs text-gray-600 mb-1">Remaining Due</p>
                 <p className="text-lg font-bold text-red-600">
-                  ₹{((selectedAgent.total_due_commission || 0) - customerPayments.reduce((sum, p) => sum + parseFloat((p.net_amount ?? p.amount) || 0), 0)).toFixed(2)}
+                  ₹{((selectedAgent.total_due_commission || 0) - customerPayments.reduce((sum, p) => sum + (parseFloat(p.net_amount ?? p.amount) + parseFloat(p.tds_amount || 0)), 0)).toFixed(2)}
                 </p>
               </div>
             </div>

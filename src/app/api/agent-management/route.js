@@ -270,7 +270,7 @@ export async function GET(request) {
           GROUP BY ac.agent_id
       ) e ON e.agent_id = a.id
       LEFT JOIN (
-          SELECT agent_id, SUM(COALESCE(net_amount, amount, 0)) as total_paid 
+          SELECT agent_id, SUM(COALESCE(net_amount, 0) + COALESCE(tds_amount, 0)) as total_paid 
           FROM agent_payments 
           WHERE agent_id IS NOT NULL
           GROUP BY agent_id

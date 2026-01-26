@@ -63,7 +63,7 @@ export async function GET(request) {
     const customerPayments = await executeQuery(`
       SELECT 
         COALESCE(customer_id, 0) as customer_id,
-        SUM(COALESCE(net_amount, amount, 0)) as total_paid,
+        SUM(COALESCE(net_amount, 0) + COALESCE(tds_amount, 0)) as total_paid,
         COUNT(*) as payment_count
       FROM agent_payments
       WHERE agent_id = ?
@@ -73,7 +73,7 @@ export async function GET(request) {
     // Also get total payments without customer_id (general payments)
     const generalPayments = await executeQuery(`
       SELECT 
-        SUM(COALESCE(net_amount, amount, 0)) as total_general_paid
+        SUM(COALESCE(net_amount, 0) + COALESCE(tds_amount, 0)) as total_general_paid
       FROM agent_payments
       WHERE agent_id = ? AND (customer_id IS NULL OR customer_id = 0)
     `, [id]);
