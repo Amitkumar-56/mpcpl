@@ -22,13 +22,32 @@ export async function POST(req) {
       if (!com_id || !station_id || !product_id || !sub_product_id || price === undefined) continue;
 
       if (type === "INSERT") {
-        await executeQuery(
-          `INSERT INTO deal_price 
-           (com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time, updated_date, is_active)
-           VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1)`,
-          [com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time]
+        // Check if record already exists to prevent duplicates
+        const existing = await executeQuery(
+          `SELECT id FROM deal_price 
+           WHERE com_id=? AND station_id=? AND product_id=? AND sub_product_id=?`,
+          [com_id, station_id, product_id, sub_product_id]
         );
-        inserted++;
+
+        if (existing.length > 0) {
+          // Record exists, perform UPDATE instead
+          const result = await executeQuery(
+            `UPDATE deal_price 
+             SET price=?, Schedule_Date=?, Schedule_Time=?, updated_date=NOW(), is_active=1
+             WHERE com_id=? AND station_id=? AND product_id=? AND sub_product_id=?`,
+            [price, Schedule_Date, Schedule_Time, com_id, station_id, product_id, sub_product_id]
+          );
+          if (result.affectedRows > 0) updated++;
+        } else {
+          // Record does not exist, perform INSERT
+          await executeQuery(
+            `INSERT INTO deal_price 
+             (com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time, updated_date, is_active)
+             VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 1)`,
+            [com_id, station_id, product_id, sub_product_id, price, Schedule_Date, Schedule_Time]
+          );
+          inserted++;
+        }
       } else if (type === "UPDATE") {
         const result = await executeQuery(
           `UPDATE deal_price 

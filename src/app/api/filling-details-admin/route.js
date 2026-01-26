@@ -341,8 +341,9 @@ export async function POST(request) {
       
       if (!balanceCheck.sufficient) {
         return NextResponse.json({ 
-          success: false,
+          success: true,
           limitOverdue: true,
+          limitTitle: balanceCheck.title || 'Credit Limit Overdue',
           isDayLimitExpired: balanceCheck.isDayLimitExpired || false,
           totalUnpaidAmount: balanceCheck.totalUnpaidAmount || 0,
           message: balanceCheck.message || 'Balance/limit check failed.'
@@ -602,6 +603,16 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
 
     // Get actual fuel price for amount calculation
     const actualPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, defaultPrice);
+    
+    // ✅ Add validation for zero price
+    if (actualPrice <= 0) {
+      return { 
+        sufficient: false, 
+        title: 'Deal Price Alert',
+        message: 'Deal price not updated. Please contact Admin to update price then complete.'
+      };
+    }
+
     const requestedAmount = actualPrice * aqty;
     
     console.log('💰 Amount Calculation:', {

@@ -35,6 +35,7 @@ export default function FillingDetailsAdmin() {
   const [cancelRemarks, setCancelRemarks] = useState('');
   const [showLimitModal, setShowLimitModal] = useState(false);
   const [limitMessage, setLimitMessage] = useState('');
+  const [limitTitle, setLimitTitle] = useState('Credit Limit Overdue');
   const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
   const [hasPermission, setHasPermission] = useState(false);
   const [imageModalSrc, setImageModalSrc] = useState(null);
@@ -346,6 +347,7 @@ export default function FillingDetailsAdmin() {
       if (result.success) {
         if (result.limitOverdue) {
           setLimitMessage(result.message || 'Your limit is over. Please recharge your account.');
+          setLimitTitle(result.limitTitle || 'Credit Limit Overdue');
           setShowLimitModal(true);
           setSubmitting(false);
           return;
@@ -1459,7 +1461,7 @@ export default function FillingDetailsAdmin() {
               {showLimitModal && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                   <div className="bg-white rounded-lg p-6 w-96">
-                    <h3 className="text-lg font-semibold mb-4 text-red-600">Credit Limit Overdue</h3>
+                    <h3 className="text-lg font-semibold mb-4 text-red-600">{limitTitle}</h3>
                     <p className="mb-6 text-gray-700">{limitMessage}</p>
                     <div className="flex justify-end space-x-3">
                       <button
