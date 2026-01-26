@@ -35,7 +35,7 @@ export default function AgentManagement() {
       router.push("/login");
       return;
     }
-    if (![3, 4, 5, 6].includes(Number(user.role))) {
+    if (Number(user.role) !== 5) {
       setLoading(false);
       return;
     }
@@ -125,8 +125,9 @@ export default function AgentManagement() {
       return;
     }
 
-    if (![3, 4, 5, 6].includes(Number(user.role))) {
-      alert("Access Denied: Only Admin, Teamleader, Accountant, or Hardoperation can record payments.");
+    // ✅ STRICT ROLE CHECK: Only Admin (role 5) can make payments
+    if (Number(user.role) !== 5) {
+      alert("Access Denied: Only Administrators can record payments.\n\nYour role does not have permission.");
       return;
     }
 
@@ -185,8 +186,9 @@ export default function AgentManagement() {
       return;
     }
 
-    if (![3, 4, 5, 6].includes(Number(user.role))) {
-      alert("Access Denied: Only Admin, Teamleader, Accountant, or Hardoperation can record payments.");
+    // ✅ STRICT ROLE CHECK: Only Admin (role 5) can make payments
+    if (Number(user.role) !== 5) {
+      alert("Access Denied: Only Administrators can record payments.\n\nYour role does not have permission.");
       return;
     }
 
@@ -224,10 +226,11 @@ export default function AgentManagement() {
           return;
         }
         
-        // ✅ STRICT: Allowed roles (3: Teamleader, 4: Accountant, 5: Admin, 6: Hardoperation)
+        // ✅ STRICT: Check if user is Admin (role 5)
+        // API returns user data directly, not nested in 'user' object
         const userRole = Number(verifyData.role || verifyData.user?.role || 0);
-        if (![3, 4, 5, 6].includes(userRole)) {
-          alert("Access Denied: Only Admin, Teamleader, Accountant, or Hardoperation can record payments.");
+        if (userRole !== 5) {
+          alert("Access Denied: Only Administrators can record payments.\n\nYour role does not have permission.");
           return;
         }
       } catch (verifyError) {
@@ -243,8 +246,6 @@ export default function AgentManagement() {
       // Get selected customer ID from dropdown if available
       const customerSelect = document.getElementById('paymentCustomerId');
       const customerId = customerSelect ? (customerSelect.value ? parseInt(customerSelect.value) : null) : null;
-      const requestInput = document.getElementById('paymentRequestId');
-      const requestId = requestInput ? (requestInput.value ? parseInt(requestInput.value) : null) : null;
       
       const res = await fetch("/api/agent-management/payments", {
         method: "POST",
@@ -259,8 +260,7 @@ export default function AgentManagement() {
           amount: parseFloat(paymentAmount),
           tdsAmount: tdsAmount ? parseFloat(tdsAmount) : 0,
           remarks: paymentRemarks,
-          customerId: customerId,
-          requestId: requestId
+          customerId: customerId, // Include customer ID if selected
         }),
       });
 
@@ -399,7 +399,7 @@ export default function AgentManagement() {
 
   if (authLoading || loading) return <div className="p-6">Loading...</div>;
 
-  if (![3, 4, 5, 6].includes(Number(user?.role))) {
+  if (Number(user?.role) !== 5) {
     return (
       <div className="min-h-screen flex">
         <Sidebar />
@@ -409,7 +409,7 @@ export default function AgentManagement() {
             <div className="bg-white rounded-lg shadow p-8 text-center max-w-md">
               <div className="text-red-500 text-5xl mb-2">🚫</div>
               <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-              <p className="text-gray-600 mb-4">Only Admin, Teamleader, Accountant, or Hardoperation can view Agent Management.</p>
+              <p className="text-gray-600 mb-4">Only Admin can view Agent Management.</p>
               <Link href="/dashboard" className="bg-blue-600 text-white px-4 py-2 rounded">Go to Dashboard</Link>
             </div>
           </main>
@@ -606,7 +606,7 @@ export default function AgentManagement() {
                         >
                           Customers & Rates
                         </button>
-                        {(agent.total_due_commission || 0) > 0 && [3, 4, 5, 6].includes(Number(user?.role)) && (
+                        {(agent.total_due_commission || 0) > 0 && Number(user?.role) === 5 && (
                           <button
                             onClick={() => handlePaymentClick(agent)}
                             className="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600 whitespace-nowrap"
@@ -652,7 +652,7 @@ export default function AgentManagement() {
       </div>
 
       {/* Payment Modal */}
-      {showPaymentModal && selectedAgent && user && [3, 4, 5, 6].includes(Number(user.role)) && (
+      {showPaymentModal && selectedAgent && user && Number(user.role) === 5 && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 overflow-y-auto">
           <div className="bg-white rounded-lg p-4 md:p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <h2 className="text-xl font-bold mb-4 text-gray-800">Record Payment</h2>
@@ -824,9 +824,9 @@ export default function AgentManagement() {
                                             </p>
                                           </div>
                                           <div className="text-right ml-2">
-                          <p className="text-xs font-bold text-green-700">
-                            ₹{(parseFloat(payment.net_amount ?? payment.amount) + parseFloat(payment.tds_amount || 0)).toFixed(2)}
-                          </p>
+                                            <p className="text-xs font-bold text-green-700">
+                                              ₹{parseFloat(payment.amount || 0).toFixed(2)}
+                                            </p>
                                             {parseFloat(payment.tds_amount || 0) > 0 && (
                                               <p className="text-[10px] text-gray-600">
                                                 TDS: ₹{parseFloat(payment.tds_amount).toFixed(2)} • Net: ₹{parseFloat(payment.net_amount || ((payment.amount || 0) - (payment.tds_amount || 0))).toFixed(2)}
@@ -909,7 +909,7 @@ export default function AgentManagement() {
                           </p>
                         </div>
                         <div className="text-right ml-3">
-                          <p className="text-sm font-bold text-green-700">₹{parseFloat((payment.net_amount ?? payment.amount) || 0).toFixed(2)}</p>
+                          <p className="text-sm font-bold text-green-700">₹{parseFloat(payment.amount || 0).toFixed(2)}</p>
                         </div>
                       </div>
                     </div>
@@ -919,7 +919,7 @@ export default function AgentManagement() {
                   <div>
                     <p className="text-xs text-gray-600 mb-1">Total Paid</p>
                     <p className="text-lg font-bold text-green-700">
-                      ₹{customerPayments.reduce((sum, p) => sum + (parseFloat(p.net_amount ?? p.amount) + parseFloat(p.tds_amount || 0)), 0).toFixed(2)}
+                      ₹{customerPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0).toFixed(2)}
                     </p>
                   </div>
                   <div>
@@ -930,7 +930,7 @@ export default function AgentManagement() {
               <div className="mt-3 pt-3 border-t border-green-300">
                 <p className="text-xs text-gray-600 mb-1">Remaining Due</p>
                 <p className="text-lg font-bold text-red-600">
-                  ₹{((selectedAgent.total_due_commission || 0) - customerPayments.reduce((sum, p) => sum + (parseFloat(p.net_amount ?? p.amount) + parseFloat(p.tds_amount || 0)), 0)).toFixed(2)}
+                  ₹{((selectedAgent.total_due_commission || 0) - customerPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0)).toFixed(2)}
                 </p>
               </div>
             </div>
@@ -977,18 +977,6 @@ export default function AgentManagement() {
                 </p>
               </div>
             )}
-            
-            <div className="mb-4">
-              <label className="block text-gray-700 mb-2 text-sm font-medium">Request ID (optional)</label>
-              <input
-                id="paymentRequestId"
-                type="number"
-                min="1"
-                className="w-full border border-gray-300 rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-sm"
-                placeholder="Enter request ID to link this payment"
-              />
-              <p className="text-xs text-gray-500 mt-1">Link payment to a specific request if applicable.</p>
-            </div>
             
             <div className="mb-4">
               <label className="block text-gray-700 mb-2 text-sm font-medium">Payment Amount (₹) *</label>
@@ -1079,7 +1067,7 @@ export default function AgentManagement() {
               </button>
               <button
                 type="submit"
-                disabled={submitting || !paymentAmount || !user || ![3, 4, 5, 6].includes(Number(user?.role))}
+                disabled={submitting || !paymentAmount || !user || Number(user?.role) !== 5}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
               >
                 {submitting ? "Recording..." : "Record Payment"}

@@ -4,7 +4,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 export default function CustomerHistoryContent() {
-  const [historyData, setHistoryData] = useState({ transactions: [], pagination: {} });
   const [transactions, setTransactions] = useState([]);
   const [products, setProducts] = useState([]);
   const [balance, setBalance] = useState(0);
@@ -18,13 +17,10 @@ export default function CustomerHistoryContent() {
   const [dayLimitInfo, setDayLimitInfo] = useState({ hasDayLimit: false });
   const [outstandings, setOutstandings] = useState({ yesterday: 0, today: 0, total: 0 });
   const [notifications, setNotifications] = useState({ lowBalance: false, balanceNotification: null, paymentOverdue: false, paymentNotification: null });
-  const [alertMessage, setAlertMessage] = useState('');
   
   const router = useRouter();
   const searchParams = useSearchParams();
   const cl_id = searchParams.get('cl_id');
-  const page = parseInt(searchParams.get('page')) || 1;
-  const limit = 10;
 
   // Get logged-in customer ID from localStorage/sessionStorage if cl_id not in URL
   const getCustomerId = () => {
@@ -47,32 +43,22 @@ export default function CustomerHistoryContent() {
     return null;
   };
 
-  const customerId = getCustomerId();
-  const isDayLimitCustomer = dayLimitInfo.hasDayLimit;
-
   useEffect(() => {
     fetchData();
-  }, [selectedProduct, cl_id, page]);
-
-  // Check for overdue and show alert
-  useEffect(() => {
-    if (isDayLimitCustomer && transactions.length > 0) {
-      checkOverdueTransactions();
-    }
-  }, [transactions, isDayLimitCustomer]);
+  }, [selectedProduct, cl_id]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
       
-      const cid = getCustomerId();
+      const customerId = getCustomerId();
       
       const params = new URLSearchParams();
       
-      if (cid) {
-        params.append('cl_id', cid);
-        console.log('🔍 Using customer ID:', cid);
+      if (customerId) {
+        params.append('cl_id', customerId);
+        console.log('🔍 Using customer ID:', customerId);
       } else {
         console.warn('⚠️ No customer ID found in URL or storage');
       }
@@ -81,12 +67,11 @@ export default function CustomerHistoryContent() {
         params.append('pname', selectedProduct);
       }
 
-      params.append('page', page.toString());
-      params.append('limit', limit.toString());
-
       console.log('🔄 Fetching data with params:', params.toString());
       
       const response = await fetch(`/api/cst/customer-history?${params}`);
+      
+      console.log('📡 Response status:', response.status);
       
       if (!response.ok) {
         const errorText = await response.text();
@@ -98,9 +83,6 @@ export default function CustomerHistoryContent() {
       console.log('📦 API Response Data:', data);
 
       if (data.success) {
-        // Store full data for compatibility with helper functions
-        setHistoryData(data.data || data); 
-        
         setTransactions(data.transactions || []);
         setProducts(data.products || []);
         setBalance(data.balance || 0);
@@ -111,6 +93,12 @@ export default function CustomerHistoryContent() {
         setDayLimitInfo(data.dayLimitInfo || { hasDayLimit: false });
         setOutstandings(data.outstandings || { yesterday: 0, today: 0, total: 0 });
         setNotifications(data.notifications || { lowBalance: false, balanceNotification: null, paymentOverdue: false, paymentNotification: null });
+        
+        console.log('✅ Data loaded successfully:', {
+          transactionsCount: data.transactions?.length,
+          balance: data.balance,
+          amtLimit: data.amtLimit
+        });
         
         if (!data.transactions || data.transactions.length === 0) {
           setError('No transaction history found for this customer');
@@ -141,219 +129,6 @@ export default function CustomerHistoryContent() {
     router.back();
   };
 
-  // Helper functions from TransactionHistory.jsx
-  
-  // Calculate due days (current date - completed date)
-  const calculateDueDays = (completedDate) => {
-    if (!completedDate) return 0;
-    const completed = new Date(completedDate);
-    const today = new Date();
-    const diffTime = today - completed;
-    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  // Check for overdue transactions and show alert
-  const checkOverdueTransactions = () => {
-    const overdueTransactions = transactions.filter(transaction => {
-      if (transaction.trans_type === 'inward') return false;
-      const dueDays = calculateDueDays(transaction.completed_date);
-      return dueDays >= (dayLimitInfo.dayLimit || 0);
-    });
-
-    if (overdueTransactions.length > 0) {
-      setAlertMessage(`🚨 Alert: ${overdueTransactions.length} transaction(s) have exceeded day limit. Service stopped due to payment pending.`);
-    } else {
-      setAlertMessage('');
-    }
-  };
-
-  // Calculate day limit information
-  const calculateDayLimitInfo = (transaction) => {
-    if (!isDayLimitCustomer || !transaction.completed_date) {
-      return {
-        remaining_days: 0,
-        total_days: dayLimitInfo.dayLimit || 0,
-        used_days: 0,
-        is_overdue: false
-      };
-    }
-
-    const totalDays = dayLimitInfo.dayLimit || 0;
-    const usedDays = calculateDueDays(transaction.completed_date);
-    const remainingDays = Math.max(0, totalDays - usedDays);
-    const isOverdue = usedDays >= totalDays;
-
-    return {
-      remaining_days: remainingDays,
-      total_days: totalDays,
-      used_days: usedDays,
-      is_overdue: isOverdue
-    };
-  };
-
-  // Get transaction status
-  const getTransactionStatus = (transaction) => {
-    if (transaction.trans_type === 'inward') {
-      return { status: 'Recharge', color: 'green' };
-    }
-
-    if (transaction.payment_status === 1) {
-      return { status: 'Paid', color: 'green' };
-    }
-
-    const dayLimitInfoVal = calculateDayLimitInfo(transaction);
-    
-    if (isDayLimitCustomer) {
-      if (dayLimitInfoVal.is_overdue) {
-        return { 
-          status: `Overdue - Stopped (${dayLimitInfoVal.used_days} days)`, 
-          color: 'red', 
-          days: dayLimitInfoVal.used_days 
-        };
-      } else if (dayLimitInfoVal.used_days > 0) {
-        return { 
-          status: `Open (${dayLimitInfoVal.used_days} days)`, 
-          color: 'blue', 
-          days: dayLimitInfoVal.used_days 
-        };
-      }
-      return { status: 'Open', color: 'blue', days: 0 };
-    } else {
-      const dueDays = calculateDueDays(transaction.completed_date);
-      if (dueDays > 7) {
-        return { status: `Overdue (${dueDays} days)`, color: 'red', days: dueDays };
-      }
-      return { status: 'Pending', color: 'orange', days: dueDays };
-    }
-  };
-
-  // Calculate amount for one day
-  const calculateOneDayAmount = () => {
-    const recentTransactions = transactions
-      .filter(t => t.trans_type !== 'inward')
-      .slice(0, 7);
-    
-    const totalAmount = recentTransactions.reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
-    const averageAmount = recentTransactions.length > 0 ? totalAmount / recentTransactions.length : 1000;
-    
-    return Math.round(averageAmount);
-  };
-
-  // Process payment for one day
-  const handleOneDayPayment = async () => {
-    try {
-      const oneDayAmount = calculateOneDayAmount();
-      
-      const response = await fetch('/api/cst/customer-history', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerId: customerId,
-          rechargeAmount: oneDayAmount,
-          payment_type: 'one_day'
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        alert(`Payment of ₹${oneDayAmount} processed successfully. Service resumed for one day.`);
-        fetchData(); // Refresh data
-        setAlertMessage('');
-      } else {
-        alert(result.error || 'Payment processing failed.');
-      }
-    } catch (err) {
-      console.error('Payment error:', err);
-      alert('Payment processing failed.');
-    }
-  };
-
-  const handleExportCSV = () => {
-    if (transactions && transactions.length > 0) {
-      let headers, csvData;
-
-      if (isDayLimitCustomer) {
-        // Day Limit Customers CSV Headers
-        headers = [
-          'Station', 'Completed Date', 'Product', 'Vehicle', 'Trans Type', 
-          'Loading Qty', 'Amount', 'Days Limit', 'Outstanding', 'Remaining Days', 
-          'Total Days', 'Recharge', 'Outstanding after Payment', 'Overdue', 'Status'
-        ];
-        
-        csvData = transactions.map(item => {
-          const statusInfo = getTransactionStatus(item);
-          const dayLimitInfoVal = calculateDayLimitInfo(item);
-          
-          return [
-            item.station_name || 'N/A',
-            item.completed_date ? new Date(item.completed_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A',
-            item.pname || 'N/A',
-            item.vehicle_number || 'N/A',
-            item.trans_type || 'N/A',
-            `${item.filling_qty || '0'} Ltr`,
-            `₹${parseFloat(item.amount || 0).toFixed(2)}`,
-            dayLimitInfoVal.total_days.toString(),
-            `₹${parseFloat(item.new_amount || 0).toFixed(2)}`,
-            dayLimitInfoVal.remaining_days.toString(),
-            dayLimitInfoVal.total_days.toString(),
-            item.trans_type === 'inward' ? `₹${parseFloat(item.amount || 0).toFixed(2)}` : '0',
-            item.payment_status === 1 ? '0' : `₹${parseFloat(item.new_amount || 0).toFixed(2)}`,
-            dayLimitInfoVal.is_overdue ? 'Yes' : 'No',
-            statusInfo.status
-          ];
-        });
-      } else {
-        // Prepaid/Postpaid Customers CSV Headers
-        headers = [
-          'Station', 'Completed Date', 'Product', 'Vehicle #', 'Trans Type', 
-          'Loading Qty', 'Amount', 'Credit', 'Credit Date', 'Balance', 
-          'Remaining Limit', 'Limit', 
-          'Status', 'Due Days', 'Updated By'
-        ];
-        
-        csvData = transactions.map(item => {
-          const statusInfo = getTransactionStatus(item);
-          const dueDays = calculateDueDays(item.completed_date);
-          
-          return [
-            item.station_name || 'N/A',
-            item.completed_date ? new Date(item.completed_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A',
-            item.pname || 'N/A',
-            item.vehicle_number || 'N/A',
-            item.trans_type || 'N/A',
-            `${item.filling_qty || '0'} Ltr`,
-            `₹${parseFloat(item.amount || 0).toFixed(2)}`,
-            `₹${parseFloat(item.credit || 0).toFixed(2)}`,
-            item.credit_date ? new Date(item.credit_date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' }) : 'N/A',
-            `₹${parseFloat(item.balance || 0).toFixed(2)}`,
-            `₹${parseFloat(item.remaining_limit || 0).toFixed(2)}`,
-            item.limit_type || 'N/A',
-            statusInfo.status,
-            dueDays.toString(),
-            item.updated_by_name || 'System'
-          ];
-        });
-      }
-
-      const csvContent = [
-        headers.join(','),
-        ...csvData.map(row => row.join(','))
-      ].join('\n');
-
-      const blob = new Blob([csvContent], { type: 'text/csv' });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `transaction-history-${customerId}-${new Date().toISOString().split('T')[0]}.csv`;
-      link.click();
-      window.URL.revokeObjectURL(url);
-    } else {
-      alert('No data available to export');
-    }
-  };
-
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-IN', {
       minimumFractionDigits: 0,
@@ -380,6 +155,19 @@ export default function CustomerHistoryContent() {
       case 2: return 'Postpaid';
       case 3: return 'Day Limit';
       default: return 'Unknown';
+    }
+  };
+
+  const getBillingTypeText = (transType) => {
+    switch(transType) {
+      case 'credit':
+      case 'inward':
+        return 'Credit/Inward';
+      case 'debit':
+      case 'outward':
+        return 'Debit/Outward';
+      default:
+        return transType || 'N/A';
     }
   };
 
@@ -424,24 +212,15 @@ export default function CustomerHistoryContent() {
                 )}
               </div>
             </div>
-            <div className="flex space-x-2">
-              <button
-                onClick={handleRefresh}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
-              <button 
-                onClick={handleExportCSV}
-                className="flex items-center gap-2 bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors text-sm"
-              >
-                <span>⬇</span>
-                Export CSV
-              </button>
-            </div>
+            <button
+              onClick={handleRefresh}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
           </div>
         </div>
       </header>
@@ -462,21 +241,6 @@ export default function CustomerHistoryContent() {
               >
                 Try Again
               </button>
-            </div>
-          )}
-
-          {/* Alert Message */}
-          {alertMessage && (
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-md mb-6">
-              <div className="flex justify-between items-center">
-                <span>{alertMessage}</span>
-                <button 
-                  onClick={handleOneDayPayment}
-                  className="ml-4 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700"
-                >
-                  Pay for One Day (₹{calculateOneDayAmount()})
-                </button>
-              </div>
             </div>
           )}
 
@@ -540,12 +304,12 @@ export default function CustomerHistoryContent() {
                     </div>
                     <div>
                       <span className="font-medium text-yellow-700">Used Today:</span>
-                      <span className="ml-2 text-yellow-600">₹{formatCurrency(dayLimitInfo.totalDayAmount)}</span>
+                      <span className="ml-2 text-yellow-600">₹{formatCurrency(dayLimitInfo.dayAmount)}</span>
                     </div>
                     <div>
                       <span className="font-medium text-yellow-700">Remaining Today:</span>
                       <span className="ml-2 text-yellow-600">
-                        ₹{formatCurrency(dayLimitInfo.dayLimit - dayLimitInfo.totalDayAmount)}
+                        ₹{formatCurrency(dayLimitInfo.dayLimit - dayLimitInfo.dayAmount)}
                       </span>
                     </div>
                   </div>
@@ -602,39 +366,26 @@ export default function CustomerHistoryContent() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Amount (₹)
                           </th>
-                          {isDayLimitCustomer ? (
+                          {customerInfo?.client_type === 2 && (
                             <>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Days Limit
+                                Increase (₹)
                               </th>
                               <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Outstanding
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Remaining Days
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Status
-                              </th>
-                            </>
-                          ) : (
-                            <>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Outstanding (₹)
-                              </th>
-                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                                Remaining Limit (₹)
+                                Decrease (₹)
                               </th>
                             </>
                           )}
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Outstanding (₹)
+                          </th>
+                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Remaining Limit (₹)
+                          </th>
                         </tr>
                       </thead>
                       <tbody className="bg-white divide-y divide-gray-200">
-                        {transactions.map((transaction) => {
-                           const statusInfo = getTransactionStatus(transaction);
-                           const dayLimitInfoVal = calculateDayLimitInfo(transaction);
-                           
-                           return (
+                        {transactions.map((transaction) => (
                           <tr 
                             key={transaction.id} 
                             className="hover:bg-gray-50 transition-colors"
@@ -672,120 +423,77 @@ export default function CustomerHistoryContent() {
                                 <span className="text-gray-400">₹0</span>
                               )}
                             </td>
-                            
-                            {isDayLimitCustomer ? (
+                            {customerInfo?.client_type === 2 && (
                               <>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-center">
-                                  {dayLimitInfoVal.total_days}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
-                                  ₹{formatCurrency(transaction.new_amount)}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-center">
-                                  {dayLimitInfoVal.remaining_days}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm">
-                                  <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full text-${statusInfo.color}-800 bg-${statusInfo.color}-100`}>
-                                    {statusInfo.status}
-                                  </span>
-                                </td>
-                              </>
-                            ) : (
-                              <>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-bold text-right text-gray-900">
-                                  ₹{formatCurrency(transaction.new_amount)}
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
+                                  {transaction.in_amount ? (
+                                    <span className="text-purple-600">₹{formatCurrency(transaction.in_amount)}</span>
+                                  ) : (
+                                    <span className="text-gray-400">₹0</span>
+                                  )}
                                 </td>
                                 <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
-                                  {transaction.remaining_limit ? (
-                                    <span className="text-blue-600">₹{formatCurrency(transaction.remaining_limit)}</span>
+                                  {transaction.d_amount ? (
+                                    <span className="text-red-600">₹{formatCurrency(transaction.d_amount)}</span>
                                   ) : (
                                     <span className="text-gray-400">₹0</span>
                                   )}
                                 </td>
                               </>
                             )}
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
+                              {transaction.new_amount ? (
+                                <span className="text-orange-600">₹{formatCurrency(transaction.new_amount)}</span>
+                              ) : (
+                                <span className="text-gray-400">₹0</span>
+                              )}
+                            </td>
+                            <td className={`px-4 py-3 whitespace-nowrap text-sm font-semibold text-right ${
+                              transaction.remaining_limit >= 0 ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              ₹{formatCurrency(transaction.remaining_limit)}
+                            </td>
                           </tr>
-                        );
-                        })}
+                        ))}
                       </tbody>
                     </table>
                   </div>
+
+                  {/* Summary */}
+                  <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 text-sm text-gray-600">
+                      <div className="text-center">
+                        <span className="font-semibold">Showing {transactions.length} transactions</span>
+                        {selectedProduct && ` filtered by ${selectedProduct}`}
+                      </div>
+                      <div className="text-center">
+                        <span className="font-semibold">Total Credit: </span>
+                        ₹{formatCurrency(summary.totalCredit)}
+                      </div>
+                      <div className="text-center">
+                        <span className="font-semibold">Total Debit: </span>
+                        ₹{formatCurrency(summary.totalDebit)}
+                      </div>
+                      <div className="text-center">
+                        <span className="font-semibold">Total Filling: </span>
+                        {summary.totalFillingQty ? `${summary.totalFillingQty}L` : '0L'}
+                      </div>
+                    </div>
+                  </div>
                 </>
               ) : (
-                <div className="text-center py-10 bg-gray-50 rounded-lg border border-gray-200">
-                  <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-                  </svg>
-                  <p className="mt-2 text-sm text-gray-500">No transactions found for this period</p>
-                </div>
+                !error && (
+                  <div className="text-center py-8">
+                    <svg className="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-gray-500 text-lg">No transactions found</p>
+                    <p className="text-gray-400 text-sm mt-2">No transaction history available for this customer</p>
+                  </div>
+                )
               )}
             </div>
           </div>
-
-          {/* Pagination */}
-          {historyData.pagination && historyData.pagination.totalPages > 1 && (
-            <div className="flex flex-col md:flex-row justify-between items-center mt-6 gap-4">
-              <div className="text-sm text-gray-600">
-                Page {historyData.pagination.currentPage} of {historyData.pagination.totalPages}
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => {
-                    const params = new URLSearchParams(searchParams);
-                    params.set('page', (page - 1).toString());
-                    router.push(`?${params.toString()}`);
-                  }}
-                  disabled={!historyData.pagination.hasPrev}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Previous
-                </button>
-                
-                {Array.from({ length: Math.min(5, historyData.pagination.totalPages) }, (_, i) => {
-                  let pageNum;
-                  if (historyData.pagination.totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (page <= 3) {
-                    pageNum = i + 1;
-                  } else if (page >= historyData.pagination.totalPages - 2) {
-                    pageNum = historyData.pagination.totalPages - 4 + i;
-                  } else {
-                    pageNum = page - 2 + i;
-                  }
-                  
-                  return (
-                    <button 
-                      key={pageNum}
-                      onClick={() => {
-                        const params = new URLSearchParams(searchParams);
-                        params.set('page', pageNum.toString());
-                        router.push(`?${params.toString()}`);
-                      }}
-                      className={`px-3 py-2 border rounded-md transition-colors ${
-                        page === pageNum 
-                          ? 'bg-blue-500 text-white border-blue-500' 
-                          : 'border-gray-300 hover:bg-gray-50'
-                      }`}
-                    >
-                      {pageNum}
-                    </button>
-                  );
-                })}
-                
-                <button 
-                  onClick={() => {
-                    const params = new URLSearchParams(searchParams);
-                    params.set('page', (page + 1).toString());
-                    router.push(`?${params.toString()}`);
-                  }}
-                  disabled={!historyData.pagination.hasNext}
-                  className="px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          )}
         </div>
       </main>
     </div>

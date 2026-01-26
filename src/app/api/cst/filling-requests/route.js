@@ -274,43 +274,12 @@ export async function GET(request) {
       })
     );
     
-    const dayInfoRows = await executeQuery(
-      `SELECT c.client_type, cb.day_limit 
-       FROM customers c 
-       LEFT JOIN customer_balances cb ON c.id = cb.com_id 
-       WHERE c.id = ?`,
-      [customerIdInt]
-    );
-    const clientType = String(dayInfoRows?.[0]?.client_type || '');
-    const dayLimitVal = parseInt(dayInfoRows?.[0]?.day_limit || 0) || 0;
-    const unpaidTotalsRows = await executeQuery(
-      `SELECT DATE(fr.completed_date) as day_date, COALESCE(SUM(COALESCE(fr.totalamt, fr.price * fr.aqty)), 0) as day_total
-       FROM filling_requests fr
-       WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
-       GROUP BY DATE(fr.completed_date)
-       ORDER BY DATE(fr.completed_date) ASC`,
-      [customerIdInt]
-    );
-    const unpaidByDate = Array.isArray(unpaidTotalsRows) ? unpaidTotalsRows.map(r => {
-      const ds = r.day_date instanceof Date ? r.day_date.toISOString().slice(0,10) : String(r.day_date);
-      return { date: ds, total: parseFloat(r.day_total || 0) };
-    }) : [];
-    const unpaidDistinctDays = unpaidByDate.map(r => r.date);
-    const remainingDays = Math.max(0, dayLimitVal - unpaidDistinctDays.length);
-    const todayStr = new Date().toISOString().slice(0,10);
-    const eligibleToCreate = clientType === '3' && dayLimitVal > 0
-      ? (remainingDays > 0 || unpaidDistinctDays.includes(todayStr))
-      : true;
+    // Return successful response
     return NextResponse.json(
       { 
         success: true, 
         message: `Found ${enrichedRequests.length} requests`, 
-        requests: enrichedRequests,
-        day_limit: dayLimitVal,
-        remaining_days: remainingDays,
-        unpaid_days_count: unpaidDistinctDays.length,
-        unpaid_by_date: unpaidByDate,
-        eligible_to_create: eligibleToCreate
+        requests: enrichedRequests 
       }, 
       { status: 200 }
     );

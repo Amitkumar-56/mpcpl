@@ -115,7 +115,6 @@ export async function GET(request) {
         ap.agent_id,
         ap.customer_id,
         ap.amount,
-        COALESCE(ap.tds_amount, 0) as tds_amount,
         COALESCE(ap.net_amount, ap.amount) as net_amount,
         ap.remarks,
         ap.payment_date,
@@ -126,11 +125,7 @@ export async function GET(request) {
       ORDER BY ap.payment_date DESC
     `, [agentId]);
 
-    const totalPaid = payments.reduce((sum, p) => {
-      const net = parseFloat(p.net_amount || 0) || 0;
-      const tds = parseFloat(p.tds_amount || 0) || 0;
-      return sum + net + tds;
-    }, 0);
+    const totalPaid = payments.reduce((sum, p) => sum + (parseFloat(p.net_amount) || 0), 0);
     const totalDue = Math.max(0, totalEarned - totalPaid);
 
     // 5. Group by customer
@@ -162,9 +157,7 @@ export async function GET(request) {
         };
       }
       customerPayments[custId].payments.push(p);
-      const net = parseFloat(p.net_amount || 0) || 0;
-      const tds = parseFloat(p.tds_amount || 0) || 0;
-      customerPayments[custId].total_paid += (net + tds);
+      customerPayments[custId].total_paid += parseFloat(p.amount || 0);
     });
 
     return NextResponse.json({

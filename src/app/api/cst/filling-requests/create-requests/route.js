@@ -79,6 +79,7 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
+    // ✅ Enforce Day Limit creation rule for day limit customers
     try {
       const dayInfoRows = await executeQuery(
         `SELECT c.client_type, cb.day_limit 
@@ -104,35 +105,10 @@ export async function POST(request) {
         if (unpaidDistinctDays.length >= dayLimitVal) {
           const isSameDayAllowed = unpaidDistinctDays.includes(todayStr);
           if (!isSameDayAllowed) {
-            const totalsByDayRows = await executeQuery(
-              `SELECT DATE(fr.completed_date) as day_date, COALESCE(SUM(COALESCE(fr.totalamt, fr.price * fr.aqty)), 0) as day_total
-               FROM filling_requests fr
-               WHERE fr.cid = ? AND fr.status = 'Completed' AND fr.payment_status = 0
-               GROUP BY DATE(fr.completed_date)
-               ORDER BY DATE(fr.completed_date) ASC`,
-              [parseInt(customer_id)]
-            );
-            const sortedDays = [...unpaidDistinctDays].sort();
-            const oldestDay = sortedDays[0] || '';
-            let oldestTotal = 0;
-            let totalUnpaidAmount = 0;
-            if (Array.isArray(totalsByDayRows)) {
-              totalUnpaidAmount = totalsByDayRows.reduce((s, r) => s + parseFloat(r.day_total || 0), 0);
-              const match = totalsByDayRows.find(r => {
-                const ds = r.day_date instanceof Date ? r.day_date.toISOString().slice(0,10) : String(r.day_date);
-                return ds === oldestDay;
-              });
-              oldestTotal = match ? parseFloat(match.day_total || 0) : 0;
-            }
+            const oldestDay = unpaidDistinctDays.sort()[0] || '';
             return NextResponse.json({
               success: false,
-              message: `Day limit reached (${unpaidDistinctDays.length}/${dayLimitVal}). Clear oldest unpaid date (${oldestDay}) amount ${oldestTotal.toFixed(2)} to create new date requests.`,
-              block_reason: 'day_limit_reached',
-              day_limit: dayLimitVal,
-              unpaid_days_count: unpaidDistinctDays.length,
-              oldest_unpaid_date: oldestDay,
-              oldest_unpaid_amount: oldestTotal,
-              total_unpaid_amount: totalUnpaidAmount
+              message: `Day limit reached (${unpaidDistinctDays.length}/${dayLimitVal}). You can create multiple requests only on existing unpaid day (${oldestDay}). Please clear payment for oldest day to create requests on a new date.`
             }, { status: 403 });
           }
         }

@@ -1,12 +1,12 @@
 "use client";
 
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
 import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { FiEdit, FiLoader, FiMapPin, FiPackage, FiSave, FiSettings, FiUser } from "react-icons/fi";
-import Sidebar from "@/components/sidebar";
-import Header from "@/components/Header";
-import Footer from "@/components/Footer";
 
 function EditCustomerContent() {
   const searchParams = useSearchParams();
@@ -183,10 +183,12 @@ function EditCustomerContent() {
 
         // Fetch customer balance info for day_limit
         let dayLimit = 0;
+        let cstLimit = 0;
         try {
           const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
           if (balanceRes.data.success && balanceRes.data.customer) {
             dayLimit = balanceRes.data.customer.day_limit || 0;
+            cstLimit = balanceRes.data.customer.cst_limit || 0;
           }
         } catch (err) {
           console.error('Error fetching balance info:', err);
@@ -206,6 +208,7 @@ function EditCustomerContent() {
           payment_type: paymentType,
           client_type: clientType,
           day_limit: dayLimit.toString(),
+          cst_limit: cstLimit.toString(),
           blocklocation: customer.blocklocation || [],
           products: customer.products || [],
           status: statusValue,
@@ -311,6 +314,7 @@ function EditCustomerContent() {
         payment_type: form.payment_type, // gid
         client_type: form.client_type, // client_type (1=Prepaid, 2=Postpaid, 3=Day Limit)
         day_limit: form.client_type === "3" ? parseInt(form.day_limit) : null, // Only set if day_limit customer
+        cst_limit: form.client_type === "2" ? parseFloat(form.cst_limit) : 0, // Only set if postpaid
         status: form.status,
         gst_name: form.gst_name,
         gst_number: form.gst_number,
@@ -646,6 +650,47 @@ function EditCustomerContent() {
                     Cash = Prepaid, Credit = Postpaid, Day Limit = Day Limit Customer
                   </p>
                 </div>
+
+                {/* Credit Limit - For Prepaid/Postpaid */}
+                {(form.client_type === "1" || form.client_type === "2") && (
+                  <div className="pt-4 border-t">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Credit Limit</label>
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-500 font-bold">₹</span>
+                      <input
+                        type="number"
+                        className={`w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition ${
+                          form.client_type === "1" ? "bg-gray-100 cursor-not-allowed text-gray-500" : ""
+                        }`}
+                        value={form.cst_limit || 0}
+                        onChange={(e) => updateForm("cst_limit", e.target.value)}
+                        disabled={form.client_type === "1"}
+                        placeholder="Enter credit limit"
+                      />
+                    </div>
+                    {form.client_type === "1" && (
+              <p className="text-xs text-gray-500 mt-1">Credit limit is disabled for Prepaid customers.</p>
+            )}
+          </div>
+        )}
+
+        {/* Day Limit - For Day Limit Customers */}
+        {(form.client_type === "3") && (
+          <div className="pt-4 border-t">
+            <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit (Days)</label>
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500 font-bold">📅</span>
+              <input
+                type="number"
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
+                value={form.day_limit || 0}
+                onChange={(e) => updateForm("day_limit", e.target.value)}
+                placeholder="Enter day limit"
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Set the number of days for the limit.</p>
+          </div>
+        )}
 
                 {/* Day Limit Controls - Only for Day Limit customers */}
                 {form.client_type === "3" && (

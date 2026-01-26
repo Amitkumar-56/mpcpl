@@ -149,7 +149,13 @@ export async function POST(request) {
     // Use direct values for LIMIT and OFFSET to avoid MySQL prepared statement issues
     const limitValue = parseInt(limit) || 100;
     const offsetValue = parseInt(offset) || 0;
-    queryStr += ` ORDER BY fr.created DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
+    
+    // Only apply limit if not exporting
+    if (!exportData) {
+      queryStr += ` ORDER BY fr.created DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
+    } else {
+      queryStr += ` ORDER BY fr.created DESC`;
+    }
 
     console.log('📝 Query:', queryStr);
     console.log('🔢 Params:', params);
@@ -157,6 +163,45 @@ export async function POST(request) {
     // Execute query
     const records = await executeQuery(queryStr, params);
     console.log('✅ Records found:', records.length);
+
+    // Handle Export
+    if (exportData) {
+      const csvHeaders = [
+        'ID', 'Date', 'Station', 'Client', 'Product', 'Quantity (Ltr)', 'Amount', 'Status', 
+        'Checked', 'Checked By', 'Invoiced', 'Invoiced By'
+      ];
+      
+      const csvData = records.map(record => [
+        record.rid,
+        (() => {
+          const dateVal = record.completed_date || record.created;
+          if (!dateVal) return '-';
+          try {
+            return new Date(dateVal).toLocaleDateString('en-GB');
+          } catch (e) {
+            return String(dateVal);
+          }
+        })(),
+        record.station_name,
+        record.client_name,
+        record.product_name,
+        record.aqty || record.qty || 0,
+        record.amount || 0,
+        record.status,
+        record.is_checked ? 'Yes' : 'No',
+        record.checked_by_name || '-',
+        record.is_invoiced ? 'Yes' : 'No',
+        record.invoiced_by_name || '-'
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        csv: {
+          headers: csvHeaders,
+          data: csvData
+        }
+      });
+    }
 
     // Calculate totals
     let totalQty = 0;

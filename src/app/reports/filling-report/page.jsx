@@ -55,6 +55,7 @@ function ReportHistoryContent() {
     totalRecharge: 0
   });
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
   const displayRecords = React.useMemo(() => {
     const q = invoiceSearch.trim().toLowerCase();
     if (!q) return data.records;
@@ -205,6 +206,7 @@ function ReportHistoryContent() {
 
   const handleExport = async () => {
     try {
+      setExportLoading(true);
       const response = await fetch('/api/reports/filling-report', {
         method: 'POST',
         headers: {
@@ -219,21 +221,39 @@ function ReportHistoryContent() {
       const result = await response.json();
       
       if (result.success && result.csv) {
+        // Robust CSV escaping function
+        const processRow = (row) => row.map(val => {
+          if (val === null || val === undefined) return '';
+          const str = String(val);
+          // If value contains comma, double quote, or newline, escape it
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        });
+
         const csvContent = [
-          result.csv.headers.join(','),
-          ...result.csv.data.map(row => row.join(','))
+          processRow(result.csv.headers).join(','),
+          ...result.csv.data.map(row => processRow(row).join(','))
         ].join('\n');
         
-        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'filling_report.csv';
+        link.download = `filling_report_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+      } else {
+        alert('Export failed: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Export error:', error);
+      alert('Export error: ' + error.message);
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -926,9 +946,10 @@ function ReportHistoryContent() {
                 </button>
                 <button
                   onClick={handleExport}
-                  className="flex-1 sm:flex-none px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500 transition-colors text-sm sm:text-base"
+                  disabled={exportLoading}
+                  className={`flex-1 sm:flex-none px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500 transition-colors text-sm sm:text-base ${exportLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  Export
+                  {exportLoading ? 'Exporting...' : 'Export'}
                 </button>
               </div>
         </div>

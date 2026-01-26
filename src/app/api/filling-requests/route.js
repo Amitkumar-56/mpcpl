@@ -184,12 +184,12 @@ export async function GET(request) {
         params.push(...fsIdArray.map(id => parseInt(id)));
         countParams.push(...fsIdArray.map(id => parseInt(id)));
       }
-      
-      // ✅ Only show pending requests for staff/incharge (ignore status filter from URL)
+
+      // ✅ Only show pending and processing requests for staff/incharge (ignore status filter from URL)
       query += ' AND fr.status = ?';
       countQuery += ' AND fr.status = ?';
-      params.push('Pending');
-      countParams.push('Pending');
+      params.push('Pending', 'Processing');
+          countParams.push('Pending', 'Processing');
     } else if (status) {
       // ✅ Team Leader (role 3) and above: Apply status filter from URL if provided
       query += ' AND fr.status = ?';

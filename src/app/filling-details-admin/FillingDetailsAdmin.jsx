@@ -55,6 +55,15 @@ export default function FillingDetailsAdmin() {
     }
   }, [user, authLoading]);
 
+  // Auto-set status to Completed for Staff/Incharge when status is Processing
+  useEffect(() => {
+    if (requestData && user && ['1', '2'].includes(String(user.role))) {
+      if (requestData.status === 'Processing') {
+        setFormData(prev => ({ ...prev, status: 'Completed' }));
+      }
+    }
+  }, [requestData, user]);
+
   const checkPermissions = async () => {
     if (!user || !user.id) return;
     if (Number(user.role) === 5) {
@@ -1128,11 +1137,19 @@ export default function FillingDetailsAdmin() {
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-b border-gray-200">
                     <h2 className="text-base md:text-lg font-semibold text-gray-900 flex flex-col md:flex-row md:items-center gap-2 md:space-x-2">
-                      <span>Update Request</span>
-                      <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>Available Stock: {requestData.station_stock || 0} Ltr</span>
-                      <span className={`px-2 py-1 text-xs md:text-sm font-medium rounded w-fit ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
-                        {limitBadgeLabel}: {limitBadgeValue}
-                      </span>
+                      {/* Hide details for staff (1) and incharge (2) */}
+                      {!['1', '2'].includes(String(user?.role)) && (
+                        <>
+                          <span>Update Request</span>
+                          <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>Available Stock: {requestData.station_stock || 0} Ltr</span>
+                          <span className={`px-2 py-1 text-xs md:text-sm font-medium rounded w-fit ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                            {limitBadgeLabel}: {limitBadgeValue}
+                          </span>
+                        </>
+                      )}
+                      {['1', '2'].includes(String(user?.role)) && (
+                         <span>Update Request</span>
+                      )}
                     </h2>
                   </div>
                   <div className="p-3 md:p-6">
@@ -1260,10 +1277,27 @@ export default function FillingDetailsAdmin() {
                                   onChange={handleInputChange}
                                   className="block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                 >
-                                  <option value="Pending">Pending</option>
-                                  <option value="Processing">Processing</option>
-                                  <option value="Completed">Completed</option>
-                                  <option value="Cancelled">Cancelled</option>
+                                  {['1', '2'].includes(String(user?.role)) ? (
+                                    <>
+                                      {requestData.status === 'Pending' && (
+                                        <>
+                                          <option value="Pending">Pending</option>
+                                          <option value="Processing">Processing</option>
+                                          <option value="Completed">Completed</option>
+                                        </>
+                                      )}
+                                      {requestData.status === 'Processing' && (
+                                        <option value="Completed">Completed</option>
+                                      )}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <option value="Pending">Pending</option>
+                                      <option value="Processing">Processing</option>
+                                      <option value="Completed">Completed</option>
+                                      <option value="Cancelled">Cancelled</option>
+                                    </>
+                                  )}
                                 </select>
                               </div>
                             </td>
@@ -1289,17 +1323,19 @@ export default function FillingDetailsAdmin() {
                             <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50"></td>
                             <td className="px-3 md:px-4 py-3 md:py-4">
                               <div className="flex flex-col sm:flex-row justify-end gap-3 md:space-x-4">
-                                <button 
-                                  type="button"
-                                  onClick={() => setShowCancelModal(true)}
-                                  className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                                  disabled={submitting}
-                                >
-                                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-                                  </svg>
-                                  Cancel Request
-                                </button>
+                                {!['1', '2'].includes(String(user?.role)) && (
+                                  <button 
+                                    type="button"
+                                    onClick={() => setShowCancelModal(true)}
+                                    className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+                                    disabled={submitting}
+                                  >
+                                    <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                      <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                                    </svg>
+                                    Cancel Request
+                                  </button>
+                                )}
                                 <button 
                                   type="submit" 
                                   disabled={submitting}

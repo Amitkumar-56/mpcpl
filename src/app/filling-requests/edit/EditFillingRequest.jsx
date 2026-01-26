@@ -310,7 +310,13 @@ export default function EditFillingRequest() {
                 {['doc1', 'doc2', 'doc3'].map((doc, index) => (
                   <div key={doc}>
                     <label className="block text-sm font-medium mb-2">Document {index + 1}</label>
-                    <input type="file" onChange={e => handleFileChange(e, doc)} className="w-full p-2 border border-gray-300 rounded-md" />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      capture="environment"
+                      onChange={e => handleFileChange(e, doc)} 
+                      className="w-full p-2 border border-gray-300 rounded-md" 
+                    />
                     {record && record[doc] && (
                       <div className="mt-2">
                         <a href={record[doc]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">

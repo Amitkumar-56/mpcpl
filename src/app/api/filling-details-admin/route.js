@@ -106,9 +106,23 @@ export async function GET(req) {
         data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
       }
 
-      // ✅ CORRECTED: Calculate remaining days for day limit customers based on OLDEST UNPAID completed_date
+      // ✅ CORRECTED: Calculate remaining days based on DISTINCT DATES of unpaid completed transactions
       if (data.client_type === "3" && data.day_limit && data.day_limit > 0) {
-        // Get OLDEST UNPAID completed transaction's completed_date
+        // Count distinct dates for unpaid completed requests
+        const usedDaysResult = await executeQuery(
+           `SELECT COUNT(DISTINCT DATE(completed_date)) as used_days 
+            FROM filling_requests 
+            WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
+           [data.cid]
+        );
+         
+        const usedDays = usedDaysResult.length > 0 ? usedDaysResult[0].used_days : 0;
+        
+        data.days_elapsed = usedDays;
+        data.remaining_days = Math.max(0, data.day_limit - usedDays);
+        data.is_overdue = usedDays >= data.day_limit;
+        
+        // Get oldest unpaid date for reference
         const oldestUnpaidCompleted = await executeQuery(
           `SELECT completed_date 
            FROM filling_requests 
@@ -118,38 +132,18 @@ export async function GET(req) {
           [data.cid]
         );
         
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0);
-        
-        if (oldestUnpaidCompleted.length > 0 && oldestUnpaidCompleted[0].completed_date) {
-          const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
-          oldestUnpaidDate.setHours(0, 0, 0, 0);
-          
-          // Calculate days elapsed: current_date - oldest_unpaid_date
-          const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
-          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
-          
-          // Remaining days = day_limit - days_elapsed
-          data.days_elapsed = daysElapsed;
-          data.remaining_days = Math.max(0, data.day_limit - daysElapsed);
-          data.oldest_unpaid_date = oldestUnpaidDate;
-          data.is_overdue = daysElapsed >= data.day_limit;
-          
-          console.log('📅 Day Limit Calculation - OLDEST UNPAID DATE:', {
-            oldestUnpaidDate: oldestUnpaidDate.toISOString(),
-            currentDate: currentDate.toISOString(),
-            daysElapsed,
-            dayLimit: data.day_limit,
-            remainingDays: data.remaining_days,
-            isOverdue: data.is_overdue
-          });
+        if (oldestUnpaidCompleted.length > 0) {
+          data.oldest_unpaid_date = oldestUnpaidCompleted[0].completed_date;
         } else {
-          // No unpaid completed transactions, so all days remaining
-          data.days_elapsed = 0;
-          data.remaining_days = data.day_limit;
           data.oldest_unpaid_date = null;
-          data.is_overdue = false;
         }
+          
+        console.log('📅 Day Limit Calculation (Distinct Dates):', {
+          usedDays,
+          dayLimit: data.day_limit,
+          remainingDays: data.remaining_days,
+          isOverdue: data.is_overdue
+        });
       } else {
         // For non-day limit customers, no day limit calculation
         data.days_elapsed = 0;
@@ -628,55 +622,66 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     if (dayLimit > 0) {
       console.log('📅 Checking day limit for customer...');
       
-      // For day_limit customers: Check based on OLDEST UNPAID completed transactions only
-      const oldestUnpaidCompleted = await executeQuery(
-        `SELECT completed_date 
+      // For day_limit customers: Count DISTINCT DATES of unpaid completed transactions
+      // User Logic: "22->1, 24->2, 26->3"
+      
+      // 1. Get count of existing distinct unpaid dates
+      const distinctDaysResult = await executeQuery(
+        `SELECT COUNT(DISTINCT DATE(completed_date)) as distinct_days
          FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0
-         ORDER BY completed_date ASC 
-         LIMIT 1`,
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
         [cl_id]
       );
       
-      const currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0);
+      const distinctDays = distinctDaysResult.length > 0 ? parseInt(distinctDaysResult[0].distinct_days) || 0 : 0;
       
-      if (oldestUnpaidCompleted.length > 0 && oldestUnpaidCompleted[0].completed_date) {
-        const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
-        oldestUnpaidDate.setHours(0, 0, 0, 0);
+      // 2. Check if today is already in the unpaid list
+      const todayDateStr = getIndianTime().slice(0, 10);
+      const todayCheck = await executeQuery(
+        `SELECT 1 FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         AND DATE(completed_date) = ?
+         LIMIT 1`,
+        [cl_id, todayDateStr]
+      );
+      
+      const isTodayAlreadyCounted = todayCheck.length > 0;
+      
+      // 3. Calculate projected count
+      // If today is NOT already counted (i.e. this is the first unpaid request for today),
+      // then this request will add +1 to the day count.
+      let projectedDays = distinctDays;
+      if (!isTodayAlreadyCounted) {
+        projectedDays += 1;
+      }
+      
+      console.log('📅 Day Limit Check (Distinct Dates):', {
+        distinctDays,
+        isTodayAlreadyCounted,
+        projectedDays,
+        dayLimit,
+        isExceeded: projectedDays > dayLimit
+      });
+      
+      // If projected days > day_limit, block the request
+      if (projectedDays > dayLimit) {
+        console.log('❌ Day limit exceeded based on distinct dates count');
         
-        // Calculate days elapsed: current_date - oldest_unpaid_date
-        const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
-        const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+        // Calculate total unpaid amount for overdue message
+        const totalUnpaidQuery = `
+          SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
+          FROM filling_requests 
+          WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+        `;
+        const unpaidResult = await executeQuery(totalUnpaidQuery, [cl_id]);
+        const totalUnpaid = unpaidResult.length > 0 ? parseFloat(unpaidResult[0].total_unpaid) || 0 : 0;
         
-        console.log('📅 Day Limit Check - OLDEST UNPAID DATE:', {
-          oldestUnpaidDate: oldestUnpaidDate.toISOString(),
-          currentDate: currentDate.toISOString(),
-          daysElapsed,
-          dayLimit,
-          isExceeded: daysElapsed >= dayLimit
-        });
-        
-        // If days elapsed >= day_limit, block the request
-        if (daysElapsed >= dayLimit) {
-          console.log('❌ Day limit exceeded based on oldest unpaid completed_date');
-          
-          // Calculate total unpaid amount for overdue message
-          const totalUnpaidQuery = `
-            SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
-            FROM filling_requests 
-            WHERE cid = ? AND status = 'Completed' AND payment_status = 0
-          `;
-          const unpaidResult = await executeQuery(totalUnpaidQuery, [cl_id]);
-          const totalUnpaid = unpaidResult.length > 0 ? parseFloat(unpaidResult[0].total_unpaid) || 0 : 0;
-          
-          return { 
-            sufficient: false, 
-            message: `Day limit exceeded. Oldest unpaid transaction was ${daysElapsed} days ago (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
-            isDayLimitExpired: true,
-            totalUnpaidAmount: totalUnpaid
-          };
-        }
+        return { 
+          sufficient: false, 
+          message: `Day limit exceeded. You have used ${distinctDays} distinct days of credit (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
+          isDayLimitExpired: true,
+          totalUnpaidAmount: totalUnpaid
+        };
       }
     }
 
@@ -1030,10 +1035,16 @@ async function handleCompletedStatus(data) {
     sub_product_id, finalPrice, calculatedAmount, paymentStatus, id, rid
   ]);
 
-  // ✅ CORRECTED: Use customer_balances for amount tracking instead of filling_history
-  // This ensures consistency with the actual balance table
-  const previous_new_amount = old_used_amount; // From customer_balances
-  const current_new_amount = new_used_amount; // From customer_balances
+  // Get last new_amount from filling_history for this customer (for old_amount calculation)
+  const getLastNewAmountQuery = `
+    SELECT new_amount 
+    FROM filling_history 
+    WHERE cl_id = ? 
+    ORDER BY filling_date DESC, id DESC 
+    LIMIT 1
+  `;
+  const lastNewAmountRows = await executeQuery(getLastNewAmountQuery, [cl_id]);
+  const previous_new_amount = lastNewAmountRows.length > 0 ? parseFloat(lastNewAmountRows[0].new_amount) || 0 : 0;
 
   try {
     const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
@@ -1047,9 +1058,9 @@ async function handleCompletedStatus(data) {
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount, // old_amount: From customer_balances (before update)
-      current_new_amount,  // new_amount: From customer_balances (after update)
-      isDayLimitCustomer ? null : new_available_balance, 
+      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
+      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
+      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
       paymentStatus
     ];
 
@@ -1085,9 +1096,9 @@ async function handleCompletedStatus(data) {
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount, 
-      current_new_amount,
-      isDayLimitCustomer ? null : new_available_balance,
+      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
+      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
+      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
       paymentStatus
     ]);
   }
