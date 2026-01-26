@@ -1,18 +1,19 @@
 'use client';
+import EntityLogs from "@/components/EntityLogs";
+import { useSession } from '@/context/SessionContext';
+import { useOptimizedFetch } from '@/hooks/useOptimizedFetch';
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
-import { useSession } from '@/context/SessionContext';
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import React from 'react';
+import { useRouter } from 'next/navigation';
+import React, { useEffect, useState } from 'react';
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
-import EntityLogs from "@/components/EntityLogs";
 
 export default function SuppliersPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
+  const { fetchData, loading: suppliersLoading } = useOptimizedFetch({ timeout: 10000, cache: true, cacheTime: 5 * 60 * 1000 });
   const [suppliers, setSuppliers] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState(null);
@@ -160,11 +161,7 @@ export default function SuppliersPage() {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      const response = await fetch('/api/suppliers');
-      if (!response.ok) {
-        throw new Error('Failed to fetch suppliers');
-      }
-      const data = await response.json();
+      const data = await fetchData('/api/suppliers', { credentials: 'include', cache: 'no-store' });
       setSuppliers(data);
       setStats(calculateStats(data));
       setLoading(false);
@@ -172,6 +169,10 @@ export default function SuppliersPage() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    setLoading(suppliersLoading);
+  }, [suppliersLoading]);
 
   // Calculate stats from supplier data
   const calculateStats = (suppliersData) => {
@@ -581,22 +582,7 @@ export default function SuppliersPage() {
             </div>
           )}
 
-          {/* Dashboard Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6 lg:mb-8">
-            {[
-              { title: 'Total Suppliers', value: stats.totalCustomers, color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
-              { title: 'Active Suppliers', value: stats.activeSuppliers, color: 'bg-gradient-to-r from-green-500 to-green-600' },
-              { title: 'Total Outstanding', value: `₹${stats.totalOutstanding.toLocaleString()}`, color: 'bg-gradient-to-r from-orange-500 to-orange-600' },
-              { title: 'Tomorrow Payment', value: `₹${stats.tomorrowPayment.toLocaleString()}`, color: 'bg-gradient-to-r from-purple-500 to-purple-600' },
-              { title: 'Overdue 2-7 Days', value: `₹${stats.overdue2to7.toLocaleString()}`, color: 'bg-gradient-to-r from-red-500 to-red-600' },
-              { title: 'Overdue 8+ Days', value: `₹${stats.overdue8Plus.toLocaleString()}`, color: 'bg-gradient-to-r from-pink-500 to-pink-600' },
-            ].map((stat, index) => (
-              <div key={index} className={`${stat.color} text-white p-3 sm:p-4 rounded-xl shadow-md transform hover:scale-105 transition-transform duration-200`}>
-                <h3 className="text-xs sm:text-sm font-medium opacity-90">{stat.title}</h3>
-                <p className="text-lg sm:text-xl lg:text-2xl font-bold mt-1 sm:mt-2">{stat.value}</p>
-              </div>
-            ))}
-          </div>
+          
 
           {/* Suppliers List */}
           <div className="bg-white rounded-xl shadow-sm overflow-hidden">

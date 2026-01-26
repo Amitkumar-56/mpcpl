@@ -29,9 +29,20 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   const { user, logout } = useSession();
   
   // SSR के लिए default state
-  const [isCollapsed, setIsCollapsed] = useState(true); // SSR के लिए हमेशा collapsed
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const mobile = window.innerWidth < 768;
+    if (mobile) {
+      const saved = localStorage.getItem('sidebar-collapsed');
+      return saved ? JSON.parse(saved) : true;
+    }
+    return false;
+  });
   const [isLoggingOut, setIsLoggingOut] = useState(false);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.innerWidth < 768;
+  });
   const [isInitialized, setIsInitialized] = useState(false); // Track initialization
   const router = useRouter();
   const pathname = usePathname();

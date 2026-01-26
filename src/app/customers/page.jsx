@@ -16,7 +16,8 @@ import {
   BiPlus,
   BiRupee,
   BiSearch,
-  BiShow
+  BiShow,
+  BiReceipt
 } from "react-icons/bi";
 import { FaToggleOff, FaToggleOn } from "react-icons/fa";
 
@@ -392,6 +393,14 @@ function CustomersPage() {
       href: (id) => `/customers/recharge-request?id=${id}`,
       color: 'bg-purple-500 hover:bg-purple-600',
       show: permissions.can_edit
+    },
+    {
+      key: 'recharge-history',
+      icon: BiReceipt,
+      label: 'Recharge History',
+      href: (id) => `/customers/recharge-history?id=${id}`,
+      color: 'bg-green-600 hover:bg-green-700',
+      show: permissions.can_view
     },
     {
       key: 'deal-price',

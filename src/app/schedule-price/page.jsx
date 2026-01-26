@@ -23,7 +23,7 @@ function SchedulePriceContent() {
   const [showHistory, setShowHistory] = useState(false);
   const [customersWithPendingUpdates, setCustomersWithPendingUpdates] = useState(new Set());
   const [bulkPrices, setBulkPrices] = useState({}); // Store bulk prices for each product-station combination
-  const [requireApproval, setRequireApproval] = useState(true);
+  const [requireApproval, setRequireApproval] = useState(false);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
   const [bulkUpdateSamePrice, setBulkUpdateSamePrice] = useState(true); // Enable bulk update by default
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split("T")[0]);
@@ -320,9 +320,14 @@ function SchedulePriceContent() {
     const hasPending = customersWithPendingUpdates.has(customerId);
     const isCurrentlySelected = selectedCustomers.includes(customerId);
     
+    // Prevent selecting customer if pending updates exist
+    if (!isCurrentlySelected && hasPending) {
+      alert("Is customer ka scheduled price pending hai. Jab tak apply nahi hota, select nahi kar sakte.");
+      return;
+    }
     // If trying to unselect a customer with pending updates, prevent it
     if (isCurrentlySelected && hasPending) {
-      alert("This customer has pending price updates. Cannot unselect until all prices are applied.");
+      alert("Is customer ka scheduled price pending hai. Apply hone tak unselect nahi kar sakte.");
       return;
     }
     
@@ -671,7 +676,7 @@ function SchedulePriceContent() {
                   
                   const hasPending = customersWithPendingUpdates.has(customer.id);
                   const isSelected = selectedCustomers.includes(customer.id);
-                  const isDisabled = hasPending && isSelected; // Disable only if selected AND has pending
+                  const isDisabled = hasPending; // Disable if customer has pending updates (selection blocked)
                   
                   return (
                     <div 
@@ -699,7 +704,7 @@ function SchedulePriceContent() {
                         } ${isDisabled ? 'cursor-not-allowed opacity-75' : 'cursor-pointer'}`}
                       >
                         {customer.name || "Unknown"}
-                        {hasPending && isSelected && (
+                        {hasPending && (
                           <span className="ml-1 text-xs text-yellow-600">⏳ Pending</span>
                         )}
                       </label>
@@ -709,7 +714,7 @@ function SchedulePriceContent() {
               </div>
               {customersWithPendingUpdates.size > 0 && (
                 <p className="mt-2 text-xs text-yellow-600">
-                  ⚠️ Customers with pending updates cannot be unselected until all prices are applied.
+                  ⚠️ Jinke scheduled price pending hain, unhe select/unselect nahi kar sakte jab tak apply nahi hota.
                 </p>
               )}
             </div>

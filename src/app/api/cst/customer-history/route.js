@@ -331,28 +331,36 @@ export async function GET(request) {
 
     // Today's outstanding
     const todayOutstandingQuery = `
-      SELECT COALESCE(SUM(fr.new_amount), 0) as total 
-      FROM filling_requests fr
-      WHERE fr.cid = ?
-        AND fr.new_amount > 0
-        AND UPPER(fr.status) = 'COMPLETED'
-        AND fr.completed_date IS NOT NULL
-        AND DATE(fr.completed_date) = ?
+      SELECT COALESCE(SUM(fh.new_amount), 0) as total
+      FROM filling_history fh
+      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+      WHERE fh.cl_id IS NOT NULL
+        AND fh.cl_id = ?
+        AND fh.new_amount > 0
+        AND (
+          DATE(fr.completed_date) = ?
+          OR
+          DATE(fh.created_at) = ?
+        )
     `;
-    const todayOutstandingResult = await executeQuery(todayOutstandingQuery, [customerId, todayFormatted]).catch(() => [{ total: 0 }]);
+    const todayOutstandingResult = await executeQuery(todayOutstandingQuery, [customerId, todayFormatted, todayFormatted]).catch(() => [{ total: 0 }]);
     const todayOutstanding = parseFloat(todayOutstandingResult[0]?.total) || 0;
 
     // Yesterday's outstanding
     const yesterdayOutstandingQuery = `
-      SELECT COALESCE(SUM(fr.new_amount), 0) as total 
-      FROM filling_requests fr
-      WHERE fr.cid = ?
-        AND fr.new_amount > 0
-        AND UPPER(fr.status) = 'COMPLETED'
-        AND fr.completed_date IS NOT NULL
-        AND DATE(fr.completed_date) < ?
+      SELECT COALESCE(SUM(fh.new_amount), 0) as total
+      FROM filling_history fh
+      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+      WHERE fh.cl_id IS NOT NULL
+        AND fh.cl_id = ?
+        AND fh.new_amount > 0
+        AND (
+          DATE(fr.completed_date) < ?
+          OR
+          DATE(fh.created_at) < ?
+        )
     `;
-    const yesterdayOutstandingResult = await executeQuery(yesterdayOutstandingQuery, [customerId, todayFormatted]).catch(() => [{ total: 0 }]);
+    const yesterdayOutstandingResult = await executeQuery(yesterdayOutstandingQuery, [customerId, todayFormatted, todayFormatted]).catch(() => [{ total: 0 }]);
     const yesterdayOutstanding = parseFloat(yesterdayOutstandingResult[0]?.total) || 0;
 
     // Notifications

@@ -161,51 +161,16 @@ export function SessionProvider({ children }) {
         return;
       }
 
-      // ✅ Employee routes के लिए conditional check
-      // Check both sessionStorage and localStorage for mobile compatibility
-      const sessionUser = sessionStorage.getItem('user');
-      const localUser = localStorage.getItem('user');
-      
-      // Prefer sessionStorage, fallback to localStorage
-      const cachedUser = sessionUser || localUser;
-      if (cachedUser) {
-        try {
-          const userData = JSON.parse(cachedUser);
-          // ✅ Verify token exists before using cached user
-          const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-          if (!token) {
-            // No token means logged out, clear cache
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            setLoading(false);
-            return;
-          }
-          
-          // ✅ Set user immediately from cache (prevents logout on page load)
-          setUser(userData);
-          // Sync to both storages for consistency
-          if (!sessionUser && localUser) {
-            sessionStorage.setItem('user', localUser);
-          }
-          if (!localUser && sessionUser) {
-            localStorage.setItem('user', sessionUser);
-          }
-          // ✅ Set loading to false immediately after setting user from cache
-          setLoading(false);
-          
-          // ✅ Continue to background verification (but don't block UI)
-          // Background verification will update user if needed, but won't logout on network errors
-        } catch (e) {
-          console.error('Error parsing cached user:', e);
-          // Clear invalid data
-          sessionStorage.removeItem('user');
-          localStorage.removeItem('user');
-        }
+      const token = localStorage.getItem('token') || sessionStorage.getItem('token');
+      if (!token) {
+        setUser(null);
+        sessionStorage.removeItem('user');
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        localStorage.removeItem('token');
+        return;
       }
 
-      // ✅ Background verification - optional, don't block UI if it fails
-      // ✅ User stays logged in using cached data even if verification fails
-      // ✅ Only logout when user explicitly clicks logout button
       try {
         const res = await fetch('/api/auth/verify', {
           credentials: 'include',
@@ -215,7 +180,6 @@ export function SessionProvider({ children }) {
         if (res.ok) {
           const data = await res.json();
           if (data.authenticated && data.id) {
-            // ✅ Update user data if verification succeeds
             const userData = {
               id: data.id,
               emp_code: data.emp_code,
@@ -229,26 +193,39 @@ export function SessionProvider({ children }) {
               permissions: data.permissions || {}
             };
             setUser(userData);
-            // ✅ Cache complete user data
             const cacheData = JSON.stringify(userData);
             sessionStorage.setItem('user', cacheData);
             localStorage.setItem('user', cacheData);
+          } else {
+            setUser(null);
+            sessionStorage.removeItem('user');
+            localStorage.removeItem('user');
+            sessionStorage.removeItem('token');
+            localStorage.removeItem('token');
           }
-          // ✅ NEVER logout automatically - keep cached user even if verification fails
-          // User stays logged in until they explicitly click logout button
+        } else {
+          setUser(null);
+          sessionStorage.removeItem('user');
+          localStorage.removeItem('user');
+          sessionStorage.removeItem('token');
+          localStorage.removeItem('token');
         }
-        // ✅ NEVER logout on any error (401, network, etc.) - keep cached user
-        // User stays logged in until they explicitly click logout button
       } catch (networkError) {
-        // ✅ Don't logout on network errors - keep cached user
-        // User stays logged in until they explicitly click logout button
-        console.log('⚠️ Background auth verification failed - keeping user logged in (cached)');
+        setUser(null);
+        sessionStorage.removeItem('user');
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        localStorage.removeItem('token');
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      // ✅ NEVER logout automatically on errors - keep cached user
-      // Only logout when user explicitly clicks logout button
-      // Don't clear user or storage
+      setUser(null);
+      if (typeof window !== 'undefined') {
+        sessionStorage.removeItem('user');
+        localStorage.removeItem('user');
+        sessionStorage.removeItem('token');
+        localStorage.removeItem('token');
+      }
     } finally {
       setLoading(false);
     }
