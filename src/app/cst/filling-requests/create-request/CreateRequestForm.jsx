@@ -32,7 +32,6 @@ export default function CreateRequestForm() {
   const [customerData, setCustomerData] = useState(null)
   const [priceDetails, setPriceDetails] = useState({ price: 0, totalAmount: 0 })
   const [calculatedBarrels, setCalculatedBarrels] = useState(0)
-  const [showFullTankMessage, setShowFullTankMessage] = useState(false)
   const [maxQuantity, setMaxQuantity] = useState(0)
   const [isCustomerDisabled, setIsCustomerDisabled] = useState(false)
   const [productCodes, setProductCodes] = useState([])
@@ -68,39 +67,7 @@ export default function CreateRequestForm() {
     }
   }, [formData.qty, selectedProduct]);
 
-  // ✅ 2. Show full tank message
-  useEffect(() => {
-    const currentQty = parseInt(formData.qty) || 0;
-    if (selectedProduct?.maxQuantity && currentQty === selectedProduct.maxQuantity) {
-      setShowFullTankMessage(true);
-    } else {
-      setShowFullTankMessage(false);
-    }
-  }, [formData.qty, selectedProduct]);
-
-  // ✅ 3. Handle "full tank" in remarks
-  useEffect(() => {
-    if (selectedProduct?.maxQuantity) {
-      const remarks = formData.remarks.toLowerCase().trim();
-      if (remarks === 'full tank' || remarks === 'fulltank') {
-        if (selectedProduct.type === 'bucket') {
-          const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
-          setFormData(prev => ({
-            ...prev,
-            aty: buckets.toString(),
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            aty: selectedProduct.maxQuantity.toString(),
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        }
-        setShowFullTankMessage(true);
-      }
-    }
-  }, [formData.remarks, selectedProduct]);
+  // Removed full tank auto-fill logic
 
   // ✅ 4. AUTO-SWITCH BULK/RETAIL BASED ON QTY
   useEffect(() => {
@@ -230,13 +197,16 @@ export default function CreateRequestForm() {
           const codes = json.codes || [];
           setProductCodes(codes);
           setFilterType(json.filter_type || '');
-          // Auto-select first sub-product if available
+          let retailDefault = '';
           if (codes.length > 0) {
-            const first = codes[0]?.id ? String(codes[0].id) : '';
-            setSelectedSubProductId(first);
-          } else {
-            setSelectedSubProductId('');
+            const retailCode = codes.find(c => {
+              const p = (c.pcode || '').toUpperCase();
+              return p.includes('(R)') || p.includes('RETAIL') || p.includes('RTL');
+            });
+            retailDefault = retailCode?.id ? String(retailCode.id) : (codes[0]?.id ? String(codes[0].id) : '');
           }
+          setSelectedSubProductId(retailDefault || '');
+          setFormData(prev => ({ ...prev, products_codes: retailDefault || '' }));
         } else {
           setProductCodes([]);
           setSelectedSubProductId('');
@@ -534,7 +504,6 @@ export default function CreateRequestForm() {
           products_codes: ''
         }));
         setCalculatedBarrels(0);
-        setShowFullTankMessage(false);
       }
     }
   }
@@ -583,35 +552,10 @@ export default function CreateRequestForm() {
       fetchVehicles(nextValue)
     }
 
-    if (name === 'aty' || name === 'qty') {
-      const currentQty = parseInt(qty) || 0;
-      if (selectedProduct?.maxQuantity && currentQty !== selectedProduct.maxQuantity) {
-        setShowFullTankMessage(false);
-      }
-    }
+    // Removed full tank state toggling
   }
 
-  const handleFullTank = () => {
-    if (selectedProduct?.maxQuantity) {
-      if (selectedProduct.type === 'bucket') {
-        const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
-        setFormData(prev => ({
-          ...prev, 
-          aty: buckets.toString(), 
-          qty: selectedProduct.maxQuantity.toString(),
-          remarks: 'FULL TANK'
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev, 
-          aty: selectedProduct.maxQuantity.toString(), 
-          qty: selectedProduct.maxQuantity.toString(),
-          remarks: 'FULL TANK'
-        }));
-      }
-      setShowFullTankMessage(true);
-    }
-  }
+  // Removed handleFullTank
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -835,7 +779,6 @@ export default function CreateRequestForm() {
     setErrors({})
     setPriceDetails({ price: 0, totalAmount: 0 })
     setCalculatedBarrels(0)
-    setShowFullTankMessage(false)
     setMaxQuantity(0)
     setSelectedSubProductId('')
     setProductCodes([])
@@ -1377,15 +1320,7 @@ export default function CreateRequestForm() {
                               : `Liters (Min ${selectedProduct.min}) *`
                             : "Enter Quantity *"}
                         </label>
-                        {selectedProduct?.maxQuantity && dayLimitStatus?.isEligible !== false && (
-                          <button
-                            type="button"
-                            onClick={handleFullTank}
-                            className="text-sm bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 transition-colors duration-200 font-medium"
-                          >
-                            Full Tank
-                          </button>
-                        )}
+                        {/* Full Tank shortcut removed */}
                       </div>
                       <input
                         type="number"
@@ -1459,14 +1394,7 @@ export default function CreateRequestForm() {
                     </div>
                   )}
 
-                  {/* Full Tank Message */}
-                  {showFullTankMessage && (
-                    <div className="p-4 bg-red-100 border border-red-300 rounded-xl">
-                      <p className="text-red-700 font-semibold text-center">
-                        🎉 FULL TANK! Maximum quantity ({maxQuantity} liters) selected.
-                      </p>
-                    </div>
-                  )}
+                  {/* Removed Full Tank Message */}
 
                   {/* Remarks Section */}
                   <div>
@@ -1480,18 +1408,11 @@ export default function CreateRequestForm() {
                       value={formData.remarks}
                       onChange={handleInputChange}
                       disabled={dayLimitStatus?.isEligible === false}
-                      className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 resize-none ${
-                        showFullTankMessage ? 'bg-red-50 border-red-300' : 'border-gray-300'
-                      } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      placeholder="Type 'full tank' to set maximum quantity automatically"
+                      className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 resize-none border-gray-300 ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      placeholder="Add any remarks (optional)"
                       rows="4"
                     />
-                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-red-700 text-sm font-medium flex items-center">
-                        <span className="mr-2">💡</span>
-                        Type Full Tank in Remark and Enter Maximum Quantity in Ltr
-                      </p>
-                    </div>
+                    {/* Removed Full Tank helper */}
                   </div>
 
                   {/* Action Buttons */}

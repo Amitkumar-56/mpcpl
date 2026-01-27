@@ -25,6 +25,7 @@ export default function EditFillingRequest() {
   });
 
   const [files, setFiles] = useState({ doc1: null, doc2: null, doc3: null });
+  const [previews, setPreviews] = useState({ doc1: null, doc2: null, doc3: null });
   const [record, setRecord] = useState(null);
   const [loading, setLoading] = useState(false);
   const [hasPermission, setHasPermission] = useState(false);
@@ -151,19 +152,17 @@ export default function EditFillingRequest() {
     setLoading(true);
 
     try {
+      const form = new FormData();
+      form.append('id', id);
+      form.append('aqty', formData.aqty);
+      form.append('remark', formData.remark || '');
+      if (files.doc1) form.append('doc1', files.doc1);
+      if (files.doc2) form.append('doc2', files.doc2);
+      if (files.doc3) form.append('doc3', files.doc3);
+
       const res = await fetch('/api/filling-requests/edit', { 
-        method: 'PUT', 
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: id,
-          aqty: formData.aqty,
-          remark: formData.remark || '',
-          doc1: files.doc1,
-          doc2: files.doc2,
-          doc3: files.doc3
-        })
+        method: 'POST',
+        body: form
       });
       
       let result;
@@ -197,7 +196,14 @@ export default function EditFillingRequest() {
   };
 
   const handleFileChange = (e, field) => {
-    setFiles(prev => ({ ...prev, [field]: e.target.files[0] }));
+    const file = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+    setFiles(prev => ({ ...prev, [field]: file }));
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setPreviews(prev => ({ ...prev, [field]: url }));
+    } else {
+      setPreviews(prev => ({ ...prev, [field]: null }));
+    }
   };
 
   if (!record && id) return <div className="p-6">Loading...</div>;
@@ -317,13 +323,20 @@ export default function EditFillingRequest() {
                       onChange={e => handleFileChange(e, doc)} 
                       className="w-full p-2 border border-gray-300 rounded-md" 
                     />
-                    {record && record[doc] && (
-                      <div className="mt-2">
+                    <div className="mt-2 flex items-center gap-3">
+                      {previews[doc] && (
+                        <img
+                          src={previews[doc]}
+                          alt={`Preview ${doc}`}
+                          className="w-20 h-20 object-cover rounded border"
+                        />
+                      )}
+                      {record && record[doc] && (
                         <a href={record[doc]} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline text-sm">
                           View Current Document
                         </a>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

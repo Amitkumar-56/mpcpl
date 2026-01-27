@@ -21,7 +21,6 @@ export default function CreateRequestPage() {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [showFullTankMessage, setShowFullTankMessage] = useState(false);
 
   const [formData, setFormData] = useState({
     customer: '',
@@ -189,38 +188,7 @@ export default function CreateRequestPage() {
     }
   }, [formData.qty, selectedProduct]);
 
-  useEffect(() => {
-    const currentQty = parseInt(formData.qty) || 0;
-    if (selectedProduct?.maxQuantity && currentQty === selectedProduct.maxQuantity) {
-      setShowFullTankMessage(true);
-    } else {
-      setShowFullTankMessage(false);
-    }
-  }, [formData.qty, selectedProduct]);
-
-  // Handle "full tank" in remarks
-  useEffect(() => {
-    if (selectedProduct?.maxQuantity) {
-      const remarks = formData.remarks.toLowerCase().trim();
-      if (remarks === 'full tank' || remarks === 'fulltank') {
-        if (selectedProduct.type === 'bucket') {
-          const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
-          setFormData(prev => ({
-            ...prev,
-            aty: buckets.toString(),
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev,
-            aty: selectedProduct.maxQuantity.toString(),
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        }
-        setShowFullTankMessage(true);
-      }
-    }
-  }, [formData.remarks, selectedProduct]);
+ 
 
 
   // ✅ AUTO-SWITCH BULK/RETAIL BASED ON QTY
@@ -346,7 +314,6 @@ export default function CreateRequestPage() {
         request_type: 'Liter'
       }));
       setCalculatedBarrels(0);
-      setShowFullTankMessage(false);
       (async () => {
         try {
           if (!value) {
@@ -407,7 +374,6 @@ export default function CreateRequestPage() {
 
       // Keep qty/aty if just switching sub-products to avoid clearing user input
       setCalculatedBarrels(0);
-      setShowFullTankMessage(false);
     }
   };
 
@@ -440,33 +406,10 @@ export default function CreateRequestPage() {
 
     if (name === 'aty' || name === 'qty') {
       const currentQty = parseInt(qty) || 0;
-      if (selectedProduct?.maxQuantity && currentQty !== selectedProduct.maxQuantity) {
-        setShowFullTankMessage(false);
-      }
     }
   };
 
-  const handleFullTank = () => {
-    if (selectedProduct?.maxQuantity) {
-      if (selectedProduct.type === 'bucket') {
-        const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
-        setFormData(prev => ({
-          ...prev,
-          aty: buckets.toString(),
-          qty: selectedProduct.maxQuantity.toString(),
-          remarks: 'FULL TANK'
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev,
-          aty: selectedProduct.maxQuantity.toString(),
-          qty: selectedProduct.maxQuantity.toString(),
-          remarks: 'FULL TANK'
-        }));
-      }
-      setShowFullTankMessage(true);
-    }
-  };
+ 
 
   const handleSubmitClick = (e) => {
     e.preventDefault();
@@ -588,7 +531,6 @@ export default function CreateRequestPage() {
     setSelectedProduct(null);
     setCalculatedBarrels(0);
     setMaxQuantity(0);
-    setShowFullTankMessage(false);
     setShowConfirmation(false);
   };
 
@@ -640,7 +582,7 @@ export default function CreateRequestPage() {
                   <div><strong>Driver:</strong> {formData.driver_no}</div>
                   {formData.remarks && (
                     <div className="md:col-span-2">
-                      <strong>Remarks:</strong> <span className={showFullTankMessage ? 'text-red-600 font-bold' : ''}>{formData.remarks}</span>
+                      <strong>Remarks:</strong> <span>{formData.remarks}</span>
                     </div>
                   )}
                 </div>
@@ -722,15 +664,7 @@ export default function CreateRequestPage() {
                           : `Liters (Min ${selectedProduct.min}) *`
                         : "Enter Quantity *"}
                     </label>
-                    {selectedProduct?.maxQuantity && (
-                      <button
-                        type="button"
-                        onClick={handleFullTank}
-                        className="text-sm bg-blue-500 text-white px-2 py-1 rounded hover:bg-blue-600"
-                      >
-                        Full Tank
-                      </button>
-                    )}
+                    
                   </div>
                   <input
                     type="number"
@@ -770,13 +704,7 @@ export default function CreateRequestPage() {
                   )}
                 </div>
 
-                {showFullTankMessage && (
-                  <div className="md:col-span-2 p-3 bg-red-100 border border-red-300 rounded-lg">
-                    <p className="text-red-700 font-semibold text-center">
-                      🎉 FULL TANK! Maximum quantity ({maxQuantity} liters) selected.
-                    </p>
-                  </div>
-                )}
+                
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Station *</label>
@@ -832,15 +760,10 @@ export default function CreateRequestPage() {
                     name="remarks"
                     value={formData.remarks}
                     onChange={handleChange}
-                    className={`border border-gray-300 rounded p-2 h-20 ${showFullTankMessage ? 'bg-red-50 border-red-300' : ''}`}
-                    placeholder="Type 'full tank' to set maximum quantity automatically"
+                    className="border border-gray-300 rounded p-2 h-20"
+                    placeholder="Add any notes for this request"
                   />
-                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                    <p className="text-red-700 text-sm font-medium flex items-center">
-                      <span className="mr-2">💡</span>
-                      Type Full Tank in Remark and Enter Maximum Quantity in Ltr
-                    </p>
-                  </div>
+                  
                 </div>
 
                 <div className="md:col-span-2 flex justify-end gap-4">

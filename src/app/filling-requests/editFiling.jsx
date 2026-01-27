@@ -380,16 +380,17 @@ const Icons = ({
         </button>
       )}
 
-      {/* Expand Icon */}
-      <button
-        onClick={() => onExpand(request)}
-        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer"
-        title="Expand Details"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-      </button>
+      {!(userRole === 1 || userRole === 2) && (
+        <button
+          onClick={() => onExpand(request)}
+          className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer"
+          title="Expand Details"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        </button>
+      )}
 
       {/* Details Icon */}
       <button
@@ -786,6 +787,11 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                   <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+                    {request.status === "Pending" && (!request.deal_price || request.eligibility_reason === "Price not set") && (
+                      <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200">
+                        Price not set
+                      </span>
+                    )}
                     {request.status === "Processing" && request.processing_by_name && (
                       <span className="text-xs text-gray-600">By: {request.processing_by_name}</span>
                     )}
@@ -969,7 +975,14 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             <div className="text-sm text-gray-600">{request.product_name || "N/A"}</div>
           </div>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+          {request.status === "Pending" && (!request.deal_price || request.eligibility_reason === "Price not set") && (
+            <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200">
+              Price not set
+            </span>
+          )}
+        </div>
       </div>
       <div className="space-y-3 text-sm">
         {/* Staff viewing completed: Limited information */}
@@ -1123,7 +1136,14 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Status */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
-              <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+                {request.status === "Pending" && (!request.deal_price || request.eligibility_reason === "Price not set") && (
+                  <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200">
+                    Price not set
+                  </span>
+                )}
+              </div>
               {request.status === "Processing" && request.processing_by_name && (
                 <div className="text-xs text-gray-600 mt-1">By: {request.processing_by_name}</div>
               )}
