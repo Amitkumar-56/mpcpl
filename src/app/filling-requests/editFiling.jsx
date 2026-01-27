@@ -284,8 +284,8 @@ const OtpModal = ({
   );
 };
 
+
 // Icons Component
-// Icons Component - WITH SEPARATE BUTTONS
 const Icons = ({
   request,
   onView,
@@ -302,46 +302,62 @@ const Icons = ({
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
   
-  const canView = permissions.can_view;
-  
-  // ✅ केवल Processing status पर process button
-  const canProcess = (userRole === 1 || userRole === 2) && 
-                     request.status === "Processing";
-  
+  // View button logic
+  const canView = permissions.can_view && (
+    (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) ||
+    (request.status === "Pending" && request.eligibility === "Yes") ||
+    request.status === "Processing" ||
+    request.status === "Completed"
+  );
+
+  // Edit button logic based on role
   const canEdit = userRole === 1 ? false : 
                   userRole === 2 ? (request.eligibility === "Yes" && request.status === "Pending") || request.status === "Completed" :
                   permissions.can_edit;
 
+  // Get button title
+  const getViewButtonTitle = () => {
+    if (!permissions.can_view) return "No view permission";
+    
+    if (request.status === "Pending") {
+      if (request.eligibility === "Yes") {
+        return "View & Process Request (OTP Required)";
+      } else {
+        return `Cannot view: ${request.eligibility_reason || "Not eligible"}`;
+      }
+    } else if (request.status === "Processing") {
+      return "View Processing Request";
+    } else if (request.status === "Completed") {
+      return "View Completed Request";
+    }
+    return "View Request";
+  };
+
   return (
     <div className="flex items-center space-x-1">
-      {/* VIEW BUTTON - सभी के लिए */}
+      {/* View Icon */}
       {permissions.can_view ? (
         <button
-          onClick={() => onView(request.id)}
+          onClick={() => {
+            if (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) {
+              onView(request.id);
+            } else if (request.status === "Pending" && request.eligibility === "Yes" && onOtpVerify) {
+              onOtpVerify(request);
+            } else {
+              onView(request.id);
+            }
+          }}
           disabled={!canView}
           className={`p-1.5 rounded-full transition-colors ${
             canView 
-              ? "text-blue-600 hover:bg-blue-50 cursor-pointer"
+              ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
               : "text-gray-400 cursor-not-allowed opacity-50"
           }`}
-          title={`View Request Details - ${request.rid}`}
+          title={getViewButtonTitle()}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-          </svg>
-        </button>
-      ) : null}
-
-      {/* PROCESS BUTTON - केवल Staff/Incharge के लिए Processing status पर */}
-      {canProcess && onOtpVerify ? (
-        <button
-          onClick={() => onOtpVerify(request)}
-          className="p-1.5 bg-green-600 text-white hover:bg-green-700 rounded-full transition-colors cursor-pointer"
-          title="Process Request with OTP"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         </button>
       ) : null}
@@ -364,7 +380,6 @@ const Icons = ({
         </button>
       )}
 
-      {/* Rest of the icons remain same... */}
       {/* Expand Icon */}
       <button
         onClick={() => onExpand(request)}
@@ -460,6 +475,7 @@ const Icons = ({
     </div>
   );
 };
+
 // Expanded Details Component
 const ExpandedDetails = ({ request, onClose, userRole = null }) => {
   if (!request) return null;
@@ -1060,44 +1076,6 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                     {stationPhone}
                   </a>
                 </div>
-              </div>
-            )}
-
-            {/* Images Section - Mobile View */}
-            {(request.receipt_path || request.meter_reading_photo) && (
-              <div className="grid grid-cols-2 gap-3 mt-3 border-t pt-3">
-                {request.receipt_path && (
-                  <div>
-                    <div className="font-medium text-gray-600 text-xs mb-1">Receipt</div>
-                    <div 
-                      className="h-20 w-full bg-gray-100 rounded-lg overflow-hidden border cursor-pointer"
-                      onClick={() => onShowDetails(request)}
-                    >
-                      <img 
-                        src={`/uploads/${request.receipt_path}`} 
-                        alt="Receipt" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {e.target.src = 'https://placehold.co/100x100?text=No+Image'}}
-                      />
-                    </div>
-                  </div>
-                )}
-                {request.meter_reading_photo && (
-                  <div>
-                    <div className="font-medium text-gray-600 text-xs mb-1">Meter Reading</div>
-                    <div 
-                      className="h-20 w-full bg-gray-100 rounded-lg overflow-hidden border cursor-pointer"
-                      onClick={() => onShowDetails(request)}
-                    >
-                      <img 
-                        src={`/uploads/${request.meter_reading_photo}`} 
-                        alt="Meter" 
-                        className="w-full h-full object-cover"
-                        onError={(e) => {e.target.src = 'https://placehold.co/100x100?text=No+Image'}}
-                      />
-                    </div>
-                  </div>
-                )}
               </div>
             )}
           </>
@@ -2099,7 +2077,9 @@ export default function FillingRequests() {
           {otpModal.isOpen && (
             <OtpModal
               requestId={otpModal.requestId}
+              
                 onView={handleView} 
+
               requestRid={otpModal.requestRid}
               generatedOtp={otpModal.generatedOtp}
               onClose={closeOtpModal}

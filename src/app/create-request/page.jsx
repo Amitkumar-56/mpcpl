@@ -70,10 +70,10 @@ export default function CreateRequestPage() {
     }
     if (user.permissions && user.permissions['Filling Requests']) {
       const p = user.permissions['Filling Requests'];
-      setPermissions({ 
-        can_view: !!p.can_view, 
-        can_edit: !!p.can_edit, 
-        can_create: !!p.can_create || !!p.can_edit || false 
+      setPermissions({
+        can_view: !!p.can_view,
+        can_edit: !!p.can_edit,
+        can_create: !!p.can_create || !!p.can_edit || false
       });
       setHasPermission(!!p.can_create);
       return;
@@ -94,10 +94,10 @@ export default function CreateRequestPage() {
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
       const [viewData, editData, createData] = await Promise.all([viewRes.json(), editRes.json(), createRes.json()]);
-      const perms = { 
-        can_view: viewData.allowed, 
-        can_edit: editData.allowed, 
-        can_create: createData.allowed || false 
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_create: createData.allowed || false
       };
       sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
@@ -206,14 +206,14 @@ export default function CreateRequestPage() {
         if (selectedProduct.type === 'bucket') {
           const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
           setFormData(prev => ({
-            ...prev, 
-            aty: buckets.toString(), 
+            ...prev,
+            aty: buckets.toString(),
             qty: selectedProduct.maxQuantity.toString()
           }));
         } else {
           setFormData(prev => ({
-            ...prev, 
-            aty: selectedProduct.maxQuantity.toString(), 
+            ...prev,
+            aty: selectedProduct.maxQuantity.toString(),
             qty: selectedProduct.maxQuantity.toString()
           }));
         }
@@ -221,6 +221,57 @@ export default function CreateRequestPage() {
       }
     }
   }, [formData.remarks, selectedProduct]);
+
+
+  // ✅ AUTO-SWITCH BULK/RETAIL BASED ON QTY
+  useEffect(() => {
+    if (!formData.product_id || !productCodes.length || !formData.qty) return;
+
+    const qty = parseInt(formData.qty) || 0;
+    const pid = parseInt(formData.product_id);
+    let targetType = 'retail';
+
+    if (pid === 2 || pid === 3) { // Ind Oil
+      if (qty > 5000) targetType = 'bulk';
+    } else if (pid === 4) { // DEF Lose
+      if (qty > 3000) targetType = 'bulk';
+    } else if (pid === 5) { // DEF Bucket
+      // Assuming qty is Liters here as per main logic
+      if (qty > 3000) targetType = 'bulk';
+    }
+
+    // Find matching code
+    let targetCode = null;
+    if (pid === 2 || pid === 3) {
+      targetCode = productCodes.find(c => {
+        const pcode = c.pcode.toUpperCase();
+        // Strict Retail check: includes "(R)"
+        const isRetail = pcode.includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    } else if (pid === 4) {
+      targetCode = productCodes.find(c => {
+        // Retail: includes "(R)"
+        const isRetail = c.pcode.toUpperCase().includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    } else if (pid === 5) {
+      targetCode = productCodes.find(c => {
+        // Retail: includes "(R)"
+        const isRetail = c.pcode.toUpperCase().includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    }
+
+    if (targetCode && parseInt(formData.products_codes) !== targetCode.id) {
+      console.log(`🔄 Auto-switching to ${targetType} (Code: ${targetCode.pcode}) based on Qty: ${qty}`);
+      setFormData(prev => ({ ...prev, products_codes: targetCode.id }));
+    }
+
+  }, [formData.qty, formData.product_id, productCodes]);
+
+
+
 
   // ✅ Early returns AFTER all hooks
   if (authLoading) {
@@ -287,12 +338,12 @@ export default function CreateRequestPage() {
       const product = productConfig[productId] || null;
       setSelectedProduct(product);
       setMaxQuantity(product?.maxQuantity || 0);
-      setFormData(prev => ({ 
-        ...prev, 
+      setFormData(prev => ({
+        ...prev,
         products_codes: '',
-        qty: '', 
-        aty: '', 
-        request_type: 'Liter' 
+        qty: '',
+        aty: '',
+        request_type: 'Liter'
       }));
       setCalculatedBarrels(0);
       setShowFullTankMessage(false);
@@ -307,6 +358,25 @@ export default function CreateRequestPage() {
           if (json.success) {
             const codes = json.codes || [];
             setProductCodes(codes);
+
+            // ✅ AUTO-SELECT DEFAULT RETAIL CODE
+            let defaultCode = null;
+            if (productId === 2 || productId === 3) { // Industrial Oil
+              // Strict check for "(R)"
+              defaultCode = codes.find(c => c.pcode.toUpperCase().includes('(R)'));
+            } else if (productId === 4) { // DEF Lose
+              // Strict check for "(R)"
+              defaultCode = codes.find(c => c.pcode.toUpperCase().includes('(R)'));
+            } else if (productId === 5) { // DEF Bucket
+              // Strict check for "(R)"
+              defaultCode = codes.find(c => c.pcode.toUpperCase().includes('(R)'));
+            }
+
+            if (defaultCode) {
+              console.log('🔄 Auto-selecting Default Retail:', defaultCode);
+              setFormData(prev => ({ ...prev, products_codes: defaultCode.id }));
+            }
+
           } else {
             setProductCodes([]);
           }
@@ -319,15 +389,15 @@ export default function CreateRequestPage() {
     if (name === 'products_codes') {
       const productCodeId = parseInt(value);
       console.log('🔍 Selected product code ID:', productCodeId);
-      
+
       const selectedProductCode = productCodes.find(p => p.id === productCodeId);
       console.log('📋 Selected product code:', selectedProductCode);
-      
+
       if (selectedProductCode) {
         const productId = selectedProductCode.product_id;
         const product = productConfig[productId] || null;
         console.log('🎯 Product config for product_id', productId, ':', product);
-        
+
         setSelectedProduct(product);
         setMaxQuantity(product?.maxQuantity || 0);
       } else {
@@ -335,16 +405,16 @@ export default function CreateRequestPage() {
         setMaxQuantity(0);
       }
 
-      setFormData(prev => ({ 
-        ...prev, 
-        qty: '', 
-        aty: '', 
-        request_type: 'Liter' 
-      }));
+      // Keep qty/aty if just switching sub-products to avoid clearing user input
       setCalculatedBarrels(0);
       setShowFullTankMessage(false);
     }
   };
+
+
+
+
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -381,15 +451,15 @@ export default function CreateRequestPage() {
       if (selectedProduct.type === 'bucket') {
         const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
         setFormData(prev => ({
-          ...prev, 
-          aty: buckets.toString(), 
+          ...prev,
+          aty: buckets.toString(),
           qty: selectedProduct.maxQuantity.toString(),
           remarks: 'FULL TANK'
         }));
       } else {
         setFormData(prev => ({
-          ...prev, 
-          aty: selectedProduct.maxQuantity.toString(), 
+          ...prev,
+          aty: selectedProduct.maxQuantity.toString(),
           qty: selectedProduct.maxQuantity.toString(),
           remarks: 'FULL TANK'
         }));
@@ -400,10 +470,10 @@ export default function CreateRequestPage() {
 
   const handleSubmitClick = (e) => {
     e.preventDefault();
-    
+
     if (!selectedProduct) return alert('Please select a product.');
-    if (!formData.customer || !formData.products_codes || !formData.station_id || 
-        !formData.vehicle_no || !formData.driver_no || !formData.qty)
+    if (!formData.customer || !formData.products_codes || !formData.station_id ||
+      !formData.vehicle_no || !formData.driver_no || !formData.qty)
       return alert('Please fill all required fields.');
 
     if (allowedStationIds.size > 0 && !allowedStationIds.has(parseInt(formData.station_id))) {
@@ -465,7 +535,7 @@ export default function CreateRequestPage() {
       setShowConfirmation(false);
 
       const selectedProductCode = productCodes.find(p => p.id === parseInt(formData.products_codes));
-      
+
       if (!selectedProductCode) {
         alert('Invalid product selection');
         return;
@@ -488,7 +558,7 @@ export default function CreateRequestPage() {
 
       const data = await res.json();
       console.log('📨 Response:', data);
-      
+
       if (res.ok && data.success) {
         alert(`Request created successfully! RID: ${data.rid}`);
         router.push('/filling-requests');
@@ -575,14 +645,14 @@ export default function CreateRequestPage() {
                   )}
                 </div>
                 <div className="flex justify-end gap-4">
-                  <button 
-                    onClick={() => setShowConfirmation(false)} 
+                  <button
+                    onClick={() => setShowConfirmation(false)}
                     className="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400"
                   >
                     Cancel
                   </button>
-                  <button 
-                    onClick={handleFinalSubmit} 
+                  <button
+                    onClick={handleFinalSubmit}
                     className="px-6 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                     disabled={submitting}
                   >
@@ -596,7 +666,7 @@ export default function CreateRequestPage() {
           {!loading && !error && (
             <div className="bg-white shadow-md rounded-lg p-6">
               <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleSubmitClick}>
-                
+
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Customer *</label>
                   <select name="customer" value={formData.customer} onChange={handleChange}
@@ -608,11 +678,11 @@ export default function CreateRequestPage() {
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Product *</label>
-                  <select 
-                    name="product_id" 
-                    value={formData.product_id} 
+                  <select
+                    name="product_id"
+                    value={formData.product_id}
                     onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" 
+                    className="border border-gray-300 rounded p-2"
                     required
                   >
                     <option value="">Select Product</option>
@@ -626,11 +696,11 @@ export default function CreateRequestPage() {
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Product Code (Sub-Product) *</label>
-                  <select 
-                    name="products_codes" 
-                    value={formData.products_codes} 
+                  <select
+                    name="products_codes"
+                    value={formData.products_codes}
                     onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" 
+                    className="border border-gray-300 rounded p-2"
                     required
                     disabled={!formData.product_id || productCodes.length === 0}
                   >
@@ -719,48 +789,48 @@ export default function CreateRequestPage() {
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Vehicle Number *</label>
-                  <input 
-                    type="text" 
-                    name="vehicle_no" 
-                    value={formData.vehicle_no} 
+                  <input
+                    type="text"
+                    name="vehicle_no"
+                    value={formData.vehicle_no}
                     onChange={(e) => {
                       const value = e.target.value;
                       // Allow only alphanumeric characters, no spaces
                       const cleanValue = value.replace(/[^a-zA-Z0-9]/g, '');
                       setFormData(prev => ({ ...prev, vehicle_no: cleanValue }));
                     }}
-                    className="border border-gray-300 rounded p-2 uppercase" 
+                    className="border border-gray-300 rounded p-2 uppercase"
                     placeholder="e.g. UP15AB1234"
-                    required 
+                    required
                   />
                   {/* ✅ Small text message removed */}
                 </div>
 
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Driver Number *</label>
-                  <input 
-                    type="tel" 
-                    name="driver_no" 
-                    value={formData.driver_no} 
+                  <input
+                    type="tel"
+                    name="driver_no"
+                    value={formData.driver_no}
                     onChange={(e) => {
                       const value = e.target.value;
                       // Allow only numbers, no spaces
                       const cleanValue = value.replace(/\D/g, '');
                       setFormData(prev => ({ ...prev, driver_no: cleanValue }));
                     }}
-                    className="border border-gray-300 rounded p-2" 
+                    className="border border-gray-300 rounded p-2"
                     maxLength={10}
                     placeholder="10 digits without spaces"
-                    required 
+                    required
                   />
                   {/* ✅ Small text message removed */}
                 </div>
 
                 <div className="flex flex-col md:col-span-2">
                   <label className="mb-1 font-medium">Remarks</label>
-                  <textarea 
-                    name="remarks" 
-                    value={formData.remarks} 
+                  <textarea
+                    name="remarks"
+                    value={formData.remarks}
                     onChange={handleChange}
                     className={`border border-gray-300 rounded p-2 h-20 ${showFullTankMessage ? 'bg-red-50 border-red-300' : ''}`}
                     placeholder="Type 'full tank' to set maximum quantity automatically"
@@ -777,8 +847,8 @@ export default function CreateRequestPage() {
                   <button type="button" onClick={handleReset} className="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400">
                     Reset
                   </button>
-                  <button 
-                    type="submit" 
+                  <button
+                    type="submit"
                     className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     disabled={submitting}
                   >

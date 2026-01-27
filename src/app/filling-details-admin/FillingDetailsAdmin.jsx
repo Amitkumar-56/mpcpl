@@ -40,7 +40,9 @@ export default function FillingDetailsAdmin() {
   const [hasPermission, setHasPermission] = useState(false);
   const [imageModalSrc, setImageModalSrc] = useState(null);
   const [cropModal, setCropModal] = useState({ open: false, src: null, docKey: null });
+
   const [brokenImages, setBrokenImages] = useState({ doc1: false, doc2: false, doc3: false });
+  const [showPriceModal, setShowPriceModal] = useState(false);
 
   useEffect(() => {
     if (id) fetchRequestDetails();
@@ -74,10 +76,10 @@ export default function FillingDetailsAdmin() {
     }
     if (user.permissions && user.permissions['Filling Requests']) {
       const p = user.permissions['Filling Requests'];
-      setPermissions({ 
-        can_view: !!p.can_view, 
-        can_edit: !!p.can_edit, 
-        can_create: !!p.can_create || !!p.can_edit || false 
+      setPermissions({
+        can_view: !!p.can_view,
+        can_edit: !!p.can_edit,
+        can_create: !!p.can_create || !!p.can_edit || false
       });
       setHasPermission(!!p.can_edit);
       return;
@@ -98,10 +100,10 @@ export default function FillingDetailsAdmin() {
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
       const [viewData, editData, createData] = await Promise.all([viewRes.json(), editRes.json(), createRes.json()]);
-      const perms = { 
-        can_view: viewData.allowed, 
-        can_edit: editData.allowed, 
-        can_create: createData.allowed || false 
+      const perms = {
+        can_view: viewData.allowed,
+        can_edit: editData.allowed,
+        can_create: createData.allowed || false
       };
       sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
@@ -215,7 +217,7 @@ export default function FillingDetailsAdmin() {
           remarks: data.data.remark || '',
           sub_product_id: data.data.sub_product_id || ''
         }));
-        
+
         console.log('🔄 Current request status from API:', data.data.status);
         console.log('📊 Form data set to:', {
           aqty: data.data.aqty || data.data.qty || '',
@@ -234,15 +236,15 @@ export default function FillingDetailsAdmin() {
 
   const handleInputChange = (e) => {
     const { name, value, files } = e.target;
-    
+
     console.log('🔄 Input changed:', name, value);
-    
+
     if (files) {
       setFormData(prev => ({
         ...prev,
         [name]: files[0]
       }));
-      
+
       if (files[0]) {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -274,15 +276,15 @@ export default function FillingDetailsAdmin() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!requestData) {
       alert('No request data available');
       return;
     }
-    
+
     // Validate actual quantity
     const aqtyValue = parseFloat(formData.aqty);
-    
+
     if (!formData.aqty || formData.aqty === '' || isNaN(aqtyValue)) {
       alert('Please enter a valid actual quantity');
       return;
@@ -297,17 +299,26 @@ export default function FillingDetailsAdmin() {
       alert(`Actual quantity cannot exceed available stock (${requestData.station_stock || 0} Ltr)`);
       return;
     }
-    
+
+    // Check for deal price if status is Completed
+    if (formData.status === 'Completed') {
+      const currentPrice = parseFloat(requestData.fuel_price || requestData.price || 0);
+      if (currentPrice <= 0) {
+        setShowPriceModal(true);
+        return;
+      }
+    }
+
     setSubmitting(true);
-    
+
     try {
       const submitData = new FormData();
-      
+
       // Append files only if they exist
       if (formData.doc1) submitData.append('doc1', formData.doc1);
       if (formData.doc2) submitData.append('doc2', formData.doc2);
       if (formData.doc3) submitData.append('doc3', formData.doc3);
-      
+
       // Append all required fields
       submitData.append('aqty', formData.aqty);
       submitData.append('status', formData.status);
@@ -318,12 +329,12 @@ export default function FillingDetailsAdmin() {
       submitData.append('cl_id', requestData.cid);
       submitData.append('com_id', requestData.cid);
       submitData.append('product_id', requestData.product);
-      
+
       // Add sub_product_id if selected
       if (formData.sub_product_id) {
         submitData.append('sub_product_id', formData.sub_product_id);
       }
-      
+
       submitData.append('billing_type', requestData.billing_type);
       submitData.append('oldstock', requestData.station_stock || 0);
       submitData.append('credit_limit', requestData.credit_limit || 0);
@@ -338,12 +349,12 @@ export default function FillingDetailsAdmin() {
         method: 'POST',
         body: submitData
       });
-      
+
       console.log('📨 Submit response status:', response.status);
 
       const result = await response.json();
       console.log('✅ Submit result:', result);
-      
+
       if (result.success) {
         if (result.limitOverdue) {
           setLimitMessage(result.message || 'Your limit is over. Please recharge your account.');
@@ -352,10 +363,10 @@ export default function FillingDetailsAdmin() {
           setSubmitting(false);
           return;
         }
-        
+
         // Custom success messages based on status
         let successMessage = '';
-        switch(formData.status) {
+        switch (formData.status) {
           case 'Processing':
             successMessage = 'Request marked as Processing! The status has been updated successfully.';
             break;
@@ -368,20 +379,20 @@ export default function FillingDetailsAdmin() {
           default:
             successMessage = result.message || 'Request updated successfully!';
         }
-        
+
         alert(successMessage);
-        
+
         // IMMEDIATELY update local state to show new status
         setRequestData(prev => ({
           ...prev,
           status: formData.status // Use the status from form
         }));
-        
+
         console.log('🔄 Local state updated to:', formData.status);
-        
+
         // Refresh data from server to confirm
         await fetchRequestDetails();
-        
+
         // ✅✅✅ FIXED: Redirect ONLY for Completed and Cancelled status
         if (formData.status === 'Completed' || formData.status === 'Cancelled') {
           console.log('🔀 Redirecting to filling-requests page for Completed/Cancelled status');
@@ -392,7 +403,7 @@ export default function FillingDetailsAdmin() {
           console.log('📍 Staying on same page for Processing status');
           // Stay on the same page for Processing status
         }
-        
+
       } else {
         throw new Error(result.error || result.message || 'Unknown error');
       }
@@ -422,22 +433,22 @@ export default function FillingDetailsAdmin() {
         method: 'POST',
         body: submitData
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         alert('Request cancelled successfully!');
-        
+
         // Immediately update local state
         setRequestData(prev => ({
           ...prev,
           status: 'Cancelled'
         }));
-        
+
         setShowCancelModal(false);
         setCancelRemarks('');
         await fetchRequestDetails();
-        
+
         // ✅✅✅ FIXED: Redirect for Cancelled status
         console.log('🔀 Redirecting to filling-requests page for Cancelled status');
         setTimeout(() => {
@@ -468,16 +479,16 @@ export default function FillingDetailsAdmin() {
         limitType: 'none'
       };
     }
-    
+
     const dayLimit = parseFloat(requestData.day_limit) || 0;
     const creditLimit = parseFloat(requestData.credit_limit) || 0;
     const availableBalance = parseFloat(requestData.available_balance) || 0;
     const usedAmount = parseFloat(requestData.used_amount) || 0;
     const daysElapsed = parseFloat(requestData.days_elapsed) || 0;
     const remainingDays = parseFloat(requestData.remaining_days) || 0;
-    
+
     const isDayLimitClient = dayLimit > 0 && creditLimit <= 0;
-    
+
     if (isDayLimitClient) {
       return {
         availableBalance: null,
@@ -520,17 +531,17 @@ export default function FillingDetailsAdmin() {
 
   const availableBalance = calculateAvailableBalance();
   const formatAmount = (value) => (Number(value || 0)).toLocaleString('en-IN');
-  
+
   // Calculate values for display
   const creditLimitTotal = parseFloat(requestData?.credit_limit) || 0;
   const availableBalanceAmount = parseFloat(requestData?.available_balance) || 0;
   const usedAmount = parseFloat(requestData?.used_amount) || 0;
-  
+
   const dailyLimitTotal = parseFloat(requestData?.day_limit) || 0;
   // ✅ FIXED: Since day_amount doesn't exist, set to 0
   const dailyUsedAmount = 0;
   const dailyAvailableAmount = Math.max(0, dailyLimitTotal - dailyUsedAmount);
-  
+
   const limitBadgeLabel = availableBalance.limitType === 'daily'
     ? 'Daily Available'
     : availableBalance.limitType === 'credit'
@@ -538,13 +549,13 @@ export default function FillingDetailsAdmin() {
       : availableBalance.limitType === 'day'
         ? 'Day Limit (Days)'
         : 'Limit';
-        
+
   const limitBadgeValue = availableBalance.limitType === 'day'
     ? `${availableBalance.remainingDays} days remaining`
     : `₹${formatAmount(availableBalance.limitType === 'daily'
-        ? dailyAvailableAmount
-        : availableBalanceAmount)}`;
-    
+      ? dailyAvailableAmount
+      : availableBalanceAmount)}`;
+
   const limitExceededLabel = availableBalance.limitType === 'daily'
     ? 'Daily Limit'
     : availableBalance.limitType === 'credit'
@@ -568,14 +579,14 @@ export default function FillingDetailsAdmin() {
               <div className="text-red-500 text-lg md:text-xl mb-4">❌ Error</div>
               <p className="text-gray-600 mb-4 text-sm md:text-base">{error}</p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <button 
-                  onClick={() => router.back()} 
+                <button
+                  onClick={() => router.back()}
                   className="bg-gray-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-gray-600 transition-colors text-sm md:text-base"
                 >
                   Go Back
                 </button>
-                <button 
-                  onClick={fetchRequestDetails} 
+                <button
+                  onClick={fetchRequestDetails}
                   className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-600 transition-colors text-sm md:text-base"
                 >
                   Try Again
@@ -598,8 +609,8 @@ export default function FillingDetailsAdmin() {
           <div className="flex-1 flex items-center justify-center ml-64">
             <div className="text-center">
               <p className="text-gray-600 mb-4">No request data found</p>
-              <button 
-                onClick={() => router.back()} 
+              <button
+                onClick={() => router.back()}
                 className="bg-blue-500 text-white px-4 py-2 rounded-md shadow-sm hover:bg-blue-600 transition-colors"
               >
                 Go Back
@@ -614,15 +625,15 @@ export default function FillingDetailsAdmin() {
 
   const getStatusClass = (status) => {
     switch (status) {
-      case 'Cancelled': 
+      case 'Cancelled':
         return 'bg-red-100 text-red-800 border-red-200';
-      case 'Processing': 
+      case 'Processing':
         return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'Completed': 
+      case 'Completed':
         return 'bg-green-100 text-green-800 border-green-200';
-      case 'Pending': 
+      case 'Pending':
         return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      default: 
+      default:
         return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
@@ -634,24 +645,24 @@ export default function FillingDetailsAdmin() {
   };
 
   // ✅ FIXED: Check for all cancelled status variations
-  const isFinalStatus = requestData.status === 'Cancel' || 
-                       requestData.status === 'Cancelled' || 
-                       requestData.status === 'Completed';
+  const isFinalStatus = requestData.status === 'Cancel' ||
+    requestData.status === 'Cancelled' ||
+    requestData.status === 'Completed';
 
   return (
     <div className="flex flex-col md:flex-row h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
       <Sidebar />
 
       <div className="flex flex-col flex-1 overflow-hidden">
-        <Header/>
+        <Header />
 
         <main className="flex-1 overflow-auto">
           <div className="py-4 md:py-8">
             <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
-              
+
               <div className="mb-4 md:mb-6">
-                <button 
-                  onClick={() => router.back()} 
+                <button
+                  onClick={() => router.back()}
                   className="flex items-center text-blue-600 hover:text-blue-800 transition-colors mb-3 md:mb-4"
                 >
                   <svg className="w-4 h-4 md:w-5 md:h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -659,14 +670,14 @@ export default function FillingDetailsAdmin() {
                   </svg>
                   <span className="text-sm md:text-base">Back to Requests</span>
                 </button>
-                
+
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                   <h1 className="text-xl md:text-2xl font-bold text-gray-900">
                     Filling Request: <span className="text-blue-600">{requestData.rid}</span>
                   </h1>
                   <div className="flex flex-col md:items-end space-y-1">
                     <span className={`px-3 py-1 rounded-full text-sm font-medium border ${getStatusClass(requestData.status)}`}>
-                      {requestData.status} 
+                      {requestData.status}
                       {requestData.status === 'Processing' && ' 🔄'}
                       {(requestData.status === 'Cancel' || requestData.status === 'Cancelled') && ' ❌'}
                       {requestData.status === 'Completed' && ' ✅'}
@@ -760,7 +771,7 @@ export default function FillingDetailsAdmin() {
                           <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Phone</td>
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.client_phone}</td>
                         </tr>
-                        
+
                         {/* Limit Information - CORRECTED with Day Limit Details */}
                         {availableBalance.limitType === 'daily' && (
                           <>
@@ -782,7 +793,7 @@ export default function FillingDetailsAdmin() {
                             </tr>
                           </>
                         )}
-              
+
                         {availableBalance.limitType === 'credit' && (
                           <>
                             <tr className="hidden">
@@ -803,7 +814,7 @@ export default function FillingDetailsAdmin() {
                             </tr>
                           </>
                         )}
-                        
+
                         {availableBalance.limitType === 'day' && (
                           <>
                             <tr className="flex flex-col md:table-row">
@@ -825,8 +836,8 @@ export default function FillingDetailsAdmin() {
                             <tr className="flex flex-col md:table-row">
                               <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">First Transaction Date</td>
                               <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
-                                {requestData.first_completed_date ? 
-                                  new Date(requestData.first_completed_date).toLocaleDateString('en-IN') : 
+                                {requestData.first_completed_date ?
+                                  new Date(requestData.first_completed_date).toLocaleDateString('en-IN') :
                                   'No completed transactions'
                                 }
                               </td>
@@ -963,164 +974,164 @@ export default function FillingDetailsAdmin() {
                   {requestData.logs && (requestData.logs.created_by_name || requestData.logs.processed_by_name || requestData.logs.completed_by_name || requestData.logs.cancelled_by_name) ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                      {/* Created By - Show for customer or employee, but hide if SWIFT (default/system name) */}
-                      {requestData.logs && requestData.logs.created_by_name && 
-                       requestData.logs.created_by_name !== 'System' && 
-                       requestData.logs.created_by_name.toUpperCase() !== 'SWIFT' && (
-                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                          <div className="flex items-center mb-2">
-                            <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-                              <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm font-semibold text-blue-900">
-                              {requestData.logs.created_by_type === 'customer' ? 'Created By (Customer)' : 'Created By'}
-                            </span>
-                            {requestData.logs.created_by_code && (
-                              <span className="text-xs text-blue-600 ml-2">({requestData.logs.created_by_code})</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.created_by_name}</p>
-                          {(requestData.logs.created_date || requestData.logs.created_date_formatted) && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {requestData.logs.created_date_formatted || new Date(requestData.logs.created_date).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {/* Processed By - Only employee/admin */}
-                      {requestData.logs && requestData.logs.processed_by_name && (
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                          <div className="flex items-center mb-2">
-                            <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm font-semibold text-yellow-900">Processed By (Employee)</span>
-                            {requestData.logs.processed_by_code && (
-                              <span className="text-xs text-yellow-600 ml-2">({requestData.logs.processed_by_code})</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.processed_by_name}</p>
-                          {(requestData.logs.processed_date || requestData.logs.processed_date_formatted) && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {requestData.logs.processed_date_formatted || new Date(requestData.logs.processed_date).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {/* Completed By - Only employee/admin */}
-                      {requestData.logs && requestData.logs.completed_by_name && (
-                        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                          <div className="flex items-center mb-2">
-                            <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm font-semibold text-green-900">Completed By (Employee)</span>
-                            {requestData.logs.completed_by_code && (
-                              <span className="text-xs text-green-600 ml-2">({requestData.logs.completed_by_code})</span>
-                            )}
-                          </div>
-                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.completed_by_name}</p>
-                          {(requestData.logs.completed_date || requestData.logs.completed_date_formatted) && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {requestData.logs.completed_date_formatted || new Date(requestData.logs.completed_date).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                      {requestData.logs.cancelled_by_name && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                          <div className="flex items-center mb-2">
-                            <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                              <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                            </svg>
-                            <span className="text-sm font-semibold text-red-900">Cancelled By</span>
-                          </div>
-                          <p className="text-sm text-gray-700 font-medium">{requestData.logs.cancelled_by_name}</p>
-                          {requestData.logs.cancelled_date && (
-                            <p className="text-xs text-gray-500 mt-1">
-                              {new Date(requestData.logs.cancelled_date).toLocaleString('en-IN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: true
-                              })}
-                            </p>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                    
-                    {/* Edit History */}
-                    {requestData.edit_logs && requestData.edit_logs.length > 0 && (
-                      <div className="mt-6 pt-6 border-t border-gray-200">
-                        <h3 className="text-md font-semibold text-gray-900 mb-4">Edit History</h3>
-                        <div className="space-y-3">
-                          {requestData.edit_logs.map((editLog, index) => (
-                            <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-sm font-medium text-gray-700">
-                                  Edited by: {editLog.edited_by_name || 'Unknown'}
+                        {/* Created By - Show for customer or employee, but hide if SWIFT (default/system name) */}
+                        {requestData.logs && requestData.logs.created_by_name &&
+                          requestData.logs.created_by_name !== 'System' &&
+                          requestData.logs.created_by_name.toUpperCase() !== 'SWIFT' && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                              <div className="flex items-center mb-2">
+                                <svg className="w-5 h-5 text-blue-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+                                  <path fillRule="evenodd" d="M4 5a2 2 0 012-2 3 3 0 003 3h2a3 3 0 003-3 2 2 0 012 2v11a2 2 0 01-2 2H6a2 2 0 01-2-2V5zm3 4a1 1 0 000 2h.01a1 1 0 100-2H7zm3 0a1 1 0 000 2h3a1 1 0 100-2h-3zm-3 4a1 1 0 100 2h.01a1 1 0 100-2H7zm3 0a1 1 0 100 2h3a1 1 0 100-2h-3z" clipRule="evenodd" />
+                                </svg>
+                                <span className="text-sm font-semibold text-blue-900">
+                                  {requestData.logs.created_by_type === 'customer' ? 'Created By (Customer)' : 'Created By'}
                                 </span>
-                                <span className="text-xs text-gray-500">
-                                  {editLog.edited_date ? new Date(editLog.edited_date).toLocaleString('en-IN', {
+                                {requestData.logs.created_by_code && (
+                                  <span className="text-xs text-blue-600 ml-2">({requestData.logs.created_by_code})</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-700 font-medium">{requestData.logs.created_by_name}</p>
+                              {(requestData.logs.created_date || requestData.logs.created_date_formatted) && (
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {requestData.logs.created_date_formatted || new Date(requestData.logs.created_date).toLocaleString('en-IN', {
                                     day: '2-digit',
                                     month: '2-digit',
                                     year: 'numeric',
                                     hour: '2-digit',
                                     minute: '2-digit',
                                     hour12: true
-                                  }) : 'N/A'}
-                                </span>
-                              </div>
-                              {editLog.changes && (() => {
-                                try {
-                                  const changes = typeof editLog.changes === 'string' ? JSON.parse(editLog.changes) : editLog.changes;
-                                  return (
-                                    <div className="text-xs text-gray-600 space-y-1">
-                                      {changes.status && (
-                                        <div>Status: <span className="font-medium">{changes.status.from}</span> → <span className="font-medium">{changes.status.to}</span></div>
-                                      )}
-                                      {changes.aqty && (
-                                        <div>Quantity: <span className="font-medium">{changes.aqty.from}</span> → <span className="font-medium">{changes.aqty.to}</span></div>
-                                      )}
-                                      {changes.remarks && (
-                                        <div>Remarks: <span className="font-medium">{changes.remarks.from || 'None'}</span> → <span className="font-medium">{changes.remarks.to || 'None'}</span></div>
-                                      )}
-                                    </div>
-                                  );
-                                } catch {
-                                  return null;
-                                }
-                              })()}
+                                  })}
+                                </p>
+                              )}
                             </div>
-                          ))}
-                        </div>
+                          )}
+                        {/* Processed By - Only employee/admin */}
+                        {requestData.logs && requestData.logs.processed_by_name && (
+                          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                            <div className="flex items-center mb-2">
+                              <svg className="w-5 h-5 text-yellow-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-sm font-semibold text-yellow-900">Processed By (Employee)</span>
+                              {requestData.logs.processed_by_code && (
+                                <span className="text-xs text-yellow-600 ml-2">({requestData.logs.processed_by_code})</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700 font-medium">{requestData.logs.processed_by_name}</p>
+                            {(requestData.logs.processed_date || requestData.logs.processed_date_formatted) && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {requestData.logs.processed_date_formatted || new Date(requestData.logs.processed_date).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {/* Completed By - Only employee/admin */}
+                        {requestData.logs && requestData.logs.completed_by_name && (
+                          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                            <div className="flex items-center mb-2">
+                              <svg className="w-5 h-5 text-green-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-sm font-semibold text-green-900">Completed By (Employee)</span>
+                              {requestData.logs.completed_by_code && (
+                                <span className="text-xs text-green-600 ml-2">({requestData.logs.completed_by_code})</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-gray-700 font-medium">{requestData.logs.completed_by_name}</p>
+                            {(requestData.logs.completed_date || requestData.logs.completed_date_formatted) && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {requestData.logs.completed_date_formatted || new Date(requestData.logs.completed_date).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                        {requestData.logs.cancelled_by_name && (
+                          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                            <div className="flex items-center mb-2">
+                              <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                              </svg>
+                              <span className="text-sm font-semibold text-red-900">Cancelled By</span>
+                            </div>
+                            <p className="text-sm text-gray-700 font-medium">{requestData.logs.cancelled_by_name}</p>
+                            {requestData.logs.cancelled_date && (
+                              <p className="text-xs text-gray-500 mt-1">
+                                {new Date(requestData.logs.cancelled_date).toLocaleString('en-IN', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                  hour12: true
+                                })}
+                              </p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    )}
+
+                      {/* Edit History */}
+                      {requestData.edit_logs && requestData.edit_logs.length > 0 && (
+                        <div className="mt-6 pt-6 border-t border-gray-200">
+                          <h3 className="text-md font-semibold text-gray-900 mb-4">Edit History</h3>
+                          <div className="space-y-3">
+                            {requestData.edit_logs.map((editLog, index) => (
+                              <div key={index} className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-sm font-medium text-gray-700">
+                                    Edited by: {editLog.edited_by_name || 'Unknown'}
+                                  </span>
+                                  <span className="text-xs text-gray-500">
+                                    {editLog.edited_date ? new Date(editLog.edited_date).toLocaleString('en-IN', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      hour12: true
+                                    }) : 'N/A'}
+                                  </span>
+                                </div>
+                                {editLog.changes && (() => {
+                                  try {
+                                    const changes = typeof editLog.changes === 'string' ? JSON.parse(editLog.changes) : editLog.changes;
+                                    return (
+                                      <div className="text-xs text-gray-600 space-y-1">
+                                        {changes.status && (
+                                          <div>Status: <span className="font-medium">{changes.status.from}</span> → <span className="font-medium">{changes.status.to}</span></div>
+                                        )}
+                                        {changes.aqty && (
+                                          <div>Quantity: <span className="font-medium">{changes.aqty.from}</span> → <span className="font-medium">{changes.aqty.to}</span></div>
+                                        )}
+                                        {changes.remarks && (
+                                          <div>Remarks: <span className="font-medium">{changes.remarks.from || 'None'}</span> → <span className="font-medium">{changes.remarks.to || 'None'}</span></div>
+                                        )}
+                                      </div>
+                                    );
+                                  } catch {
+                                    return null;
+                                  }
+                                })()}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="text-center py-8 text-gray-500">
@@ -1150,7 +1161,7 @@ export default function FillingDetailsAdmin() {
                         </>
                       )}
                       {['1', '2'].includes(String(user?.role)) && (
-                         <span>Update Request</span>
+                        <span>Update Request</span>
                       )}
                     </h2>
                   </div>
@@ -1170,15 +1181,15 @@ export default function FillingDetailsAdmin() {
                                       Document {docNum}
                                     </label>
                                     <div className="relative">
-                                      <input 
-                                        type="file" 
+                                      <input
+                                        type="file"
                                         name={`doc${docNum}`}
                                         onChange={handleInputChange}
                                         className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors"
                                         accept="image/*,.pdf,.doc,.docx"
                                       />
                                       {uploadedFiles[`doc${docNum}`] && (
-                                        <button 
+                                        <button
                                           type="button"
                                           onClick={() => removeFile(`doc${docNum}`)}
                                           className="absolute right-0 top-0 mt-2 mr-2 text-red-500 hover:text-red-700"
@@ -1193,9 +1204,9 @@ export default function FillingDetailsAdmin() {
                                       <div className="mt-2">
                                         <p className="text-xs text-green-600">File selected: {formData[`doc${docNum}`]?.name}</p>
                                         <div className="mt-1 w-20 h-20 border rounded-lg overflow-hidden">
-                                          <img 
-                                            src={uploadedFiles[`doc${docNum}`]} 
-                                            alt={`Preview doc${docNum}`} 
+                                          <img
+                                            src={uploadedFiles[`doc${docNum}`]}
+                                            alt={`Preview doc${docNum}`}
                                             className="w-full h-full object-cover"
                                           />
                                         </div>
@@ -1215,7 +1226,7 @@ export default function FillingDetailsAdmin() {
                               </td>
                               <td className="px-4 py-4">
                                 <div className="max-w-xs">
-                                  <select 
+                                  <select
                                     name="sub_product_id"
                                     value={formData.sub_product_id || ''}
                                     onChange={handleInputChange}
@@ -1240,8 +1251,8 @@ export default function FillingDetailsAdmin() {
                             <td className="px-3 md:px-4 py-3 md:py-4">
                               <div className="max-w-xs w-full">
                                 <div className="relative">
-                                  <input 
-                                    type="number" 
+                                  <input
+                                    type="number"
                                     name="aqty"
                                     value={formData.aqty}
                                     onChange={handleInputChange}
@@ -1273,7 +1284,7 @@ export default function FillingDetailsAdmin() {
                             </td>
                             <td className="px-3 md:px-4 py-3 md:py-4">
                               <div className="max-w-xs w-full">
-                                <select 
+                                <select
                                   name="status"
                                   value={formData.status}
                                   onChange={handleInputChange}
@@ -1310,7 +1321,7 @@ export default function FillingDetailsAdmin() {
                               <label className="block">Remarks</label>
                             </td>
                             <td className="px-3 md:px-4 py-3 md:py-4">
-                              <textarea 
+                              <textarea
                                 name="remarks"
                                 value={formData.remarks}
                                 onChange={handleInputChange}
@@ -1326,7 +1337,7 @@ export default function FillingDetailsAdmin() {
                             <td className="px-3 md:px-4 py-3 md:py-4">
                               <div className="flex flex-col sm:flex-row justify-end gap-3 md:space-x-4">
                                 {!['1', '2'].includes(String(user?.role)) && (
-                                  <button 
+                                  <button
                                     type="button"
                                     onClick={() => setShowCancelModal(true)}
                                     className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
@@ -1338,8 +1349,8 @@ export default function FillingDetailsAdmin() {
                                     Cancel Request
                                   </button>
                                 )}
-                                <button 
-                                  type="submit" 
+                                <button
+                                  type="submit"
                                   disabled={submitting}
                                   className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
                                 >
@@ -1356,10 +1367,10 @@ export default function FillingDetailsAdmin() {
                                       <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
                                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                                       </svg>
-                                      {formData.status === 'Processing' ? 'Mark as Processing' : 
-                                       formData.status === 'Completed' ? 'Complete Request' : 
-                                       formData.status === 'Cancelled' ? 'Cancel Request' : 
-                                       'Update Request'}
+                                      {formData.status === 'Processing' ? 'Mark as Processing' :
+                                        formData.status === 'Completed' ? 'Complete Request' :
+                                          formData.status === 'Cancelled' ? 'Cancel Request' :
+                                            'Update Request'}
                                     </>
                                   )}
                                 </button>
@@ -1408,11 +1419,11 @@ export default function FillingDetailsAdmin() {
                       </p>
                     )}
                     <p className="text-gray-600 mb-4">
-                      {requestData.status === 'Completed' 
-                        ? 'This filling request has been completed successfully.' 
+                      {requestData.status === 'Completed'
+                        ? 'This filling request has been completed successfully.'
                         : 'This filling request has been cancelled.'}
                     </p>
-                    <button 
+                    <button
                       onClick={() => router.push('/filling-requests')}
                       className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors inline-flex items-center"
                     >
@@ -1480,11 +1491,35 @@ export default function FillingDetailsAdmin() {
                   </div>
                 </div>
               )}
+
+              {/* Deal Price Modal - No Backdrop */}
+              {showPriceModal && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+                  <div className="bg-white rounded-lg shadow-xl p-6 w-96 border border-gray-200 pointer-events-auto">
+                    <h3 className="text-lg font-semibold mb-4 text-red-600">Deal Price Alert</h3>
+                    <p className="mb-6 text-gray-700">Deal price not updated. Please contact Admin to update price then complete.</p>
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => setShowPriceModal(false)}
+                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={handleRenewLimit}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                      >
+                        Renew Limit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </main>
         <Footer />
-      </div>
-    </div>
+      </div >
+    </div >
   );
 }

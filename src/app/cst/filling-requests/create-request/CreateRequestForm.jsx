@@ -15,7 +15,8 @@ export default function CreateRequestForm() {
     station_id: '',
     qty: '',
     aty: '',
-    remarks: ''
+    remarks: '',
+    products_codes: '' // ✅ Added missing field
   })
   const [vehicles, setVehicles] = useState([])
   const [products, setProducts] = useState([])
@@ -40,6 +41,7 @@ export default function CreateRequestForm() {
   const [filterType, setFilterType] = useState('')
   const [dayLimitStatus, setDayLimitStatus] = useState(null)
   const [checkingEligibility, setCheckingEligibility] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // ✅ Added authentication state
 
   // Product configuration based on product_id
   const productConfig = {
@@ -49,7 +51,256 @@ export default function CreateRequestForm() {
     5: { name: "DEF Bucket", type: "bucket", bucketSize: 20, min: 1, maxQuantity: 100 },
   };
 
-  // Redirect if not authenticated
+  // ================ ALL HOOKS BEFORE ANY CONDITIONAL RETURNS ================
+
+  // ✅ 1. Barrel calculation - 200 liters per barrel
+  useEffect(() => {
+    if (selectedProduct?.barrelSize && formData.qty) {
+      const qty = parseInt(formData.qty) || 0;
+      if (qty === 0) {
+        setCalculatedBarrels(0);
+      } else {
+        let barrels = Math.ceil(qty / 200);
+        setCalculatedBarrels(barrels);
+      }
+    } else {
+      setCalculatedBarrels(0);
+    }
+  }, [formData.qty, selectedProduct]);
+
+  // ✅ 2. Show full tank message
+  useEffect(() => {
+    const currentQty = parseInt(formData.qty) || 0;
+    if (selectedProduct?.maxQuantity && currentQty === selectedProduct.maxQuantity) {
+      setShowFullTankMessage(true);
+    } else {
+      setShowFullTankMessage(false);
+    }
+  }, [formData.qty, selectedProduct]);
+
+  // ✅ 3. Handle "full tank" in remarks
+  useEffect(() => {
+    if (selectedProduct?.maxQuantity) {
+      const remarks = formData.remarks.toLowerCase().trim();
+      if (remarks === 'full tank' || remarks === 'fulltank') {
+        if (selectedProduct.type === 'bucket') {
+          const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
+          setFormData(prev => ({
+            ...prev,
+            aty: buckets.toString(),
+            qty: selectedProduct.maxQuantity.toString()
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            aty: selectedProduct.maxQuantity.toString(),
+            qty: selectedProduct.maxQuantity.toString()
+          }));
+        }
+        setShowFullTankMessage(true);
+      }
+    }
+  }, [formData.remarks, selectedProduct]);
+
+  // ✅ 4. AUTO-SWITCH BULK/RETAIL BASED ON QTY
+  useEffect(() => {
+    if (!formData.product_id || !productCodes.length || !formData.qty) return;
+
+    const qty = parseInt(formData.qty) || 0;
+    const pid = parseInt(formData.product_id);
+    let targetType = 'retail';
+
+    if (pid === 2 || pid === 3) { // Ind Oil
+      if (qty > 5000) targetType = 'bulk';
+    } else if (pid === 4) { // DEF Lose
+      if (qty > 3000) targetType = 'bulk';
+    } else if (pid === 5) { // DEF Bucket
+      // Assuming qty is Liters here as per main logic
+      if (qty > 3000) targetType = 'bulk';
+    }
+
+    // Find matching code
+    let targetCode = null;
+    if (pid === 2 || pid === 3) {
+      targetCode = productCodes.find(c => {
+        const pcode = c.pcode.toUpperCase();
+        // Strict Retail check: includes "(R)"
+        const isRetail = pcode.includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    } else if (pid === 4) {
+      targetCode = productCodes.find(c => {
+        // Retail: includes "(R)"
+        const isRetail = c.pcode.toUpperCase().includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    } else if (pid === 5) {
+      targetCode = productCodes.find(c => {
+        // Retail: includes "(R)"
+        const isRetail = c.pcode.toUpperCase().includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    }
+
+    if (targetCode && parseInt(formData.products_codes) !== targetCode.id) {
+      console.log(`🔄 Auto-switching to ${targetType} (Code: ${targetCode.pcode}) based on Qty: ${qty}`);
+      setFormData(prev => ({ ...prev, products_codes: targetCode.id }));
+    }
+  }, [formData.qty, formData.product_id, productCodes]);
+
+  // ✅ 5. Derive Bulk/Retail from selected sub product code and set minimums dynamically
+  useEffect(() => {
+    if (!formData.products_codes) return;
+    const selectedCode = productCodes.find(p => p.id === parseInt(formData.products_codes));
+    if (!selectedCode) return;
+    const pcode = (selectedCode.pcode || '').toUpperCase();
+    const pid = parseInt(selectedCode.product_id);
+    let category = 'retail';
+    if (pid === 2 || pid === 3) {
+      const norm = pcode.replace(/\s+/g, '');
+      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcode.includes('RTL') || pcode.includes('RETAIL');
+      category = isRetail ? 'retail' : 'bulk';
+    } else if (pid === 4) {
+      const norm = pcode.toUpperCase().replace(/\s+/g, '');
+      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
+      else category = 'retail';
+    } else if (pid === 5) {
+      if (pcode.includes('BUCKET')) category = 'bulk';
+      else category = 'retail';
+    }
+    let minValue = 1;
+    if (pid === 2 || pid === 3) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 4) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 5) {
+      minValue = category === 'bulk' ? 25 : 1;
+    }
+    setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
+  }, [formData.products_codes, productCodes]);
+
+  // ✅ 6. Derive Bulk/Retail from selected sub product code (original logic)
+  useEffect(() => {
+    const pid = parseInt(formData.product_id) || null;
+    if (!pid || !selectedSubProductId || productCodes.length === 0) return;
+    const codeObj = productCodes.find(c => String(c.id) === String(selectedSubProductId));
+    const pcode = (codeObj?.pcode || '').toUpperCase();
+    let category = 'retail';
+    if (pid === 2 || pid === 3) {
+      const norm = pcode.replace(/\s+/g, '');
+      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcode.includes('RTL') || pcode.includes('RETAIL');
+      category = isRetail ? 'retail' : 'bulk';
+    } else if (pid === 4) {
+      const norm = pcode.toUpperCase().replace(/\s+/g, '');
+      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
+      else category = 'retail';
+    } else if (pid === 5) {
+      // DEF Bucket: BUCKET (bulk buckets) vs PACK (retail bucket)
+      if (pcode.includes('BUCKET')) category = 'bulk';
+      else category = 'retail';
+    }
+    let minValue = 1;
+    if (pid === 2 || pid === 3) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 4) {
+      minValue = category === 'bulk' ? 1000 : 1;
+    } else if (pid === 5) {
+      // bucket min is bucket count, not liters
+      minValue = category === 'bulk' ? 25 : 1;
+    }
+    setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
+  }, [selectedSubProductId, productCodes, formData.product_id]);
+
+  // ✅ 7. Fetch product codes
+  useEffect(() => {
+    const pid = formData.product_id;
+    if (!pid) {
+      setProductCodes([]);
+      setSelectedSubProductId('');
+      setLoadingSubProducts(false);
+      return;
+    }
+    
+    setLoadingSubProducts(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/cst/product-codes?product_id=${pid}`);
+        const json = await res.json();
+        if (json.success) {
+          const codes = json.codes || [];
+          setProductCodes(codes);
+          setFilterType(json.filter_type || '');
+          // Auto-select first sub-product if available
+          if (codes.length > 0) {
+            const first = codes[0]?.id ? String(codes[0].id) : '';
+            setSelectedSubProductId(first);
+          } else {
+            setSelectedSubProductId('');
+          }
+        } else {
+          setProductCodes([]);
+          setSelectedSubProductId('');
+          setFilterType('');
+        }
+      } catch (e) {
+        console.error('Error fetching product codes:', e);
+        setProductCodes([]);
+        setSelectedSubProductId('');
+      } finally {
+        setLoadingSubProducts(false);
+      }
+    })();
+  }, [formData.product_id]);
+
+  // ✅ 8. Fetch price when product or station changes
+  useEffect(() => {
+    const fetchPrice = async () => {
+      if (formData.product_id && formData.station_id && customerId && selectedProduct) {
+        try {
+          console.log('🔄 Fetching price for:', {
+            product_id: formData.product_id,
+            selected_product: selectedProduct,
+            station_id: formData.station_id,
+            customer_id: customerId
+          });
+
+          const response = await fetch(
+            `/api/cst/deal-price?com_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
+          );
+          const data = await response.json();
+          
+          console.log('💰 Price API Response:', data);
+
+          if (data.success && data.data) {
+            const latestPrice = parseFloat(data.data.price) || 0;
+            const total = latestPrice * parseFloat(formData.qty || 0);
+            
+            setPriceDetails({
+              price: latestPrice,
+              totalAmount: total
+            });
+          } else {
+            console.log('ℹ️ No deal price found');
+            setPriceDetails({ price: 0, totalAmount: 0 });
+          }
+        } catch (error) {
+          console.error('❌ Error fetching price:', error);
+          setPriceDetails({ price: 0, totalAmount: 0 });
+        }
+      }
+    };
+
+    fetchPrice();
+  }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct, selectedSubProductId]);
+
+  // ✅ 9. Check eligibility when customerId changes
+  useEffect(() => {
+    if (customerId) {
+      checkEligibility();
+    }
+  }, [customerId]);
+
+  // ✅ 10. Authentication check - LAST HOOK
   useEffect(() => {
     const savedUser = localStorage.getItem("customer");
     if (!savedUser) {
@@ -70,15 +321,11 @@ export default function CreateRequestForm() {
     const cid = user.com_id || user.id;
     setCustomerId(cid);
     setCustomerData(user);
+    setIsAuthenticated(true);
     fetchCustomerData(cid);
   }, [router]);
 
-  // Check eligibility when customerId changes
-  useEffect(() => {
-    if (customerId) {
-      checkEligibility();
-    }
-  }, [customerId]);
+  // ================ FUNCTIONS ================
 
   const checkEligibility = async () => {
     try {
@@ -170,167 +417,6 @@ export default function CreateRequestForm() {
       setFetchLoading(false);
     }
   }
-
-  // Fetch price when product or station changes
-  useEffect(() => {
-    const fetchPrice = async () => {
-      if (formData.product_id && formData.station_id && customerId && selectedProduct) {
-        try {
-          console.log('🔄 Fetching price for:', {
-            product_id: formData.product_id,
-            selected_product: selectedProduct,
-            station_id: formData.station_id,
-            customer_id: customerId
-          });
-
-          const response = await fetch(
-            `/api/cst/deal-price?com_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
-          );
-          const data = await response.json();
-          
-          console.log('💰 Price API Response:', data);
-
-          if (data.success && data.data) {
-            const latestPrice = parseFloat(data.data.price) || 0;
-            const total = latestPrice * parseFloat(formData.qty || 0);
-            
-            setPriceDetails({
-              price: latestPrice,
-              totalAmount: total
-            });
-          } else {
-            console.log('ℹ️ No deal price found');
-            setPriceDetails({ price: 0, totalAmount: 0 });
-          }
-        } catch (error) {
-          console.error('❌ Error fetching price:', error);
-          setPriceDetails({ price: 0, totalAmount: 0 });
-        }
-      }
-    };
-
-    fetchPrice();
-  }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct, selectedSubProductId]);
-
-  // Derive Bulk/Retail from selected sub product code and set minimums dynamically
-  useEffect(() => {
-    const pid = parseInt(formData.product_id) || null;
-    if (!pid || !selectedSubProductId || productCodes.length === 0) return;
-    const codeObj = productCodes.find(c => String(c.id) === String(selectedSubProductId));
-    const pcode = (codeObj?.pcode || '').toUpperCase();
-    let category = 'retail';
-    if (pid === 2 || pid === 3) {
-      const norm = pcode.replace(/\s+/g, '');
-      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcode.includes('RTL') || pcode.includes('RETAIL');
-      category = isRetail ? 'retail' : 'bulk';
-    } else if (pid === 4) {
-      const norm = pcode.toUpperCase().replace(/\s+/g, '');
-      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
-      else category = 'retail';
-    } else if (pid === 5) {
-      // DEF Bucket: BUCKET (bulk buckets) vs PACK (retail bucket)
-      if (pcode.includes('BUCKET')) category = 'bulk';
-      else category = 'retail';
-    }
-    let minValue = 1;
-    if (pid === 2 || pid === 3) {
-      minValue = category === 'bulk' ? 1000 : 1;
-    } else if (pid === 4) {
-      minValue = category === 'bulk' ? 1000 : 1;
-    } else if (pid === 5) {
-      // bucket min is bucket count, not liters
-      minValue = category === 'bulk' ? 25 : 1;
-    }
-    setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
-  }, [selectedSubProductId, productCodes, formData.product_id]);
-
-  useEffect(() => {
-    const pid = formData.product_id;
-    if (!pid) {
-      setProductCodes([]);
-      setSelectedSubProductId('');
-      setLoadingSubProducts(false);
-      return;
-    }
-    
-    setLoadingSubProducts(true);
-    (async () => {
-      try {
-        const res = await fetch(`/api/cst/product-codes?product_id=${pid}`);
-        const json = await res.json();
-        if (json.success) {
-          const codes = json.codes || [];
-          setProductCodes(codes);
-          setFilterType(json.filter_type || '');
-          // Auto-select first sub-product if available
-          if (codes.length > 0) {
-            const first = codes[0]?.id ? String(codes[0].id) : '';
-            setSelectedSubProductId(first);
-          } else {
-            setSelectedSubProductId('');
-          }
-        } else {
-          setProductCodes([]);
-          setSelectedSubProductId('');
-          setFilterType('');
-        }
-      } catch (e) {
-        console.error('Error fetching product codes:', e);
-        setProductCodes([]);
-        setSelectedSubProductId('');
-      } finally {
-        setLoadingSubProducts(false);
-      }
-    })();
-  }, [formData.product_id]);
-
-  // Barrel calculation - 200 liters per barrel
-  useEffect(() => {
-    if (selectedProduct?.barrelSize && formData.qty) {
-      const qty = parseInt(formData.qty) || 0;
-      if (qty === 0) {
-        setCalculatedBarrels(0);
-      } else {
-        let barrels = Math.ceil(qty / 200);
-        setCalculatedBarrels(barrels);
-      }
-    } else {
-      setCalculatedBarrels(0);
-    }
-  }, [formData.qty, selectedProduct]);
-
-  useEffect(() => {
-    const currentQty = parseInt(formData.qty) || 0;
-    if (selectedProduct?.maxQuantity && currentQty === selectedProduct.maxQuantity) {
-      setShowFullTankMessage(true);
-    } else {
-      setShowFullTankMessage(false);
-    }
-  }, [formData.qty, selectedProduct]);
-
-  // Handle "full tank" in remarks
-  useEffect(() => {
-    if (selectedProduct?.maxQuantity) {
-      const remarks = formData.remarks.toLowerCase().trim();
-      if (remarks === 'full tank' || remarks === 'fulltank') {
-        if (selectedProduct.type === 'bucket') {
-          const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
-          setFormData(prev => ({
-            ...prev, 
-            aty: buckets.toString(), 
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev, 
-            aty: selectedProduct.maxQuantity.toString(), 
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        }
-        setShowFullTankMessage(true);
-      }
-    }
-  }, [formData.remarks, selectedProduct]);
 
   const validatePhone = (phone) => {
     const phoneRegex = /^[0-9]{10,15}$/;
@@ -444,7 +530,8 @@ export default function CreateRequestForm() {
         setFormData(prev => ({ 
           ...prev, 
           qty: '', 
-          aty: ''
+          aty: '',
+          products_codes: ''
         }));
         setCalculatedBarrels(0);
         setShowFullTankMessage(false);
@@ -733,15 +820,16 @@ export default function CreateRequestForm() {
   }
 
   const resetForm = () => {
-    setFormData(prev => ({
-      ...prev,
+    setFormData({
       licence_plate: '',
       phone: '',
       product_id: '',
+      station_id: '',
       qty: '',
       aty: '',
-      remarks: ''
-    }))
+      remarks: '',
+      products_codes: ''
+    })
     setSelectedProduct(null)
     setVehicles([])
     setErrors({})
@@ -750,6 +838,20 @@ export default function CreateRequestForm() {
     setShowFullTankMessage(false)
     setMaxQuantity(0)
     setSelectedSubProductId('')
+    setProductCodes([])
+  }
+
+  // ================ CONDITIONAL RENDERING ================
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    );
   }
 
   if (fetchLoading) {
@@ -792,6 +894,8 @@ export default function CreateRequestForm() {
       </div>
     )
   }
+
+  // ================ MAIN JSX RENDER ================
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">

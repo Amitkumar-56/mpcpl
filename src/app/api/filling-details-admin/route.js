@@ -62,7 +62,7 @@ export async function GET(req) {
         LEFT JOIN employee_profile ep_status ON fr.status_updated_by = ep_status.id
         WHERE fr.id = ?
       `;
-      
+
       console.log('🔍 Executing main query for ID:', id);
       const rows = await executeQuery(query, [id]);
 
@@ -71,7 +71,7 @@ export async function GET(req) {
       }
 
       data = rows[0];
-      
+
       // Get available sub-products for this product
       const availableSubProductsQuery = `
         SELECT id, pcode 
@@ -80,12 +80,12 @@ export async function GET(req) {
       `;
       const availableSubProducts = await executeQuery(availableSubProductsQuery, [data.product_id]);
       data.available_sub_products = availableSubProducts;
-      
+
       console.log('📦 Available sub-products:', availableSubProducts);
 
       // Get price from deal_price table
       let sub_product_id = data.sub_product_id;
-      
+
       console.log('🔍 Sub-product details:', {
         from_request: data.sub_product_id,
         product_id: data.product_id
@@ -101,7 +101,7 @@ export async function GET(req) {
           FROM filling_station_stocks 
           WHERE fs_id = ? AND product = ?
         `;
-        
+
         const stockRows = await executeQuery(altQuery, [data.fs_id, data.product_id]);
         data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
       }
@@ -110,18 +110,18 @@ export async function GET(req) {
       if (data.client_type === "3" && data.day_limit && data.day_limit > 0) {
         // Count distinct dates for unpaid completed requests
         const usedDaysResult = await executeQuery(
-           `SELECT COUNT(DISTINCT DATE(completed_date)) as used_days 
+          `SELECT COUNT(DISTINCT DATE(completed_date)) as used_days 
             FROM filling_requests 
             WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
-           [data.cid]
+          [data.cid]
         );
-         
+
         const usedDays = usedDaysResult.length > 0 ? usedDaysResult[0].used_days : 0;
-        
+
         data.days_elapsed = usedDays;
         data.remaining_days = Math.max(0, data.day_limit - usedDays);
         data.is_overdue = usedDays >= data.day_limit;
-        
+
         // Get oldest unpaid date for reference
         const oldestUnpaidCompleted = await executeQuery(
           `SELECT completed_date 
@@ -131,13 +131,13 @@ export async function GET(req) {
            LIMIT 1`,
           [data.cid]
         );
-        
+
         if (oldestUnpaidCompleted.length > 0) {
           data.oldest_unpaid_date = oldestUnpaidCompleted[0].completed_date;
         } else {
           data.oldest_unpaid_date = null;
         }
-          
+
         console.log('📅 Day Limit Calculation (Distinct Dates):', {
           usedDays,
           dayLimit: data.day_limit,
@@ -208,13 +208,13 @@ export async function GET(req) {
       `;
       const logs = await executeQuery(logsQuery, [data.rid]);
       data.logs = logs.length > 0 ? logs[0] : null;
-      
+
       // ✅ FIX: Hide "SWIFT" as default name - set to null if name is SWIFT
       if (data.logs && data.logs.created_by_name && data.logs.created_by_name.toUpperCase() === 'SWIFT') {
         data.logs.created_by_name = null;
         data.logs.created_by_code = null;
       }
-      
+
       // ✅ FIX: If no logs found, try to get created_by from filling_requests
       if (!data.logs || !data.logs.created_by_name || data.logs.created_by_name === 'System') {
         const fallbackQuery = `
@@ -237,9 +237,9 @@ export async function GET(req) {
           LIMIT 1
         `;
         const fallbackResult = await executeQuery(fallbackQuery, [data.rid]);
-        if (fallbackResult.length > 0 && 
-            fallbackResult[0].created_by_name !== 'System' && 
-            fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
+        if (fallbackResult.length > 0 &&
+          fallbackResult[0].created_by_name !== 'System' &&
+          fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
           if (!data.logs) {
             data.logs = {};
           }
@@ -282,7 +282,7 @@ export async function GET(req) {
 // POST - Update request
 export async function POST(request) {
   let userId = 1; // Default user ID
-  
+
   try {
     console.log('🚀 /filling-details-admin POST called');
 
@@ -302,7 +302,7 @@ export async function POST(request) {
 
     const formData = await request.formData();
     console.log('✅ Form data parsed successfully');
-    
+
     // Extract all fields
     const id = formData.get('id');
     const rid = formData.get('rid');
@@ -328,9 +328,9 @@ export async function POST(request) {
     // Validate required fields
     if (!id || !rid) {
       console.error('❌ Missing required fields');
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'Missing required fields' 
+        error: 'Missing required fields'
       }, { status: 400 });
     }
 
@@ -338,9 +338,9 @@ export async function POST(request) {
     // ✅ FIX: Only check balance for Completed status, NOT for Processing
     if (status === 'Completed') {
       const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
-      
+
       if (!balanceCheck.sufficient) {
-        return NextResponse.json({ 
+        return NextResponse.json({
           success: true,
           limitOverdue: true,
           limitTitle: balanceCheck.title || 'Credit Limit Overdue',
@@ -353,7 +353,7 @@ export async function POST(request) {
 
     // Handle file uploads
     let doc1Path = null, doc2Path = null, doc3Path = null;
-    
+
     const doc1File = formData.get('doc1');
     const doc2File = formData.get('doc2');
     const doc3File = formData.get('doc3');
@@ -384,7 +384,7 @@ export async function POST(request) {
       // Get old data for comparison
       const oldDataQuery = `SELECT * FROM filling_requests WHERE id = ?`;
       const oldData = await executeQuery(oldDataQuery, [id]);
-      
+
       if (oldData.length > 0) {
         const oldRecord = oldData[0];
         // Create edit log entry
@@ -424,22 +424,22 @@ export async function POST(request) {
       });
     } else if (status === 'Completed') {
       console.log('🔄 Handling Completed status...');
-      
+
       // Get customer type for balance update logic
       const customerTypeResult = await executeQuery(
         'SELECT client_type FROM customers WHERE id = ?',
         [cl_id]
       );
-      
+
       const isDayLimitCustomer = customerTypeResult.length > 0 && customerTypeResult[0].client_type === "3";
-      
+
       resultMessage = await handleCompletedStatus({
         id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
         oldstock, credit_limit, available_balance, day_limit,
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
         isDayLimitCustomer
       });
-      
+
       try {
         const userRows = await executeQuery(
           `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
@@ -468,7 +468,7 @@ export async function POST(request) {
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
-      } catch (auditErr) {}
+      } catch (auditErr) { }
     } else if (status === 'Cancel') {
       console.log('🔄 Handling Cancel status...');
       resultMessage = await handleCancelStatus({
@@ -493,7 +493,7 @@ export async function POST(request) {
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
-      } catch (auditErr) {}
+      } catch (auditErr) { }
     } else {
       console.log('🔄 Handling generic status update...');
       resultMessage = await updateFillingRequest({
@@ -527,22 +527,22 @@ export async function POST(request) {
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
-      } catch (auditErr) {}
+      } catch (auditErr) { }
     }
 
     console.log('✅ Update successful:', resultMessage);
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: resultMessage,
       status: status
     });
 
   } catch (error) {
     console.error('❌ POST Error:', error);
-    
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message || 'Internal server error' 
+
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Internal server error'
     }, { status: 500 });
   }
 }
@@ -553,9 +553,9 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     console.log('🔍 Checking balance for customer:', cl_id);
 
     if (!cl_id) {
-      return { 
-        sufficient: false, 
-        message: 'Customer ID is required' 
+      return {
+        sufficient: false,
+        message: 'Customer ID is required'
       };
     }
 
@@ -572,16 +572,16 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
       LEFT JOIN customer_balances cb ON c.id = cb.com_id
       WHERE c.id = ?
     `;
-    
+
     const customerRows = await executeQuery(customerQuery, [cl_id]);
-    
+
     if (customerRows.length === 0) {
-      return { 
-        sufficient: false, 
-        message: 'Customer balance record not found.' 
+      return {
+        sufficient: false,
+        message: 'Customer balance record not found.'
       };
     }
-    
+
     const customerData = customerRows[0];
     const clientType = customerData.client_type;
     const rawAvailableBalance = parseFloat(customerData.available_balance) || 0;
@@ -603,18 +603,18 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
 
     // Get actual fuel price for amount calculation
     const actualPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, defaultPrice);
-    
+
     // ✅ Add validation for zero price
     if (actualPrice <= 0) {
-      return { 
-        sufficient: false, 
+      return {
+        sufficient: false,
         title: 'Deal Price Alert',
         message: 'Deal price not updated. Please contact Admin to update price then complete.'
       };
     }
 
     const requestedAmount = actualPrice * aqty;
-    
+
     console.log('💰 Amount Calculation:', {
       actualPrice,
       aqty,
@@ -623,8 +623,8 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
 
     // Check if account is active
     if (customerData.is_active === 0) {
-      return { 
-        sufficient: false, 
+      return {
+        sufficient: false,
         message: 'Your account is inactive. Please contact administrator.'
       };
     }
@@ -632,10 +632,10 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     // 🚨 DAY LIMIT CHECK - FOR ALL CUSTOMER TYPES WHO HAVE DAY LIMIT
     if (dayLimit > 0) {
       console.log('📅 Checking day limit for customer...');
-      
+
       // For day_limit customers: Count DISTINCT DATES of unpaid completed transactions
       // User Logic: "22->1, 24->2, 26->3"
-      
+
       // 1. Get count of existing distinct unpaid dates
       const distinctDaysResult = await executeQuery(
         `SELECT COUNT(DISTINCT DATE(completed_date)) as distinct_days
@@ -643,9 +643,9 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
          WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
         [cl_id]
       );
-      
+
       const distinctDays = distinctDaysResult.length > 0 ? parseInt(distinctDaysResult[0].distinct_days) || 0 : 0;
-      
+
       // 2. Check if today is already in the unpaid list
       const todayDateStr = getIndianTime().slice(0, 10);
       const todayCheck = await executeQuery(
@@ -655,9 +655,9 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
          LIMIT 1`,
         [cl_id, todayDateStr]
       );
-      
+
       const isTodayAlreadyCounted = todayCheck.length > 0;
-      
+
       // 3. Calculate projected count
       // If today is NOT already counted (i.e. this is the first unpaid request for today),
       // then this request will add +1 to the day count.
@@ -665,7 +665,7 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
       if (!isTodayAlreadyCounted) {
         projectedDays += 1;
       }
-      
+
       console.log('📅 Day Limit Check (Distinct Dates):', {
         distinctDays,
         isTodayAlreadyCounted,
@@ -673,11 +673,11 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
         dayLimit,
         isExceeded: projectedDays > dayLimit
       });
-      
+
       // If projected days > day_limit, block the request
       if (projectedDays > dayLimit) {
         console.log('❌ Day limit exceeded based on distinct dates count');
-        
+
         // Calculate total unpaid amount for overdue message
         const totalUnpaidQuery = `
           SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
@@ -686,9 +686,9 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
         `;
         const unpaidResult = await executeQuery(totalUnpaidQuery, [cl_id]);
         const totalUnpaid = unpaidResult.length > 0 ? parseFloat(unpaidResult[0].total_unpaid) || 0 : 0;
-        
-        return { 
-          sufficient: false, 
+
+        return {
+          sufficient: false,
           message: `Day limit exceeded. You have used ${distinctDays} distinct days of credit (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
           isDayLimitExpired: true,
           totalUnpaidAmount: totalUnpaid
@@ -699,19 +699,19 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     // 🚨 CREDIT LIMIT CHECK - FOR CUSTOMER TYPE 1 & 2
     if (clientType === "1" || clientType === "2") {
       console.log('💰 Customer Type 1/2 - Checking amtlimit...');
-      
+
       // Check available balance (amtlimit - hold_balance)
       // Only show error if balance is actually insufficient
       if (availableBalance <= 0 || availableBalance < requestedAmount) {
-        return { 
-          sufficient: false, 
+        return {
+          sufficient: false,
           message: `Insufficient balance. Required: ₹${requestedAmount.toFixed(2)}, Available: ₹${availableBalance.toFixed(2)}. Please recharge your account.`
         };
       }
-      
+
       console.log('✅ Customer Type 1/2 - Sufficient amtlimit balance');
-      return { 
-        sufficient: true, 
+      return {
+        sufficient: true,
         mode: 'credit_limit',
         clientType: clientType
       };
@@ -720,8 +720,8 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     // 🚨 CUSTOMER TYPE 3 (DAY LIMIT) - ONLY DAY LIMIT CHECKED, NO AMTLIMIT CHECK
     if (clientType === "3") {
       console.log('✅ Customer Type 3 - Day limit check passed, no amtlimit check');
-      return { 
-        sufficient: true, 
+      return {
+        sufficient: true,
         mode: 'day_limit',
         isDayLimitClient: true
       };
@@ -729,16 +729,16 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
 
     // 🚨 UNKNOWN CUSTOMER TYPE
     console.log('❌ Unknown customer type:', clientType);
-    return { 
-      sufficient: false, 
-      message: 'Unknown customer type. Please contact administrator.' 
+    return {
+      sufficient: false,
+      message: 'Unknown customer type. Please contact administrator.'
     };
 
   } catch (error) {
     console.error('❌ Error checking balance limit:', error);
-    return { 
-      sufficient: false, 
-      message: 'Error checking balance: ' + error.message 
+    return {
+      sufficient: false,
+      message: 'Error checking balance: ' + error.message
     };
   }
 }
@@ -747,7 +747,7 @@ function getIndianTime() {
   const now = new Date();
   const offset = 5.5 * 60 * 60 * 1000;
   const istTime = new Date(now.getTime() + offset);
-  
+
   return istTime.toISOString().slice(0, 19).replace('T', ' ');
 }
 
@@ -755,17 +755,17 @@ function getIndianTime() {
 async function updateFillingLogs(request_id, status, userId) {
   try {
     console.log('📝 Updating filling logs:', { request_id, status, userId });
-    
+
     const checkQuery = `SELECT id, created_by FROM filling_logs WHERE request_id = ?`;
     const existingLogs = await executeQuery(checkQuery, [request_id]);
-    
+
     const now = getIndianTime();
-    
+
     if (existingLogs.length > 0) {
       // Log already exists, update the appropriate field
       let updateQuery = '';
       let queryParams = [];
-      
+
       switch (status) {
         case 'Processing':
           updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
@@ -786,7 +786,7 @@ async function updateFillingLogs(request_id, status, userId) {
           console.log('⚠️ No log update needed for status:', status);
           return;
       }
-      
+
       if (updateQuery) {
         await executeQuery(updateQuery, queryParams);
         console.log('✅ Filling log updated successfully');
@@ -797,9 +797,9 @@ async function updateFillingLogs(request_id, status, userId) {
       // First, get the request to find customer ID (original creator)
       const requestQuery = `SELECT cid FROM filling_requests WHERE rid = ?`;
       const requestResult = await executeQuery(requestQuery, [request_id]);
-      
+
       let createdById = null;
-      
+
       if (requestResult.length > 0 && requestResult[0].cid) {
         // Use customer ID as created_by (original creator of the request)
         const customerId = requestResult[0].cid;
@@ -807,7 +807,7 @@ async function updateFillingLogs(request_id, status, userId) {
           `SELECT id FROM customers WHERE id = ?`,
           [customerId]
         );
-        
+
         if (customerCheck.length > 0) {
           createdById = customerId;
           console.log('✅ Request created by customer (original creator):', customerId);
@@ -841,7 +841,7 @@ async function updateFillingLogs(request_id, status, userId) {
           console.log('⚠️ No customer found, using current user as created_by (last resort):', userId);
         }
       }
-      
+
       if (createdById) {
         const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
         await executeQuery(insertQuery, [request_id, createdById, now]);
@@ -849,12 +849,12 @@ async function updateFillingLogs(request_id, status, userId) {
       } else {
         console.error('❌ Could not determine created_by for request:', request_id);
       }
-      
+
       // If status is Processing/Completed/Cancel, also update that field (but avoid recursion)
       if (status === 'Processing' || status === 'Completed' || status === 'Cancel') {
         let updateQuery = '';
         let queryParams = [];
-        
+
         switch (status) {
           case 'Processing':
             updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
@@ -869,7 +869,7 @@ async function updateFillingLogs(request_id, status, userId) {
             queryParams = [userId, now, request_id];
             break;
         }
-        
+
         if (updateQuery) {
           await executeQuery(updateQuery, queryParams);
           console.log('✅ Status field updated in new log');
@@ -884,12 +884,12 @@ async function updateFillingLogs(request_id, status, userId) {
 
 async function handleProcessingStatus(data) {
   const { id, rid, cl_id, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id } = data;
-  
+
   const now = getIndianTime();
-  
+
   console.log('🔄 Processing Status Update Details:', {
-    id, rid, cl_id, remarks, 
-    doc1Path, doc2Path, doc3Path, 
+    id, rid, cl_id, remarks,
+    doc1Path, doc2Path, doc3Path,
     userId, sub_product_id, now
   });
 
@@ -907,7 +907,7 @@ async function handleProcessingStatus(data) {
           sub_product_id = ?
       WHERE id = ? AND rid = ?
     `;
-    
+
     console.log('🔧 Executing Processing Update Query:', updateRequestQuery);
     console.log('📋 Query Parameters:', [
       now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
@@ -959,11 +959,11 @@ async function handleCompletedStatus(data) {
     WHERE com_id = ?
   `;
   const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
-  
+
   let old_available_balance = 0;
   let old_used_amount = 0;
   let customerDayLimit = 0;
-  
+
   if (latestAmountRows.length > 0) {
     old_available_balance = parseFloat(latestAmountRows[0].available_balance) || 0;
     old_used_amount = parseFloat(latestAmountRows[0].used_amount) || 0;
@@ -990,7 +990,7 @@ async function handleCompletedStatus(data) {
 
   let updateBalanceQuery = '';
   let queryParams = [];
-  
+
   // ✅ CORRECTED: Only apply day limit logic for day limit customers
   if (isDayLimitCustomer) {
     // Day limit customers - NO AVAILABLE_BALANCE DEDUCTION, only used_amount increase for tracking
@@ -1014,7 +1014,7 @@ async function handleCompletedStatus(data) {
     queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
     console.log('✅ Credit limit customer - Available balance decreased, used amount increased');
   }
-  
+
   if (updateBalanceQuery) {
     await executeQuery(updateBalanceQuery, queryParams);
   }
@@ -1037,12 +1037,12 @@ async function handleCompletedStatus(data) {
         payment_status = ?
     WHERE id = ? AND rid = ?
   `;
-  
+
   // For day limit customers, mark as unpaid (0), for others mark as paid (1)
   const paymentStatus = isDayLimitCustomer ? 0 : 1;
-  
+
   await executeQuery(updateRequestQuery, [
-    aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, 
+    aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId,
     sub_product_id, finalPrice, calculatedAmount, paymentStatus, id, rid
   ]);
 
@@ -1062,16 +1062,16 @@ async function handleCompletedStatus(data) {
     const colSet = new Set(colsInfo.map(r => r.Field));
 
     const baseCols = [
-      'rid','fs_id','product_id','sub_product_id','trans_type','current_stock','filling_qty','amount',
-      'available_stock','filling_date','cl_id','created_by','old_amount','new_amount','remaining_limit',
+      'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'amount',
+      'available_stock', 'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 'remaining_limit',
       'payment_status'
     ];
     const baseVals = [
       rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
-      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
-      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
+      old_used_amount, // old_amount: matches customer_balances BEFORE update
+      new_used_amount, // new_amount: matches customer_balances AFTER update
+      isDayLimitCustomer ? null : new_available_balance, // remaining_limit
       paymentStatus
     ];
 
@@ -1107,14 +1107,14 @@ async function handleCompletedStatus(data) {
     await executeQuery(insertHistoryQuery, [
       rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
-      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
-      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
+      old_used_amount, // old_amount
+      new_used_amount, // new_amount
+      isDayLimitCustomer ? null : new_available_balance, // remaining_limit
       paymentStatus
     ]);
   }
 
- 
+
 
   // Get user info for audit log
   let userName = 'System';
@@ -1148,7 +1148,7 @@ async function handleCompletedStatus(data) {
     if (stationResult.length > 0) {
       stationName = stationResult[0].station_name;
     }
-    
+
     const productResult = await executeQuery(
       `SELECT pname FROM products WHERE id = ?`,
       [product_id]
@@ -1180,13 +1180,13 @@ async function handleCompletedStatus(data) {
 
   // Create comprehensive audit log for stock deduction
 
-    // Handle non-billing stocks if needed
-    if (billing_type == 2) {
-      await handleNonBillingStocks(fs_id, product_id, aqty, userId);
-    }
+  // Handle non-billing stocks if needed
+  if (billing_type == 2) {
+    await handleNonBillingStocks(fs_id, product_id, aqty, userId);
+  }
 
   // Update wallet history - using same logic as filling_history
-  await updateWalletHistory(cl_id, rid, calculatedAmount, 
+  await updateWalletHistory(cl_id, rid, calculatedAmount,
     previous_new_amount || 0, // old_balance: previous new_amount (0 if first request)
     previous_new_amount + calculatedAmount // new_balance: old_amount + amount
   );
@@ -1200,7 +1200,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   if (sub_product_id) {
     const exactPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1`;
     const exactPriceRows = await executeQuery(exactPriceQuery, [station_id, product_id, sub_product_id, com_id]);
-    
+
     if (exactPriceRows.length > 0) {
       return parseFloat(exactPriceRows[0].price);
     }
@@ -1209,7 +1209,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
   if (sub_product_id) {
     const stationPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND is_active = 1 LIMIT 1`;
     const stationPriceRows = await executeQuery(stationPriceQuery, [station_id, product_id, sub_product_id]);
-    
+
     if (stationPriceRows.length > 0) {
       return parseFloat(stationPriceRows[0].price);
     }
@@ -1217,14 +1217,14 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
 
   const customerPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1`;
   const customerPriceRows = await executeQuery(customerPriceQuery, [station_id, product_id, com_id]);
-  
+
   if (customerPriceRows.length > 0) {
     return parseFloat(customerPriceRows[0].price);
   }
 
   const productPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND is_active = 1 LIMIT 1`;
   const productPriceRows = await executeQuery(productPriceQuery, [station_id, product_id]);
-  
+
   if (productPriceRows.length > 0) {
     return parseFloat(productPriceRows[0].price);
   }
@@ -1248,7 +1248,7 @@ async function handleCancelStatus(data) {
         status_updated_by = ?
     WHERE id = ? AND rid = ?
   `;
-  
+
   await executeQuery(updateRequestQuery, [
     now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, id, rid
   ]);
@@ -1262,10 +1262,10 @@ async function updateFillingRequest(data) {
   } = data;
 
   const now = getIndianTime();
-  
+
   let updateQuery = '';
   let queryParams = [];
-  
+
   if (status === 'Processing') {
     updateQuery = `
       UPDATE filling_requests 
@@ -1297,7 +1297,7 @@ async function updateFillingRequest(data) {
     `;
     queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, userId, id];
   }
-  
+
   await executeQuery(updateQuery, queryParams);
   return 'Request updated successfully';
 }
@@ -1306,7 +1306,7 @@ async function updateFillingRequest(data) {
 async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBalance) {
   try {
     const description = 'Fuel Purchase';
-    
+
     console.log('💰 Wallet History Update:', {
       oldBalance,
       deductedAmount,
@@ -1345,14 +1345,14 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
 async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
   try {
     console.log('📦 SIMPLEST: Processing non-billing stock for station:', station_id, 'product:', product_id, 'aqty:', aqty);
-    
+
     // Step 1: Check if record exists
     const checkQuery = `SELECT COUNT(*) as count FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
     const checkResult = await executeQuery(checkQuery, [station_id, product_id]);
     const exists = checkResult[0].count > 0;
-    
+
     console.log('Record exists?', exists);
-    
+
     if (exists) {
       // UPDATE existing record (ADD stock)
       const updateQuery = `UPDATE non_billing_stocks SET stock = stock + ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`;
@@ -1364,12 +1364,12 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
       await executeQuery(insertQuery, [station_id, product_id, aqty, userId]);
       console.log('✅ Inserted new record with stock:', aqty);
     }
-    
+
     return true;
-    
+
   } catch (error) {
     console.error('❌ SIMPLEST method error:', error);
-    
+
     // LAST RESORT: Direct INSERT (ignore duplicates)
     try {
       const directInsert = `
@@ -1382,7 +1382,7 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
     } catch (finalError) {
       console.error('❌ Everything failed:', finalError);
     }
-    
+
     return false;
   }
 }
