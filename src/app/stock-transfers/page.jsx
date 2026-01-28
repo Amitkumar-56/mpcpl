@@ -339,23 +339,36 @@ function StockTransfersContent() {
                                   <div>
                                     <span className="font-medium text-gray-700">Action:</span>
                                     <span className="ml-2">
-                                      <button
-                                        onClick={() => {
-                                          console.log('View Details clicked for transfer:', transfer, 'ID:', transferId);
-                                          // Update URL with query parameter
-                                          router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
-                                          // Expand the row
-                                          setExpandedRows(prev => new Set([...prev, transferId]));
-                                        }}
-                                        className="text-blue-600 hover:text-blue-900 transition-colors inline-flex items-center"
-                                        title="View Details"
-                                      >
-                                        <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                          <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                          <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
-                                        </svg>
-                                        <span className="ml-1">View Details</span>
-                                      </button>
+                                      {String(transfer.status) === '3' || transfer.status === 'Completed' ? (
+                                        <button
+                                          onClick={() => {
+                                            router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
+                                            setExpandedRows(prev => new Set([...prev, transferId]));
+                                          }}
+                                          className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center"
+                                          title="Edit Transfer"
+                                        >
+                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                          </svg>
+                                          <span className="ml-1">Edit Transfer</span>
+                                        </button>
+                                      ) : (
+                                        <button
+                                          onClick={() => {
+                                            router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
+                                            setExpandedRows(prev => new Set([...prev, transferId]));
+                                          }}
+                                          className="text-blue-600 hover:text-blue-900 transition-colors inline-flex items-center"
+                                          title="View Details"
+                                        >
+                                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
+                                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                          </svg>
+                                          <span className="ml-1">View Details</span>
+                                        </button>
+                                      )}
                                     </span>
                                   </div>
                                 </div>

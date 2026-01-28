@@ -300,11 +300,45 @@ export default function FillingDetailsAdmin() {
       return;
     }
 
-    // Check for deal price if status is Completed
-    if (formData.status === 'Completed') {
-      const currentPrice = parseFloat(requestData.fuel_price || requestData.price || 0);
-      if (currentPrice <= 0) {
-        setShowPriceModal(true);
+    // Price must be set (> 0) for any status change
+    const currentPrice = parseFloat(requestData.fuel_price || requestData.price || 0);
+    if (currentPrice <= 0) {
+      setShowPriceModal(true);
+      return;
+    }
+
+    // Pre-check credit/day/daily limit before Processing/Completed
+    if (formData.status === 'Processing' || formData.status === 'Completed') {
+      const requiredAmount = currentPrice * aqtyValue;
+      const availAmt = parseFloat(requestData.available_balance || 0);
+      const holdBal = parseFloat(requestData.hold_balance || 0);
+      const limitType = availableBalance.limitType;
+      if (limitType === 'credit') {
+        if (formData.status === 'Processing') {
+          if (availAmt <= 0 || availAmt < requiredAmount) {
+            setLimitTitle('Credit Limit Overdue');
+            setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availAmt.toFixed(2)}. Please increase limit or reduce quantity.`);
+            setShowLimitModal(true);
+            return;
+          }
+        } else {
+          const combined = availAmt + holdBal;
+          if (combined <= 0 || combined < requiredAmount) {
+            setLimitTitle('Credit Limit Overdue');
+            setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${combined.toFixed(2)}. Please increase limit or reduce quantity.`);
+            setShowLimitModal(true);
+            return;
+          }
+        }
+      } else if (limitType === 'daily' && availableBalance.isInsufficient) {
+        setLimitTitle('Daily Limit Overdue');
+        setLimitMessage('Daily limit is exhausted. Please wait for reset or contact Admin.');
+        setShowLimitModal(true);
+        return;
+      } else if (limitType === 'day' && availableBalance.isInsufficient) {
+        setLimitTitle('Day Limit Overdue');
+        setLimitMessage('Credit days have expired. Please clear outstanding or renew limit.');
+        setShowLimitModal(true);
         return;
       }
     }
@@ -643,6 +677,7 @@ export default function FillingDetailsAdmin() {
     const price = requestData.fuel_price || requestData.price || 0;
     return (aqty * price).toFixed(2);
   };
+  const currentDealPrice = parseFloat(requestData?.fuel_price || requestData?.price || 0) || 0;
 
   // ✅ FIXED: Check for all cancelled status variations
   const isFinalStatus = requestData.status === 'Cancel' ||
@@ -752,6 +787,16 @@ export default function FillingDetailsAdmin() {
                         <tr className="flex flex-col md:table-row">
                           <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Product</td>
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.product_name}</td>
+                        </tr>
+                        <tr className="flex flex-col md:table-row">
+                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Deal Price</td>
+                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
+                            {currentDealPrice > 0 ? (
+                              <span className="text-green-600 font-medium">₹{currentDealPrice}</span>
+                            ) : (
+                              <span className="text-red-600 font-medium">Price not set</span>
+                            )}
+                          </td>
                         </tr>
                         {requestData.sub_product_code && (
                           <tr className="flex flex-col md:table-row">
@@ -1229,8 +1274,9 @@ export default function FillingDetailsAdmin() {
                                   <select
                                     name="sub_product_id"
                                     value={formData.sub_product_id || ''}
-                                    onChange={handleInputChange}
-                                    className="block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                                    onChange={() => {}}
+                                    disabled={true}
+                                    className="block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors bg-gray-100 cursor-not-allowed"
                                   >
                                     <option value="">Select Sub-Product</option>
                                     {requestData.available_sub_products.map((subProduct) => (
@@ -1481,12 +1527,19 @@ export default function FillingDetailsAdmin() {
                       >
                         Close
                       </button>
-                      <button
-                        onClick={handleRenewLimit}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                      >
-                        Renew Limit
-                      </button>
+                      {!(user && (String(user.role) === '1' || String(user.role) === '2')) && (
+                        <button
+                          onClick={handleRenewLimit}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                        >
+                          Renew Limit
+                        </button>
+                      )}
+                      {(user && (String(user.role) === '1' || String(user.role) === '2')) && (
+                        <span className="text-red-600 self-center">
+                          Please contact Admin to update limit then process
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1505,12 +1558,19 @@ export default function FillingDetailsAdmin() {
                       >
                         Close
                       </button>
-                      <button
-                        onClick={handleRenewLimit}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                      >
-                        Renew Limit
-                      </button>
+                      {!(user && (String(user.role) === '1' || String(user.role) === '2')) && (
+                        <button
+                          onClick={handleRenewLimit}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                        >
+                          Renew Limit
+                        </button>
+                      )}
+                      {(user && (String(user.role) === '1' || String(user.role) === '2')) && (
+                        <span className="text-red-600 self-center">
+                          Please contact Admin to update limit then process
+                        </span>
+                      )}
                     </div>
                   </div>
                 </div>

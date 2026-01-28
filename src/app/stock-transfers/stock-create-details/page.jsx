@@ -217,19 +217,10 @@ function StockCreateDetailsContent() {
 
       if (response.ok) {
         alert(data.message);
-        
-        // Refresh data to show updated logs
-        await fetchTransferDetails();
-        
-        // If status changed to completed, show special message
         if (data.stockUpdated) {
-          setTimeout(() => {
-            alert('✅ Stock has been successfully added to the destination station!');
-          }, 500);
+          alert('✅ Stock has been successfully added to the destination station!');
         }
-        
-        // Don't redirect immediately, let user see the changes
-        // router.push('/stock-transfers');
+        router.push('/stock-transfers');
       } else {
         alert(data.error || 'Failed to update transfer');
       }

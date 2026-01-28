@@ -9,6 +9,7 @@ import Sidebar from "../../components/sidebar";
 
 // OTP Modal Component - Fully Responsive
 // OTP Modal Component - Fully Responsive
+// OTP Modal Component - Fully Responsive
 const OtpModal = ({ 
   requestId, 
   requestRid, 
@@ -172,41 +173,15 @@ const OtpModal = ({
             <p className="text-gray-600 mt-2 text-sm md:text-base">
               Enter the 6-digit OTP sent to the customer
             </p>
+            {generatedOtp && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 font-semibold">
+                  OTP: <span className="font-mono">{generatedOtp}</span>
+                </p>
+                <p className="text-xs text-blue-600 mt-1">Please enter this OTP to process</p>
+              </div>
+            )}
             
-            {/* ✅ FIXED: ALWAYS SHOW TEST OTP (NO CONDITION) */}
-            <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <p className="text-sm text-green-800 font-semibold">
-                ✅ Test OTP Available
-              </p>
-              <p className="text-xs text-green-600 mt-1">
-                Use this 6-digit OTP for testing (Works everywhere)
-              </p>
-              {generatedOtp && (
-                <div className="mt-2">
-                  <p className="text-xs text-green-600 mb-1">Test OTP:</p>
-                  <div className="flex items-center justify-between bg-white p-2 rounded border border-green-300">
-                    <span className="font-mono font-bold text-lg text-green-700">
-                      {generatedOtp}
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(generatedOtp);
-                        alert('OTP copied to clipboard!');
-                      }}
-                      className="text-xs bg-green-100 hover:bg-green-200 text-green-800 px-3 py-1 rounded flex items-center"
-                    >
-                      <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Copy
-                    </button>
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-green-500 mt-2">
-                Enter any 6-digit number to proceed
-              </p>
-            </div>
           </div>
 
           {/* OTP Inputs - Responsive */}
@@ -1356,7 +1331,6 @@ export default function FillingRequests() {
     isOpen: false,
     requestId: null,
     requestRid: "",
-    generatedOtp: "",
     phoneNumber: null
   });
 
@@ -1630,17 +1604,35 @@ export default function FillingRequests() {
   const handleOtpVerify = useCallback((request) => {
     // Check eligibility
     if (request.status === "Pending" && request.eligibility === "Yes") {
-      // Generate random OTP (6 digits)
-      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Show OTP modal with generated OTP
-      setOtpModal({
-        isOpen: true,
-        requestId: request.id,
-        requestRid: request.rid,
-        generatedOtp: generatedOtp,
-        phoneNumber: request.driver_number || request.customer_phone || null
-      });
+      (async () => {
+        try {
+          const token = typeof window !== 'undefined' 
+            ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '') 
+            : '';
+          const res = await fetch('/api/process-request-otp', {
+            method: 'POST',
+            headers: { 
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ requestId: request.id, action: 'generate' })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            alert(data.error || 'Failed to generate OTP');
+            return;
+          }
+          setOtpModal({
+            isOpen: true,
+            requestId: request.id,
+            requestRid: request.rid,
+            phoneNumber: request.driver_number || request.customer_phone || null,
+            generatedOtp: data.otp || null
+          });
+        } catch (e) {
+          alert('Failed to generate OTP');
+        }
+      })();
     } else {
       alert(`Cannot process request:\n${request.eligibility_reason || "Not eligible"}`);
     }
@@ -1667,9 +1659,15 @@ export default function FillingRequests() {
       });
 
       // API call to verify OTP and process
+      const token = typeof window !== 'undefined' 
+        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '') 
+        : '';
       const processResponse = await fetch('/api/process-request-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({ 
           requestId: requestId,
           otp: otp,
@@ -1682,7 +1680,7 @@ export default function FillingRequests() {
       
       if (processResponse.ok && processResult.success) {
         // Close OTP modal
-        setOtpModal({ isOpen: false, requestId: null, requestRid: "", generatedOtp: "", phoneNumber: null });
+        setOtpModal({ isOpen: false, requestId: null, requestRid: "", phoneNumber: null });
         
         // Show success message
         alert(`✅ Request processed successfully!\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
@@ -1712,16 +1710,23 @@ export default function FillingRequests() {
 
   const resendOtp = async (requestId) => {
     try {
-      // Generate new OTP
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Update modal with new OTP
-      setOtpModal(prev => ({
-        ...prev,
-        generatedOtp: newOtp
-      }));
-      
-      console.log('🔄 New OTP generated:', newOtp);
+      const token = typeof window !== 'undefined' 
+        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '') 
+        : '';
+      const res = await fetch('/api/process-request-otp', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ requestId, action: 'generate' })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to resend OTP');
+      }
+      // No UI display of OTP; server does not return OTP value
+      console.log('🔄 New OTP generated:', data.otp);
       return true;
     } catch (error) {
       throw new Error(error.message || "Failed to resend OTP");
@@ -1729,7 +1734,7 @@ export default function FillingRequests() {
   };
 
   const closeOtpModal = () => {
-    setOtpModal({ isOpen: false, requestId: null, requestRid: "", generatedOtp: "", phoneNumber: null });
+    setOtpModal({ isOpen: false, requestId: null, requestRid: "", phoneNumber: null });
   };
 
   // Original handleView function
@@ -2097,11 +2102,8 @@ export default function FillingRequests() {
           {otpModal.isOpen && (
             <OtpModal
               requestId={otpModal.requestId}
-              
-                onView={handleView} 
-
-              requestRid={otpModal.requestRid}
               generatedOtp={otpModal.generatedOtp}
+              requestRid={otpModal.requestRid}
               onClose={closeOtpModal}
               onVerify={verifyOtp}
               onResend={resendOtp}

@@ -8,6 +8,23 @@ export async function GET(request) {
     console.log('🚀 API CALL STARTED...');
     console.log('📡 Request URL:', request.url);
 
+    // Auto-cancel: mark Pending requests older than 72 hours as Cancelled
+    try {
+      const autoCancelQuery = `
+        UPDATE filling_requests
+        SET status = 'Cancelled'
+        WHERE status = 'Pending'
+          AND created IS NOT NULL
+          AND TIMESTAMPDIFF(HOUR, created, NOW()) >= 72
+      `;
+      const autoCancelResult = await executeQuery(autoCancelQuery);
+      if (autoCancelResult?.affectedRows) {
+        console.log('🕒 Auto-cancel applied to pending requests older than 72h:', autoCancelResult.affectedRows);
+      }
+    } catch (autoCancelErr) {
+      console.warn('⚠️ Auto-cancel check failed:', autoCancelErr.message);
+    }
+
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
     const recordsPerPage = Math.min(parseInt(searchParams.get('records_per_page')) || 10, 100);
@@ -187,19 +204,12 @@ export async function GET(request) {
           params.push(...fsIdArray.map(id => parseInt(id)));
           countParams.push(...fsIdArray.map(id => parseInt(id)));
 
-          // Staff/Incharge: Processing always visible; Pending only when vehicle search is present
+          // Staff/Incharge: Show both Pending and Processing by default
           staffIncharge = true;
-          if (search) {
-            query += ' AND fr.status IN (?, ?)';
-            countQuery += ' AND fr.status IN (?, ?)';
-            params.push('Pending', 'Processing');
-            countParams.push('Pending', 'Processing');
-          } else {
-            query += ' AND fr.status = ?';
-            countQuery += ' AND fr.status = ?';
-            params.push('Processing');
-            countParams.push('Processing');
-          }
+          query += ' AND fr.status IN (?, ?)';
+          countQuery += ' AND fr.status IN (?, ?)';
+          params.push('Pending', 'Processing');
+          countParams.push('Pending', 'Processing');
         }
       }
       
@@ -241,11 +251,11 @@ export async function GET(request) {
     if (search) {
       const searchParam = `%${search}%`;
       if (staffIncharge) {
-        // Staff/Incharge: search only on vehicle number
-        query += ' AND fr.vehicle_number LIKE ?';
-        countQuery += ' AND fr.vehicle_number LIKE ?';
-        params.push(searchParam);
-        countParams.push(searchParam);
+        // Staff/Incharge: search on vehicle number and request id
+        query += ' AND (fr.vehicle_number LIKE ? OR fr.rid LIKE ?)';
+        countQuery += ' AND (fr.vehicle_number LIKE ? OR fr.rid LIKE ?)';
+        params.push(searchParam, searchParam);
+        countParams.push(searchParam, searchParam);
       } else {
         // Higher roles: full multi-field search
         query += ' AND (fr.rid LIKE ? OR fr.vehicle_number LIKE ? OR c.name LIKE ? OR fs.station_name LIKE ? OR pc.pcode LIKE ? OR c.phone LIKE ?)';
@@ -294,16 +304,18 @@ export async function GET(request) {
           const isDayLimitCustomer = dayLimit > 0;
 
           // Resolve product_id for deal price lookup
-          let productId = null;
+          let productId = parseInt(request.product) || null;
           try {
-            const codeId = request.sub_product_id || request.fl_id;
-            if (codeId) {
-              const codeRows = await executeQuery(
-                "SELECT product_id FROM product_codes WHERE id = ?",
-                [parseInt(codeId)]
-              );
-              if (codeRows.length > 0) {
-                productId = codeRows[0].product_id || null;
+            if (!productId) {
+              const codeId = request.sub_product_id || request.fl_id;
+              if (codeId) {
+                const codeRows = await executeQuery(
+                  "SELECT product_id FROM product_codes WHERE id = ?",
+                  [parseInt(codeId)]
+                );
+                if (codeRows.length > 0) {
+                  productId = codeRows[0].product_id || null;
+                }
               }
             }
           } catch (e) {
@@ -314,19 +326,14 @@ export async function GET(request) {
           let dealPrice = null;
           if (request.cid && request.fs_id && productId) {
             try {
-              const priceRows = await executeQuery(
-                `SELECT price 
-                 FROM deal_price 
-                 WHERE com_id = ? AND station_id = ? AND product_id = ? 
-                   AND is_active = 1 AND status = 'active' 
-                 ORDER BY updated_date DESC 
-                 LIMIT 1`,
-                [parseInt(request.cid), parseInt(request.fs_id), parseInt(productId)]
+              const p = await getFuelPrice(
+                parseInt(request.fs_id),
+                parseInt(productId),
+                parseInt(request.sub_product_id),
+                parseInt(request.cid),
+                parseFloat(request.price || 0)
               );
-              if (priceRows.length > 0) {
-                const p = parseFloat(priceRows[0].price);
-                dealPrice = isNaN(p) ? null : p;
-              }
+              dealPrice = isNaN(p) ? null : p;
             } catch (e) {
               console.warn("Deal price lookup failed for request:", request.rid, e.message);
             }
@@ -751,4 +758,80 @@ export async function POST(request) {
       details: error.message 
     }, { status: 500 });
   }
+}
+
+async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
+  let finalPrice = defaultPrice;
+  const sId = parseInt(sub_product_id);
+  const hasSubProduct = !isNaN(sId) && sId > 0;
+
+  if (hasSubProduct) {
+    const exactPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND com_id = ? 
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
+    const exactPriceRows = await executeQuery(exactPriceQuery, [station_id, product_id, sub_product_id, com_id]);
+    if (Array.isArray(exactPriceRows) && exactPriceRows.length > 0) {
+      return parseFloat(exactPriceRows[0].price);
+    }
+  }
+
+  if (hasSubProduct) {
+    const stationPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND (com_id IS NULL OR com_id = 0)
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
+    const stationPriceRows = await executeQuery(stationPriceQuery, [station_id, product_id, sub_product_id]);
+    if (Array.isArray(stationPriceRows) && stationPriceRows.length > 0) {
+      return parseFloat(stationPriceRows[0].price);
+    }
+  }
+
+  const customerGeneralQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND com_id = ? 
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
+  `;
+  const customerGeneralRows = await executeQuery(customerGeneralQuery, [station_id, product_id, com_id]);
+  if (Array.isArray(customerGeneralRows) && customerGeneralRows.length > 0) {
+    return parseFloat(customerGeneralRows[0].price);
+  }
+
+  const productGeneralQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND (com_id IS NULL OR com_id = 0)
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
+  `;
+  const productGeneralRows = await executeQuery(productGeneralQuery, [station_id, product_id]);
+  if (Array.isArray(productGeneralRows) && productGeneralRows.length > 0) {
+    return parseFloat(productGeneralRows[0].price);
+  }
+
+  return finalPrice;
 }

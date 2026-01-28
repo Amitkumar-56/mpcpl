@@ -13,12 +13,125 @@ export async function GET(request) {
     if (cl_id) {
       customerId = parseInt(cl_id);
     } else {
-      // For CST users, we need to get the customer ID from the session
-      // For now, we'll require cl_id parameter
+      // If no cl_id provided, return all customers (like admin client-history)
+      console.log('🔍 API Called - No specific customer ID, fetching all customers');
+      
+      // Fetch all customers
+      let allCustomers;
+      try {
+        allCustomers = await executeQuery(
+          'SELECT id, name, balance, client_type, email, phone FROM customers WHERE is_active = 1 ORDER BY name'
+        );
+      } catch (error) {
+        console.error('❌ Database Error:', error);
+        return NextResponse.json({
+          success: false,
+          message: 'Database connection failed: ' + error.message
+        }, { status: 500 });
+      }
+
+      if (!allCustomers || allCustomers.length === 0) {
+        return NextResponse.json({
+          success: true,
+          message: 'No customers found',
+          customers: [],
+          transactions: [],
+          summary: {}
+        }, { status: 200 });
+      }
+
+      // Get balance info for all customers
+      const customerIds = allCustomers.map(c => c.id);
+      const balanceInfos = await executeQuery(
+        `SELECT com_id, balance, amtlimit, day_limit, hold_balance, cst_limit, last_reset_date, total_day_amount, is_active 
+         FROM customer_balances WHERE com_id IN (${customerIds.join(',')})`
+      ).catch(() => []);
+
+      // Create customer map with balance info
+      const customerMap = {};
+      allCustomers.forEach(customer => {
+        const balanceInfo = balanceInfos.find(b => b.com_id === customer.id);
+        customerMap[customer.id] = {
+          ...customer,
+          balanceInfo: balanceInfo || {}
+        };
+      });
+
+      // Get recent transactions for all customers based on cl_id from filling_history
+      const allTransactions = [];
+      for (const customer of allCustomers) {
+        try {
+          const customerTransactions = await executeQuery(
+            `SELECT 
+              fh.id,
+              fh.filling_date,
+              fh.trans_type,
+              fh.filling_qty,
+              fh.amount,
+              fh.credit,
+              fh.credit_date,
+              fh.new_amount,
+              fh.remaining_limit,
+              fh.remaining_day_limit,
+              CASE 
+                WHEN fh.trans_type = 'credit' OR fh.trans_type = 'inward' THEN COALESCE(fh.credit, 0)
+                ELSE NULL
+              END AS in_amount,
+              CASE 
+                WHEN fh.trans_type = 'debit' OR fh.trans_type = 'outward' THEN COALESCE(fh.amount, 0)
+                ELSE NULL
+              END AS d_amount,
+              COALESCE(p.pname, 'Unknown Product') as pname,
+              COALESCE(fs.station_name, 'Unknown Station') as station_name,
+              COALESCE(fr.vehicle_number, 'N/A') as vehicle_number,
+              c.name as customer_name
+             FROM filling_history fh
+             LEFT JOIN products p ON fh.product_id = p.id
+             LEFT JOIN filling_stations fs ON fh.fs_id = fs.id
+             LEFT JOIN filling_requests fr ON fh.rid = fr.rid
+             LEFT JOIN customers c ON fh.cl_id = c.id
+             WHERE fh.cl_id = ?
+             ORDER BY fh.filling_date DESC, fh.id DESC
+             LIMIT 50`,
+            [customer.id]
+          );
+          
+          console.log(`🔍 Customer ${customer.name} (cl_id: ${customer.id}): Found ${customerTransactions.length} transactions`);
+          if (customerTransactions.length > 0) {
+            const transactionTypes = [...new Set(customerTransactions.map(t => t.trans_type))];
+            console.log(`📊 Transaction types for ${customer.name}:`, transactionTypes);
+          }
+          
+          allTransactions.push(...customerTransactions);
+        } catch (error) {
+          console.error(`Error fetching transactions for customer ${customer.id}:`, error);
+        }
+      }
+
+      // Sort all transactions by date (most recent first)
+      allTransactions.sort((a, b) => new Date(b.filling_date) - new Date(a.filling_date));
+
+      // Calculate summary
+      const totalBalance = allCustomers.reduce((sum, customer) => {
+        const balanceInfo = balanceInfos.find(b => b.com_id === customer.id);
+        return sum + (balanceInfo?.balance || 0);
+      }, 0);
+
+      const summary = {
+        totalCustomers: allCustomers.length,
+        totalBalance: totalBalance,
+        totalTransactions: allTransactions.length
+      };
+
       return NextResponse.json({
-        success: false,
-        message: 'Customer ID (cl_id) is required for customer history'
-      }, { status: 400 });
+        success: true,
+        message: `Found ${allCustomers.length} customers with ${allTransactions.length} total transactions`,
+        customers: allCustomers,
+        customerMap: customerMap,
+        transactions: allTransactions,
+        summary: summary,
+        allCustomersMode: true
+      }, { status: 200 });
     }
     
     if (isNaN(customerId) || customerId <= 0) {
@@ -88,20 +201,20 @@ export async function GET(request) {
       totalDayAmount = balanceInfo.total_day_amount || 0;
     }
 
-    // 3. Get filling_history data - FIXED SQL QUERY with correct inward/outward logic
-    // First, let's debug what trans_types exist for this customer
-    console.log('🔍 Debugging transaction types for customer:', customerId);
+    // 3. Get filling_history data based on cl_id
+    console.log('🔍 Fetching transactions for customer cl_id:', customerId);
+    
+    // Debug: Check what trans_types exist for this customer
     const debugTypesQuery = `
       SELECT DISTINCT fh.trans_type, COUNT(*) as count
       FROM filling_history fh
-      LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-      WHERE (fh.cl_id = ? OR fr.cid = ?)
+      WHERE fh.cl_id = ?
       GROUP BY fh.trans_type
     `;
-    const debugTypes = await executeQuery(debugTypesQuery, [customerId, customerId]);
-    console.log('📊 Available transaction types:', debugTypes);
+    const debugTypes = await executeQuery(debugTypesQuery, [customerId]);
+    console.log('📊 Available transaction types for cl_id', customerId, ':', debugTypes);
 
-    // Check both fh.cl_id and fr.cid to handle cases where cl_id might be NULL
+    // Main query - fetch data from filling_history based on cl_id
     let sql = `
       SELECT 
         fh.id,
@@ -114,13 +227,12 @@ export async function GET(request) {
         fh.new_amount,
         fh.remaining_limit,
         fh.remaining_day_limit,
+        fh.limit_type,
+        fh.in_amount,
+        fh.d_amount,
         CASE 
-          WHEN fh.trans_type = 'credit' OR fh.trans_type = 'inward' THEN COALESCE(fh.credit, 0)
-          ELSE NULL
-        END AS in_amount,
-        CASE 
-          WHEN fh.trans_type = 'debit' OR fh.trans_type = 'outward' THEN COALESCE(fh.amount, 0)
-          ELSE NULL
+          WHEN fh.limit_type = 'day' THEN fh.remaining_day_limit
+          ELSE fh.remaining_limit
         END AS d_amount,
         COALESCE(p.pname, 'Unknown Product') as pname,
         COALESCE(fs.station_name, 'Unknown Station') as station_name,
@@ -129,10 +241,10 @@ export async function GET(request) {
       LEFT JOIN products p ON fh.product_id = p.id
       LEFT JOIN filling_stations fs ON fh.fs_id = fs.id
       LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-      WHERE (fh.cl_id = ? OR fr.cid = ?)
+      WHERE fh.cl_id = ?
     `;
 
-    let params = [customerId, customerId];
+    let params = [customerId];
 
     if (pname && pname !== '') {
       sql += ' AND p.pname = ?';
@@ -159,18 +271,16 @@ export async function GET(request) {
         });
       }
       
-      // Debug: Check if cl_id is NULL in filling_history
+      // Debug: Check if cl_id exists in filling_history for this customer
       if (transactions.length === 0) {
         const debugQuery = `
           SELECT COUNT(*) as total, 
-                 COUNT(fh.cl_id) as with_cl_id,
-                 COUNT(fr.cid) as with_cid
+                 COUNT(fh.cl_id) as with_cl_id
           FROM filling_history fh
-          LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-          WHERE fh.cl_id = ? OR fr.cid = ?
+          WHERE fh.cl_id = ?
         `;
-        const debugResult = await executeQuery(debugQuery, [customerId, customerId]);
-        console.log('🔍 Debug query result:', debugResult);
+        const debugResult = await executeQuery(debugQuery, [customerId]);
+        console.log('🔍 Debug query result for cl_id', customerId, ':', debugResult);
       }
     } catch (error) {
       console.error('❌ Filling History Query Error:', error);
@@ -180,17 +290,16 @@ export async function GET(request) {
       }, { status: 500 });
     }
 
-    // 4. Get products for filter dropdown
+    // 4. Get products for filter dropdown based on cl_id
     let products = [];
     try {
       const productsData = await executeQuery(
         `SELECT DISTINCT p.pname 
          FROM products p
          INNER JOIN filling_history fh ON p.id = fh.product_id
-         LEFT JOIN filling_requests fr ON fh.rid = fr.rid
-         WHERE (fh.cl_id = ? OR fr.cid = ?)
+         WHERE fh.cl_id = ?
          ORDER BY p.pname`,
-        [customerId, customerId]
+        [customerId]
       );
       
       products = productsData.map(p => p.pname);
@@ -207,7 +316,7 @@ export async function GET(request) {
       openingBalance = currentBalance;
     }
 
-    // 6. Calculate Yesterday's and Today's Outstandings - FIXED LOGIC
+    // 6. Calculate Yesterday's and Today's Outstandings based on filling_history cl_id
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const yesterday = new Date(today);
@@ -216,15 +325,13 @@ export async function GET(request) {
     const todayFormatted = today.toISOString().split('T')[0];
     const yesterdayFormatted = yesterday.toISOString().split('T')[0];
 
-    // ✅ FIX: Today's outstanding (sum of new_amount from completed transactions today)
+    // Today's outstanding from filling_history based on cl_id
     const todayOutstandingQuery = `
-      SELECT COALESCE(SUM(fr.new_amount), 0) as total 
-      FROM filling_requests fr
-      WHERE fr.cid = ?
-        AND fr.new_amount > 0
-        AND UPPER(fr.status) = 'COMPLETED'
-        AND fr.completed_date IS NOT NULL
-        AND DATE(fr.completed_date) = ?
+      SELECT COALESCE(SUM(fh.amount), 0) as total 
+      FROM filling_history fh
+      WHERE fh.cl_id = ?
+        AND fh.trans_type IN ('debit', 'outward')
+        AND DATE(fh.filling_date) = ?
     `;
     console.log('🔍 Today outstanding query:', todayOutstandingQuery);
     console.log('🔍 Today outstanding params:', [customerId, todayFormatted]);
@@ -235,21 +342,19 @@ export async function GET(request) {
     console.log('🔍 Today outstanding result:', todayOutstandingResult);
     const todayOutstanding = parseFloat(todayOutstandingResult[0]?.total) || 0;
 
-    // ✅ FIX: Yesterday's outstanding (sum of new_amount from transactions before today)
+    // Yesterday's outstanding from filling_history based on cl_id
     const yesterdayOutstandingQuery = `
-      SELECT COALESCE(SUM(fr.new_amount), 0) as total 
-      FROM filling_requests fr
-      WHERE fr.cid = ?
-        AND fr.new_amount > 0
-        AND UPPER(fr.status) = 'COMPLETED'
-        AND fr.completed_date IS NOT NULL
-        AND DATE(fr.completed_date) < ?
+      SELECT COALESCE(SUM(fh.amount), 0) as total 
+      FROM filling_history fh
+      WHERE fh.cl_id = ?
+        AND fh.trans_type IN ('debit', 'outward')
+        AND DATE(fh.filling_date) = ?
     `;
     console.log('🔍 Yesterday outstanding query:', yesterdayOutstandingQuery);
-    console.log('🔍 Yesterday outstanding params:', [customerId, todayFormatted]);
+    console.log('🔍 Yesterday outstanding params:', [customerId, yesterdayFormatted]);
     
     const yesterdayOutstandingResult = await executeQuery(yesterdayOutstandingQuery, [
-      customerId, todayFormatted
+      customerId, yesterdayFormatted
     ]).catch(() => [{ total: 0 }]);
     console.log('🔍 Yesterday outstanding result:', yesterdayOutstandingResult);
     const yesterdayOutstanding = parseFloat(yesterdayOutstandingResult[0]?.total) || 0;
@@ -299,6 +404,17 @@ export async function GET(request) {
 
     const totalFillingQty = finalTransactions
       .reduce((sum, t) => sum + (Number(t.filling_qty) || 0), 0);
+
+    console.log('✅ Successfully fetched customer history from filling_history using cl_id:', customerId);
+    console.log('📊 Summary:', {
+      totalTransactions: finalTransactions.length,
+      totalCredit,
+      totalDebit,
+      totalFillingQty,
+      currentBalance,
+      todayOutstanding,
+      yesterdayOutstanding
+    });
 
     return NextResponse.json({
       success: true,

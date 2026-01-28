@@ -78,12 +78,12 @@ export default function CreateRequestForm() {
     let targetType = 'retail';
 
     if (pid === 2 || pid === 3) { // Ind Oil
-      if (qty > 5000) targetType = 'bulk';
+      if (qty >= 5000) targetType = 'bulk';
     } else if (pid === 4) { // DEF Lose
-      if (qty > 3000) targetType = 'bulk';
+      if (qty >= 3000) targetType = 'bulk';
     } else if (pid === 5) { // DEF Bucket
       // Assuming qty is Liters here as per main logic
-      if (qty > 3000) targetType = 'bulk';
+      if (qty >= 3000) targetType = 'bulk';
     }
 
     // Find matching code
@@ -1206,16 +1206,13 @@ export default function CreateRequestForm() {
                               id="sub_product_id"
                               name="sub_product_id"
                               value={selectedSubProductId}
-                              onChange={(e) => setSelectedSubProductId(e.target.value)}
-                              disabled={loadingSubProducts || productCodes.length === 0 || dayLimitStatus?.isEligible === false}
+                              disabled={true}
                               required={!!formData.product_id}
                               className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
-                                loadingSubProducts || productCodes.length === 0
-                                  ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                                  : 'border-gray-300 hover:border-gray-400'
+                                'border-gray-200 bg-gray-50 cursor-not-allowed'
                               } ${
                                 errors.sub_product_id ? 'border-red-500 bg-red-50' : ''
-                              } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              }`}
                             >
                               {loadingSubProducts ? (
                                 <option value="">Loading sub-products...</option>

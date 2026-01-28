@@ -641,10 +641,10 @@ export default function CreateRequestPage() {
                   <select
                     name="products_codes"
                     value={formData.products_codes}
-                    onChange={handleChange}
+                    onChange={() => {}}
                     className="border border-gray-300 rounded p-2"
                     required
-                    disabled={!formData.product_id || productCodes.length === 0}
+                    disabled={true}
                   >
                     <option value="">{productCodes.length === 0 ? 'No sub-products available' : 'Select Product Code'}</option>
                     {productCodes.map(p => (

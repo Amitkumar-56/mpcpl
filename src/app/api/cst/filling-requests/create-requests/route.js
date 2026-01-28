@@ -171,11 +171,12 @@ export async function POST(request) {
       return 'retail';
     };
     const qtyNum = parseFloat(qty) || 0;
-    const desired = qtyNum >= 1000 ? 'bulk' : 'retail';
-    if (!chosenSubProductId) {
+    const threshold = (product_id === 4 || product_id === 5) ? 3000 : 5000;
+    const desired = qtyNum >= threshold ? 'bulk' : 'retail';
+    // Always auto-select based on quantity threshold
       const match = codeRows.find(r => classify(r.pcode) === desired);
       chosenSubProductId = match ? match.sub_product_id : codeRows[0].sub_product_id;
-    }
+    
     const chosenRow = codeRows.find(r => r.sub_product_id === chosenSubProductId) || codeRows[0];
     productData = {
       product_id: chosenRow.product_id,
