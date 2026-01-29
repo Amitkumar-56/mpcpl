@@ -7,7 +7,8 @@ export async function GET(request) {
     const search = (searchParams.get('search') || '').trim();
     const dateFrom = (searchParams.get('dateFrom') || '').trim();
     const dateTo = (searchParams.get('dateTo') || '').trim();
-    const limit = Math.min(parseInt(searchParams.get('limit') || '200'), 500);
+    const limitParam = searchParams.get('limit');
+    const limit = Math.min(parseInt(limitParam && !isNaN(limitParam) ? limitParam : '200'), 500);
 
     const where = [];
     const params = [];
@@ -27,6 +28,7 @@ export async function GET(request) {
 
     const whereClause = where.length ? `WHERE ${where.join(' AND ')}` : '';
 
+    // Create table if not exists (using query instead of execute for DDL to be safe)
     await executeQuery(`
       CREATE TABLE IF NOT EXISTS driver_cash_collections (
         id INT AUTO_INCREMENT PRIMARY KEY,
@@ -45,6 +47,9 @@ export async function GET(request) {
       )
     `);
 
+    // Ensure all params are defined
+    const safeParams = [...params, Number(limit)];
+    
     const rows = await executeQuery(
       `
         SELECT 
@@ -63,7 +68,7 @@ export async function GET(request) {
         ORDER BY collected_date DESC, id DESC
         LIMIT ?
       `,
-      [...params, limit]
+      safeParams
     );
 
     return NextResponse.json({ success: true, rows });

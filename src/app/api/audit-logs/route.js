@@ -1,5 +1,5 @@
 // src/app/api/audit-logs/route.js - Universal Audit Log API
-import { executeQuery } from '@/lib/db';
+import pool, { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 /**
@@ -20,36 +20,36 @@ import { NextResponse } from 'next/server';
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
-    
+
     // Build WHERE clause based on filters
     const conditions = [];
     const params = [];
-    
+
     if (searchParams.get('page')) {
       conditions.push('page = ?');
       params.push(searchParams.get('page'));
     }
-    
+
     if (searchParams.get('section')) {
       conditions.push('section = ?');
       params.push(searchParams.get('section'));
     }
-    
+
     if (searchParams.get('user_id')) {
       conditions.push('user_id = ?');
       params.push(parseInt(searchParams.get('user_id')));
     }
-    
+
     if (searchParams.get('action')) {
       conditions.push('action = ?');
       params.push(searchParams.get('action'));
     }
-    
+
     if (searchParams.get('record_type')) {
       conditions.push('record_type = ?');
       params.push(searchParams.get('record_type'));
     }
-    
+
     if (searchParams.get('record_id')) {
       const recordId = parseInt(searchParams.get('record_id'));
       if (!isNaN(recordId)) {
@@ -57,31 +57,31 @@ export async function GET(request) {
         params.push(recordId);
       }
     }
-    
+
     if (searchParams.get('unique_code')) {
       conditions.push('unique_code = ?');
       params.push(searchParams.get('unique_code'));
     }
-    
+
     if (searchParams.get('from_date')) {
       conditions.push('action_date >= ?');
       params.push(searchParams.get('from_date'));
     }
-    
+
     if (searchParams.get('to_date')) {
       conditions.push('action_date <= ?');
       params.push(searchParams.get('to_date'));
     }
-    
-    const whereClause = conditions.length > 0 
+
+    const whereClause = conditions.length > 0
       ? `WHERE ${conditions.join(' AND ')}`
       : '';
-    
+
     const limit = parseInt(searchParams.get('limit')) || 100;
     const offset = parseInt(searchParams.get('offset')) || 0;
-    
-    // Ensure table exists
-    await executeQuery(`
+
+    // Ensure table exists - Use pool.query (not execute) for DDL to avoid prepared statement errors
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_log (
         id INT AUTO_INCREMENT PRIMARY KEY,
         page VARCHAR(255) NOT NULL COMMENT 'Page name where action occurred',
@@ -110,12 +110,12 @@ export async function GET(request) {
         INDEX idx_created_at (created_at)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
-    
+
     // Get total count
     const countQuery = `SELECT COUNT(*) as total FROM audit_log ${whereClause}`;
     const countResult = await executeQuery(countQuery, params);
     const total = countResult[0]?.total || 0;
-    
+
     // Get audit logs with user names from both employee_profile and customers tables
     // ✅ FIX: Always fetch employee name from employee_profile using user_id, even if user_name is 'System'
     const query = `
@@ -132,9 +132,9 @@ export async function GET(request) {
       ORDER BY al.created_at DESC, al.action_date DESC, al.action_time DESC
       LIMIT ? OFFSET ?
     `;
-    
+
     const logs = await executeQuery(query, [...params, limit, offset]);
-    
+
     // Parse JSON values and enhance with role information
     const roleNames = {
       1: 'Staff',
@@ -151,7 +151,7 @@ export async function GET(request) {
       .map(log => log.user_id)
       .filter(id => id !== null && id !== undefined) // Remove nulls/undefined
       .filter((id, index, self) => self.indexOf(id) === index); // Remove duplicates
-    
+
     const employeeNamesMap = new Map();
     if (allUserIds.length > 0) {
       try {
@@ -166,7 +166,7 @@ export async function GET(request) {
             console.log(`  - ID: ${emp.id} => Name: ${emp.name}`);
           }
         });
-        
+
         // ✅ FIX: For any user_id not found in batch, fetch individually (forcefully)
         const foundIds = new Set(employees.map(e => e.id));
         const missingIds = allUserIds.filter(id => !foundIds.has(id));
@@ -191,20 +191,20 @@ export async function GET(request) {
         console.error('❌ [AuditLogs API] Error fetching employee names:', err);
       }
     }
-    
+
     const logsWithParsedValues = logs.map(log => {
       let oldValue = null;
       let newValue = null;
-      
+
       try {
         if (log.old_value) {
-          oldValue = typeof log.old_value === 'string' 
-            ? JSON.parse(log.old_value) 
+          oldValue = typeof log.old_value === 'string'
+            ? JSON.parse(log.old_value)
             : log.old_value;
         }
         if (log.new_value) {
-          newValue = typeof log.new_value === 'string' 
-            ? JSON.parse(log.new_value) 
+          newValue = typeof log.new_value === 'string'
+            ? JSON.parse(log.new_value)
             : log.new_value;
         }
       } catch (e) {
@@ -225,11 +225,11 @@ export async function GET(request) {
           role_name: creatorRole ? roleNames[creatorRole] || 'Unknown' : null
         };
       }
-      
+
       // ✅ FIX: ALWAYS use name from employee_profile based on user_id (forcefully)
       // This ensures we always get the correct name from employee_profile table
       let displayUserName = null;
-      
+
       // Step 1: If we have user_id, ALWAYS use name from employeeNamesMap (from employee_profile)
       // This map is populated from employee_profile table, so it's the source of truth
       if (log.user_id) {
@@ -238,51 +238,51 @@ export async function GET(request) {
           displayUserName = fetchedName;
         }
       }
-      
+
       // Step 2: If still not found, try employee_name from JOIN
       if (!displayUserName && log.employee_name) {
         // Only use if it's a valid name (not System, Unknown User, etc.)
-        if (log.employee_name !== 'System' && 
-            log.employee_name !== 'Unknown User' &&
-            !log.employee_name.startsWith('Employee ID:')) {
+        if (log.employee_name !== 'System' &&
+          log.employee_name !== 'Unknown User' &&
+          !log.employee_name.startsWith('Employee ID:')) {
           displayUserName = log.employee_name;
         }
       }
-      
+
       // Step 3: Try user_display_name (from COALESCE)
       if (!displayUserName && log.user_display_name) {
-        if (log.user_display_name !== 'System' && 
-            log.user_display_name !== 'Unknown User' &&
-            !log.user_display_name.startsWith('Employee ID:')) {
+        if (log.user_display_name !== 'System' &&
+          log.user_display_name !== 'Unknown User' &&
+          !log.user_display_name.startsWith('Employee ID:')) {
           displayUserName = log.user_display_name;
         }
       }
-      
+
       // Step 4: Try stored user_name (only if valid)
       if (!displayUserName && log.user_name) {
-        if (log.user_name !== 'System' && 
-            log.user_name !== 'Unknown User' &&
-            !log.user_name.startsWith('Employee ID:')) {
+        if (log.user_name !== 'System' &&
+          log.user_name !== 'Unknown User' &&
+          !log.user_name.startsWith('Employee ID:')) {
           displayUserName = log.user_name;
         }
       }
-      
+
       // Step 5: Try to get from newValue (might have created_by_name or edited_by_name)
       if (!displayUserName && newValue) {
         displayUserName = newValue.created_by_name || newValue.edited_by_name || newValue.user_name;
       }
-      
+
       // Step 6: Try from old_value
       if (!displayUserName && oldValue) {
         displayUserName = oldValue.created_by_name || oldValue.edited_by_name || oldValue.user_name;
       }
-      
+
       // Step 7: Final fallback - if we have user_id, show ID format
       if (!displayUserName && log.user_id) {
         displayUserName = `Employee ID: ${log.user_id}`;
         console.warn(`⚠️ [AuditLogs API] Employee not found in employee_profile for user_id ${log.user_id}`);
       }
-      
+
       // Step 8: Last resort - show user_id if available, otherwise empty
       if (!displayUserName) {
         if (log.user_id) {
@@ -291,7 +291,7 @@ export async function GET(request) {
           displayUserName = ''; // Empty instead of 'Unknown User'
         }
       }
-      
+
       return {
         ...log,
         user_name: displayUserName || (log.user_id ? `Employee ID: ${log.user_id}` : ''),
@@ -301,7 +301,7 @@ export async function GET(request) {
         creator_info: creatorInfo
       };
     });
-    
+
     return NextResponse.json({
       success: true,
       data: logsWithParsedValues,
@@ -310,7 +310,7 @@ export async function GET(request) {
       offset,
       hasMore: offset + limit < total
     });
-    
+
   } catch (error) {
     console.error('Error fetching audit logs:', error);
     return NextResponse.json(
@@ -327,7 +327,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { createAuditLog } = await import('@/lib/auditLog');
-    
+
     const result = await createAuditLog({
       page: body.page,
       uniqueCode: body.uniqueCode || body.unique_code,
@@ -342,7 +342,7 @@ export async function POST(request) {
       recordType: body.recordType || body.record_type,
       recordId: body.recordId || body.record_id
     });
-    
+
     if (result.success) {
       return NextResponse.json({
         success: true,

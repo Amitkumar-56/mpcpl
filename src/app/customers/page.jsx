@@ -16,7 +16,8 @@ import {
   BiPlus,
   BiRupee,
   BiSearch,
-  BiShow
+  BiShow,
+  BiHistory
 } from "react-icons/bi";
 import { FaToggleOff, FaToggleOn } from "react-icons/fa";
 
@@ -394,6 +395,14 @@ function CustomersPage() {
       show: permissions.can_edit
     },
     {
+      key: 'recharge-history',
+      icon: BiHistory,
+      label: 'Recharge History',
+      href: (id) => `/customers/recharge-history?id=${id}`,
+      color: 'bg-green-500 hover:bg-green-600',
+      show: permissions.can_view
+    },
+    {
       key: 'deal-price',
       icon: BiCoin,
       label: 'Deal',
@@ -486,7 +495,7 @@ function CustomersPage() {
   return (
     <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
       <div className="flex-shrink-0">
-        <Sidebar activePage="Customers" />
+        <Sidebar />
       </div>
 
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

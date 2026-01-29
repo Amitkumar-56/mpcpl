@@ -140,8 +140,8 @@ export async function POST(request) {
     const voucherCodeToStore = `V${seqStrForInsert}${last4ForInsert}`;
 
     const voucherResult = await executeQuery(voucherQuery, [
-      parseInt(station_id), 
-      parseInt(employee_id),
+      parseInt(station_id) || 0, 
+      parseInt(employee_id) || 0,
       voucherCodeToStore,
       vehicle_no,
       driver_phone,
@@ -151,7 +151,7 @@ export async function POST(request) {
       paid_amount,
       exp_date,
       status,
-      parseInt(user_id)
+      parseInt(user_id) || 0
     ]);
 
     const voucherId = voucherResult.insertId;

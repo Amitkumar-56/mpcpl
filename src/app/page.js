@@ -33,7 +33,7 @@ export default function Home() {
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-tr from-indigo-400 via-purple-400 to-pink-400 animate-gradient">
       <header className="w-full py-4 bg-white/80 backdrop-blur-md shadow-md text-center font-bold text-gray-800">
-        🚀 MPCL Portal
+        🚀 MPCPL Portal
       </header>
 
       <main className="flex-1 flex items-center justify-center">
@@ -56,7 +56,7 @@ export default function Home() {
       </main>
 
       <footer className="w-full py-3 bg-white/80 backdrop-blur-md shadow-inner text-center text-gray-600 text-sm">
-        © {new Date().getFullYear()} MPCL. All rights reserved.
+        © 2026 MPCPL. All rights reserved.
       </footer>
     </div>
   );

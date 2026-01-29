@@ -15,7 +15,8 @@ export default function CreateRequestForm() {
     station_id: '',
     qty: '',
     aty: '',
-    remarks: ''
+    remarks: '',
+    products_codes: '' // ✅ Added missing field
   })
   const [vehicles, setVehicles] = useState([])
   const [products, setProducts] = useState([])
@@ -31,7 +32,6 @@ export default function CreateRequestForm() {
   const [customerData, setCustomerData] = useState(null)
   const [priceDetails, setPriceDetails] = useState({ price: 0, totalAmount: 0 })
   const [calculatedBarrels, setCalculatedBarrels] = useState(0)
-  const [showFullTankMessage, setShowFullTankMessage] = useState(false)
   const [maxQuantity, setMaxQuantity] = useState(0)
   const [isCustomerDisabled, setIsCustomerDisabled] = useState(false)
   const [productCodes, setProductCodes] = useState([])
@@ -40,6 +40,7 @@ export default function CreateRequestForm() {
   const [filterType, setFilterType] = useState('')
   const [dayLimitStatus, setDayLimitStatus] = useState(null)
   const [checkingEligibility, setCheckingEligibility] = useState(false)
+  const [isAuthenticated, setIsAuthenticated] = useState(false) // ✅ Added authentication state
 
   // Product configuration based on product_id
   const productConfig = {
@@ -49,170 +50,123 @@ export default function CreateRequestForm() {
     5: { name: "DEF Bucket", type: "bucket", bucketSize: 20, min: 1, maxQuantity: 100 },
   };
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    const savedUser = localStorage.getItem("customer");
-    if (!savedUser) {
-      router.push('/cst/login');
-      return;
-    }
-    
-    const user = JSON.parse(savedUser);
-    const roleId = Number(user.roleid);
-    
-    if (roleId !== 1 && roleId !== 2) {
-      console.error("CreateRequest: Invalid role", user.roleid);
-      alert("Invalid user role. Please login again.");
-      router.push('/cst/login');
-      return;
-    }
-    
-    const cid = user.com_id || user.id;
-    setCustomerId(cid);
-    setCustomerData(user);
-    fetchCustomerData(cid);
-  }, [router]);
+  // ================ ALL HOOKS BEFORE ANY CONDITIONAL RETURNS ================
 
-  // Check eligibility when customerId changes
+  // ✅ 1. Barrel calculation - 200 liters per barrel
   useEffect(() => {
-    if (customerId) {
-      checkEligibility();
+    if (selectedProduct?.barrelSize && formData.qty) {
+      const qty = parseInt(formData.qty) || 0;
+      if (qty === 0) {
+        setCalculatedBarrels(0);
+      } else {
+        let barrels = Math.ceil(qty / 200);
+        setCalculatedBarrels(barrels);
+      }
+    } else {
+      setCalculatedBarrels(0);
     }
-  }, [customerId]);
+  }, [formData.qty, selectedProduct]);
 
-  const checkEligibility = async () => {
-    try {
-      setCheckingEligibility(true);
-      const response = await fetch('/api/cst/check-eligibility', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ customer_id: customerId })
+  // Removed full tank auto-fill logic
+
+  // ✅ 4. AUTO-SWITCH BULK/RETAIL BASED ON QTY
+  // ✅ 4. AUTO-SWITCH BULK/RETAIL BASED ON QTY
+  useEffect(() => {
+    if (!formData.product_id || !productCodes.length || !formData.qty) return;
+
+    const qty = parseInt(formData.qty) || 0;
+    const pid = parseInt(formData.product_id);
+    let targetType = 'retail';
+
+    if (pid === 2 || pid === 3) { // Ind Oil
+      if (qty > 5000) targetType = 'bulk';
+    } else if (pid === 4) { // DEF Lose
+      if (qty > 3000) targetType = 'bulk';
+    } else if (pid === 5) { // DEF Bucket
+      // qty is in liters
+      if (qty > 3000) targetType = 'bulk';
+    }
+
+    // Find matching code
+    let targetCode = null;
+    if (pid === 2 || pid === 3) {
+      targetCode = productCodes.find(c => {
+        const pcode = (c.pcode || '').toUpperCase();
+        // Strict Retail check: includes "(R)"
+        const isRetail = pcode.includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
       });
-      
-      if (response.ok) {
-        const data = await response.json();
-        setDayLimitStatus(data);
-        
-        if (data.success && !data.isEligible) {
-          console.log('⚠️ Customer not eligible:', data.reason);
-        }
-      }
-    } catch (error) {
-      console.error('Error checking eligibility:', error);
-    } finally {
-      setCheckingEligibility(false);
+    } else if (pid === 4) {
+      targetCode = productCodes.find(c => {
+        // Retail: includes "(R)"
+        const isRetail = (c.pcode || '').toUpperCase().includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
+    } else if (pid === 5) {
+      targetCode = productCodes.find(c => {
+        // Retail: includes "(R)"
+        const isRetail = (c.pcode || '').toUpperCase().includes('(R)');
+        return targetType === 'retail' ? isRetail : !isRetail;
+      });
     }
-  };
 
-  const fetchCustomerData = async (cid) => {
-    try {
-      setFetchLoading(true);
-      
-      // First check if customer is active
-      const customerStatusResponse = await fetch(`/api/customers/edit?id=${cid}`);
-      if (customerStatusResponse.ok) {
-        const customerStatusData = await customerStatusResponse.json();
-        const customer = customerStatusData.data?.customer || customerStatusData;
-        
-        // Check if customer is disabled
-        if (customer.status === 0 || customer.status === '0' || customer.status === 'Disable') {
-          setIsCustomerDisabled(true);
-          setFetchLoading(false);
-          alert('❌ Your account is disabled. Please contact administrator to enable your account before creating filling requests.');
-          router.push('/cst/cstdashboard');
-          return;
-        }
-        setIsCustomerDisabled(false);
-      }
-      
-      // Fetch stations
-      const stationsResponse = await fetch(`/api/cst/customer-stations?customer_id=${cid}`);
-      if (!stationsResponse.ok) {
-        throw new Error(`Stations API error: ${stationsResponse.status}`);
-      }
-      const stationsData = await stationsResponse.json();
-      
-      if (stationsData.success) {
-        setStations(stationsData.stations || []);
-        
-        // Auto-select station if only one
-        if (stationsData.stations.length === 1) {
-          setFormData(prev => ({
-            ...prev,
-            station_id: stationsData.stations[0].id
-          }));
-        }
-      } else {
-        console.error('Error fetching stations:', stationsData.message);
-        setStations([]);
-      }
-
-      // Fetch products
-      const productsResponse = await fetch(`/api/cst/customer-products?customer_id=${cid}`);
-      if (!productsResponse.ok) {
-        throw new Error(`Products API error: ${productsResponse.status}`);
-      }
-      const productsData = await productsResponse.json();
-      
-      if (productsData.success) {
-        setProducts(productsData.products || []);
-      } else {
-        console.error('Error fetching products:', productsData.message);
-        setProducts([]);
-      }
-
-    } catch (error) {
-      console.error('Error fetching customer data:', error);
-      alert('Error loading form data: ' + error.message);
-      setStations([]);
-      setProducts([]);
-    } finally {
-      setFetchLoading(false);
+    // Default to first available if no specific type match found (fallback)
+    if (!targetCode && productCodes.length > 0) {
+      // If we wanted bulk but didn't find specific bulk code, keep current or warn?
+      // For now, let's just stick to logic.
     }
-  }
 
-  // Fetch price when product or station changes
+    if (targetCode && String(formData.products_codes) !== String(targetCode.id)) {
+      console.log(`🔄 Auto-switching to ${targetType} (Code: ${targetCode.pcode}) based on Qty: ${qty}`);
+      setFormData(prev => ({ ...prev, products_codes: String(targetCode.id) }));
+      setSelectedSubProductId(String(targetCode.id)); // ✅ FIX: Sync UI state
+    }
+  }, [formData.qty, formData.product_id, productCodes]);
+
+  // ✅ 5. Derive Bulk/Retail from selected sub product code and set minimums dynamically
   useEffect(() => {
-    const fetchPrice = async () => {
-      if (formData.product_id && formData.station_id && customerId && selectedProduct) {
-        try {
-          console.log('🔄 Fetching price for:', {
-            product_id: formData.product_id,
-            selected_product: selectedProduct,
-            station_id: formData.station_id,
-            customer_id: customerId
-          });
+    if (!formData.products_codes) return;
+    const selectedCode = productCodes.find(p => p.id === parseInt(formData.products_codes));
+    if (!selectedCode) return;
+    const pcode = (selectedCode.pcode || '').toUpperCase();
+    const pid = parseInt(selectedCode.product_id);
+    let category = 'retail';
+    if (pid === 2 || pid === 3) {
+      const norm = pcode.replace(/\s+/g, '');
+      const isRetail = norm.endsWith('R') || norm.includes('-R') || pcode.includes('RTL') || pcode.includes('RETAIL');
+      category = isRetail ? 'retail' : 'bulk';
+    } else if (pid === 4) {
+      const norm = pcode.toUpperCase().replace(/\s+/g, '');
+      if (norm.includes('BULK') || norm.includes('DEFLB')) category = 'bulk';
+      else category = 'retail';
+    } else if (pid === 5) {
+      if (pcode.includes('BUCKET')) category = 'bulk';
+      else category = 'retail';
+    }
+    let minValue = 1;
+    let maxAmount = 0;
 
-          const response = await fetch(
-            `/api/cst/deal-price?com_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
-          );
-          const data = await response.json();
-          
-          console.log('💰 Price API Response:', data);
+    // Get default max from config
+    const config = productConfig[pid];
+    const defaultMax = config?.maxQuantity || 0;
 
-          if (data.success && data.data) {
-            const latestPrice = parseFloat(data.data.price) || 0;
-            const total = latestPrice * parseFloat(formData.qty || 0);
-            
-            setPriceDetails({
-              price: latestPrice,
-              totalAmount: total
-            });
-          } else {
-            console.log('ℹ️ No deal price found');
-            setPriceDetails({ price: 0, totalAmount: 0 });
-          }
-        } catch (error) {
-          console.error('❌ Error fetching price:', error);
-          setPriceDetails({ price: 0, totalAmount: 0 });
-        }
-      }
-    };
+    if (pid === 2 || pid === 3) {
+      minValue = category === 'bulk' ? 1000 : 1;
+      maxAmount = category === 'bulk' ? 100000 : defaultMax;
+    } else if (pid === 4) {
+      minValue = category === 'bulk' ? 1000 : 1;
+      maxAmount = category === 'bulk' ? 100000 : defaultMax;
+    } else if (pid === 5) {
+      minValue = category === 'bulk' ? 25 : 1;
+      // For buckets, max quantity in config is 100 buckets (2000L).
+      // Bulk should allow more.
+      maxAmount = category === 'bulk' ? 100000 : defaultMax;
+    }
 
-    fetchPrice();
-  }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct, selectedSubProductId]);
+    setSelectedProduct(prev => prev ? { ...prev, min: minValue, maxQuantity: maxAmount } : prev);
+  }, [formData.products_codes, productCodes]);
 
-  // Derive Bulk/Retail from selected sub product code and set minimums dynamically
+  // ✅ 6. Derive Bulk/Retail from selected sub product code (original logic)
   useEffect(() => {
     const pid = parseInt(formData.product_id) || null;
     if (!pid || !selectedSubProductId || productCodes.length === 0) return;
@@ -233,17 +187,27 @@ export default function CreateRequestForm() {
       else category = 'retail';
     }
     let minValue = 1;
+    let maxAmount = 0;
+
+    // Get default max from config
+    const config = productConfig[pid];
+    const defaultMax = config?.maxQuantity || 0;
+
     if (pid === 2 || pid === 3) {
       minValue = category === 'bulk' ? 1000 : 1;
+      maxAmount = category === 'bulk' ? 100000 : defaultMax;
     } else if (pid === 4) {
       minValue = category === 'bulk' ? 1000 : 1;
+      maxAmount = category === 'bulk' ? 100000 : defaultMax;
     } else if (pid === 5) {
       // bucket min is bucket count, not liters
       minValue = category === 'bulk' ? 25 : 1;
+      maxAmount = category === 'bulk' ? 100000 : defaultMax;
     }
-    setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
+    setSelectedProduct(prev => prev ? { ...prev, min: minValue, maxQuantity: maxAmount } : prev);
   }, [selectedSubProductId, productCodes, formData.product_id]);
 
+  // ✅ 7. Fetch product codes
   useEffect(() => {
     const pid = formData.product_id;
     if (!pid) {
@@ -252,7 +216,7 @@ export default function CreateRequestForm() {
       setLoadingSubProducts(false);
       return;
     }
-    
+
     setLoadingSubProducts(true);
     (async () => {
       try {
@@ -262,13 +226,16 @@ export default function CreateRequestForm() {
           const codes = json.codes || [];
           setProductCodes(codes);
           setFilterType(json.filter_type || '');
-          // Auto-select first sub-product if available
+          let retailDefault = '';
           if (codes.length > 0) {
-            const first = codes[0]?.id ? String(codes[0].id) : '';
-            setSelectedSubProductId(first);
-          } else {
-            setSelectedSubProductId('');
+            const retailCode = codes.find(c => {
+              const p = (c.pcode || '').toUpperCase();
+              return p.includes('(R)') || p.includes('RETAIL') || p.includes('RTL');
+            });
+            retailDefault = retailCode?.id ? String(retailCode.id) : (codes[0]?.id ? String(codes[0].id) : '');
           }
+          setSelectedSubProductId(retailDefault || '');
+          setFormData(prev => ({ ...prev, products_codes: retailDefault || '' }));
         } else {
           setProductCodes([]);
           setSelectedSubProductId('');
@@ -284,53 +251,171 @@ export default function CreateRequestForm() {
     })();
   }, [formData.product_id]);
 
-  // Barrel calculation - 200 liters per barrel
+  // ✅ 8. Fetch price when product or station changes
   useEffect(() => {
-    if (selectedProduct?.barrelSize && formData.qty) {
-      const qty = parseInt(formData.qty) || 0;
-      if (qty === 0) {
-        setCalculatedBarrels(0);
-      } else {
-        let barrels = Math.ceil(qty / 200);
-        setCalculatedBarrels(barrels);
+    const fetchPrice = async () => {
+      if (formData.product_id && formData.station_id && customerId && selectedProduct) {
+        try {
+          console.log('🔄 Fetching price for:', {
+            product_id: formData.product_id,
+            selected_product: selectedProduct,
+            station_id: formData.station_id,
+            customer_id: customerId
+          });
+
+          const response = await fetch(
+            `/api/cst/deal-price?com_id=${customerId}&station_id=${formData.station_id}&product_id=${selectedProduct.product_id || selectedProduct.id}&sub_product_id=${selectedSubProductId || ''}`
+          );
+          const data = await response.json();
+
+          console.log('💰 Price API Response:', data);
+
+          if (data.success && data.data) {
+            const latestPrice = parseFloat(data.data.price) || 0;
+            const total = latestPrice * parseFloat(formData.qty || 0);
+
+            setPriceDetails({
+              price: latestPrice,
+              totalAmount: total
+            });
+          } else {
+            console.log('ℹ️ No deal price found');
+            setPriceDetails({ price: 0, totalAmount: 0 });
+          }
+        } catch (error) {
+          console.error('❌ Error fetching price:', error);
+          setPriceDetails({ price: 0, totalAmount: 0 });
+        }
       }
-    } else {
-      setCalculatedBarrels(0);
-    }
-  }, [formData.qty, selectedProduct]);
+    };
 
-  useEffect(() => {
-    const currentQty = parseInt(formData.qty) || 0;
-    if (selectedProduct?.maxQuantity && currentQty === selectedProduct.maxQuantity) {
-      setShowFullTankMessage(true);
-    } else {
-      setShowFullTankMessage(false);
-    }
-  }, [formData.qty, selectedProduct]);
+    fetchPrice();
+  }, [formData.product_id, formData.station_id, formData.qty, customerId, selectedProduct, selectedSubProductId]);
 
-  // Handle "full tank" in remarks
+  // ✅ 9. Check eligibility when customerId changes
   useEffect(() => {
-    if (selectedProduct?.maxQuantity) {
-      const remarks = formData.remarks.toLowerCase().trim();
-      if (remarks === 'full tank' || remarks === 'fulltank') {
-        if (selectedProduct.type === 'bucket') {
-          const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
+    if (customerId) {
+      checkEligibility();
+    }
+  }, [customerId]);
+
+  // ✅ 10. Authentication check - LAST HOOK
+  useEffect(() => {
+    const savedUser = localStorage.getItem("customer");
+    if (!savedUser) {
+      router.push('/cst/login');
+      return;
+    }
+
+    const user = JSON.parse(savedUser);
+    const roleId = Number(user.roleid);
+
+    if (roleId !== 1 && roleId !== 2) {
+      console.error("CreateRequest: Invalid role", user.roleid);
+      alert("Invalid user role. Please login again.");
+      router.push('/cst/login');
+      return;
+    }
+
+    const cid = user.com_id || user.id;
+    setCustomerId(cid);
+    setCustomerData(user);
+    setIsAuthenticated(true);
+    fetchCustomerData(cid);
+  }, [router]);
+
+  // ================ FUNCTIONS ================
+
+  const checkEligibility = async () => {
+    try {
+      setCheckingEligibility(true);
+      const response = await fetch('/api/cst/check-eligibility', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customerId })
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setDayLimitStatus(data);
+
+        if (data.success && !data.isEligible) {
+          console.log('⚠️ Customer not eligible:', data.reason);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking eligibility:', error);
+    } finally {
+      setCheckingEligibility(false);
+    }
+  };
+
+  const fetchCustomerData = async (cid) => {
+    try {
+      setFetchLoading(true);
+
+      // First check if customer is active
+      const customerStatusResponse = await fetch(`/api/customers/edit?id=${cid}`);
+      if (customerStatusResponse.ok) {
+        const customerStatusData = await customerStatusResponse.json();
+        const customer = customerStatusData.data?.customer || customerStatusData;
+
+        // Check if customer is disabled
+        if (customer.status === 0 || customer.status === '0' || customer.status === 'Disable') {
+          setIsCustomerDisabled(true);
+          setFetchLoading(false);
+          alert('❌ Your account is disabled. Please contact administrator to enable your account before creating filling requests.');
+          router.push('/cst/cstdashboard');
+          return;
+        }
+        setIsCustomerDisabled(false);
+      }
+
+      // Fetch stations
+      const stationsResponse = await fetch(`/api/cst/customer-stations?customer_id=${cid}`);
+      if (!stationsResponse.ok) {
+        throw new Error(`Stations API error: ${stationsResponse.status}`);
+      }
+      const stationsData = await stationsResponse.json();
+
+      if (stationsData.success) {
+        setStations(stationsData.stations || []);
+
+        // Auto-select station if only one
+        if (stationsData.stations.length === 1) {
           setFormData(prev => ({
-            ...prev, 
-            aty: buckets.toString(), 
-            qty: selectedProduct.maxQuantity.toString()
-          }));
-        } else {
-          setFormData(prev => ({
-            ...prev, 
-            aty: selectedProduct.maxQuantity.toString(), 
-            qty: selectedProduct.maxQuantity.toString()
+            ...prev,
+            station_id: stationsData.stations[0].id
           }));
         }
-        setShowFullTankMessage(true);
+      } else {
+        console.error('Error fetching stations:', stationsData.message);
+        setStations([]);
       }
+
+      // Fetch products
+      const productsResponse = await fetch(`/api/cst/customer-products?customer_id=${cid}`);
+      if (!productsResponse.ok) {
+        throw new Error(`Products API error: ${productsResponse.status}`);
+      }
+      const productsData = await productsResponse.json();
+
+      if (productsData.success) {
+        setProducts(productsData.products || []);
+      } else {
+        console.error('Error fetching products:', productsData.message);
+        setProducts([]);
+      }
+
+    } catch (error) {
+      console.error('Error fetching customer data:', error);
+      alert('Error loading form data: ' + error.message);
+      setStations([]);
+      setProducts([]);
+    } finally {
+      setFetchLoading(false);
     }
-  }, [formData.remarks, selectedProduct]);
+  }
 
   const validatePhone = (phone) => {
     const phoneRegex = /^[0-9]{10,15}$/;
@@ -366,7 +451,7 @@ export default function CreateRequestForm() {
     if (selectedProduct) {
       const quantityLiters = parseInt(formData.qty) || 0;
       const quantityBuckets = parseInt(formData.aty) || 0;
-      
+
       if (selectedProduct.type === 'bucket') {
         if (quantityBuckets < (selectedProduct.min || 1)) {
           const unit = (selectedProduct.min || 1) === 1 ? 'bucket' : 'buckets';
@@ -377,7 +462,7 @@ export default function CreateRequestForm() {
           const unit = (selectedProduct.min || 1) === 1 ? 'liter' : 'liters';
           newErrors.qty = `Minimum quantity for this product is ${selectedProduct.min} ${unit}`;
         }
-        
+
         if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantityLiters > selectedProduct.maxQuantity) {
           const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
           newErrors.qty = `Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}`;
@@ -431,23 +516,23 @@ export default function CreateRequestForm() {
       const product = products.find(p => p.id == value);
       setSelectedProduct(product);
       console.log('🔄 Selected Product:', product);
-      
+
       if (product) {
         const productId = product.id || product.product_id;
         const productConfigData = productConfig[productId] || null;
         console.log('🎯 Product config for product_id', productId, ':', productConfigData);
-        
+
         setSelectedProduct(prev => ({ ...prev, ...productConfigData, product_id: productId }));
         setMaxQuantity(productConfigData?.maxQuantity || 0);
-        
+
         // Reset quantity fields when product changes
-        setFormData(prev => ({ 
-          ...prev, 
-          qty: '', 
-          aty: ''
+        setFormData(prev => ({
+          ...prev,
+          qty: '',
+          aty: '',
+          products_codes: ''
         }));
         setCalculatedBarrels(0);
-        setShowFullTankMessage(false);
       }
     }
   }
@@ -496,39 +581,14 @@ export default function CreateRequestForm() {
       fetchVehicles(nextValue)
     }
 
-    if (name === 'aty' || name === 'qty') {
-      const currentQty = parseInt(qty) || 0;
-      if (selectedProduct?.maxQuantity && currentQty !== selectedProduct.maxQuantity) {
-        setShowFullTankMessage(false);
-      }
-    }
+    // Removed full tank state toggling
   }
 
-  const handleFullTank = () => {
-    if (selectedProduct?.maxQuantity) {
-      if (selectedProduct.type === 'bucket') {
-        const buckets = Math.floor(selectedProduct.maxQuantity / selectedProduct.bucketSize);
-        setFormData(prev => ({
-          ...prev, 
-          aty: buckets.toString(), 
-          qty: selectedProduct.maxQuantity.toString(),
-          remarks: 'FULL TANK'
-        }));
-      } else {
-        setFormData(prev => ({
-          ...prev, 
-          aty: selectedProduct.maxQuantity.toString(), 
-          qty: selectedProduct.maxQuantity.toString(),
-          remarks: 'FULL TANK'
-        }));
-      }
-      setShowFullTankMessage(true);
-    }
-  }
+  // Removed handleFullTank
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     if (!customerId) {
       alert('Customer information not loaded. Please refresh the page and try again.')
       return
@@ -539,7 +599,7 @@ export default function CreateRequestForm() {
       alert('❌ Your account is disabled. Please contact administrator to enable your account.');
       return;
     }
-    
+
     // STRICT Validation: Station and Product must be selected before submission
     if (!formData.station_id || formData.station_id === '') {
       setErrors(prev => ({ ...prev, station_id: 'Please select a filling station' }));
@@ -559,7 +619,7 @@ export default function CreateRequestForm() {
       alert('❌ Please select a Product Code (Sub-Product) before submitting the request.');
       return;
     }
-    
+
     // Validate form
     if (!validateForm()) {
       return;
@@ -590,24 +650,24 @@ export default function CreateRequestForm() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_id: customerId })
       });
-      
+
       if (eligibilityResponse.ok) {
         const eligibility = await eligibilityResponse.json();
-        
+
         if (eligibility.success && !eligibility.isEligible) {
           const msg = eligibility.reason || 'You are not eligible to create a request right now.';
-          
+
           // Show detailed alert with payment information
           let alertMsg = `❌ ${msg}`;
-          
+
           if (eligibility.pendingDays && eligibility.dayLimit) {
             alertMsg += `\n\nPending Days: ${eligibility.pendingDays}/${eligibility.dayLimit}`;
           }
-          
+
           if (eligibility.creditUsed && eligibility.creditLimit) {
             alertMsg += `\nCredit Used: ₹${eligibility.creditUsed.toFixed(2)} of ₹${eligibility.creditLimit.toFixed(2)}`;
           }
-          
+
           alert(alertMsg);
           setCheckingEligibility(false);
           return;
@@ -733,23 +793,37 @@ export default function CreateRequestForm() {
   }
 
   const resetForm = () => {
-    setFormData(prev => ({
-      ...prev,
+    setFormData({
       licence_plate: '',
       phone: '',
       product_id: '',
+      station_id: '',
       qty: '',
       aty: '',
-      remarks: ''
-    }))
+      remarks: '',
+      products_codes: ''
+    })
     setSelectedProduct(null)
     setVehicles([])
     setErrors({})
     setPriceDetails({ price: 0, totalAmount: 0 })
     setCalculatedBarrels(0)
-    setShowFullTankMessage(false)
     setMaxQuantity(0)
     setSelectedSubProductId('')
+    setProductCodes([])
+  }
+
+  // ================ CONDITIONAL RENDERING ================
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Verifying authentication...</p>
+        </div>
+      </div>
+    );
   }
 
   if (fetchLoading) {
@@ -793,13 +867,15 @@ export default function CreateRequestForm() {
     )
   }
 
+  // ================ MAIN JSX RENDER ================
+
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
       <Sidebar />
-  
+
       <div className="flex flex-col flex-1 overflow-hidden">
         <CstHeader />
-        
+
         <main className="flex-1 overflow-y-auto p-4 md:p-8 bg-gray-50">
           {/* OTP Success Modal */}
           {showOtpModal && createdRequest && (
@@ -811,21 +887,21 @@ export default function CreateRequestForm() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  
+
                   <h3 className="text-2xl font-bold text-gray-900 mb-3">Request Created Successfully! ✅</h3>
-                  
+
                   <div className="bg-gradient-to-r from-blue-50 to-green-50 rounded-xl p-5 mb-5 border border-blue-200">
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-gray-700">Request ID:</span>
                         <span className="text-blue-600 font-bold text-lg">{createdRequest.rid}</span>
                       </div>
-                      
+
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-gray-700">Vehicle Number:</span>
                         <span className="font-medium bg-blue-100 px-2 py-1 rounded">{createdRequest.vehicle}</span>
                       </div>
-                      
+
                       <div className="flex justify-between items-center">
                         <span className="font-semibold text-gray-700">Product:</span>
                         <span className="font-medium">{createdRequest.product}</span>
@@ -840,20 +916,6 @@ export default function CreateRequestForm() {
                         <span className="font-semibold text-gray-700">Quantity:</span>
                         <span className="font-medium">{createdRequest.quantity} Ltr</span>
                       </div>
-
-                      {createdRequest.price > 0 && (
-                        <>
-                          <div className="flex justify-between items-center">
-                            <span className="font-semibold text-gray-700">Price:</span>
-                            <span className="font-medium">₹{Number(createdRequest.price || 0).toFixed(2)}/Ltr</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className="font-semibold text-gray-700">Total Amount:</span>
-                            <span className="font-medium">₹{Number(createdRequest.total_amount || 0).toFixed(2)}</span>
-                          </div>
-                        </>
-                      )}
-                      
                       <div className="flex justify-between items-center pt-2 border-t border-blue-200">
                         <span className="font-semibold text-gray-700">OTP Code:</span>
                         <span className="text-green-600 font-bold text-xl bg-green-100 px-3 py-1 rounded-lg">
@@ -862,12 +924,12 @@ export default function CreateRequestForm() {
                       </div>
                     </div>
                   </div>
-                  
+
                   <p className="text-gray-600 text-sm mb-5 leading-relaxed">
-                    Please share this OTP with the driver for verification at the filling station. 
+                    Please share this OTP with the driver for verification at the filling station.
                     The driver must provide this OTP to complete the filling process.
                   </p>
-                  
+
                   <button
                     onClick={handleModalClose}
                     className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3 rounded-lg hover:from-blue-700 hover:to-blue-800 font-semibold transition-all duration-200 shadow-lg hover:shadow-xl"
@@ -883,7 +945,7 @@ export default function CreateRequestForm() {
             {/* Header Section */}
             <div className="mb-8">
               <div className="flex items-center mb-4">
-                <button 
+                <button
                   onClick={() => router.back()}
                   className="mr-4 p-3 rounded-xl hover:bg-white transition-all duration-200 shadow-sm hover:shadow-md"
                 >
@@ -919,17 +981,15 @@ export default function CreateRequestForm() {
 
                 {/* Day Limit Status Card */}
                 {dayLimitStatus && dayLimitStatus.dayLimit > 0 && (
-                  <div className={`rounded-xl p-5 shadow-sm border ${
-                    dayLimitStatus.isEligible === false 
-                      ? 'bg-red-50 border-red-200' 
-                      : 'bg-blue-50 border-blue-200'
-                  }`}>
+                  <div className={`rounded-xl p-5 shadow-sm border ${dayLimitStatus.isEligible === false
+                    ? 'bg-red-50 border-red-200'
+                    : 'bg-blue-50 border-blue-200'
+                    }`}>
                     <div className="flex items-center mb-3">
-                      <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${
-                        dayLimitStatus.isEligible === false 
-                          ? 'bg-red-100 text-red-600' 
-                          : 'bg-blue-100 text-blue-600'
-                      }`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center mr-3 ${dayLimitStatus.isEligible === false
+                        ? 'bg-red-100 text-red-600'
+                        : 'bg-blue-100 text-blue-600'
+                        }`}>
                         {dayLimitStatus.isEligible === false ? (
                           <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -942,24 +1002,23 @@ export default function CreateRequestForm() {
                       </div>
                       <h3 className="font-semibold text-gray-700">Day Limit Status</h3>
                     </div>
-                    
+
                     <div className="space-y-2">
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Allowed Days:</span>
                         <span className="font-semibold">{dayLimitStatus.dayLimit} days</span>
                       </div>
-                      
+
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600">Pending Days:</span>
-                        <span className={`font-semibold ${
-                          dayLimitStatus.pendingDays >= dayLimitStatus.dayLimit 
-                            ? 'text-red-600' 
-                            : 'text-green-600'
-                        }`}>
+                        <span className={`font-semibold ${dayLimitStatus.pendingDays >= dayLimitStatus.dayLimit
+                          ? 'text-red-600'
+                          : 'text-green-600'
+                          }`}>
                           {dayLimitStatus.pendingDays} days
                         </span>
                       </div>
-                      
+
                       {dayLimitStatus.isEligible === false && dayLimitStatus.reason && (
                         <div className="mt-3 p-3 bg-red-100 rounded-lg">
                           <p className="text-sm text-red-700">{dayLimitStatus.reason}</p>
@@ -1026,9 +1085,8 @@ export default function CreateRequestForm() {
                         value={formData.licence_plate}
                         onChange={handleInputChange}
                         disabled={dayLimitStatus?.isEligible === false}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
-                          errors.licence_plate ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${errors.licence_plate ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder="Enter vehicle number (e.g., MP09AB1234)"
                       />
                       {errors.licence_plate && (
@@ -1086,9 +1144,8 @@ export default function CreateRequestForm() {
                         value={formData.phone}
                         onChange={handleInputChange}
                         disabled={dayLimitStatus?.isEligible === false}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
-                          errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${errors.phone ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder="Driver phone number (10-15 digits)"
                       />
                       {errors.phone && (
@@ -1117,9 +1174,8 @@ export default function CreateRequestForm() {
                           onChange={handleChange}
                           disabled={dayLimitStatus?.isEligible === false}
                           required
-                          className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
-                            errors.product_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${errors.product_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                            } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <option value="">Select Product</option>
                           {products.map(product => (
@@ -1142,7 +1198,7 @@ export default function CreateRequestForm() {
                           {errors.product_id}
                         </p>
                       )}
-                      
+
                       {/* Sub-Product Selection */}
                       {formData.product_id && (
                         <div className="mt-4">
@@ -1159,16 +1215,11 @@ export default function CreateRequestForm() {
                               id="sub_product_id"
                               name="sub_product_id"
                               value={selectedSubProductId}
-                              onChange={(e) => setSelectedSubProductId(e.target.value)}
-                              disabled={loadingSubProducts || productCodes.length === 0 || dayLimitStatus?.isEligible === false}
+                              disabled={true}
                               required={!!formData.product_id}
-                              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
-                                loadingSubProducts || productCodes.length === 0
-                                  ? 'border-gray-200 bg-gray-50 cursor-not-allowed'
-                                  : 'border-gray-300 hover:border-gray-400'
-                              } ${
-                                errors.sub_product_id ? 'border-red-500 bg-red-50' : ''
-                              } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                              className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${'border-gray-200 bg-gray-50 cursor-not-allowed'
+                                } ${errors.sub_product_id ? 'border-red-500 bg-red-50' : ''
+                                }`}
                             >
                               {loadingSubProducts ? (
                                 <option value="">Loading sub-products...</option>
@@ -1228,9 +1279,8 @@ export default function CreateRequestForm() {
                           onChange={handleChange}
                           disabled={dayLimitStatus?.isEligible === false}
                           required
-                          className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${
-                            errors.station_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 appearance-none bg-white ${errors.station_id ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                            } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         >
                           <option value="">Select Filling Station</option>
                           {stations.map(station => (
@@ -1273,15 +1323,7 @@ export default function CreateRequestForm() {
                               : `Liters (Min ${selectedProduct.min}) *`
                             : "Enter Quantity *"}
                         </label>
-                        {selectedProduct?.maxQuantity && dayLimitStatus?.isEligible !== false && (
-                          <button
-                            type="button"
-                            onClick={handleFullTank}
-                            className="text-sm bg-blue-500 text-white px-3 py-1 rounded-lg hover:bg-blue-600 transition-colors duration-200 font-medium"
-                          >
-                            Full Tank
-                          </button>
-                        )}
+                        {/* Full Tank shortcut removed */}
                       </div>
                       <input
                         type="number"
@@ -1290,9 +1332,8 @@ export default function CreateRequestForm() {
                         value={formData.aty}
                         onChange={handleInputChange}
                         disabled={dayLimitStatus?.isEligible === false}
-                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${
-                          errors.qty ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
-                        } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                        className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ${errors.qty ? 'border-red-500 bg-red-50' : 'border-gray-300 hover:border-gray-400'
+                          } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
                         placeholder={selectedProduct
                           ? selectedProduct.type === "bucket"
                             ? "Enter number of buckets"
@@ -1355,14 +1396,7 @@ export default function CreateRequestForm() {
                     </div>
                   )}
 
-                  {/* Full Tank Message */}
-                  {showFullTankMessage && (
-                    <div className="p-4 bg-red-100 border border-red-300 rounded-xl">
-                      <p className="text-red-700 font-semibold text-center">
-                        🎉 FULL TANK! Maximum quantity ({maxQuantity} liters) selected.
-                      </p>
-                    </div>
-                  )}
+                  {/* Removed Full Tank Message */}
 
                   {/* Remarks Section */}
                   <div>
@@ -1376,18 +1410,11 @@ export default function CreateRequestForm() {
                       value={formData.remarks}
                       onChange={handleInputChange}
                       disabled={dayLimitStatus?.isEligible === false}
-                      className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 resize-none ${
-                        showFullTankMessage ? 'bg-red-50 border-red-300' : 'border-gray-300'
-                      } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      placeholder="Type 'full tank' to set maximum quantity automatically"
+                      className={`w-full px-4 py-3 border-2 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-gray-400 resize-none border-gray-300 ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      placeholder="Add any remarks (optional)"
                       rows="4"
                     />
-                    <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-red-700 text-sm font-medium flex items-center">
-                        <span className="mr-2">💡</span>
-                        Type Full Tank in Remark and Enter Maximum Quantity in Ltr
-                      </p>
-                    </div>
+                    {/* Removed Full Tank helper */}
                   </div>
 
                   {/* Action Buttons */}
@@ -1455,7 +1482,7 @@ export default function CreateRequestForm() {
             </div>
           </div>
         </main>
-    
+
         <Footer />
       </div>
     </div>

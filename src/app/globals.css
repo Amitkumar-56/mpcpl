@@ -61,7 +61,6 @@
     display: block;
   }
 }
-
 /* Desktop: Always show sidebar */
 @media (min-width: 768px) {
   .main-sidebar {

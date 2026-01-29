@@ -357,62 +357,124 @@ export async function POST(request) {
 
       // Create log entry if table exists
       if (logsTableExists && changes.length > 0) {
-        let action = 'Updated transfer details';
-        
-        if (oldData.status !== status) {
-          action = `Status changed to ${getStatusText(status)}`;
+        // Derive granular actions for outward/inward edits
+        const changedFrom = parseInt(oldData.station_from) !== parseInt(station_from);
+        const changedTo = parseInt(oldData.station_to) !== parseInt(station_to);
+        const qtyChanged = parseFloat(oldData.transfer_quantity) !== transfer_quantity;
+        const statusChanged = oldData.status !== status;
+
+        const actionsToLog = [];
+        if (statusChanged) {
+          actionsToLog.push(`Status changed to ${getStatusText(status)}`);
         }
-        
-        await connection.execute(
-          `INSERT INTO transfer_logs 
-            (transfer_id, action, changes, updated_by, created_at)
-          VALUES (?, ?, ?, ?, NOW())`,
-          [
-            id,
-            action,
-            JSON.stringify(changes),
-            user_id
-          ]
-        );
+        if (changedFrom || qtyChanged) {
+          actionsToLog.push('Outward edited');
+        }
+        if (changedTo || qtyChanged) {
+          actionsToLog.push('Inward edited');
+        }
+        if (actionsToLog.length === 0) {
+          actionsToLog.push('Updated transfer details');
+        }
+
+        for (const action of actionsToLog) {
+          await connection.execute(
+            `INSERT INTO transfer_logs 
+              (transfer_id, action, changes, updated_by, created_at)
+            VALUES (?, ?, ?, ?, NOW())`,
+            [
+              id,
+              action,
+              JSON.stringify(changes),
+              user_id
+            ]
+          );
+        }
 
         try {
           const [colsInfoRows] = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
-          let insertQuery = '';
-          let insertParams = [];
-          if (colsInfoRows && colsInfoRows.length > 0) {
-            insertQuery = `
-              INSERT INTO stock_transfer_logs 
-                (transfer_id, action, performed_by, performed_by_name, performed_at, station_from, station_to, quantity, product_id)
-              VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?)
-            `;
-            insertParams = [
-              id,
-              action,
-              user_id,
-              null,
-              station_from,
-              station_to,
-              transfer_quantity,
-              product
-            ];
-          } else {
-            insertQuery = `
-              INSERT INTO stock_transfer_logs 
-                (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
-              VALUES (?, ?, ?, NOW(), ?, ?, ?, ?)
-            `;
-            insertParams = [
-              id,
-              action,
-              user_id,
-              station_from,
-              station_to,
-              transfer_quantity,
-              product
-            ];
+          for (const action of actionsToLog) {
+            let insertQuery = '';
+            let insertParams = [];
+            if (colsInfoRows && colsInfoRows.length > 0) {
+              insertQuery = `
+                INSERT INTO stock_transfer_logs 
+                  (transfer_id, action, performed_by, performed_by_name, performed_at, station_from, station_to, quantity, product_id)
+                VALUES (?, ?, ?, ?, NOW(), ?, ?, ?, ?)
+              `;
+              insertParams = [
+                id,
+                action,
+                user_id,
+                null,
+                station_from,
+                station_to,
+                transfer_quantity,
+                product
+              ];
+            } else {
+              insertQuery = `
+                INSERT INTO stock_transfer_logs 
+                  (transfer_id, action, performed_by, performed_at, station_from, station_to, quantity, product_id)
+                VALUES (?, ?, ?, NOW(), ?, ?, ?, ?)
+              `;
+              insertParams = [
+                id,
+                action,
+                user_id,
+                station_from,
+                station_to,
+                transfer_quantity,
+                product
+              ];
+            }
+            await connection.execute(insertQuery, insertParams);
           }
-          await connection.execute(insertQuery, insertParams);
         } catch {}
+      }
+
+      const oldQty = parseFloat(oldData.transfer_quantity) || 0;
+      const newQty = transfer_quantity;
+      const qtyDelta = newQty - oldQty;
+      const sameSource = parseInt(oldData.station_from) === parseInt(station_from) && parseInt(oldData.product) === parseInt(product);
+      const sameDest = parseInt(oldData.station_to) === parseInt(station_to) && parseInt(oldData.product) === parseInt(product);
+
+      if (sameSource && qtyDelta !== 0) {
+        const [srcRows] = await connection.execute(
+          'SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?',
+          [station_from, product]
+        );
+        if (!srcRows || srcRows.length === 0) {
+          throw new Error('SRC_STOCK_NOT_FOUND');
+        }
+        const srcStock = parseFloat(srcRows[0].stock) || 0;
+        const newSrcStock = srcStock - qtyDelta;
+        await connection.execute(
+          'UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?',
+          [newSrcStock, station_from, product]
+        );
+        try {
+          await connection.execute("SHOW TABLES LIKE 'filling_history'");
+          const [srcHist] = await connection.execute(
+            `SELECT id 
+             FROM filling_history 
+             WHERE fs_id = ? AND product_id = ? 
+             ORDER BY filling_date DESC, id DESC 
+             LIMIT 1`,
+            [station_from, product]
+          );
+          if (!srcHist || srcHist.length === 0) {
+            throw new Error('SRC_HISTORY_NOT_FOUND');
+          }
+          await connection.execute(
+            `UPDATE filling_history 
+               SET trans_type = 'edited', current_stock = ?, filling_qty = ?, available_stock = ? 
+             WHERE id = ?`,
+            [newSrcStock + newQty, -newQty, newSrcStock, srcHist[0].id]
+          );
+        } catch (e) {
+          if (e && (e.message === 'SRC_HISTORY_NOT_FOUND')) throw e;
+        }
       }
 
       // Check if status is "Completed" (3) to update stock
@@ -449,42 +511,34 @@ export async function POST(request) {
             [new_stock_to, station_to, product]
           );
 
-          // Insert into filling_history if table exists
           try {
             await connection.execute("SHOW TABLES LIKE 'filling_history'");
-            await connection.execute(
-              `INSERT INTO filling_history 
-                (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date)
-              VALUES (?, ?, 'Inward', ?, ?, ?, NOW())`,
-              [station_to, product, stock_to, transfer_quantity, new_stock_to]
+            const [latestHist] = await connection.execute(
+              `SELECT id, trans_type 
+               FROM filling_history 
+               WHERE fs_id = ? AND product_id = ? 
+               ORDER BY filling_date DESC, id DESC 
+               LIMIT 1`,
+              [station_to, product]
             );
+            if (latestHist && latestHist.length > 0) {
+              const latest = latestHist[0];
+              await connection.execute(
+                `UPDATE filling_history 
+                   SET trans_type = 'edited', current_stock = ?, filling_qty = ?, available_stock = ? 
+                 WHERE id = ?`,
+                [stock_to, transfer_quantity, new_stock_to, latest.id]
+              );
+            } else {
+              console.log('No filling_history row found to update for destination, skipping update');
+            }
           } catch (error) {
             console.log('filling_history table not found, skipping');
           }
 
-          stockAction = `Stock updated: ${stock_to} → ${new_stock_to} ${productName}`;
+          stockAction = `Inward edited: ${stock_to} → ${new_stock_to} ${productName}`;
         } else {
-          // If no stock record exists, create one
-          await connection.execute(
-            `INSERT INTO filling_station_stocks (fs_id, product, stock) 
-             VALUES (?, ?, ?)`,
-            [station_to, product, transfer_quantity]
-          );
-
-          // Insert into filling_history if table exists
-          try {
-            await connection.execute("SHOW TABLES LIKE 'filling_history'");
-            await connection.execute(
-              `INSERT INTO filling_history 
-                (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date)
-              VALUES (?, ?, 'Inward', 0, ?, ?, NOW())`,
-              [station_to, product, transfer_quantity, transfer_quantity]
-            );
-          } catch (error) {
-            console.log('filling_history table not found, skipping');
-          }
-
-          stockAction = `Stock created: ${transfer_quantity} ${productName} added`;
+          throw new Error('DEST_STOCK_NOT_FOUND')
         }
 
         // Add stock update to log if logs table exists
@@ -542,6 +596,44 @@ export async function POST(request) {
         }
       }
 
+      if (oldData.status === '3' && status === '3' && sameDest && qtyDelta !== 0) {
+        const [destRows] = await connection.execute(
+          'SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?',
+          [station_to, product]
+        );
+        if (!destRows || destRows.length === 0) {
+          throw new Error('DEST_STOCK_NOT_FOUND');
+        }
+        const destStock = parseFloat(destRows[0].stock) || 0;
+        const newDestStock = destStock + qtyDelta;
+        await connection.execute(
+          'UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?',
+          [newDestStock, station_to, product]
+        );
+        try {
+          await connection.execute("SHOW TABLES LIKE 'filling_history'");
+          const [destHist] = await connection.execute(
+            `SELECT id 
+             FROM filling_history 
+             WHERE fs_id = ? AND product_id = ? 
+             ORDER BY filling_date DESC, id DESC 
+             LIMIT 1`,
+            [station_to, product]
+          );
+          if (!destHist || destHist.length === 0) {
+            throw new Error('DEST_HISTORY_NOT_FOUND');
+          }
+          await connection.execute(
+            `UPDATE filling_history 
+               SET trans_type = 'edited', current_stock = ?, filling_qty = ?, available_stock = ? 
+             WHERE id = ?`,
+            [newDestStock - newQty, newQty, newDestStock, destHist[0].id]
+          );
+        } catch (e) {
+          if (e && (e.message === 'DEST_HISTORY_NOT_FOUND')) throw e;
+        }
+      }
+
       return { 
         success: true, 
         changes: changes,
@@ -575,6 +667,30 @@ export async function POST(request) {
 
   } catch (error) {
     console.error('Error updating transfer:', error);
+    if (error && error.message === 'DEST_STOCK_NOT_FOUND') {
+      return NextResponse.json(
+        { error: 'Destination station stock record not found. Only update allowed, no new stock will be created.' },
+        { status: 400 }
+      );
+    }
+    if (error && error.message === 'SRC_STOCK_NOT_FOUND') {
+      return NextResponse.json(
+        { error: 'Source station stock record not found. Only update allowed, no new stock will be created.' },
+        { status: 400 }
+      );
+    }
+    if (error && error.message === 'SRC_HISTORY_NOT_FOUND') {
+      return NextResponse.json(
+        { error: 'Source filling history entry not found for update-only policy.' },
+        { status: 400 }
+      );
+    }
+    if (error && error.message === 'DEST_HISTORY_NOT_FOUND') {
+      return NextResponse.json(
+        { error: 'Destination filling history entry not found for update-only policy.' },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       { error: 'Error updating record: ' + error.message },
       { status: 500 }

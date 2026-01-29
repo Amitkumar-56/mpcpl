@@ -1,13 +1,29 @@
+import { getCurrentUser, verifyToken } from '@/lib/auth';
 import { executeQuery } from "@/lib/db";
-import { NextResponse } from "next/server";
 import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
-import { getCurrentUser } from '@/lib/auth';
+import { NextResponse } from "next/server";
 
 export async function GET(request) {
   try {
     console.log('🚀 API CALL STARTED...');
     console.log('📡 Request URL:', request.url);
+
+    // Auto-cancel: mark Pending requests older than 72 hours as Cancelled
+    try {
+      const autoCancelQuery = `
+        UPDATE filling_requests
+        SET status = 'Cancelled'
+        WHERE status = 'Pending'
+          AND created IS NOT NULL
+          AND TIMESTAMPDIFF(HOUR, created, NOW()) >= 72
+      `;
+      const autoCancelResult = await executeQuery(autoCancelQuery);
+      if (autoCancelResult?.affectedRows) {
+        console.log('🕒 Auto-cancel applied to pending requests older than 72h:', autoCancelResult.affectedRows);
+      }
+    } catch (autoCancelErr) {
+      console.warn('⚠️ Auto-cancel check failed:', autoCancelErr.message);
+    }
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;
@@ -170,26 +186,38 @@ export async function GET(request) {
 
     const params = [];
     const countParams = [];
+    let staffIncharge = false;
 
     // ✅ For staff (role 1) or incharge (role 2): Filter by assigned station and only show pending
     // ✅ Team Leader (role 3) and above: Multi-branch access (no station filter)
-    if ((userRole === 1 || userRole === 2) && userFsId) {
-      // Parse fs_id (can be comma-separated like "1,2,3")
-      const fsIdArray = String(userFsId).split(',').map(id => id.trim()).filter(id => id && id !== '');
-      if (fsIdArray.length > 0) {
-        // Use FIND_IN_SET or IN clause for multiple stations
-        const placeholders = fsIdArray.map(() => '?').join(',');
-        query += ` AND (fr.fs_id IN (${placeholders}))`;
-        countQuery += ` AND (fr.fs_id IN (${placeholders}))`;
-        params.push(...fsIdArray.map(id => parseInt(id)));
-        countParams.push(...fsIdArray.map(id => parseInt(id)));
+    if (userRole === 1 || userRole === 2) {
+      let hasAccess = false;
+      if (userFsId) {
+        // Parse fs_id (can be comma-separated like "1,2,3")
+        const fsIdArray = String(userFsId).split(',').map(id => id.trim()).filter(id => id && id !== '');
+        if (fsIdArray.length > 0) {
+          hasAccess = true;
+          // Use FIND_IN_SET or IN clause for multiple stations
+          const placeholders = fsIdArray.map(() => '?').join(',');
+          query += ` AND (fr.fs_id IN (${placeholders}))`;
+          countQuery += ` AND (fr.fs_id IN (${placeholders}))`;
+          params.push(...fsIdArray.map(id => parseInt(id)));
+          countParams.push(...fsIdArray.map(id => parseInt(id)));
+
+          // Staff/Incharge: Show both Pending and Processing by default
+          staffIncharge = true;
+          query += ' AND fr.status IN (?, ?)';
+          countQuery += ' AND fr.status IN (?, ?)';
+          params.push('Pending', 'Processing');
+          countParams.push('Pending', 'Processing');
+        }
       }
       
-      // ✅ Only show pending requests for staff/incharge (ignore status filter from URL)
-      query += ' AND fr.status = ?';
-      countQuery += ' AND fr.status = ?';
-      params.push('Pending');
-      countParams.push('Pending');
+      if (!hasAccess) {
+        // No station assigned or empty list -> Block access
+        query += ' AND 1=0';
+        countQuery += ' AND 1=0';
+      }
     } else if (status) {
       // ✅ Team Leader (role 3) and above: Apply status filter from URL if provided
       query += ' AND fr.status = ?';
@@ -222,10 +250,19 @@ export async function GET(request) {
 
     if (search) {
       const searchParam = `%${search}%`;
-      query += ' AND (fr.rid LIKE ? OR fr.vehicle_number LIKE ? OR c.name LIKE ? OR fs.station_name LIKE ? OR pc.pcode LIKE ? OR c.phone LIKE ?)';
-      countQuery += ' AND (fr.rid LIKE ? OR fr.vehicle_number LIKE ? OR c.name LIKE ? OR fs.station_name LIKE ? OR pc.pcode LIKE ? OR c.phone LIKE ?)';
-      params.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
-      countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
+      if (staffIncharge) {
+        // Staff/Incharge: search on vehicle number and request id
+        query += ' AND (fr.vehicle_number LIKE ? OR fr.rid LIKE ?)';
+        countQuery += ' AND (fr.vehicle_number LIKE ? OR fr.rid LIKE ?)';
+        params.push(searchParam, searchParam);
+        countParams.push(searchParam, searchParam);
+      } else {
+        // Higher roles: full multi-field search
+        query += ' AND (fr.rid LIKE ? OR fr.vehicle_number LIKE ? OR c.name LIKE ? OR fs.station_name LIKE ? OR pc.pcode LIKE ? OR c.phone LIKE ?)';
+        countQuery += ' AND (fr.rid LIKE ? OR fr.vehicle_number LIKE ? OR c.name LIKE ? OR fs.station_name LIKE ? OR pc.pcode LIKE ? OR c.phone LIKE ?)';
+        params.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
+        countParams.push(searchParam, searchParam, searchParam, searchParam, searchParam, searchParam);
+      }
     }
 
     // ✅ FIX: Use sanitized values for LIMIT (MySQL may not support placeholders in LIMIT)
@@ -249,45 +286,90 @@ export async function GET(request) {
     console.log('✅ Raw requests from database:', requests?.length || 0);
     console.log('📄 Sample request data:', requests?.[0] || 'No data');
 
-    let processedRequests = []; // define at the top
+    let processedRequests = [];
 
     if (requests && requests.length > 0) {
-  processedRequests = requests.map((request) => {
-    const createdName =
-      request.created_by_name &&
-      typeof request.created_by_name === 'string' &&
-      request.created_by_name.toUpperCase() === 'SWIFT'
-        ? null
-        : request.created_by_name;
-    let eligibility = 'N/A';
-    let eligibility_reason = '';
+      processedRequests = await Promise.all(
+        requests.map(async (request) => {
+          const createdName =
+            request.created_by_name &&
+            typeof request.created_by_name === 'string' &&
+            request.created_by_name.toUpperCase() === 'SWIFT'
+              ? null
+              : request.created_by_name;
 
-    const qty = parseFloat(request.qty) || 0;
-    const balance = parseFloat(request.customer_balance) || 0;
+          const qty = parseFloat(request.qty) || 0;
+          const balance = parseFloat(request.customer_balance) || 0;
+          const dayLimit = request.customer_day_limit ? parseInt(request.customer_day_limit) || 0 : 0;
+          const isDayLimitCustomer = dayLimit > 0;
 
-    if (request.status === 'Pending') {
-      // Check if customer is day_limit type from customer_balances table (com_id = cid)
-      const dayLimit = request.customer_day_limit ? parseInt(request.customer_day_limit) || 0 : 0;
-      const isDayLimitCustomer = dayLimit > 0;
-      
-      // Day limit customers should NOT show "Insufficient Balance" error
-      // Only check balance for credit_limit customers (amtlimit customers)
-      if (!isDayLimitCustomer && (balance === 0 || balance < qty * 100)) {
-        eligibility = 'No';
-        eligibility_reason = 'Insufficient Balance';
-      } else {
-        eligibility = 'Yes';
-      }
+          // Resolve product_id for deal price lookup
+          let productId = parseInt(request.product) || null;
+          try {
+            if (!productId) {
+              const codeId = request.sub_product_id || request.fl_id;
+              if (codeId) {
+                const codeRows = await executeQuery(
+                  "SELECT product_id FROM product_codes WHERE id = ?",
+                  [parseInt(codeId)]
+                );
+                if (codeRows.length > 0) {
+                  productId = codeRows[0].product_id || null;
+                }
+              }
+            }
+          } catch (e) {
+            console.warn("Could not resolve product_id for request:", request.rid, e.message);
+          }
+
+          // Fetch deal price for this customer+station+product
+          let dealPrice = null;
+          if (request.cid && request.fs_id && productId) {
+            try {
+              const p = await getFuelPrice(
+                parseInt(request.fs_id),
+                parseInt(productId),
+                parseInt(request.sub_product_id),
+                parseInt(request.cid),
+                parseFloat(request.price || 0)
+              );
+              dealPrice = isNaN(p) ? null : p;
+            } catch (e) {
+              console.warn("Deal price lookup failed for request:", request.rid, e.message);
+            }
+          }
+
+          const requestedAmount = dealPrice ? (dealPrice * qty) : 0;
+          let eligibility = 'N/A';
+          let eligibility_reason = '';
+
+          if (request.status === 'Pending') {
+            if (!dealPrice) {
+              eligibility = 'No';
+              eligibility_reason = 'Price not set';
+            } else if (!isDayLimitCustomer && (!balance || balance <= 0)) {
+              eligibility = 'No';
+              eligibility_reason = 'No credit limit';
+            } else if (!isDayLimitCustomer && requestedAmount > balance) {
+              eligibility = 'No';
+              eligibility_reason = 'Limit exceeded';
+            } else {
+              eligibility = 'Yes';
+            }
+          }
+
+          return {
+            ...request,
+            created_by_name: createdName,
+            eligibility,
+            eligibility_reason,
+            deal_price: dealPrice,
+            requested_amount: requestedAmount,
+            has_amtlimit: !!(balance && balance > 0)
+          };
+        })
+      );
     }
-
-    return {
-      ...request,
-      created_by_name: createdName,
-      eligibility,
-      eligibility_reason
-    };
-  });
-}
 
     console.log('✅ Processed requests:', processedRequests.length);
 
@@ -676,4 +758,80 @@ export async function POST(request) {
       details: error.message 
     }, { status: 500 });
   }
+}
+
+async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
+  let finalPrice = defaultPrice;
+  const sId = parseInt(sub_product_id);
+  const hasSubProduct = !isNaN(sId) && sId > 0;
+
+  if (hasSubProduct) {
+    const exactPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND com_id = ? 
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
+    const exactPriceRows = await executeQuery(exactPriceQuery, [station_id, product_id, sub_product_id, com_id]);
+    if (Array.isArray(exactPriceRows) && exactPriceRows.length > 0) {
+      return parseFloat(exactPriceRows[0].price);
+    }
+  }
+
+  if (hasSubProduct) {
+    const stationPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND (com_id IS NULL OR com_id = 0)
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
+    const stationPriceRows = await executeQuery(stationPriceQuery, [station_id, product_id, sub_product_id]);
+    if (Array.isArray(stationPriceRows) && stationPriceRows.length > 0) {
+      return parseFloat(stationPriceRows[0].price);
+    }
+  }
+
+  const customerGeneralQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND com_id = ? 
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
+  `;
+  const customerGeneralRows = await executeQuery(customerGeneralQuery, [station_id, product_id, com_id]);
+  if (Array.isArray(customerGeneralRows) && customerGeneralRows.length > 0) {
+    return parseFloat(customerGeneralRows[0].price);
+  }
+
+  const productGeneralQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND (com_id IS NULL OR com_id = 0)
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
+  `;
+  const productGeneralRows = await executeQuery(productGeneralQuery, [station_id, product_id]);
+  if (Array.isArray(productGeneralRows) && productGeneralRows.length > 0) {
+    return parseFloat(productGeneralRows[0].price);
+  }
+
+  return finalPrice;
 }

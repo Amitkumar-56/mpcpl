@@ -15,11 +15,11 @@ function FillingRequestsPage() {
   const [customerId, setCustomerId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
-  const [customerEligibility, setCustomerEligibility] = useState({ 
-    eligibility: 'Yes', 
-    reason: '', 
-    dayLimit: 0, 
-    dayCount: 0 
+  const [customerEligibility, setCustomerEligibility] = useState({
+    eligibility: 'Yes',
+    reason: '',
+    dayLimit: 0,
+    dayCount: 0
   });
   const [eligibility, setEligibility] = useState({ isEligible: true, reason: '', dayLimit: 0, pendingDays: 0 });
   const [imagePreview, setImagePreview] = useState(null);
@@ -61,7 +61,7 @@ function FillingRequestsPage() {
             pendingDays: Number(data.pendingDays) || 0
           });
         }
-      } catch (e) {}
+      } catch (e) { }
     };
     checkEligibility();
   }, [customerId]);
@@ -72,20 +72,20 @@ function FillingRequestsPage() {
       console.log("❌ CST: No customer ID available");
       return;
     }
-    
+
     console.log("🚀 CST: Starting fetch with customerId:", customerId, "filter:", filter);
-    
+
     try {
       setLoading(true);
       setError('');
-      
+
       let url = `/api/cst/filling-requests?cid=${customerId}`;
       if (filter !== 'All') {
         url += `&status=${filter}`;
       }
-      
+
       console.log("📡 CST: Fetching from URL:", url);
-      
+
       const response = await fetch(url, {
         method: 'GET',
         cache: 'no-store',
@@ -93,46 +93,46 @@ function FillingRequestsPage() {
           'Content-Type': 'application/json',
         },
       });
-      
+
       console.log("📡 CST: Response status:", response.status);
       console.log("📡 CST: Response ok:", response.ok);
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.log("❌ CST: Error response:", errorText);
         throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
-      
+
       const data = await response.json();
       console.log("✅ CST: Parsed response:", data);
-      
+
       if (data.success) {
         const requestsArray = Array.isArray(data.requests) ? data.requests : [];
         console.log("✅ CST: Setting requests:", requestsArray.length, "items");
-        
+
         // ✅ Calculate customer eligibility status based on day_limit
         const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-        
+
         // Get today's pending requests count
         const todayPendingRequests = requestsArray.filter(req => {
           const isPending = req.status === 'pending' || req.status === 'Pending';
           if (!isPending) return false;
-          
+
           const requestDate = req.created ? new Date(req.created).toISOString().split('T')[0] : null;
           return requestDate === today;
         });
-        
+
         // Get day_limit from any request (assuming all have same day_limit for customer)
         const dayLimit = requestsArray[0]?.day_limit || 0;
         const dayCount = todayPendingRequests.length;
-        
-        let customerEligibilityStatus = { 
-          eligibility: 'Yes', 
-          reason: '', 
-          dayLimit: dayLimit, 
-          dayCount: dayCount 
+
+        let customerEligibilityStatus = {
+          eligibility: 'Yes',
+          reason: '',
+          dayLimit: dayLimit,
+          dayCount: dayCount
         };
-        
+
         // Check day_limit eligibility
         if (dayLimit > 0 && dayCount >= dayLimit) {
           customerEligibilityStatus = {
@@ -142,7 +142,7 @@ function FillingRequestsPage() {
             dayCount: dayCount
           };
         }
-        
+
         setCustomerEligibility(customerEligibilityStatus);
         setRequests(requestsArray);
       } else {
@@ -193,7 +193,7 @@ function FillingRequestsPage() {
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
     }
   };
-  
+
   const getRowBgClass = (status) => {
     const displayStatus = mapStatus(status);
     switch (displayStatus) {
@@ -203,7 +203,7 @@ function FillingRequestsPage() {
       default: return '';
     }
   };
-  
+
   const getMobileBorderClass = (status) => {
     const displayStatus = mapStatus(status);
     switch (displayStatus) {
@@ -222,7 +222,7 @@ function FillingRequestsPage() {
         if (parsed?.image1) imgs.push(parsed.image1);
         if (parsed?.image2) imgs.push(parsed.image2);
         if (parsed?.image3) imgs.push(parsed.image3);
-      } catch {}
+      } catch { }
     }
     if (imgs.length === 0) {
       if (request.doc1) imgs.push(request.doc1);
@@ -253,38 +253,17 @@ function FillingRequestsPage() {
   // ✅ Check if edit button should be shown - केवल Pending में enable
   const canEditRequest = (request) => {
     const displayStatus = mapStatus(request.status);
-    
-    // ✅ केवल Pending में ही edit allow करें
-    if (displayStatus !== 'Pending') {
-      return false;
-    }
-    
-    // ✅ Day limit check
-    if (customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit) {
-      return false;
-    }
-    
-    // ✅ Regular eligibility check
-    const isEligible = request.eligibility === 'Yes';
-    return isEligible;
+    return displayStatus === 'Pending';
   };
 
   // ✅ Get edit button title/message
   const getEditButtonTitle = (request) => {
     const displayStatus = mapStatus(request.status);
-    
+
     if (displayStatus !== 'Pending') {
       return `Cannot edit ${displayStatus} request`;
     }
-    
-    if (customerEligibility.dayLimit > 0 && customerEligibility.dayCount >= customerEligibility.dayLimit) {
-      return `Daily limit reached (${customerEligibility.dayCount}/${customerEligibility.dayLimit})`;
-    }
-    
-    if (request.eligibility !== 'Yes') {
-      return `Not eligible: ${request.eligibility_reason || 'Credit limit exceeded'}`;
-    }
-    
+
     return 'Edit Request';
   };
 
@@ -364,7 +343,7 @@ function FillingRequestsPage() {
           <main className="pt-16 flex-1 overflow-y-auto flex items-center justify-center">
             <div className="text-center">
               <div className="text-red-600 text-lg mb-4">Customer not authenticated</div>
-              <Link 
+              <Link
                 href="/cst/login"
                 className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
               >
@@ -399,7 +378,7 @@ function FillingRequestsPage() {
         <div className="fixed top-0 left-0 md:left-64 right-0 z-40 bg-white">
           <CstHeader onMenuClick={toggleSidebar} />
         </div>
-        
+
         <main className="pt-16 flex-1 overflow-y-auto bg-gray-100 min-h-0">
           <div className="p-4 md:p-8 pb-20">
             {/* Header Section */}
@@ -408,9 +387,9 @@ function FillingRequestsPage() {
                 <div className="flex flex-col gap-2">
                   <h1 className="text-2xl md:text-3xl font-bold text-gray-900">My Filling Requests</h1>
                   <p className="text-gray-600 mt-2">Track and manage your fuel filling requests</p>
-                  
+
                   {eligibility.isEligible ? (
-                    <Link 
+                    <Link
                       href="/cst/filling-requests/create-request"
                       className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg transition-colors inline-flex items-center gap-2 w-fit mt-2"
                     >
@@ -438,7 +417,7 @@ function FillingRequestsPage() {
                     </div>
                   )}
                 </div>
-                
+
                 {/* Stats Cards */}
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4">
                   <div className="bg-white rounded-lg p-3 shadow border">
@@ -481,15 +460,14 @@ function FillingRequestsPage() {
                   <button
                     key={status}
                     onClick={() => handleFilterChange(status)}
-                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                      statusFilter === status
-                        ? status === 'All' ? 'bg-gray-800 text-white' 
+                    className={`px-4 py-2 rounded-lg font-medium transition-colors ${statusFilter === status
+                        ? status === 'All' ? 'bg-gray-800 text-white'
                           : status === 'Completed' ? 'bg-green-600 text-white'
-                          : status === 'Processing' ? 'bg-blue-600 text-white'
-                          : status === 'Cancelled' ? 'bg-red-600 text-white'
-                          : 'bg-yellow-600 text-white'
+                            : status === 'Processing' ? 'bg-blue-600 text-white'
+                              : status === 'Cancelled' ? 'bg-red-600 text-white'
+                                : 'bg-yellow-600 text-white'
                         : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     {status}
                   </button>
@@ -556,8 +534,8 @@ function FillingRequestsPage() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {requests.flatMap((request, index) => [
                           // Main Row
-                          <tr 
-                            key={`${request.id}-main`} 
+                          <tr
+                            key={`${request.id}-main`}
                             className={`hover:bg-gray-50 transition-colors ${getRowBgClass(request.status)}`}
                           >
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
@@ -581,7 +559,7 @@ function FillingRequestsPage() {
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                               <div className="flex items-center gap-2">
-                                {getRequestImages(request).slice(0,3).map((src, idx) => (
+                                {getRequestImages(request).slice(0, 3).map((src, idx) => (
                                   <button
                                     key={idx}
                                     onClick={() => setImagePreview(src)}
@@ -643,13 +621,12 @@ function FillingRequestsPage() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               {shouldShowEligibility(request) ? (
                                 <div className="flex flex-col gap-1">
-                                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${
-                                    request.eligibility === 'Yes' 
+                                  <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full border ${request.eligibility === 'Yes'
                                       ? 'bg-green-100 text-green-800 border-green-200'
                                       : request.eligibility === 'No'
-                                      ? 'bg-red-100 text-red-800 border-red-200'
-                                      : 'bg-gray-100 text-gray-800 border-gray-200'
-                                  }`}>
+                                        ? 'bg-red-100 text-red-800 border-red-200'
+                                        : 'bg-gray-100 text-gray-800 border-gray-200'
+                                    }`}>
                                     {request.eligibility || 'N/A'}
                                   </span>
                                   {request.eligibility_reason && request.eligibility !== 'N/A' && (
@@ -659,11 +636,10 @@ function FillingRequestsPage() {
                                   )}
                                   {/* ✅ Day Limit Info (केवल Pending में) */}
                                   {customerEligibility.dayLimit > 0 && (
-                                    <div className={`text-xs ${
-                                      customerEligibility.dayCount >= customerEligibility.dayLimit 
-                                        ? 'text-red-600 font-medium' 
+                                    <div className={`text-xs ${customerEligibility.dayCount >= customerEligibility.dayLimit
+                                        ? 'text-red-600 font-medium'
                                         : 'text-gray-500'
-                                    }`}>
+                                      }`}>
                                       Day: {customerEligibility.dayCount}/{customerEligibility.dayLimit}
                                     </div>
                                   )}
@@ -697,7 +673,7 @@ function FillingRequestsPage() {
                                   </svg>
                                   View
                                 </Link>
-                                
+
                                 {/* ✅ Edit Button - केवल Pending में enable */}
                                 {canEditRequest(request) ? (
                                   <Link
@@ -725,7 +701,7 @@ function FillingRequestsPage() {
                               </div>
                             </td>
                           </tr>,
-                          
+
                           // Expanded Row (if expanded)
                           expandedRows.has(request.id) && (
                             <tr key={`${request.id}-expanded`} className="bg-gray-50">
@@ -754,14 +730,13 @@ function FillingRequestsPage() {
                                       {/* ✅ केवल Pending में Eligibility दिखाएं */}
                                       {mapStatus(request.status) === 'Pending' && (
                                         <div>
-                                          <span className="font-medium">Eligibility:</span> 
-                                          <span className={`ml-2 px-2 py-1 text-xs rounded ${
-                                            request.eligibility === 'Yes' 
+                                          <span className="font-medium">Eligibility:</span>
+                                          <span className={`ml-2 px-2 py-1 text-xs rounded ${request.eligibility === 'Yes'
                                               ? 'bg-green-100 text-green-800'
                                               : request.eligibility === 'No'
-                                              ? 'bg-red-100 text-red-800'
-                                              : 'bg-gray-100 text-gray-800'
-                                          }`}>
+                                                ? 'bg-red-100 text-red-800'
+                                                : 'bg-gray-100 text-gray-800'
+                                            }`}>
                                             {request.eligibility || 'N/A'}
                                           </span>
                                           {request.eligibility_reason && (
@@ -772,12 +747,11 @@ function FillingRequestsPage() {
                                           {/* ✅ Day Limit in expanded view */}
                                           {customerEligibility.dayLimit > 0 && (
                                             <div className="text-xs mt-1">
-                                              <span className="font-medium">Day Limit:</span> 
-                                              <span className={`ml-1 ${
-                                                customerEligibility.dayCount >= customerEligibility.dayLimit 
-                                                  ? 'text-red-600 font-medium' 
+                                              <span className="font-medium">Day Limit:</span>
+                                              <span className={`ml-1 ${customerEligibility.dayCount >= customerEligibility.dayLimit
+                                                  ? 'text-red-600 font-medium'
                                                   : 'text-gray-600'
-                                              }`}>
+                                                }`}>
                                                 {customerEligibility.dayCount}/{customerEligibility.dayLimit}
                                               </span>
                                             </div>
@@ -824,20 +798,19 @@ function FillingRequestsPage() {
                             </span>
                             {/* ✅ Mobile में Eligibility - केवल Pending में दिखेगा */}
                             {shouldShowEligibility(request) && (
-                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${
-                                request.eligibility === 'Yes' 
+                              <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full border ${request.eligibility === 'Yes'
                                   ? 'bg-green-100 text-green-800 border-green-200'
                                   : request.eligibility === 'No'
-                                  ? 'bg-red-100 text-red-800 border-red-200'
-                                  : 'bg-gray-100 text-gray-800 border-gray-200'
-                              }`}>
+                                    ? 'bg-red-100 text-red-800 border-red-200'
+                                    : 'bg-gray-100 text-gray-800 border-gray-200'
+                                }`}>
                                 {request.eligibility || 'N/A'}
                               </span>
                             )}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {getRequestImages(request).slice(0,3).map((src, idx) => (
+                          {getRequestImages(request).slice(0, 3).map((src, idx) => (
                             <button
                               key={idx}
                               onClick={() => setImagePreview(src)}
@@ -851,7 +824,7 @@ function FillingRequestsPage() {
                             <span className="text-xs text-gray-500">No images</span>
                           )}
                         </div>
-                        
+
                         <div className="grid grid-cols-2 gap-2 text-sm">
                           <div>
                             <span className="text-gray-500">Vehicle:</span>
@@ -870,15 +843,14 @@ function FillingRequestsPage() {
                             <div>{formatDateTime(request.created)}</div>
                           </div>
                         </div>
-                        
+
                         {/* ✅ Day Limit Info (केवल Pending में) */}
                         {shouldShowEligibility(request) && customerEligibility.dayLimit > 0 && (
-                          <div className={`text-xs px-3 py-2 rounded ${
-                            customerEligibility.dayCount >= customerEligibility.dayLimit 
-                              ? 'bg-red-50 text-red-700 border border-red-200' 
+                          <div className={`text-xs px-3 py-2 rounded ${customerEligibility.dayCount >= customerEligibility.dayLimit
+                              ? 'bg-red-50 text-red-700 border border-red-200'
                               : 'bg-blue-50 text-blue-700 border border-blue-200'
-                          }`}>
-                            <span className="font-medium">Day Limit:</span> 
+                            }`}>
+                            <span className="font-medium">Day Limit:</span>
                             <span className="ml-1">
                               {customerEligibility.dayCount}/{customerEligibility.dayLimit}
                             </span>
@@ -889,14 +861,14 @@ function FillingRequestsPage() {
                             )}
                           </div>
                         )}
-                        
+
                         {/* ✅ Created By Info */}
                         {request.created_by_name && (
                           <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
                             <span className="font-medium">Created by:</span> {request.created_by_name}
                           </div>
                         )}
-                        
+
                         {/* ✅ Processing By Info */}
                         {request.processing_by_name && (
                           <div className="text-xs text-gray-600 bg-blue-50 p-2 rounded">
@@ -906,7 +878,7 @@ function FillingRequestsPage() {
                             )}
                           </div>
                         )}
-                        
+
                         {/* ✅ Completed By Info */}
                         {request.completed_by_name && (
                           <div className="text-xs text-gray-600 bg-green-50 p-2 rounded">
@@ -916,7 +888,7 @@ function FillingRequestsPage() {
                             )}
                           </div>
                         )}
-                        
+
                         {expandedRows.has(request.id) && (
                           <div className="grid grid-cols-1 gap-2 text-sm mt-2 pt-2 border-t border-gray-200">
                             <div>
@@ -932,13 +904,12 @@ function FillingRequestsPage() {
                               <div>
                                 <span className="text-gray-500">Eligibility:</span>
                                 <div className="flex items-center gap-2 mt-1">
-                                  <span className={`px-2 py-1 text-xs rounded ${
-                                    request.eligibility === 'Yes' 
+                                  <span className={`px-2 py-1 text-xs rounded ${request.eligibility === 'Yes'
                                       ? 'bg-green-100 text-green-800'
                                       : request.eligibility === 'No'
-                                      ? 'bg-red-100 text-red-800'
-                                      : 'bg-gray-100 text-gray-800'
-                                  }`}>
+                                        ? 'bg-red-100 text-red-800'
+                                        : 'bg-gray-100 text-gray-800'
+                                    }`}>
                                     {request.eligibility || 'N/A'}
                                   </span>
                                   {request.eligibility_reason && (
@@ -950,7 +921,7 @@ function FillingRequestsPage() {
                               </div>
                             )}
                             <div className="flex gap-2 pt-1">
-                              <Link 
+                              <Link
                                 href={`/cst/filling-details?id=${request.id}`}
                                 className="flex-1 bg-blue-600 text-white px-3 py-2 rounded text-sm hover:bg-blue-700 text-center"
                               >
@@ -958,7 +929,7 @@ function FillingRequestsPage() {
                               </Link>
                               {/* ✅ Mobile Edit Button - केवल Pending में enable */}
                               {canEditRequest(request) ? (
-                                <Link 
+                                <Link
                                   href={`/cst/filling-requests/edit?id=${request.id}`}
                                   className="flex-1 bg-yellow-600 text-white px-3 py-2 rounded text-sm hover:bg-yellow-700 text-center"
                                 >
@@ -976,7 +947,7 @@ function FillingRequestsPage() {
                             </div>
                           </div>
                         )}
-                        
+
                         {mapStatus(request.status) === 'Cancelled' && request.cancelled_by_name && (
                           <div className="text-xs text-gray-600 p-2 bg-red-50 rounded border border-red-200">
                             <span className="font-semibold">Cancelled by:</span> {request.cancelled_by_name}
@@ -987,7 +958,7 @@ function FillingRequestsPage() {
                             )}
                           </div>
                         )}
-                        
+
                         <div className="flex justify-between items-center pt-2 border-t border-gray-200">
                           <button
                             onClick={() => toggleRow(request.id)}
@@ -1011,7 +982,7 @@ function FillingRequestsPage() {
                             )}
                           </button>
                           <div className="flex gap-2">
-                            <Link 
+                            <Link
                               href={`/cst/filling-details?id=${request.id}`}
                               className="bg-blue-600 text-white px-3 py-1.5 rounded text-sm hover:bg-blue-700"
                             >
@@ -1019,7 +990,7 @@ function FillingRequestsPage() {
                             </Link>
                             {/* ✅ Mobile Edit Button */}
                             {canEditRequest(request) ? (
-                              <Link 
+                              <Link
                                 href={`/cst/filling-requests/edit?id=${request.id}`}
                                 className="bg-yellow-600 text-white px-3 py-1.5 rounded text-sm hover:bg-yellow-700"
                               >
@@ -1059,7 +1030,7 @@ function FillingRequestsPage() {
                   Customer ID: {customerId} | Filter: {statusFilter}
                 </div>
                 {eligibility.isEligible ? (
-                  <Link 
+                  <Link
                     href="/cst/filling-requests/create-request"
                     className="inline-block bg-purple-600 text-white px-6 py-2 rounded-lg hover:bg-purple-700"
                   >

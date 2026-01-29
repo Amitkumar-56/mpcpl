@@ -4,25 +4,25 @@ import { useSession } from '@/context/SessionContext';
 import { usePathname, useRouter } from "next/navigation";
 import { memo, startTransition, useEffect, useMemo, useRef, useState } from "react";
 import {
-    FaBars,
-    FaBox,
-    FaBuilding,
-    FaClipboard,
-    FaClock,
-    FaCog,
-    FaExchangeAlt,
-    FaFileAlt,
-    FaFileInvoice,
-    FaHistory,
-    FaHome,
-    FaMoneyBill,
-    FaSignOutAlt,
-    FaStickyNote,
-    FaTimes,
-    FaTruck,
-    FaTruckMoving,
-    FaUsers,
-    FaUserTie
+  FaBars,
+  FaBox,
+  FaBuilding,
+  FaClipboard,
+  FaClock,
+  FaCog,
+  FaExchangeAlt,
+  FaFileAlt,
+  FaFileInvoice,
+  FaHistory,
+  FaHome,
+  FaMoneyBill,
+  FaSignOutAlt,
+  FaStickyNote,
+  FaTimes,
+  FaTruck,
+  FaTruckMoving,
+  FaUsers,
+  FaUserTie
 } from "react-icons/fa";
 
 const Sidebar = memo(function Sidebar({ onClose }) {

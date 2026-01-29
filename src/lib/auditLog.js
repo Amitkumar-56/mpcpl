@@ -1,5 +1,5 @@
 // src/lib/auditLog.js - Universal Audit Log Utility
-import { executeQuery } from './db';
+import pool, { executeQuery } from './db';
 
 /**
  * Create a comprehensive audit log entry
@@ -32,8 +32,8 @@ export async function createAuditLog({
   recordId = null
 }) {
   try {
-    // Ensure audit_log table exists with comprehensive structure
-    await executeQuery(`
+    // Ensure audit_log table exists with comprehensive structure - Use pool.query for DDL
+    await pool.query(`
       CREATE TABLE IF NOT EXISTS audit_log (
         id INT AUTO_INCREMENT PRIMARY KEY,
         page VARCHAR(255) NOT NULL COMMENT 'Page name where action occurred',
@@ -71,7 +71,7 @@ export async function createAuditLog({
     // ✅ FIX: ALWAYS try to get employee name from employee_profile if userId is provided
     // This ensures we never use 'System' when we have a valid userId
     let finalUserName = userName;
-    
+
     // If userId is provided, ALWAYS fetch from employee_profile to ensure accurate name
     if (userId) {
       try {
@@ -81,7 +81,7 @@ export async function createAuditLog({
           [userId]
         );
         console.log(`🔍 [AuditLog] Employee query result:`, users);
-        
+
         if (users.length > 0 && users[0].name) {
           finalUserName = users[0].name;
           console.log(`✅ [AuditLog] Fetched employee name from employee_profile: ${finalUserName} (ID: ${userId})`);
@@ -93,13 +93,13 @@ export async function createAuditLog({
         console.error('❌ [AuditLog] Error fetching employee name from employee_profile:', err);
       }
     }
-    
+
     // Also handle cases where userName might be 'System' but we have userId
-    const needsFetch = !finalUserName || 
-                      finalUserName === 'System' || 
-                      finalUserName === 'Unknown User' || 
-                      finalUserName.startsWith('Employee ID:');
-    
+    const needsFetch = !finalUserName ||
+      finalUserName === 'System' ||
+      finalUserName === 'Unknown User' ||
+      finalUserName.startsWith('Employee ID:');
+
     // If still needs fetch and we have userId, try again (in case first fetch failed)
     if (needsFetch && userId && finalUserName === userName) {
       try {
@@ -107,7 +107,7 @@ export async function createAuditLog({
           `SELECT id, name FROM employee_profile WHERE id = ?`,
           [userId]
         );
-        
+
         if (users.length > 0 && users[0].name) {
           finalUserName = users[0].name;
           console.log(`✅ [AuditLog] Fetched employee name on retry: ${finalUserName} (ID: ${userId})`);
@@ -116,7 +116,7 @@ export async function createAuditLog({
         console.error('❌ [AuditLog] Error on retry fetching employee name:', err);
       }
     }
-    
+
     // If still no name, try to get from newValue (for shared/created records)
     if (!finalUserName && newValue) {
       try {
@@ -135,7 +135,7 @@ export async function createAuditLog({
         console.error('❌ [AuditLog] Error parsing newValue:', err);
       }
     }
-    
+
     // ✅ Final fallback: If we have userId but couldn't find employee, use descriptive message
     if (!finalUserName && userId) {
       // One more attempt to fetch - sometimes might be timing issue
@@ -158,7 +158,7 @@ export async function createAuditLog({
       finalUserName = 'Unknown User';
       console.error(`❌ [AuditLog] No userName and no userId, using: ${finalUserName}`);
     }
-    
+
     console.log(`✅ [AuditLog] Final userName for audit log: ${finalUserName} (userId: ${userId})`);
 
     // Convert oldValue and newValue to JSON strings if they are objects
@@ -212,7 +212,7 @@ export async function getUserInfoFromToken(token) {
     // Import verifyToken
     const { verifyToken } = await import('./auth');
     const decoded = verifyToken(token);
-    
+
     if (!decoded) {
       return { userId: null, userName: null };
     }
@@ -231,7 +231,7 @@ export async function getUserInfoFromToken(token) {
           userName: users[0].name
         };
       }
-      
+
       // If user not found but we have userId, return with descriptive name
       return {
         userId: userId,
@@ -254,14 +254,14 @@ export async function getUserInfoFromToken(token) {
  */
 export function formatValueChange(oldValue, newValue, fieldName = null) {
   if (!oldValue && !newValue) return '';
-  
+
   const oldStr = oldValue ? (typeof oldValue === 'object' ? JSON.stringify(oldValue) : String(oldValue)) : 'N/A';
   const newStr = newValue ? (typeof newValue === 'object' ? JSON.stringify(newValue) : String(newValue)) : 'N/A';
-  
+
   if (fieldName) {
     return `${fieldName}: "${oldStr}" → "${newStr}"`;
   }
-  
+
   return `"${oldStr}" → "${newStr}"`;
 }
 

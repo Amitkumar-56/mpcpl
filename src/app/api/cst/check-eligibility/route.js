@@ -161,30 +161,28 @@ export async function POST(request) {
         console.log('💰 Available Balance Check:', {
           amtLimit,
           balance,
-          availableBalance
+       
         });
         
         // Check if available balance is sufficient (available balance should be greater than 0)
-        if (availableBalance > 0) {
+        if (amtLimit > 0) {
           // All checks passed
           return NextResponse.json({
             success: true,
             isEligible: true,
             reason: null,
-            pendingDays: 0,
-            dayLimit: dayLimitVal,
             creditLimit: amtLimit,
             currentBalance: balance,
-            availableBalance: availableBalance
+          
           });
         } else {
           return NextResponse.json({
             success: true,
             isEligible: false,
-            reason: `Insufficient balance (Available: ₹${availableBalance.toFixed(2)}, Limit: ₹${amtLimit.toFixed(2)}, Used: ₹${balance.toFixed(2)})`,
+            reason: `Insufficient balance (Remaing: ₹${amtLimit.toFixed(2)},  Used: ₹${balance.toFixed(2)})`,
             creditLimit: amtLimit,
             currentBalance: balance,
-            availableBalance: availableBalance
+           
           });
         }
       }

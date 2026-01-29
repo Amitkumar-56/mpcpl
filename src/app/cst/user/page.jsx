@@ -10,6 +10,8 @@ export default function UserList() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
+  const [viewOpen, setViewOpen] = useState(false);
+  const [viewData, setViewData] = useState(null);
 
   useEffect(() => {
     fetchUsers();
@@ -44,6 +46,26 @@ export default function UserList() {
     // ✅ DELETE functionality removed - users cannot be deleted
     alert('Delete operation is not allowed. Please contact administrator.');
       return;
+  };
+  
+  const openView = async (id) => {
+    try {
+      setError('');
+      const res = await fetch(`/api/cst/add-user?id=${id}`);
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to load user');
+      }
+      setViewData(data.customer);
+      setViewOpen(true);
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+  
+  const closeView = () => {
+    setViewOpen(false);
+    setViewData(null);
   };
 
   if (loading) {
@@ -184,8 +206,8 @@ export default function UserList() {
                           {new Date(customer.created_at).toLocaleDateString()}
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-3">
-                          <Link
-                            href={`/cst/customer-details/${customer.id}`}
+                          <button
+                            onClick={() => openView(customer.id)}
                             className="text-blue-600 hover:text-blue-900 inline-flex items-center"
                             title="View Details"
                           >
@@ -194,10 +216,10 @@ export default function UserList() {
                               <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                             </svg>
                             View
-                          </Link>
+                          </button>
                           
                           <Link
-                            href={`/cst/update-customer/${customer.id}`}
+                            href={`/cst/edit-user?id=${customer.id}`}
                             className="text-orange-600 hover:text-orange-900 inline-flex items-center"
                             title="Edit Details"
                           >
@@ -236,6 +258,46 @@ export default function UserList() {
             )}
           </div>
         </section>
+        
+        {viewOpen && viewData && (
+          <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">User Details</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Name</span>
+                  <span className="text-gray-900 font-medium">{viewData.name}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Email</span>
+                  <span className="text-gray-900 font-medium">{viewData.email}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Phone</span>
+                  <span className="text-gray-900 font-medium">{viewData.phone}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-600">Status</span>
+                  <span className="text-gray-900 font-medium">{String(viewData.status) === '1' ? 'Active' : 'Inactive'}</span>
+                </div>
+              </div>
+              <div className="mt-6 flex gap-3">
+                <button
+                  onClick={closeView}
+                  className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300"
+                >
+                  Close
+                </button>
+                <Link
+                  href={`/cst/edit-user?id=${viewData.id}`}
+                  className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 text-center"
+                >
+                  Edit
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );
