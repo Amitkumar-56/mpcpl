@@ -7,6 +7,25 @@ import { cookies } from 'next/headers';
 import { verifyToken } from '@/lib/auth';
 import { createEntityLog } from '@/lib/entityLogs';
 
+async function getConnWithRetry(retries = 3, delayMs = 300) {
+  let lastErr;
+  for (let i = 0; i < retries; i++) {
+    try {
+      const conn = await getConnection();
+      return conn;
+    } catch (err) {
+      lastErr = err;
+      const msg = String(err?.message || '');
+      if (err?.code === 'ER_CON_COUNT_ERROR' || msg.includes('Too many connections')) {
+        await new Promise(res => setTimeout(res, delayMs));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 // Helper function for password hashing
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
@@ -51,7 +70,7 @@ export async function PUT(request) {
     }
 
     // Get connection from pool
-    connection = await getConnection();
+    connection = await getConnWithRetry();
 
     // Check if customer exists
     const [existingCustomers] = await connection.execute(
@@ -507,7 +526,7 @@ export async function GET(request) {
       );
     }
 
-    connection = await getConnection();
+    connection = await getConnWithRetry();
 
     const [customers] = await connection.execute(
       'SELECT * FROM customers WHERE id = ?',

@@ -55,6 +55,7 @@ function ReportHistoryContent() {
     totalRecharge: 0
   });
   const [invoiceSearch, setInvoiceSearch] = useState('');
+  const [exportLoading, setExportLoading] = useState(false);
   const displayRecords = React.useMemo(() => {
     const q = invoiceSearch.trim().toLowerCase();
     if (!q) return data.records;
@@ -205,6 +206,7 @@ function ReportHistoryContent() {
 
   const handleExport = async () => {
     try {
+      setExportLoading(true);
       const response = await fetch('/api/reports/filling-report', {
         method: 'POST',
         headers: {
@@ -219,21 +221,39 @@ function ReportHistoryContent() {
       const result = await response.json();
       
       if (result.success && result.csv) {
+        // Robust CSV escaping function
+        const processRow = (row) => row.map(val => {
+          if (val === null || val === undefined) return '';
+          const str = String(val);
+          // If value contains comma, double quote, or newline, escape it
+          if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+            return `"${str.replace(/"/g, '""')}"`;
+          }
+          return str;
+        });
+
         const csvContent = [
-          result.csv.headers.join(','),
-          ...result.csv.data.map(row => row.join(','))
+          processRow(result.csv.headers).join(','),
+          ...result.csv.data.map(row => processRow(row).join(','))
         ].join('\n');
         
-        const blob = new Blob([csvContent], { type: 'text/csv' });
+        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const url = window.URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = 'filling_report.csv';
+        link.download = `filling_report_${new Date().toISOString().slice(0,10)}.csv`;
+        document.body.appendChild(link);
         link.click();
+        document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
+      } else {
+        alert('Export failed: ' + (result.error || 'Unknown error'));
       }
     } catch (error) {
       console.error('Export error:', error);
+      alert('Export error: ' + error.message);
+    } finally {
+      setExportLoading(false);
     }
   };
 
@@ -926,9 +946,10 @@ function ReportHistoryContent() {
                 </button>
                 <button
                   onClick={handleExport}
-                  className="flex-1 sm:flex-none px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500 transition-colors text-sm sm:text-base"
+                  disabled={exportLoading}
+                  className={`flex-1 sm:flex-none px-4 py-2 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 focus:ring-2 focus:ring-yellow-500 transition-colors text-sm sm:text-base ${exportLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
-                  Export
+                  {exportLoading ? 'Exporting...' : 'Export'}
                 </button>
               </div>
         </div>
@@ -1168,6 +1189,9 @@ function ReportHistoryContent() {
                                           <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
                                             <div className="text-xs text-green-700">
                                               <span className="font-medium">✓ Checked:</span> {record.checked_by_name}
+                                              {record.checked_by && (
+                                                <span className="text-green-600 ml-1 text-xs">[ID: {record.checked_by}]</span>
+                                              )}
                                               {record.checked_at && (
                                                 <span className="text-green-600 ml-1 text-xs">
                                                   ({new Date(record.checked_at).toLocaleString('en-IN', {
@@ -1187,6 +1211,9 @@ function ReportHistoryContent() {
                                           <div className="bg-purple-50 border border-purple-200 rounded px-2 py-1">
                                             <div className="text-xs text-purple-700">
                                               <span className="font-medium">📄 Invoiced:</span> {record.invoiced_by_name}
+                                              {record.invoiced_by && (
+                                                <span className="text-purple-600 ml-1 text-xs">[ID: {record.invoiced_by}]</span>
+                                              )}
                                               {record.invoiced_at && (
                                                 <span className="text-purple-600 ml-1 text-xs">
                                                   ({new Date(record.invoiced_at).toLocaleString('en-IN', {
@@ -1213,6 +1240,9 @@ function ReportHistoryContent() {
                                             <div className="bg-blue-50 border border-blue-200 rounded px-2 py-1">
                                               <p className="text-xs text-blue-700">
                                                 <span className="font-medium">📝 Created by:</span> {record.created_by_name}
+                                                {record.created_by_id && (
+                                                  <span className="text-blue-600 ml-1 text-xs">[ID: {record.created_by_id}]</span>
+                                                )}
                                                 {record.created_date && (
                                                   <span className="text-blue-600 ml-1 text-xs">
                                                     ({new Date(record.created_date).toLocaleString('en-IN', {
@@ -1232,6 +1262,9 @@ function ReportHistoryContent() {
                                             <div className="bg-yellow-50 border border-yellow-200 rounded px-2 py-1">
                                               <p className="text-xs text-yellow-700">
                                                 <span className="font-medium">⚙️ Processed by:</span> {record.processed_by_name}
+                                                {record.processed_by_id && (
+                                                  <span className="text-yellow-600 ml-1 text-xs">[ID: {record.processed_by_id}]</span>
+                                                )}
                                                 {record.processed_date && (
                                                   <span className="text-yellow-600 ml-1 text-xs">
                                                     ({new Date(record.processed_date).toLocaleString('en-IN', {
@@ -1251,6 +1284,9 @@ function ReportHistoryContent() {
                                             <div className="bg-green-50 border border-green-200 rounded px-2 py-1">
                                               <p className="text-xs text-green-700">
                                                 <span className="font-medium">✅ Completed by:</span> {record.completed_by_name}
+                                                {record.completed_by_id && (
+                                                  <span className="text-green-600 ml-1 text-xs">[ID: {record.completed_by_id}]</span>
+                                                )}
                                                 {record.completed_date && (
                                                   <span className="text-green-600 ml-1 text-xs">
                                                     ({new Date(record.completed_date).toLocaleString('en-IN', {

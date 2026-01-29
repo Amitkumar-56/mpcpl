@@ -45,12 +45,16 @@ export async function POST(request) {
         c.name AS client_name,
         ep.name as checked_by_name,
         ep_invoice.name as invoiced_by_name,
+        /* Activity log names + IDs */
         COALESCE(fl_created.created_by_name, NULL) as created_by_name,
         fl_created.created_date,
+        fl_created.created_by_id,
         fl_processed.processed_by_name,
         fl_processed.processed_date,
+        fl_processed.processed_by_id,
         fl_completed.completed_by_name,
-        fl_completed.completed_date
+        fl_completed.completed_date,
+        fl_completed.completed_by_id
       FROM filling_requests fr
       LEFT JOIN products p ON fr.product = p.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
@@ -60,18 +64,18 @@ export async function POST(request) {
       LEFT JOIN (
         SELECT 
           fl.request_id,
-          fl.created_by,
+          fl.created_by AS created_by_id,
           fl.created_date,
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
             NULL
-          ) as created_by_name,
+          ) AS created_by_name,
           CASE 
             WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
             WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
             ELSE 'system'
-          END as created_by_type
+          END AS created_by_type
         FROM filling_logs fl
         WHERE fl.created_by IS NOT NULL
         AND fl.id = (
@@ -87,7 +91,8 @@ export async function POST(request) {
         SELECT 
           fl.request_id,
           ep.name as processed_by_name,
-          fl.processed_date
+          fl.processed_date,
+          ep.id as processed_by_id
         FROM filling_logs fl
         LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
         WHERE fl.processed_by IS NOT NULL
@@ -104,7 +109,8 @@ export async function POST(request) {
         SELECT 
           fl.request_id,
           ep.name as completed_by_name,
-          fl.completed_date
+          fl.completed_date,
+          ep.id as completed_by_id
         FROM filling_logs fl
         LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
         WHERE fl.completed_by IS NOT NULL
@@ -143,7 +149,13 @@ export async function POST(request) {
     // Use direct values for LIMIT and OFFSET to avoid MySQL prepared statement issues
     const limitValue = parseInt(limit) || 100;
     const offsetValue = parseInt(offset) || 0;
-    queryStr += ` ORDER BY fr.created DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
+    
+    // Only apply limit if not exporting
+    if (!exportData) {
+      queryStr += ` ORDER BY fr.created DESC LIMIT ${limitValue} OFFSET ${offsetValue}`;
+    } else {
+      queryStr += ` ORDER BY fr.created DESC`;
+    }
 
     console.log('📝 Query:', queryStr);
     console.log('🔢 Params:', params);
@@ -151,6 +163,45 @@ export async function POST(request) {
     // Execute query
     const records = await executeQuery(queryStr, params);
     console.log('✅ Records found:', records.length);
+
+    // Handle Export
+    if (exportData) {
+      const csvHeaders = [
+        'ID', 'Date', 'Station', 'Client', 'Product', 'Quantity (Ltr)', 'Amount', 'Status', 
+        'Checked', 'Checked By', 'Invoiced', 'Invoiced By'
+      ];
+      
+      const csvData = records.map(record => [
+        record.rid,
+        (() => {
+          const dateVal = record.completed_date || record.created;
+          if (!dateVal) return '-';
+          try {
+            return new Date(dateVal).toLocaleDateString('en-GB');
+          } catch (e) {
+            return String(dateVal);
+          }
+        })(),
+        record.station_name,
+        record.client_name,
+        record.product_name,
+        record.aqty || record.qty || 0,
+        record.amount || 0,
+        record.status,
+        record.is_checked ? 'Yes' : 'No',
+        record.checked_by_name || '-',
+        record.is_invoiced ? 'Yes' : 'No',
+        record.invoiced_by_name || '-'
+      ]);
+
+      return NextResponse.json({
+        success: true,
+        csv: {
+          headers: csvHeaders,
+          data: csvData
+        }
+      });
+    }
 
     // Calculate totals
     let totalQty = 0;

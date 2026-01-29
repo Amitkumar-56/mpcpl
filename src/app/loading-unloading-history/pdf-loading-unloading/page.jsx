@@ -481,31 +481,34 @@ function PdfLoadingUnloadingContent() {
           </ol>
         </div>
 
-        {/* Footer */}
-        <div className="text-center border-t border-gray-300 pt-4">
-          <p className="font-semibold text-gray-800 text-sm">GYANTI MULTISERVICES PVT. LTD.</p>
-          <p className="text-gray-600 text-xs mt-1">
-            Registered Office : Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007<br />
-            E-Mail – accounts@gyanti.in | GSTIN – 09AAGCGG20R123 | CIN No. U15549UP2016PTC088333
-          </p>
-        </div>
+        {/* Footer with Stamp */}
+        <div className="border-t border-gray-300 pt-4 flex flex-row items-end justify-between">
+          <div className="w-1/4"></div> {/* Spacer for balance */}
+          
+          <div className="text-center flex-1">
+            <p className="font-semibold text-gray-800 text-sm">GYANTI MULTISERVICES PVT. LTD.</p>
+            <p className="text-gray-600 text-xs mt-1">
+              Registered Office : Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007<br />
+              E-Mail – accounts@gyanti.in | GSTIN – 09AAGCGG20R123 | CIN No. U15549UP2016PTC088333
+            </p>
+          </div>
 
-        {/* Stamp */}
-        <div className="text-right mt-4">
-          <div className="inline-block border-2 border-gray-400 p-3 rounded">
-            <img 
-              src="/mpcl_stamp.jpg" 
-              alt="Company Stamp" 
-              className="h-24 w-auto"
-              onError={(e) => {
-                e.target.style.display = 'none';
-                if (e.target.nextSibling) {
-                  e.target.nextSibling.style.display = 'block';
-                }
-              }}
-            />
-            <div className="hidden border-2 border-dashed border-gray-300 w-24 h-24 flex items-center justify-center text-xs text-gray-500 text-center">
-              Company<br />Stamp
+          <div className="w-1/4 text-right">
+            <div className="inline-block border-2 border-gray-400 p-2 rounded bg-white">
+              <img 
+                src="/mpcl_stamp.jpg" 
+                alt="Company Stamp" 
+                className="h-20 w-auto"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                  if (e.target.nextSibling) {
+                    e.target.nextSibling.style.display = 'block';
+                  }
+                }}
+              />
+              <div className="hidden border-2 border-dashed border-gray-300 w-20 h-20 flex items-center justify-center text-xs text-gray-500 text-center">
+                Company<br />Stamp
+              </div>
             </div>
           </div>
         </div>

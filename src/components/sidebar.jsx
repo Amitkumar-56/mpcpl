@@ -43,19 +43,12 @@ const Sidebar = memo(function Sidebar({ onClose }) {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
       
-      // localStorage से collapsed state retrieve करें
-      const saved = localStorage.getItem('sidebar-collapsed');
-      
       if (mobile) {
-        // Mobile पर हमेशा collapsed रखें
+        // Mobile पर हमेशा collapsed से start करें
         setIsCollapsed(true);
       } else {
-        // Desktop पर: अगर saved state है तो वो use करें, नहीं तो expanded (false)
-        if (saved !== null) {
-          setIsCollapsed(JSON.parse(saved));
-        } else {
-          setIsCollapsed(false); // Desktop पर default expanded
-        }
+        // Desktop पर हमेशा full expanded रखें
+        setIsCollapsed(false);
       }
       
       setIsInitialized(true);
@@ -70,6 +63,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
       if (mobile) {
         // Mobile पर collapsed रखें
         setIsCollapsed(true);
+      } else {
+        // Desktop पर हमेशा full expanded रखें
+        setIsCollapsed(false);
       }
     };
     
@@ -80,9 +76,12 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   // ✅ localStorage में collapsed state save करें (client-side only)
   useEffect(() => {
     if (isInitialized && typeof window !== 'undefined') {
-      localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+      // केवल mobile पर persistence रखें
+      if (isMobile) {
+        localStorage.setItem('sidebar-collapsed', JSON.stringify(isCollapsed));
+      }
     }
-  }, [isCollapsed, isInitialized]);
+  }, [isCollapsed, isInitialized, isMobile]);
 
   // ✅ साइडबार के बाहर क्लिक करने पर बंद करें (मोबाइल के लिए)
   useEffect(() => {
@@ -123,7 +122,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Purchase Request", icon: <FaFileInvoice />, module: "filling_requests", path: "/filling-requests" },
     { name: "Stock", icon: <FaUsers />, module: "stock", path: "/stock" },
     { name: "Stock History", icon: <FaHistory />, module: "stock_history", path: "/stock-history" },
-    { name: "Outstanding History", icon: <FaFileInvoice />, module: "outstanding_history", path: "/outstanding-history" },
+    { name: "Stock Requests", icon: <FaClipboard />, module: "stock_requests", path: "/stock-requests" },
+    { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock_transfers", path: "/stock-transfers" },
+
     { name: "Loading Stations", icon: <FaTruck />, module: "loading_stations", path: "/loading-stations" },
     { name: "Schedule Prices", icon: <FaMoneyBill />, module: "schedule_price", path: "/schedule-price" },
     { name: "Products", icon: <FaBox />, module: "products", path: "/products" },
@@ -134,8 +135,6 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "NB Accounts", icon: <FaClipboard />, module: "nb_balance", path: "/nb-balance" },
     { name: "NB Expenses", icon: <FaMoneyBill />, module: "nb_expenses", path: "/nb-expenses" },
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
-    { name: "Stock Transfer", icon: <FaExchangeAlt />, module: "stock_transfers", path: "/stock-transfers" },
-    { name: "Transfer Logs", icon: <FaHistory />, module: "stock_transfer_logs", path: "/stock-transfer-logs" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
     { name: "Users", icon: <FaUsers />, module: "users", path: "/users" },
@@ -151,34 +150,35 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
   const moduleMapping = useMemo(() => ({
     dashboard: "Dashboard",
-    users: "Users",
     reports: "Reports",
     filling_requests: "Filling Requests",
+     customers: "Customer",
     stock: "Stock",
+    stock_history: "Stock History",
+     stock_requests: "Stock Requests",
+    stock_transfers: "Stock Transfer",
+    stock_transfer_logs: "Transfer Logs",
     loading_stations: "Loading Station",
+    products: "Items & Products",
+    employees: "Employees",
+    attendance: "Attendance",
     vehicles: "Vehicle",
     schedule_price: "Schedule Prices",
     lr_management: "LR Management",
     history: "Loading History",
-    products: "Items & Products",
-    employees: "Employees",
     suppliers: "Suppliers",
+      outstanding_history: "Outstanding History",
     transporters: "Transporters",
     nb_balance: "NB Accounts",
+    nb_stock: "NB Stock",
+    nb_expenses: "NB Expenses",
     vouchers: "Voucher",
-    stock_transfers: "Stock Transfer",
-    stock_transfer_logs: "Transfer Logs",
-    stock_history: "Stock History",
-    stock_requests: "Stock Requests",
-    outstanding_history: "Outstanding History",
     remarks: "Remarks",
     items: "Items",
-    customers: "Customer",
     tanker_history: "Tanker History",
     deepo_history: "Deepo History",
-    nb_expenses: "NB Expenses",
-    nb_stock: "NB Stock",
     agent_management: "Agent Management",
+      users: "Users",
   }), []);
 
   // ✅ Role-based menu filtering
@@ -203,8 +203,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         
         // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer, Transfer Logs, Attendance
         const allowedModules = [
-          'dashboard', 'filling_requests', 'stock', 'nb_balance', 'nb_expenses', 'nb_stock',
-          'tanker_history', 'stock_transfers', 'stock_transfer_logs', 'loading_stations', 'products', 'attendance'
+          'dashboard', 'filling_requests','stock_transfers', 'stock','products' ,'nb_balance', 'nb_expenses', 'nb_stock',
+          'tanker_history', 'loading_stations',  'attendance'
         ];
         return allowedModules.includes(item.module);
       });
@@ -379,10 +379,15 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           color: 'black',
           display: 'flex',
           flexDirection: 'column',
-          transition: isInitialized ? 'all 0.3s ease' : 'none', // SSR के समय transition नहीं
+          transition: isInitialized ? 'all 0.3s ease' : 'none',
           zIndex: 9999,
           position: isInitialized ? (isMobile ? 'fixed' : 'relative') : 'relative',
-          width: isInitialized ? (isCollapsed ? (isMobile ? '0' : '4rem') : '16rem') : '4rem', // SSR के लिए collapsed
+          // Desktop पर हमेशा full width (16rem), mobile पर collapse/expand
+          width: isInitialized
+            ? (isMobile
+                ? (isCollapsed ? '0' : '16rem')
+                : '16rem')
+            : '4rem',
           overflow: 'hidden',
           left: 0,
           top: 0,
@@ -397,7 +402,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           minHeight: '80px',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: isInitialized && !isCollapsed ? 'flex-start' : 'center',
+          justifyContent: isInitialized && (!isMobile || !isCollapsed) ? 'flex-start' : 'center',
         }}>
           <div style={{
             width: '40px',
@@ -414,8 +419,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
             {user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
           
-          {/* User details - only show when not collapsed AND initialized */}
-          {isInitialized && !isCollapsed && (
+          {/* User details - desktop पर हमेशा दिखाएं, mobile पर सिर्फ expanded में */}
+          {isInitialized && (!isMobile || !isCollapsed) && (
             <div style={{ marginLeft: '0.75rem', flex: 1, minWidth: 0 }}>
               <p style={{ 
                 fontSize: '0.875rem', 
@@ -495,7 +500,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                     borderRadius: '0.375rem',
                     cursor: 'pointer',
                     textAlign: 'left',
-                    justifyContent: isInitialized && isCollapsed ? 'center' : 'flex-start',
+                    // Desktop पर हमेशा left align, mobile पर collapsed होने पर center
+                    justifyContent: isInitialized && isMobile && isCollapsed ? 'center' : 'flex-start',
                     backgroundColor: isActive ? '#3b82f6' : 'transparent',
                     color: isActive ? 'white' : 'black',
                     boxShadow: isActive ? '0 4px 6px -1px rgba(0, 0, 0, 0.1)' : 'none',

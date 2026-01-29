@@ -101,21 +101,28 @@ function ApproveTankerContent() {
 
       const imgWidth = 210; // A4 width in mm
       const pageHeight = 297; // A4 height in mm
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let imgHeight = (canvas.height * imgWidth) / canvas.width;
       
-      let heightLeft = imgHeight;
-      let position = 0;
-
-      // Add first page
-      pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-
-      // Add more pages if content is longer than one page
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
+      // Scale to fit on one page if needed
+      if (imgHeight > pageHeight) {
+        const scaleFactor = pageHeight / imgHeight;
+        // Adjust width to maintain aspect ratio
+        // But wait, if we reduce width, we get whitespace on sides.
+        // Actually, users usually want "Fit to Page" which might mean shrinking content.
+        // Let's force fit height
+        // imgWidth = imgWidth * scaleFactor; 
+        // No, `addImage` takes width and height.
+        // If we want to fit one page, we just set imgHeight to pageHeight (or less) and adjust width?
+        // No, we should constrain by height.
+        
+        const scaledWidth = imgWidth * scaleFactor;
+        const xOffset = (imgWidth - scaledWidth) / 2; // Center it? Or just keep left?
+        
+        // Let's use the scaled dimensions
+        pdf.addImage(imgData, 'JPEG', xOffset, 0, scaledWidth, pageHeight);
+      } else {
+        // Fits normally
+        pdf.addImage(imgData, 'JPEG', 0, 0, imgWidth, imgHeight);
       }
 
       // Save PDF

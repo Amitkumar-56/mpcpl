@@ -2,8 +2,10 @@
 import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from "@/lib/db";
+import { mkdir, writeFile } from 'fs/promises';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
+import path from 'path';
 
 export async function GET(req) {
   try {
@@ -19,7 +21,6 @@ export async function GET(req) {
 
     let data;
     try {
-      // ✅ FIXED: Remove day_amount from query
       const query = `
         SELECT 
           fr.*,
@@ -33,7 +34,7 @@ export async function GET(req) {
           cb.id as balance_id,
           cb.balance as used_amount,
           cb.hold_balance,
-          cb.amtlimit as available_balance,
+          cb.amtlimit as raw_available_balance,
           cb.cst_limit as credit_limit,
           cb.com_id,
           cb.last_reset_date,
@@ -60,7 +61,7 @@ export async function GET(req) {
         LEFT JOIN employee_profile ep_status ON fr.status_updated_by = ep_status.id
         WHERE fr.id = ?
       `;
-      
+
       console.log('🔍 Executing main query for ID:', id);
       const rows = await executeQuery(query, [id]);
 
@@ -69,7 +70,12 @@ export async function GET(req) {
       }
 
       data = rows[0];
-      
+
+      // Calculate available balance
+      const rawAvailableBalance = parseFloat(data.raw_available_balance) || 0;
+      const holdBalance = parseFloat(data.hold_balance) || 0;
+      data.available_balance = rawAvailableBalance + holdBalance;
+
       // Get available sub-products for this product
       const availableSubProductsQuery = `
         SELECT id, pcode 
@@ -78,12 +84,12 @@ export async function GET(req) {
       `;
       const availableSubProducts = await executeQuery(availableSubProductsQuery, [data.product_id]);
       data.available_sub_products = availableSubProducts;
-      
+
       console.log('📦 Available sub-products:', availableSubProducts);
 
       // Get price from deal_price table
       let sub_product_id = data.sub_product_id;
-      
+
       console.log('🔍 Sub-product details:', {
         from_request: data.sub_product_id,
         product_id: data.product_id
@@ -99,14 +105,28 @@ export async function GET(req) {
           FROM filling_station_stocks 
           WHERE fs_id = ? AND product = ?
         `;
-        
+
         const stockRows = await executeQuery(altQuery, [data.fs_id, data.product_id]);
         data.station_stock = stockRows.length > 0 ? stockRows[0].station_stock : 0;
       }
 
-      // ✅ CORRECTED: Calculate remaining days for day limit customers based on OLDEST UNPAID completed_date
+      // Calculate remaining days based on DISTINCT DATES of unpaid completed transactions
       if (data.client_type === "3" && data.day_limit && data.day_limit > 0) {
-        // Get OLDEST UNPAID completed transaction's completed_date
+        // Count distinct dates for unpaid completed requests
+        const usedDaysResult = await executeQuery(
+          `SELECT COUNT(DISTINCT DATE(completed_date)) as used_days 
+            FROM filling_requests 
+            WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
+          [data.cid]
+        );
+
+        const usedDays = usedDaysResult.length > 0 ? usedDaysResult[0].used_days : 0;
+
+        data.days_elapsed = usedDays;
+        data.remaining_days = Math.max(0, data.day_limit - usedDays);
+        data.is_overdue = usedDays >= data.day_limit;
+
+        // Get oldest unpaid date for reference
         const oldestUnpaidCompleted = await executeQuery(
           `SELECT completed_date 
            FROM filling_requests 
@@ -115,39 +135,19 @@ export async function GET(req) {
            LIMIT 1`,
           [data.cid]
         );
-        
-        const currentDate = new Date();
-        currentDate.setHours(0, 0, 0, 0);
-        
-        if (oldestUnpaidCompleted.length > 0 && oldestUnpaidCompleted[0].completed_date) {
-          const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
-          oldestUnpaidDate.setHours(0, 0, 0, 0);
-          
-          // Calculate days elapsed: current_date - oldest_unpaid_date
-          const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
-          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
-          
-          // Remaining days = day_limit - days_elapsed
-          data.days_elapsed = daysElapsed;
-          data.remaining_days = Math.max(0, data.day_limit - daysElapsed);
-          data.oldest_unpaid_date = oldestUnpaidDate;
-          data.is_overdue = daysElapsed >= data.day_limit;
-          
-          console.log('📅 Day Limit Calculation - OLDEST UNPAID DATE:', {
-            oldestUnpaidDate: oldestUnpaidDate.toISOString(),
-            currentDate: currentDate.toISOString(),
-            daysElapsed,
-            dayLimit: data.day_limit,
-            remainingDays: data.remaining_days,
-            isOverdue: data.is_overdue
-          });
+
+        if (oldestUnpaidCompleted.length > 0) {
+          data.oldest_unpaid_date = oldestUnpaidCompleted[0].completed_date;
         } else {
-          // No unpaid completed transactions, so all days remaining
-          data.days_elapsed = 0;
-          data.remaining_days = data.day_limit;
           data.oldest_unpaid_date = null;
-          data.is_overdue = false;
         }
+
+        console.log('📅 Day Limit Calculation (Distinct Dates):', {
+          usedDays,
+          dayLimit: data.day_limit,
+          remainingDays: data.remaining_days,
+          isOverdue: data.is_overdue
+        });
       } else {
         // For non-day limit customers, no day limit calculation
         data.days_elapsed = 0;
@@ -163,16 +163,16 @@ export async function GET(req) {
         remaining_days: data.remaining_days,
         oldest_unpaid_date: data.oldest_unpaid_date,
         is_day_limit_customer: data.client_type === "3",
+        raw_available_balance: data.raw_available_balance,
+        hold_balance: data.hold_balance,
         available_balance: data.available_balance,
         credit_limit: data.credit_limit
       });
 
-      // ✅ FIX: Fetch complete logs from filling_logs table with proper customer/employee name resolution
-      // Check both employee_profile and customers table for all log fields
+      // Fetch complete logs from filling_logs table
       const logsQuery = `
         SELECT 
           fl.*,
-          -- Created by: Check customers FIRST, then employee_profile
           COALESCE(
             (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
@@ -188,16 +188,12 @@ export async function GET(req) {
             WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
             ELSE 'system'
           END as created_by_type,
-          -- Processed by: Only employee (admin/team leader)
           COALESCE(ep_processed.name, '') as processed_by_name,
           COALESCE(ep_processed.emp_code, '') as processed_by_code,
-          -- Completed by: Only employee (admin/team leader)
           COALESCE(ep_completed.name, '') as completed_by_name,
           COALESCE(ep_completed.emp_code, '') as completed_by_code,
-          -- Cancelled by: Only employee
           COALESCE(ep_cancelled.name, '') as cancelled_by_name,
           COALESCE(ep_cancelled.emp_code, '') as cancelled_by_code,
-          -- Format dates properly
           DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') as created_date_formatted,
           DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') as processed_date_formatted,
           DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') as completed_date_formatted,
@@ -212,14 +208,12 @@ export async function GET(req) {
       `;
       const logs = await executeQuery(logsQuery, [data.rid]);
       data.logs = logs.length > 0 ? logs[0] : null;
-      
-      // ✅ FIX: Hide "SWIFT" as default name - set to null if name is SWIFT
+
       if (data.logs && data.logs.created_by_name && data.logs.created_by_name.toUpperCase() === 'SWIFT') {
         data.logs.created_by_name = null;
         data.logs.created_by_code = null;
       }
-      
-      // ✅ FIX: If no logs found, try to get created_by from filling_requests
+
       if (!data.logs || !data.logs.created_by_name || data.logs.created_by_name === 'System') {
         const fallbackQuery = `
           SELECT 
@@ -241,9 +235,9 @@ export async function GET(req) {
           LIMIT 1
         `;
         const fallbackResult = await executeQuery(fallbackQuery, [data.rid]);
-        if (fallbackResult.length > 0 && 
-            fallbackResult[0].created_by_name !== 'System' && 
-            fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
+        if (fallbackResult.length > 0 &&
+          fallbackResult[0].created_by_name !== 'System' &&
+          fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
           if (!data.logs) {
             data.logs = {};
           }
@@ -285,8 +279,8 @@ export async function GET(req) {
 
 // POST - Update request
 export async function POST(request) {
-  let userId = 1; // Default user ID
-  
+  let userId = 1;
+
   try {
     console.log('🚀 /filling-details-admin POST called');
 
@@ -306,7 +300,7 @@ export async function POST(request) {
 
     const formData = await request.formData();
     console.log('✅ Form data parsed successfully');
-    
+
     // Extract all fields
     const id = formData.get('id');
     const rid = formData.get('rid');
@@ -319,7 +313,6 @@ export async function POST(request) {
     const credit_limit = parseFloat(formData.get('credit_limit')) || 0;
     const available_balance = parseFloat(formData.get('available_balance')) || 0;
     const day_limit = parseFloat(formData.get('day_limit')) || 0;
-    // ✅ FIXED: Remove day_amount since column doesn't exist
     const price = parseFloat(formData.get('price')) || 0;
     const aqty = parseFloat(formData.get('aqty')) || 0;
     const status = formData.get('status');
@@ -332,21 +325,21 @@ export async function POST(request) {
     // Validate required fields
     if (!id || !rid) {
       console.error('❌ Missing required fields');
-      return NextResponse.json({ 
+      return NextResponse.json({
         success: false,
-        error: 'Missing required fields' 
+        error: 'Missing required fields'
       }, { status: 400 });
     }
 
-    // ✅ UPDATED: For ALL customer types, check balance (both day limit and amtlimit)
-    // ✅ FIX: Only check balance for Completed status, NOT for Processing
+    // ✅ Check balance for Completed status
     if (status === 'Completed') {
       const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
-      
+
       if (!balanceCheck.sufficient) {
-        return NextResponse.json({ 
-          success: false,
+        return NextResponse.json({
+          success: true,
           limitOverdue: true,
+          limitTitle: balanceCheck.title || 'Credit Limit Overdue',
           isDayLimitExpired: balanceCheck.isDayLimitExpired || false,
           totalUnpaidAmount: balanceCheck.totalUnpaidAmount || 0,
           message: balanceCheck.message || 'Balance/limit check failed.'
@@ -356,7 +349,7 @@ export async function POST(request) {
 
     // Handle file uploads
     let doc1Path = null, doc2Path = null, doc3Path = null;
-    
+
     const doc1File = formData.get('doc1');
     const doc2File = formData.get('doc2');
     const doc3File = formData.get('doc3');
@@ -368,13 +361,13 @@ export async function POST(request) {
     });
 
     if (doc1File && doc1File.size > 0) {
-      doc1Path = await handleFileUpload(doc1File);
+      doc1Path = await handleFileUpload(doc1File, rid, 'doc1');
     }
     if (doc2File && doc2File.size > 0) {
-      doc2Path = await handleFileUpload(doc2File);
+      doc2Path = await handleFileUpload(doc2File, rid, 'doc2');
     }
     if (doc3File && doc3File.size > 0) {
-      doc3Path = await handleFileUpload(doc3File);
+      doc3Path = await handleFileUpload(doc3File, rid, 'doc3');
     }
 
     console.log('🔁 Starting database operations...');
@@ -384,13 +377,11 @@ export async function POST(request) {
     // Track edit operation - create edit log entry
     const now = getIndianTime();
     try {
-      // Get old data for comparison
       const oldDataQuery = `SELECT * FROM filling_requests WHERE id = ?`;
       const oldData = await executeQuery(oldDataQuery, [id]);
-      
+
       if (oldData.length > 0) {
         const oldRecord = oldData[0];
-        // Create edit log entry
         const editLogQuery = `
           INSERT INTO edit_logs 
           (request_id, edited_by, edited_date, old_status, new_status, old_aqty, new_aqty, changes) 
@@ -414,7 +405,6 @@ export async function POST(request) {
       }
     } catch (editLogError) {
       console.error('⚠️ Error creating edit log (non-critical):', editLogError);
-      // Continue even if edit log fails
     }
 
     // First, update or create filling_logs entry
@@ -427,22 +417,22 @@ export async function POST(request) {
       });
     } else if (status === 'Completed') {
       console.log('🔄 Handling Completed status...');
-      
+
       // Get customer type for balance update logic
       const customerTypeResult = await executeQuery(
         'SELECT client_type FROM customers WHERE id = ?',
         [cl_id]
       );
-      
+
       const isDayLimitCustomer = customerTypeResult.length > 0 && customerTypeResult[0].client_type === "3";
-      
+
       resultMessage = await handleCompletedStatus({
         id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
         oldstock, credit_limit, available_balance, day_limit,
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
         isDayLimitCustomer
       });
-      
+
       try {
         const userRows = await executeQuery(
           `SELECT name FROM employee_profile WHERE id = ? LIMIT 1`,
@@ -471,7 +461,7 @@ export async function POST(request) {
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
-      } catch (auditErr) {}
+      } catch (auditErr) { }
     } else if (status === 'Cancel') {
       console.log('🔄 Handling Cancel status...');
       resultMessage = await handleCancelStatus({
@@ -496,7 +486,7 @@ export async function POST(request) {
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
-      } catch (auditErr) {}
+      } catch (auditErr) { }
     } else {
       console.log('🔄 Handling generic status update...');
       resultMessage = await updateFillingRequest({
@@ -530,43 +520,41 @@ export async function POST(request) {
           recordType: 'filling_request',
           recordId: parseInt(id)
         });
-      } catch (auditErr) {}
+      } catch (auditErr) { }
     }
 
     console.log('✅ Update successful:', resultMessage);
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       message: resultMessage,
       status: status
     });
 
   } catch (error) {
     console.error('❌ POST Error:', error);
-    
-    return NextResponse.json({ 
-      success: false, 
-      error: error.message || 'Internal server error' 
+
+    return NextResponse.json({
+      success: false,
+      error: error.message || 'Internal server error'
     }, { status: 500 });
   }
 }
 
-// ✅ CORRECTED: Day limit aur credit limit dono check karo
 async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, sub_product_id) {
   try {
     console.log('🔍 Checking balance for customer:', cl_id);
 
     if (!cl_id) {
-      return { 
-        sufficient: false, 
-        message: 'Customer ID is required' 
+      return {
+        sufficient: false,
+        message: 'Customer ID is required'
       };
     }
 
-    // Get customer type and balance data from customer_balances table
     const customerQuery = `
       SELECT 
         c.client_type,
-        cb.amtlimit as available_balance,
+        cb.amtlimit as raw_available_balance,
         cb.hold_balance,
         cb.cst_limit as credit_limit,
         cb.day_limit,
@@ -575,22 +563,24 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
       LEFT JOIN customer_balances cb ON c.id = cb.com_id
       WHERE c.id = ?
     `;
-    
+
     const customerRows = await executeQuery(customerQuery, [cl_id]);
-    
+
     if (customerRows.length === 0) {
-      return { 
-        sufficient: false, 
-        message: 'Customer balance record not found.' 
+      return {
+        sufficient: false,
+        message: 'Customer balance record not found.'
       };
     }
-    
+
     const customerData = customerRows[0];
     const clientType = customerData.client_type;
-    const rawAvailableBalance = parseFloat(customerData.available_balance) || 0;
+    const rawAvailableBalance = parseFloat(customerData.raw_available_balance) || 0;
     const holdBalance = parseFloat(customerData.hold_balance) || 0;
-    // Calculate actual available balance: amtlimit - hold_balance
-    const availableBalance = Math.max(0, rawAvailableBalance - holdBalance);
+
+    // ✅ Calculate available balance = raw_available_balance + hold_balance
+    const availableBalance = rawAvailableBalance + holdBalance;
+
     const creditLimit = parseFloat(customerData.credit_limit) || 0;
     const dayLimit = parseInt(customerData.day_limit) || 0;
 
@@ -604,123 +594,126 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
       is_active: customerData.is_active
     });
 
-    // Get actual fuel price for amount calculation
     const actualPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, defaultPrice);
+
+    if (actualPrice <= 0) {
+      return {
+        sufficient: false,
+        title: 'Deal Price Alert',
+        message: 'Deal price not updated. Please contact Admin to update price then complete.'
+      };
+    }
+
     const requestedAmount = actualPrice * aqty;
-    
+
     console.log('💰 Amount Calculation:', {
       actualPrice,
       aqty,
       requestedAmount
     });
 
-    // Check if account is active
     if (customerData.is_active === 0) {
-      return { 
-        sufficient: false, 
+      return {
+        sufficient: false,
         message: 'Your account is inactive. Please contact administrator.'
       };
     }
 
-    // 🚨 DAY LIMIT CHECK - FOR ALL CUSTOMER TYPES WHO HAVE DAY LIMIT
     if (dayLimit > 0) {
       console.log('📅 Checking day limit for customer...');
-      
-      // For day_limit customers: Check based on OLDEST UNPAID completed transactions only
-      const oldestUnpaidCompleted = await executeQuery(
-        `SELECT completed_date 
+
+      const distinctDaysResult = await executeQuery(
+        `SELECT COUNT(DISTINCT DATE(completed_date)) as distinct_days
          FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0
-         ORDER BY completed_date ASC 
-         LIMIT 1`,
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
         [cl_id]
       );
-      
-      const currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0);
-      
-      if (oldestUnpaidCompleted.length > 0 && oldestUnpaidCompleted[0].completed_date) {
-        const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
-        oldestUnpaidDate.setHours(0, 0, 0, 0);
-        
-        // Calculate days elapsed: current_date - oldest_unpaid_date
-        const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
-        const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
-        
-        console.log('📅 Day Limit Check - OLDEST UNPAID DATE:', {
-          oldestUnpaidDate: oldestUnpaidDate.toISOString(),
-          currentDate: currentDate.toISOString(),
-          daysElapsed,
-          dayLimit,
-          isExceeded: daysElapsed >= dayLimit
-        });
-        
-        // If days elapsed >= day_limit, block the request
-        if (daysElapsed >= dayLimit) {
-          console.log('❌ Day limit exceeded based on oldest unpaid completed_date');
-          
-          // Calculate total unpaid amount for overdue message
-          const totalUnpaidQuery = `
-            SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
-            FROM filling_requests 
-            WHERE cid = ? AND status = 'Completed' AND payment_status = 0
-          `;
-          const unpaidResult = await executeQuery(totalUnpaidQuery, [cl_id]);
-          const totalUnpaid = unpaidResult.length > 0 ? parseFloat(unpaidResult[0].total_unpaid) || 0 : 0;
-          
-          return { 
-            sufficient: false, 
-            message: `Day limit exceeded. Oldest unpaid transaction was ${daysElapsed} days ago (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
-            isDayLimitExpired: true,
-            totalUnpaidAmount: totalUnpaid
-          };
-        }
+
+      const distinctDays = distinctDaysResult.length > 0 ? parseInt(distinctDaysResult[0].distinct_days) || 0 : 0;
+
+      const todayDateStr = getIndianTime().slice(0, 10);
+      const todayCheck = await executeQuery(
+        `SELECT 1 FROM filling_requests 
+         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
+         AND DATE(completed_date) = ?
+         LIMIT 1`,
+        [cl_id, todayDateStr]
+      );
+
+      const isTodayAlreadyCounted = todayCheck.length > 0;
+
+      let projectedDays = distinctDays;
+      if (!isTodayAlreadyCounted) {
+        projectedDays += 1;
+      }
+
+      console.log('📅 Day Limit Check (Distinct Dates):', {
+        distinctDays,
+        isTodayAlreadyCounted,
+        projectedDays,
+        dayLimit,
+        isExceeded: projectedDays > dayLimit
+      });
+
+      if (projectedDays > dayLimit) {
+        console.log('❌ Day limit exceeded based on distinct dates count');
+
+        const totalUnpaidQuery = `
+          SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
+          FROM filling_requests 
+          WHERE cid = ? AND status = 'Completed' AND payment_status = 0
+        `;
+        const unpaidResult = await executeQuery(totalUnpaidQuery, [cl_id]);
+        const totalUnpaid = unpaidResult.length > 0 ? parseFloat(unpaidResult[0].total_unpaid) || 0 : 0;
+
+        return {
+          sufficient: false,
+          message: `Day limit exceeded. You have used ${distinctDays} distinct days of credit (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
+          isDayLimitExpired: true,
+          totalUnpaidAmount: totalUnpaid
+        };
       }
     }
 
-    // 🚨 CREDIT LIMIT CHECK - FOR CUSTOMER TYPE 1 & 2
     if (clientType === "1" || clientType === "2") {
-      console.log('💰 Customer Type 1/2 - Checking amtlimit...');
-      
-      // Check available balance (amtlimit - hold_balance)
-      // Only show error if balance is actually insufficient
+      console.log('💰 Customer Type 1/2 - Checking available balance...');
+
+      // Check against available_balance (raw + hold)
       if (availableBalance <= 0 || availableBalance < requestedAmount) {
-        return { 
-          sufficient: false, 
-          message: `Insufficient balance. Required: ₹${requestedAmount.toFixed(2)}, Available: ₹${availableBalance.toFixed(2)}. Please recharge your account.`
+        return {
+          sufficient: false,
+          message: `Insufficient balance. Required: ₹${requestedAmount.toFixed(2)}, Available: ₹${availableBalance.toFixed(2)}. Please contact Admin to update your limit.`
         };
       }
-      
-      console.log('✅ Customer Type 1/2 - Sufficient amtlimit balance');
-      return { 
-        sufficient: true, 
+
+      console.log('✅ Customer Type 1/2 - Sufficient available balance');
+      return {
+        sufficient: true,
         mode: 'credit_limit',
         clientType: clientType
       };
     }
 
-    // 🚨 CUSTOMER TYPE 3 (DAY LIMIT) - ONLY DAY LIMIT CHECKED, NO AMTLIMIT CHECK
     if (clientType === "3") {
-      console.log('✅ Customer Type 3 - Day limit check passed, no amtlimit check');
-      return { 
-        sufficient: true, 
+      console.log('✅ Customer Type 3 - Day limit check passed, no balance check');
+      return {
+        sufficient: true,
         mode: 'day_limit',
         isDayLimitClient: true
       };
     }
 
-    // 🚨 UNKNOWN CUSTOMER TYPE
     console.log('❌ Unknown customer type:', clientType);
-    return { 
-      sufficient: false, 
-      message: 'Unknown customer type. Please contact administrator.' 
+    return {
+      sufficient: false,
+      message: 'Unknown customer type. Please contact administrator.'
     };
 
   } catch (error) {
     console.error('❌ Error checking balance limit:', error);
-    return { 
-      sufficient: false, 
-      message: 'Error checking balance: ' + error.message 
+    return {
+      sufficient: false,
+      message: 'Error checking balance: ' + error.message
     };
   }
 }
@@ -729,25 +722,22 @@ function getIndianTime() {
   const now = new Date();
   const offset = 5.5 * 60 * 60 * 1000;
   const istTime = new Date(now.getTime() + offset);
-  
   return istTime.toISOString().slice(0, 19).replace('T', ' ');
 }
 
-// ✅ FIX: Comprehensive logging function that handles customer and employee IDs properly
 async function updateFillingLogs(request_id, status, userId) {
   try {
     console.log('📝 Updating filling logs:', { request_id, status, userId });
-    
+
     const checkQuery = `SELECT id, created_by FROM filling_logs WHERE request_id = ?`;
     const existingLogs = await executeQuery(checkQuery, [request_id]);
-    
+
     const now = getIndianTime();
-    
+
     if (existingLogs.length > 0) {
-      // Log already exists, update the appropriate field
       let updateQuery = '';
       let queryParams = [];
-      
+
       switch (status) {
         case 'Processing':
           updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
@@ -768,33 +758,28 @@ async function updateFillingLogs(request_id, status, userId) {
           console.log('⚠️ No log update needed for status:', status);
           return;
       }
-      
+
       if (updateQuery) {
         await executeQuery(updateQuery, queryParams);
         console.log('✅ Filling log updated successfully');
       }
     } else {
-      // No log exists, create one
-      // ✅ FIX: Always use the original customer ID as created_by, not the admin completing it
-      // First, get the request to find customer ID (original creator)
       const requestQuery = `SELECT cid FROM filling_requests WHERE rid = ?`;
       const requestResult = await executeQuery(requestQuery, [request_id]);
-      
+
       let createdById = null;
-      
+
       if (requestResult.length > 0 && requestResult[0].cid) {
-        // Use customer ID as created_by (original creator of the request)
         const customerId = requestResult[0].cid;
         const customerCheck = await executeQuery(
           `SELECT id FROM customers WHERE id = ?`,
           [customerId]
         );
-        
+
         if (customerCheck.length > 0) {
           createdById = customerId;
           console.log('✅ Request created by customer (original creator):', customerId);
         } else {
-          // If customer doesn't exist, check if there's an existing log with original creator
           const existingLogCheck = await executeQuery(
             `SELECT created_by FROM filling_logs WHERE request_id = ? ORDER BY created_date ASC, id ASC LIMIT 1`,
             [request_id]
@@ -803,13 +788,11 @@ async function updateFillingLogs(request_id, status, userId) {
             createdById = existingLogCheck[0].created_by;
             console.log('✅ Found existing log with original creator:', createdById);
           } else {
-            // Last resort: use customer ID even if not found in customers table
             createdById = customerId;
             console.log('⚠️ Using customer ID from request (customer may not exist):', customerId);
           }
         }
       } else {
-        // If no customer ID found, check for any existing logs
         const existingLogCheck = await executeQuery(
           `SELECT created_by FROM filling_logs WHERE request_id = ? ORDER BY created_date ASC, id ASC LIMIT 1`,
           [request_id]
@@ -818,12 +801,11 @@ async function updateFillingLogs(request_id, status, userId) {
           createdById = existingLogCheck[0].created_by;
           console.log('✅ Using existing log creator:', createdById);
         } else {
-          // Only use userId as last resort if absolutely no other option
           createdById = userId;
           console.log('⚠️ No customer found, using current user as created_by (last resort):', userId);
         }
       }
-      
+
       if (createdById) {
         const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
         await executeQuery(insertQuery, [request_id, createdById, now]);
@@ -831,12 +813,11 @@ async function updateFillingLogs(request_id, status, userId) {
       } else {
         console.error('❌ Could not determine created_by for request:', request_id);
       }
-      
-      // If status is Processing/Completed/Cancel, also update that field (but avoid recursion)
+
       if (status === 'Processing' || status === 'Completed' || status === 'Cancel') {
         let updateQuery = '';
         let queryParams = [];
-        
+
         switch (status) {
           case 'Processing':
             updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
@@ -851,7 +832,7 @@ async function updateFillingLogs(request_id, status, userId) {
             queryParams = [userId, now, request_id];
             break;
         }
-        
+
         if (updateQuery) {
           await executeQuery(updateQuery, queryParams);
           console.log('✅ Status field updated in new log');
@@ -866,16 +847,58 @@ async function updateFillingLogs(request_id, status, userId) {
 
 async function handleProcessingStatus(data) {
   const { id, rid, cl_id, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id } = data;
-  
+
   const now = getIndianTime();
-  
+
   console.log('🔄 Processing Status Update Details:', {
-    id, rid, cl_id, remarks, 
-    doc1Path, doc2Path, doc3Path, 
+    id, rid, cl_id, remarks,
+    doc1Path, doc2Path, doc3Path,
     userId, sub_product_id, now
   });
 
   try {
+    // Check balance for processing
+    const balanceInfo = (await executeQuery(
+      `SELECT amtlimit as raw_available_balance, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
+      [cl_id]
+    ))[0] || { raw_available_balance: 0, hold_balance: 0 };
+
+    const currentRawBalance = parseFloat(balanceInfo.raw_available_balance) || 0;
+
+    // Get current request details to compute hold amount
+    const reqRows = await executeQuery(
+      `SELECT fs_id, product, sub_product_id, aqty, price FROM filling_requests WHERE id = ? AND rid = ? LIMIT 1`,
+      [id, rid]
+    );
+    if (!reqRows || reqRows.length === 0) {
+      throw new Error('REQUEST_NOT_FOUND');
+    }
+    const req = reqRows[0];
+    const aqtyNum = parseFloat(req.aqty) || 0;
+
+    // Resolve price from deal_price
+    let finalPrice = await getFuelPrice(req.fs_id, req.product, req.sub_product_id, cl_id, req.price || 0);
+
+    const holdAmount = (finalPrice || 0) * aqtyNum;
+    if (holdAmount <= 0) {
+      throw new Error('INVALID_HOLD_AMOUNT');
+    }
+
+    // Calculate available balance (AmtLimit only)
+    const availableBalance = currentRawBalance;
+
+    if (availableBalance < holdAmount) {
+      throw new Error('INSUFFICIENT_LIMIT');
+    }
+
+    // Move amount from raw_available_balance to hold_balance
+    await executeQuery(
+      `UPDATE customer_balances 
+       SET amtlimit = amtlimit - ?, hold_balance = hold_balance + ?, updated_at = ? 
+       WHERE com_id = ?`,
+      [holdAmount, holdAmount, now, cl_id]
+    );
+
     const updateRequestQuery = `
       UPDATE filling_requests 
       SET status = 'Processing', 
@@ -889,7 +912,7 @@ async function handleProcessingStatus(data) {
           sub_product_id = ?
       WHERE id = ? AND rid = ?
     `;
-    
+
     console.log('🔧 Executing Processing Update Query:', updateRequestQuery);
     console.log('📋 Query Parameters:', [
       now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
@@ -913,6 +936,12 @@ async function handleProcessingStatus(data) {
 
   } catch (error) {
     console.error('❌ Error in handleProcessingStatus:', error);
+    if (error?.message === 'CONCURRENT_REQUEST_BLOCKED') {
+      throw new Error('Another request is already processing or hold balance is active for this customer. Please complete or cancel existing process.');
+    }
+    if (error?.message === 'INSUFFICIENT_LIMIT') {
+      throw new Error('Insufficient limit. Only Admin can increase limit. Please contact Admin to update your limit.');
+    }
     throw new Error('Failed to update status to Processing: ' + error.message);
   }
 }
@@ -925,83 +954,161 @@ async function handleCompletedStatus(data) {
     isDayLimitCustomer = false
   } = data;
 
-  let finalPrice = await getFuelPrice(fs_id, product_id, sub_product_id, cl_id, price);
+  // Re-select sub_product based on actual qty thresholds
+  let chosenSubProduct = sub_product_id;
+  try {
+    const codes = await executeQuery(
+      `SELECT id, pcode FROM product_codes WHERE product_id = ?`,
+      [product_id]
+    );
+    const codeList = Array.isArray(codes) ? codes : [];
+    const classify = (pcode) => {
+      const code = (pcode || '').toUpperCase().replace(/\s+/g, '');
+      if (product_id === 4) {
+        return (code.includes('BULK') || code.includes('DEFLB')) ? 'bulk' : 'retail';
+      }
+      if (product_id === 5) {
+        return code.includes('BUCKET') ? 'bulk' : 'retail';
+      }
+      return (code.endsWith('R') || code.includes('-R') || code.includes('RTL') || code.includes('RETAIL')) ? 'retail' : 'bulk';
+    };
+    const threshold = (product_id === 4 || product_id === 5) ? 3000 : 5000;
+    const desired = (parseFloat(aqty) || 0) >= threshold ? 'bulk' : 'retail';
+    const match = codeList.find(r => classify(r.pcode) === desired);
+    if (match) {
+      chosenSubProduct = match.id;
+    }
+  } catch { }
+
+  // Get final price
+  let finalPrice = await getFuelPrice(fs_id, product_id, chosenSubProduct, cl_id, price);
   const calculatedAmount = finalPrice * aqty;
   const newStock = oldstock - aqty;
 
-  // Get current balance data with corrected field names
+  // Get current balance data BEFORE any update
   const getLatestAmountQuery = `
     SELECT 
-      amtlimit as available_balance,
+      amtlimit as raw_available_balance,
       balance as used_amount,
+      hold_balance,
       cst_limit as credit_limit,
       day_limit, 
-      is_active 
+      is_active
     FROM customer_balances 
     WHERE com_id = ?
   `;
   const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
-  
-  let old_available_balance = 0;
+
+  let initial_raw_available_balance = 0;
+  let initial_hold_balance = 0;
   let old_used_amount = 0;
   let customerDayLimit = 0;
-  
+
   if (latestAmountRows.length > 0) {
-    old_available_balance = parseFloat(latestAmountRows[0].available_balance) || 0;
+    initial_raw_available_balance = parseFloat(latestAmountRows[0].raw_available_balance) || 0;
+    initial_hold_balance = parseFloat(latestAmountRows[0].hold_balance) || 0;
     old_used_amount = parseFloat(latestAmountRows[0].used_amount) || 0;
     customerDayLimit = parseInt(latestAmountRows[0].day_limit) || 0;
   }
 
-  // ✅ CORRECTED: Calculate new balances
-  const new_available_balance = old_available_balance - calculatedAmount;
-  const new_used_amount = old_used_amount + calculatedAmount;
-
-  console.log('💰 Balance Update Calculation:', {
-    isDayLimitCustomer,
-    old_available_balance: old_available_balance,
-    calculated_amount: calculatedAmount,
-    new_available_balance: new_available_balance,
-    old_used_amount: old_used_amount,
-    new_used_amount: new_used_amount,
-    customerDayLimit,
-    finalPrice,
-    aqty
+  console.log('💰 INITIAL BALANCES BEFORE COMPLETION:', {
+    initial_raw_available_balance,
+    initial_hold_balance,
+    old_used_amount,
+    total_available_before: initial_raw_available_balance + initial_hold_balance,
+    calculatedAmount,
+    isDayLimitCustomer
   });
 
   const now = getIndianTime();
 
-  let updateBalanceQuery = '';
-  let queryParams = [];
-  
-  // ✅ CORRECTED: Only apply day limit logic for day limit customers
+  // Calculate new values based on the logic
+  let new_raw_available_balance = 0;
+  let new_hold_balance = 0;
+  let new_used_amount = old_used_amount + calculatedAmount;
+
   if (isDayLimitCustomer) {
-    // Day limit customers - NO AVAILABLE_BALANCE DEDUCTION, only used_amount increase for tracking
-    updateBalanceQuery = `
-      UPDATE customer_balances 
-      SET balance = balance + ?,
-          updated_at = ? 
-      WHERE com_id = ?
-    `;
-    queryParams = [calculatedAmount, now, cl_id];
-    console.log('✅ Day limit customer - Only used amount updated (no available balance deduction)');
+    // Day limit customer logic
+    console.log('📅 Processing Day Limit Customer...');
+
+    // For day limit customers, just move from hold_balance to balance
+    // Use from hold_balance if available
+    const amountFromHold = Math.min(calculatedAmount, initial_hold_balance);
+
+    // Update customer balances
+    await executeQuery(
+      `UPDATE customer_balances 
+       SET balance = balance + ?,
+           hold_balance = hold_balance - ?,
+           updated_at = ? 
+       WHERE com_id = ?`,
+      [calculatedAmount, amountFromHold, now, cl_id]
+    );
+
+    // Get updated values for logging
+    const updatedBalances = await executeQuery(
+      `SELECT amtlimit as raw_available_balance, hold_balance, balance FROM customer_balances WHERE com_id = ?`,
+      [cl_id]
+    );
+
+    if (updatedBalances.length > 0) {
+      new_raw_available_balance = parseFloat(updatedBalances[0].raw_available_balance) || 0;
+      new_hold_balance = parseFloat(updatedBalances[0].hold_balance) || 0;
+      new_used_amount = parseFloat(updatedBalances[0].balance) || 0;
+    }
+
+    console.log('✅ Day limit customer - Hold balance settled:', {
+      amountFromHold,
+      calculatedAmount,
+      new_raw_available_balance,
+      new_hold_balance,
+      new_used_amount
+    });
+
   } else {
-    // CREDIT LIMIT CUSTOMER - Update available_balance (amount deduction) and used_amount
-    updateBalanceQuery = `
-      UPDATE customer_balances 
-      SET amtlimit = amtlimit - ?, 
-          balance = balance + ?,
-          updated_at = ? 
-      WHERE com_id = ?
-    `;
-    queryParams = [calculatedAmount, calculatedAmount, now, cl_id];
-    console.log('✅ Credit limit customer - Available balance decreased, used amount increased');
-  }
-  
-  if (updateBalanceQuery) {
-    await executeQuery(updateBalanceQuery, queryParams);
+    // Credit limit customer logic - Your 3 conditions logic
+    console.log('💰 Processing Credit Limit Customer...');
+
+    // Calculate total available before (raw + hold)
+    const total_available_before = initial_raw_available_balance + initial_hold_balance;
+
+    // Check if sufficient balance exists
+    if (total_available_before < calculatedAmount) {
+      throw new Error('INSUFFICIENT_LIMIT_ON_COMPLETE');
+    }
+
+    // Calculate new raw_available_balance and hold_balance
+    // Formula: new_raw_available_balance = total_available_before - calculatedAmount
+    // Formula: new_hold_balance = 0 (all hold balance is cleared)
+    new_raw_available_balance = total_available_before - calculatedAmount;
+    new_hold_balance = 0;
+
+    console.log('🧮 CALCULATION FOR CREDIT LIMIT CUSTOMER:', {
+      total_available_before,
+      calculatedAmount,
+      new_raw_available_balance,
+      new_hold_balance
+    });
+
+    // Update customer balances
+    await executeQuery(
+      `UPDATE customer_balances 
+       SET amtlimit = ?,
+           hold_balance = ?,
+           balance = balance + ?,
+           updated_at = ? 
+       WHERE com_id = ?`,
+      [new_raw_available_balance, new_hold_balance, calculatedAmount, now, cl_id]
+    );
+
+    console.log('✅ Credit limit customer - Updated balances:', {
+      new_raw_available_balance,
+      new_hold_balance,
+      calculatedAmount
+    });
   }
 
-  // ✅ CORRECTED: Update filling request with payment_status
+  // ✅ Update filling request with payment_status
   const updateRequestQuery = `
     UPDATE filling_requests 
     SET status = 'Completed', 
@@ -1019,16 +1126,15 @@ async function handleCompletedStatus(data) {
         payment_status = ?
     WHERE id = ? AND rid = ?
   `;
-  
-  // For day limit customers, mark as unpaid (0), for others mark as paid (1)
+
   const paymentStatus = isDayLimitCustomer ? 0 : 1;
-  
+
   await executeQuery(updateRequestQuery, [
-    aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, 
-    sub_product_id, finalPrice, calculatedAmount, paymentStatus, id, rid
+    aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId,
+    chosenSubProduct, finalPrice, calculatedAmount, paymentStatus, id, rid
   ]);
 
-  // Get last new_amount from filling_history for this customer (for old_amount calculation)
+  // Get last new_amount from filling_history for this customer
   const getLastNewAmountQuery = `
     SELECT new_amount 
     FROM filling_history 
@@ -1044,16 +1150,16 @@ async function handleCompletedStatus(data) {
     const colSet = new Set(colsInfo.map(r => r.Field));
 
     const baseCols = [
-      'rid','fs_id','product_id','sub_product_id','trans_type','current_stock','filling_qty','amount',
-      'available_stock','filling_date','cl_id','created_by','old_amount','new_amount','remaining_limit',
+      'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'amount',
+      'available_stock', 'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 'remaining_limit',
       'payment_status'
     ];
     const baseVals = [
-      rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
+      rid, fs_id, product_id, chosenSubProduct || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
-      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
-      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
+      old_used_amount,
+      new_used_amount,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // total available
       paymentStatus
     ];
 
@@ -1071,7 +1177,6 @@ async function handleCompletedStatus(data) {
         baseCols.push('day_limit_validity_days');
         baseVals.push(dayValidityDays);
       }
-      // day_limit_amount should NOT be inserted for day limit customers
     }
 
     const placeholders = baseCols.map(() => '?').join(', ');
@@ -1087,16 +1192,14 @@ async function handleCompletedStatus(data) {
       VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await executeQuery(insertHistoryQuery, [
-      rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
+      rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
-      previous_new_amount || 0, // old_amount: previous new_amount (0 if first request)
-      previous_new_amount + calculatedAmount, // new_amount = old_amount + amount
-      isDayLimitCustomer ? null : new_available_balance, // remaining_limit: null for day_limit, (amtlimit - calculatedAmount) for regular
+      old_used_amount,
+      new_used_amount,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
       paymentStatus
     ]);
   }
-
- 
 
   // Get user info for audit log
   let userName = 'System';
@@ -1119,59 +1222,28 @@ async function handleCompletedStatus(data) {
     console.error('Error getting user info:', userError);
   }
 
-  // Get station and product names for audit log
-  let stationName = 'N/A';
-  let productName = 'N/A';
-  try {
-    const stationResult = await executeQuery(
-      `SELECT station_name FROM filling_stations WHERE id = ?`,
-      [fs_id]
-    );
-    if (stationResult.length > 0) {
-      stationName = stationResult[0].station_name;
-    }
-    
-    const productResult = await executeQuery(
-      `SELECT pname FROM products WHERE id = ?`,
-      [product_id]
-    );
-    if (productResult.length > 0) {
-      productName = productResult[0].pname;
-    }
-  } catch (nameError) {
-    console.error('Error fetching names:', nameError);
-  }
-
-  // Get stock record ID for audit log
-  let stockRecordId = null;
-  try {
-    const stockRecord = await executeQuery(
-      `SELECT id FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
-      [fs_id, product_id]
-    );
-    if (stockRecord.length > 0) {
-      stockRecordId = stockRecord[0].id;
-    }
-  } catch (stockError) {
-    console.error('Error fetching stock record:', stockError);
-  }
-
   // Update station stock
   const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
   await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
 
-  // Create comprehensive audit log for stock deduction
+  // Handle non-billing stocks if needed
+  if (billing_type == 2) {
+    await handleNonBillingStocks(fs_id, product_id, aqty, userId);
+  }
 
-    // Handle non-billing stocks if needed
-    if (billing_type == 2) {
-      await handleNonBillingStocks(fs_id, product_id, aqty, userId);
-    }
-
-  // Update wallet history - using same logic as filling_history
-  await updateWalletHistory(cl_id, rid, calculatedAmount, 
-    previous_new_amount || 0, // old_balance: previous new_amount (0 if first request)
-    previous_new_amount + calculatedAmount // new_balance: old_amount + amount
+  // Update wallet history
+  await updateWalletHistory(cl_id, rid, calculatedAmount,
+    previous_new_amount || 0,
+    previous_new_amount + calculatedAmount
   );
+
+  console.log('✅ FINAL BALANCES AFTER COMPLETION:', {
+    new_raw_available_balance,
+    new_hold_balance,
+    new_used_amount,
+    total_available_after: new_raw_available_balance + new_hold_balance,
+    calculatedAmount
+  });
 
   return 'Request Completed Successfully';
 }
@@ -1179,38 +1251,92 @@ async function handleCompletedStatus(data) {
 async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
   let finalPrice = defaultPrice;
 
-  if (sub_product_id) {
-    const exactPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1`;
+  const sId = parseInt(sub_product_id);
+  const hasSubProduct = !isNaN(sId) && sId > 0;
+
+  console.log('💲 getFuelPrice Check:', { station_id, product_id, sub_product_id, com_id, hasSubProduct });
+
+  // 1. Exact Match: Customer + Station + Product + SubProduct
+  if (hasSubProduct) {
+    const exactPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND com_id = ? 
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
     const exactPriceRows = await executeQuery(exactPriceQuery, [station_id, product_id, sub_product_id, com_id]);
-    
+
     if (exactPriceRows.length > 0) {
+      console.log('💲 Found Exact Price:', exactPriceRows[0].price);
       return parseFloat(exactPriceRows[0].price);
     }
   }
 
-  if (sub_product_id) {
-    const stationPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND is_active = 1 LIMIT 1`;
+  // 2. Station Default for SubProduct
+  if (hasSubProduct) {
+    const stationPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND (com_id IS NULL OR com_id = 0)
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
     const stationPriceRows = await executeQuery(stationPriceQuery, [station_id, product_id, sub_product_id]);
-    
+
     if (stationPriceRows.length > 0) {
+      console.log('💲 Found Station SubProduct Price:', stationPriceRows[0].price);
       return parseFloat(stationPriceRows[0].price);
     }
   }
 
-  const customerPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND com_id = ? AND is_active = 1 LIMIT 1`;
-  const customerPriceRows = await executeQuery(customerPriceQuery, [station_id, product_id, com_id]);
-  
-  if (customerPriceRows.length > 0) {
-    return parseFloat(customerPriceRows[0].price);
+  // 3. General Customer Price
+  const customerGeneralQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND com_id = ? 
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
+  `;
+  const customerGeneralRows = await executeQuery(customerGeneralQuery, [station_id, product_id, com_id]);
+
+  if (customerGeneralRows.length > 0) {
+    console.log('💲 Found Customer General Price:', customerGeneralRows[0].price);
+    return parseFloat(customerGeneralRows[0].price);
   }
 
-  const productPriceQuery = `SELECT price FROM deal_price WHERE station_id = ? AND product_id = ? AND is_active = 1 LIMIT 1`;
-  const productPriceRows = await executeQuery(productPriceQuery, [station_id, product_id]);
-  
-  if (productPriceRows.length > 0) {
-    return parseFloat(productPriceRows[0].price);
+  // 4. General Station Price
+  const productGeneralQuery = `
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND (com_id IS NULL OR com_id = 0)
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
+  `;
+  const productGeneralRows = await executeQuery(productGeneralQuery, [station_id, product_id]);
+
+  if (productGeneralRows.length > 0) {
+    console.log('💲 Found Station General Price:', productGeneralRows[0].price);
+    return parseFloat(productGeneralRows[0].price);
   }
 
+  console.log('💲 No price found, returning default:', defaultPrice);
   return defaultPrice;
 }
 
@@ -1218,22 +1344,137 @@ async function handleCancelStatus(data) {
   const { id, rid, remarks, doc1Path, doc2Path, doc3Path, userId } = data;
 
   const now = getIndianTime();
+
+  // First, get the request details including customer ID
+  const reqRows = await executeQuery(
+    `SELECT cid, status, fs_id, product, aqty, price, totalamt, payment_status 
+     FROM filling_requests 
+     WHERE id = ? AND rid = ? 
+     LIMIT 1`,
+    [id, rid]
+  );
+
+  if (!reqRows || reqRows.length === 0) {
+    throw new Error('Request not found');
+  }
+
+  const req = reqRows[0];
+  const customerId = req.cid;
+
+  console.log('🔄 Cancelling request:', {
+    rid,
+    customerId,
+    currentStatus: req.status,
+    payment_status: req.payment_status
+  });
+
+  // ✅ Check if request was in Processing status
+  if (req.status === 'Processing') {
+    console.log('✅ Request was in Processing status - checking hold_balance...');
+
+    // Get current customer balance including hold_balance
+    const balanceRows = await executeQuery(
+      `SELECT amtlimit as raw_available_balance, hold_balance 
+       FROM customer_balances 
+       WHERE com_id = ? 
+       LIMIT 1`,
+      [customerId]
+    );
+
+    if (balanceRows.length > 0) {
+      const currentRawBalance = parseFloat(balanceRows[0].raw_available_balance) || 0;
+      const currentHoldBalance = parseFloat(balanceRows[0].hold_balance) || 0;
+
+      console.log('💰 Current balances:', {
+        customerId,
+        raw_available_balance: currentRawBalance,
+        hold_balance: currentHoldBalance
+      });
+
+      if (currentHoldBalance > 0) {
+        // ✅ RESTORE hold_balance to raw_available_balance
+        const restoreQuery = `
+          UPDATE customer_balances 
+          SET amtlimit = amtlimit + ?, 
+              hold_balance = 0,
+              updated_at = ? 
+          WHERE com_id = ?
+        `;
+
+        await executeQuery(restoreQuery, [currentHoldBalance, now, customerId]);
+
+        console.log(`✅ Restored hold_balance: ₹${currentHoldBalance} to raw_available_balance for customer: ${customerId}`);
+      } else {
+        console.log(`ℹ️ No hold_balance to restore for customer: ${customerId}`);
+      }
+    } else {
+      console.log(`⚠️ No customer balance record found for customer: ${customerId}`);
+    }
+  }
+
+  // If request was completed, we need to handle stock and balance reversal differently
+  if (req.status === 'Completed') {
+    const amount = parseFloat(req.totalamt || (req.price * req.aqty)) || 0;
+
+    console.log('🔄 Reverting completed request:', { amount });
+
+    // Revert stock
+    try {
+      const stockRows = await executeQuery(
+        `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
+        [req.fs_id, req.product]
+      );
+
+      if (stockRows && stockRows.length > 0) {
+        const currentStock = parseFloat(stockRows[0].stock) || 0;
+        const returnedQty = parseFloat(req.aqty) || 0;
+
+        await executeQuery(
+          `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
+          [currentStock + returnedQty, req.fs_id, req.product]
+        );
+
+        console.log(`✅ Stock reverted: Added ${returnedQty}L back to station`);
+      }
+    } catch (stockError) {
+      console.error('❌ Error reverting stock:', stockError);
+    }
+
+    // For credit limit customers (payment_status = 1), revert the deduction
+    if (parseInt(req.payment_status) === 1 && amount > 0) {
+      await executeQuery(
+        `UPDATE customer_balances 
+         SET amtlimit = amtlimit + ?, 
+             balance = GREATEST(0, balance - ?), 
+             updated_at = ? 
+         WHERE com_id = ?`,
+        [amount, amount, now, customerId]
+      );
+
+      console.log(`✅ Balance reverted for completed request: Added ₹${amount} to raw_available_balance`);
+    }
+  }
+
+  // Now update the request status to Cancel
   const updateRequestQuery = `
     UPDATE filling_requests 
-    SET status = 'Cancel', 
-        cdate = ?,
-        ccid = ?,
-        cancel_remark = ?,
-        doc1 = ?,
-        doc2 = ?,
-        doc3 = ?,
-        status_updated_by = ?
+    SET status = 'Cancelled', 
+        cdate = ?, 
+        ccid = ?, 
+        cancel_remark = ?, 
+        doc1 = ?, 
+        doc2 = ?, 
+        doc3 = ?, 
+        status_updated_by = ?,
+        updated_at = ?
     WHERE id = ? AND rid = ?
   `;
-  
+
   await executeQuery(updateRequestQuery, [
-    now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, id, rid
+    now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, now, id, rid
   ]);
+
+  console.log(`✅ Request ${rid} cancelled successfully`);
 
   return 'Request Cancelled Successfully';
 }
@@ -1244,10 +1485,10 @@ async function updateFillingRequest(data) {
   } = data;
 
   const now = getIndianTime();
-  
+
   let updateQuery = '';
   let queryParams = [];
-  
+
   if (status === 'Processing') {
     updateQuery = `
       UPDATE filling_requests 
@@ -1279,16 +1520,15 @@ async function updateFillingRequest(data) {
     `;
     queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, userId, id];
   }
-  
+
   await executeQuery(updateQuery, queryParams);
   return 'Request updated successfully';
 }
 
-// ✅ FIXED: Remove balanceType parameter
 async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBalance) {
   try {
     const description = 'Fuel Purchase';
-    
+
     console.log('💰 Wallet History Update:', {
       oldBalance,
       deductedAmount,
@@ -1296,12 +1536,10 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
       description
     });
 
-    // Check if record exists for this rid
     const checkQuery = `SELECT id FROM wallet_history WHERE rid = ? LIMIT 1`;
     const existingRecord = await executeQuery(checkQuery, [rid]);
 
     if (existingRecord.length > 0) {
-      // Update existing record
       await executeQuery(
         `UPDATE wallet_history 
          SET old_balance = ?, deducted = ?, c_balance = ?, d_date = NOW(), description = ?
@@ -1310,7 +1548,6 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
       );
       console.log('✅ Wallet history updated for rid:', rid);
     } else {
-      // Insert new record
       await executeQuery(
         `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type, description) 
          VALUES (?, ?, ?, ?, ?, NOW(), 4, ?)`,
@@ -1323,36 +1560,31 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
   }
 }
 
-// ✅ SIMPLEST VERSION: Always works
 async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
   try {
-    console.log('📦 SIMPLEST: Processing non-billing stock for station:', station_id, 'product:', product_id, 'aqty:', aqty);
-    
-    // Step 1: Check if record exists
+    console.log('📦 Processing non-billing stock for station:', station_id, 'product:', product_id, 'aqty:', aqty);
+
     const checkQuery = `SELECT COUNT(*) as count FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
     const checkResult = await executeQuery(checkQuery, [station_id, product_id]);
     const exists = checkResult[0].count > 0;
-    
+
     console.log('Record exists?', exists);
-    
+
     if (exists) {
-      // UPDATE existing record (ADD stock)
       const updateQuery = `UPDATE non_billing_stocks SET stock = stock + ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`;
       await executeQuery(updateQuery, [aqty, userId, station_id, product_id]);
       console.log('✅ Updated existing record, added:', aqty);
     } else {
-      // INSERT new record with aqty
       const insertQuery = `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)`;
       await executeQuery(insertQuery, [station_id, product_id, aqty, userId]);
       console.log('✅ Inserted new record with stock:', aqty);
     }
-    
+
     return true;
-    
+
   } catch (error) {
     console.error('❌ SIMPLEST method error:', error);
-    
-    // LAST RESORT: Direct INSERT (ignore duplicates)
+
     try {
       const directInsert = `
         INSERT IGNORE INTO non_billing_stocks 
@@ -1364,24 +1596,22 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
     } catch (finalError) {
       console.error('❌ Everything failed:', finalError);
     }
-    
+
     return false;
   }
 }
-async function handleFileUpload(file) {
+
+async function handleFileUpload(file, rid, docKey) {
   if (!file || file.size === 0) return null;
-
-  try {
-    const maxSize = 5 * 1024 * 1000;
-    if (file.size > maxSize) {
-      throw new Error('File size exceeds 5MB limit');
-    }
-
-    // For now, return a dummy path since file upload might be causing issues
-    return `/uploads/temp_${Date.now()}.jpg`;
-    
-  } catch (error) {
-    console.error('❌ File upload error:', error);
-    return null;
-  }
+  const maxSize = 5 * 1024 * 1000;
+  if (file.size > maxSize) return null;
+  const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'filling-requests');
+  await mkdir(uploadDir, { recursive: true });
+  const ext = file.name.includes('.') ? file.name.split('.').pop() : 'jpg';
+  const filename = `${rid}_${docKey}_${Date.now()}.${ext}`;
+  const filepath = path.join(uploadDir, filename);
+  const bytes = await file.arrayBuffer();
+  const buffer = Buffer.from(bytes);
+  await writeFile(filepath, buffer);
+  return `/uploads/filling-requests/${filename}`;
 }

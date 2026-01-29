@@ -2,10 +2,10 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaBell, FaBars, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
+import { FaBars, FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
-export default function CstHeader() {
-  const [user, setUser] = useState(null);
+export default function CstHeader({ user: propUser }) {
+  const [user, setUser] = useState(propUser || null);
   const [notifCount, setNotifCount] = useState(0);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showSidebar, setShowSidebar] = useState(false);
@@ -13,16 +13,26 @@ export default function CstHeader() {
   const pathname = usePathname();
 
   useEffect(() => {
-    const userData = localStorage.getItem('customer');
-    if (userData) {
-      const parsedUser = JSON.parse(userData);
-      setUser(prevUser => {
-        if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
-          return parsedUser;
-        }
-        return prevUser;
-      });
+    if (propUser) {
+      setUser(propUser);
+      return;
     }
+    
+    try {
+      const userData = localStorage.getItem('customer');
+      if (userData) {
+        const parsedUser = JSON.parse(userData);
+        setUser(prevUser => {
+          if (JSON.stringify(prevUser) !== JSON.stringify(parsedUser)) {
+            return parsedUser;
+          }
+          return prevUser;
+        });
+      }
+    } catch (error) {
+      console.error("Error parsing customer data in Header:", error);
+    }
+
     try {
       const c = parseInt(sessionStorage.getItem('cst_notif_count') || '0', 10);
       setNotifCount(prevCount => (isNaN(c) ? 0 : c));

@@ -57,7 +57,7 @@ export default function EmployeeChatBox({ employeeId, employeeName }) {
 
     newSocket.on('connect', () => {
       console.log('✅ Employee chat socket connected');
-      newSocket.emit('join_employee_room', { employeeId });
+      newSocket.emit('employee_join', { employeeId, employeeName });
     });
 
     newSocket.on('disconnect', () => {

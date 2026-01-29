@@ -1,8 +1,7 @@
-// app/customers/client-history/page.jsx
 "use client";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
-import Link from "next/link";
 
 // --- MOCK COMPONENTS ---
 const Modal = ({ show, onClose, title, children }) => {
@@ -48,26 +47,22 @@ function ClientHistoryContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
 
-  // Payment processing states
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [rechargeAmount, setRechargeAmount] = useState("");
-  const [pendingTransactions, setPendingTransactions] = useState([]);
-  const [processingPayment, setProcessingPayment] = useState(false);
-  const [paymentResult, setPaymentResult] = useState(null);
+  // Payment processing states (REMOVED)
   const [error, setError] = useState("");
   const [customerName, setCustomerName] = useState("");
   const [customerBalanceInfo, setCustomerBalanceInfo] = useState(null);
   const [paymentStats, setPaymentStats] = useState(null);
   const [daysOpen, setDaysOpen] = useState(0);
   const [overdueDetails, setOverdueDetails] = useState(null);
+  
+  // Customer type states
+  const [isDayLimitCustomer, setIsDayLimitCustomer] = useState(false);
+  const [isAmountLimitCustomer, setIsAmountLimitCustomer] = useState(false);
+  const [customerType, setCustomerType] = useState("");
 
   const searchParams = useSearchParams();
   const router = useRouter();
   const cid = searchParams.get("id");
-
-  // Check customer types
-  const isDayLimitCustomer = customerBalanceInfo?.day_limit > 0;
-  const isAmountLimitCustomer = customerBalanceInfo?.amtlimit > 0;
 
   // Enhanced status calculation - ONLY for day_limit customers
   const getEnhancedTransactionStatus = (transaction) => {
@@ -135,23 +130,6 @@ function ClientHistoryContent() {
     );
   });
 
-  // Get overdue and pending transactions for payment modal (only for day_limit customers)
-  const getPayableTransactions = () => {
-    if (!isDayLimitCustomer) return [];
-    
-    return transactions.filter(transaction => {
-      const statusInfo = getEnhancedTransactionStatus(transaction);
-      return statusInfo && (statusInfo.status === 'overdue' || statusInfo.status === 'pending');
-    });
-  };
-
-  // Calculate total payable amount (overdue + pending)
-  const payableTransactions = getPayableTransactions();
-  const totalPayableAmount = payableTransactions.reduce(
-    (sum, t) => sum + parseFloat(t.amount || 0),
-    0
-  );
-
   // Pagination
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -165,6 +143,38 @@ function ClientHistoryContent() {
       fetchTransactions();
     }
   }, [cid, filter]);
+
+  // Customer type detection को अलग useEffect में डालें
+  useEffect(() => {
+    if (customerBalanceInfo) {
+      const dayLimit = customerBalanceInfo?.day_limit || 0;
+      const amountLimit = customerBalanceInfo?.amtlimit || 0;
+      const clientTypeValue = parseInt(customerBalanceInfo?.client_type || customerType || 0);
+      
+      // Day limit customer: day_limit > 0
+      setIsDayLimitCustomer(dayLimit > 0);
+      
+      // Amount limit customer: amtlimit > 0 OR client_type is 1 (Prepaid) or 2 (Postpaid)
+      setIsAmountLimitCustomer(
+        amountLimit > 0 || 
+        clientTypeValue === 1 || 
+        clientTypeValue === 2
+      );
+      
+      // Set customer type for display
+      if (dayLimit > 0) {
+        setCustomerType("Day Limit Customer");
+      } else if (clientTypeValue === 1) {
+        setCustomerType("Prepaid Customer");
+      } else if (clientTypeValue === 2) {
+        setCustomerType("Postpaid Customer");
+      } else if (amountLimit > 0) {
+        setCustomerType("Amount Limit Customer");
+      } else {
+        setCustomerType("Standard Customer");
+      }
+    }
+  }, [customerBalanceInfo, customerType]);
 
   const fetchTransactions = async () => {
     try {
@@ -186,12 +196,12 @@ function ClientHistoryContent() {
         setTransactions(result.data.transactions || []);
         setProducts(result.data.products || []);
         setBalance(result.data.balance || 0);
-        setPendingTransactions(result.data.pendingTransactions || []);
         setCustomerName(result.data.customerName || `Customer ${cid}`);
         setCustomerBalanceInfo(result.data.customerBalanceInfo || null);
         setPaymentStats(result.data.paymentStats || null);
         setDaysOpen(result.data.daysOpen || 0);
         setOverdueDetails(result.data.overdueDetails || null);
+        setCustomerType(result.data.clientType || "");
       } else {
         setError(result.error || "Failed to fetch data");
       }
@@ -218,60 +228,7 @@ function ClientHistoryContent() {
     };
   };
 
-  // Payment Handlers - For all customers
-  const handleRechargeClick = () => {
-    setShowPaymentModal(true);
-    setRechargeAmount("");
-    setPaymentResult(null);
-  };
-
-  const handleProcessPayment = async () => {
-    
-    const amount = parseFloat(rechargeAmount);
-    if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid payment amount.");
-      return;
-    }
-
-    try {
-      setProcessingPayment(true);
-
-      const response = await fetch("/api/customers/client-history", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerId: cid,
-          rechargeAmount: amount,
-          payableTransactions: payableTransactions, // Send payable transactions to backend
-        }),
-      });
-
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        setPaymentResult(result);
-        fetchTransactions(); // Refresh data
-        setTimeout(() => {
-          setShowPaymentModal(false);
-          setPaymentResult(null);
-        }, 3000);
-      } else {
-        alert(result.error || "Payment processing failed.");
-        setPaymentResult({
-          success: false,
-          message: result.error || "Payment failed",
-        });
-      }
-    } catch (error) {
-      console.error("Payment processing error:", error);
-      alert("Payment processing failed.");
-      setPaymentResult({ success: false, message: "Network error." });
-    } finally {
-      setProcessingPayment(false);
-    }
-  };
-
-  // Export function
+  // Export function (ONLY EXPORT REMAINS)
   const handleExport = async () => {
     try {
       setExportLoading(true);
@@ -432,35 +389,37 @@ function ClientHistoryContent() {
             </p>
           </div>
           <div>
-            <p className="text-gray-500 text-xs font-medium">Balance</p>
+            <p className="text-gray-500 text-xs font-medium">Outstanding</p>
             <p className="font-bold">
               ₹{formatCurrency(transaction.new_amount)}
             </p>
           </div>
           
-          {/* Amount Limit Customers - Show Remaining Limit, in_amount, d_amount */}
-          {isAmountLimitCustomer && (
-            <>
-              <div>
-                <p className="text-gray-500 text-xs font-medium">Remaining Limit</p>
-                <p className="font-medium">
-                  {transaction.remaining_limit || "N/A"}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs font-medium">Increase Amount</p>
-                <p className="font-bold text-green-600">
-                  ₹{formatCurrency(transaction.in_amount)}
-                </p>
-              </div>
-              <div>
-                <p className="text-gray-500 text-xs font-medium">Decrease Amount</p>
-                <p className="font-bold text-red-600">
-                  ₹{formatCurrency(transaction.d_amount)}
-                </p>
-              </div>
-            </>
-          )}
+          {/* ALL Customers - Show Remaining Limit, in_amount, d_amount, limit_type */}
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Remaining Limit</p>
+            <p className={`font-medium ${transaction.remaining_limit < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+              ₹{formatCurrency(transaction.remaining_limit)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Increase Amount</p>
+            <p className="font-bold text-green-600">
+              ₹{formatCurrency(transaction.in_amount)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Decrease Amount</p>
+            <p className="font-bold text-red-600">
+              ₹{formatCurrency(transaction.d_amount)}
+            </p>
+          </div>
+          <div>
+            <p className="text-gray-500 text-xs font-medium">Limit Type</p>
+            <p className="font-medium">
+              {transaction.limit_type || "N/A"}
+            </p>
+          </div>
           
           {/* Day Limit Customers - Show Day Limit Fields */}
           {isDayLimitCustomer && (
@@ -528,12 +487,6 @@ function ClientHistoryContent() {
     );
   }
 
-  // Calculate total pending amount
-  const totalPendingAmount = pendingTransactions.reduce(
-    (sum, t) => sum + parseFloat(t.amount || 0),
-    0
-  );
-
   // Get day limit info
   const dayLimitInfo = getDayLimitInfo();
 
@@ -561,7 +514,7 @@ function ClientHistoryContent() {
                 {customerBalanceInfo && (
                   <div className="text-sm text-gray-600 space-y-1">
                     <p>
-                      Customer Type: {isDayLimitCustomer ? 'Day Limit Customer' : 'Amount Limit Customer'}
+                      Customer Type: {customerType}
                     </p>
                     {isDayLimitCustomer && dayLimitInfo && (
                       <div className="flex space-x-4 text-xs">
@@ -576,10 +529,10 @@ function ClientHistoryContent() {
                         </span>
                       </div>
                     )}
-                    {isAmountLimitCustomer && (
+                    {!isDayLimitCustomer && (
                       <div className="flex space-x-4 text-xs">
                         <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded">
-                          Amount Limit: ₹{formatCurrency(customerBalanceInfo.amtlimit)}
+                          Amount Limit: ₹{formatCurrency(customerBalanceInfo.amtlimit || customerBalanceInfo.cst_limit)}
                         </span>
                         <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
                           Balance: ₹{formatCurrency(balance)}
@@ -593,12 +546,12 @@ function ClientHistoryContent() {
             </div>
 
             <div className="flex items-center space-x-4">
-              {/* Amount Limit Customers - Show Remaining Limit */}
-              {isAmountLimitCustomer && (
+              {/* Remaining Limit for ALL Customers */}
+              {customerBalanceInfo && (
                 <div className="text-right">
                   <p className="text-sm text-gray-500">Remaining Limit</p>
                   <p className="text-lg font-bold text-indigo-600">
-                    ₹{formatCurrency(customerBalanceInfo?.amtlimit)}
+                    ₹{formatCurrency(customerBalanceInfo?.amtlimit || customerBalanceInfo?.cst_limit)}
                   </p>
                 </div>
               )}
@@ -614,28 +567,7 @@ function ClientHistoryContent() {
                 </p>
               </div>
 
-              {/* Process Payment button - Show for all customers */}
-              {customerBalanceInfo && (
-                <button
-                  onClick={handleRechargeClick}
-                  className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 6v6m0 0v6m0-6h6m-6 0H6"
-                    />
-                  </svg>
-                  <span>Recharge / Process Payment</span>
-                </button>
-              )}
+              {/* ❌ Payment button REMOVED - यहाँ सिर्फ view है */}
 
               <Link
                 href={`/customer-logs?customer_id=${cid}`}
@@ -657,6 +589,7 @@ function ClientHistoryContent() {
                 <span>📋 Logs</span>
               </Link>
 
+              {/* Export button रहने दें */}
               <button
                 onClick={handleExport}
                 disabled={exportLoading || transactions.length === 0}
@@ -730,41 +663,32 @@ function ClientHistoryContent() {
           </div>
         )}
 
-        {/* Overdue Warning Banner - Only for Day Limit Customers */}
+        {/* Overdue Warning Banner - Only for Day Limit Customers (इसे रखें, लेकिन button हटाएं) */}
         {isDayLimitCustomer && overdueDetails && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center justify-between flex-wrap gap-4">
-              <div className="flex items-center">
-                <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
-                <div>
-                  <p className="font-medium text-red-800">
-                    ⚠️ Day Limit Exceeded - Account Inactive
+            <div className="flex items-center">
+              <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
+              <div>
+                <p className="font-medium text-red-800">
+                  ⚠️ Day Limit Exceeded - Account Inactive
+                </p>
+                <div className="text-sm text-red-600 mt-1 space-y-1">
+                  <p>
+                    Days Elapsed: <span className="font-semibold">{overdueDetails.days_elapsed} days</span> | 
+                    Day Limit: <span className="font-semibold">{overdueDetails.day_limit} days</span> | 
+                    Days Overdue: <span className="font-semibold">{overdueDetails.days_overdue} days</span>
                   </p>
-                  <div className="text-sm text-red-600 mt-1 space-y-1">
-                    <p>
-                      Days Elapsed: <span className="font-semibold">{overdueDetails.days_elapsed} days</span> | 
-                      Day Limit: <span className="font-semibold">{overdueDetails.day_limit} days</span> | 
-                      Days Overdue: <span className="font-semibold">{overdueDetails.days_overdue} days</span>
-                    </p>
-                    <p>
-                      Overdue Balance: <span className="font-semibold">₹{formatCurrency(overdueDetails.overdue_amount || 0)}</span> | 
-                      Unpaid Requests: <span className="font-semibold">{overdueDetails.total_unpaid_requests || 0}</span>
-                    </p>
-                    <p className="font-semibold mt-2">
-                      ❌ Please clear the payment for previous {overdueDetails.day_limit} day(s) before completing new requests.
-                    </p>
-                  </div>
+                  <p>
+                    Overdue Balance: <span className="font-semibold">₹{formatCurrency(overdueDetails.overdue_amount || 0)}</span> | 
+                    Unpaid Requests: <span className="font-semibold">{overdueDetails.total_unpaid_requests || 0}</span>
+                  </p>
+                  <p className="font-semibold mt-2">
+                    ❌ Please clear the payment for previous {overdueDetails.day_limit} day(s) before completing new requests.
+                  </p>
                 </div>
               </div>
-              {customerBalanceInfo?.is_active !== 0 && (
-                <button 
-                  onClick={handleRechargeClick}
-                  className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold whitespace-nowrap"
-                >
-                  Recharge Now
-                </button>
-              )}
             </div>
+            {/* ❌ Recharge Now button हटाया गया */}
           </div>
         )}
 
@@ -851,19 +775,16 @@ function ClientHistoryContent() {
                     <div className="text-blue-600 font-semibold">
                       Day Limit: {customerBalanceInfo?.day_limit} days
                     </div>
-                    <div className="text-orange-600 font-semibold">
-                      Total Payment Due: ₹{formatCurrency(totalPayableAmount)}
-                    </div>
+                    {overdueDetails && (
+                      <div className="text-red-600 font-semibold">
+                        Overdue Amount: ₹{formatCurrency(overdueDetails.overdue_amount || 0)}
+                      </div>
+                    )}
                   </>
                 )}
                 {!isDayLimitCustomer && (
-                  <div className="text-red-600 font-semibold">
-                    Total Payment Due: ₹{formatCurrency(totalPayableAmount)}
-                  </div>
-                )}
-                {isAmountLimitCustomer && (
                   <div className="text-purple-600 font-semibold">
-                    Amount Limit: ₹{formatCurrency(customerBalanceInfo?.amtlimit)}
+                    Amount Limit: ₹{formatCurrency(customerBalanceInfo?.amtlimit || customerBalanceInfo?.cst_limit)}
                   </div>
                 )}
               </div>
@@ -950,25 +871,24 @@ function ClientHistoryContent() {
                         Credit Date
                       </th>
                       <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Balance
+                        Outstanding
                       </th>
                       
-                      {/* Amount Limit Customers - Show Remaining Limit, in_amount, d_amount */}
-                      {isAmountLimitCustomer && (
-                        <>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Remaining Limit
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Increase Amount
-                          </th>
-                          <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                            Decrease Amount
-                          </th>
-                        </>
-                      )}
+                      {/* ALL Customers के लिए common columns - यह हमेशा show होने चाहिए */}
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Remaining Limit
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Increase Amount
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Decrease Amount
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                        Limit Type
+                      </th>
                       
-                      {/* Day Limit Customers - Show Day Limit Fields */}
+                      {/* Day Limit Customers के लिए specific columns */}
                       {isDayLimitCustomer && (
                         <>
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -999,8 +919,8 @@ function ClientHistoryContent() {
                     {displayTransactions.length > 0 ? (
                       displayTransactions.map((transaction) => {
                         const statusInfo = getEnhancedTransactionStatus(transaction);
-
                         const isEdited = transaction.trans_type?.toLowerCase() === 'edited';
+                        
                         return (
                           <tr
                             key={transaction.id}
@@ -1042,20 +962,19 @@ function ClientHistoryContent() {
                               ₹{formatCurrency(transaction.new_amount)}
                             </td>
                             
-                            {/* Amount Limit Data */}
-                            {isAmountLimitCustomer && (
-                              <>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                                  {transaction.remaining_limit || "N/A"}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
-                                  ₹{formatCurrency(transaction.in_amount)}
-                                </td>
-                                <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-red-600">
-                                  ₹{formatCurrency(transaction.d_amount)}
-                                </td>
-                              </>
-                            )}
+                            {/* ALL Customers के लिए common columns */}
+                            <td className={`px-4 py-3 whitespace-nowrap text-sm font-semibold ${transaction.remaining_limit < 0 ? 'text-red-600' : 'text-gray-900'}`}>
+                              ₹{formatCurrency(transaction.remaining_limit)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600">
+                              ₹{formatCurrency(transaction.in_amount)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-red-600">
+                              ₹{formatCurrency(transaction.d_amount)}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
+                              {transaction.limit_type || "N/A"}
+                            </td>
                             
                             {/* Day Limit Data */}
                             {isDayLimitCustomer && (
@@ -1099,8 +1018,7 @@ function ClientHistoryContent() {
                     ) : (
                       <tr>
                         <td colSpan={
-                          isDayLimitCustomer ? "16" : 
-                          isAmountLimitCustomer ? "16" : "13"
+                          isDayLimitCustomer ? "20" : "17"
                         } className="px-6 py-8 text-center">
                           <div className="flex flex-col items-center text-gray-500">
                             <p className="text-lg font-medium">
@@ -1158,108 +1076,7 @@ function ClientHistoryContent() {
         </div>
       </div>
 
-      {/* Payment Modal - ONLY for day_limit customers */}
-      {isDayLimitCustomer && (
-        <Modal
-          show={showPaymentModal}
-          onClose={() => setShowPaymentModal(false)}
-          title="Process Payment - Day Limit Customer"
-        >
-          {paymentResult && (
-            <div
-              className={`p-3 mb-4 rounded-lg text-center ${
-                paymentResult.success
-                  ? "bg-green-100 text-green-800"
-                  : "bg-red-100 text-red-800"
-              }`}
-            >
-              <p className="font-semibold">{paymentResult.message}</p>
-            </div>
-          )}
-
-          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-            <p className="text-sm font-medium text-yellow-800">
-              Total Outstanding Due:
-            </p>
-            <p className="text-xl font-bold text-red-600">
-              ₹{formatCurrency(totalPayableAmount)}
-            </p>
-            <p className="text-xs text-blue-600 mt-1 font-semibold">
-              Day Limit Customer - Payments clear oldest days first
-            </p>
-          </div>
-
-          {/* Payable Transactions List */}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-gray-700 mb-2">
-              Payable Transactions (Overdue + Pending):
-            </p>
-            {payableTransactions.length > 0 ? (
-              <div className="max-h-40 overflow-y-auto border rounded-lg">
-                {payableTransactions.map((transaction, index) => {
-                  const statusInfo = getEnhancedTransactionStatus(transaction);
-                  return (
-                    <div key={transaction.id} className="p-2 border-b last:border-b-0 text-sm">
-                      <div className="flex justify-between items-center">
-                        <div>
-                          <span className="font-medium">ID: {transaction.id}</span>
-                          <span className={`ml-2 px-1 text-xs rounded ${
-                            statusInfo?.status === 'overdue' ? 'bg-red-100 text-red-800' : 'bg-orange-100 text-orange-800'
-                          }`}>
-                            {statusInfo?.display}
-                          </span>
-                        </div>
-                        <span className="font-semibold">₹{formatCurrency(transaction.amount)}</span>
-                      </div>
-                      <div className="text-xs text-gray-500">
-                        {transaction.pname} • {formatDate(transaction.completed_date)}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-gray-500 p-2 border rounded-lg bg-gray-50">
-                No payable transactions found
-              </p>
-            )}
-            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded">
-              <div className="flex justify-between font-semibold">
-                <span>Total Payable Amount:</span>
-                <span className="text-blue-700">₹{formatCurrency(totalPayableAmount)}</span>
-              </div>
-            </div>
-          </div>
-
-          <label className="block text-sm font-medium text-gray-700 mb-2">
-            Enter Amount Paid (₹)
-          </label>
-          <input
-            type="number"
-            value={rechargeAmount}
-            onChange={(e) => setRechargeAmount(e.target.value)}
-            placeholder="e.g., 100000"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-4"
-            disabled={processingPayment || paymentResult?.success}
-          />
-
-          <button
-            onClick={handleProcessPayment}
-            disabled={
-              processingPayment ||
-              paymentResult?.success ||
-              parseFloat(rechargeAmount) <= 0
-            }
-            className="w-full py-2 px-4 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
-          >
-            {processingPayment ? "Processing Payment..." : "Confirm Payment"}
-          </button>
-
-          <p className="text-xs text-gray-500 mt-2">
-            Note: Payment will be applied to the oldest overdue transactions first, then pending transactions.
-          </p>
-        </Modal>
-      )}
+      {/* ❌ Payment Modal हटाया गया - यहाँ सिर्फ view है */}
     </div>
   );
 }

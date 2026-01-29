@@ -6,7 +6,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-fallback-secret';
 
 // 🔑 Generate JWT
 export function signToken(user) {
-  return jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "1h" });
+  return jwt.sign({ userId: user.id, role: user.role }, JWT_SECRET, { expiresIn: "30d" });
 }
 
 // 🔑 Verify JWT

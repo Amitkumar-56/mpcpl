@@ -290,6 +290,32 @@ export default function LoginPage() {
             <p className="text-center text-gray-600 mt-6 text-sm">
               Login with your employee credentials
             </p>
+
+            <div className="mt-8">
+              <h3 className="text-center text-gray-800 font-semibold mb-4">
+                Other Login Portals
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <a
+                  href="/cst/login"
+                  className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg border border-blue-200 text-blue-700 bg-blue-50 hover:bg-blue-100 transition"
+                >
+                  Customer Login
+                </a>
+                <a
+                  href="/supplier/login"
+                  className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition"
+                >
+                  Supplier Login
+                </a>
+                <a
+                  href="/agent/login"
+                  className="w-full inline-flex items-center justify-center px-4 py-3 rounded-lg border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition"
+                >
+                  Agent Login
+                </a>
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -87,11 +87,11 @@ export async function GET(request) {
 
       // 3. Fetch Payments
       const payments = await executeQuery(
-          "SELECT id, agent_id, amount, COALESCE(net_amount, amount) as net_amount, tds_amount, payment_date, remarks FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
+          "SELECT id, agent_id, amount, payment_date, remarks FROM agent_payments WHERE agent_id = ? ORDER BY payment_date DESC",
           [agentId]
       );
       
-      const totalPaid = payments.reduce((sum, item) => sum + (parseFloat(item.net_amount) || parseFloat(item.amount) || 0), 0);
+      const totalPaid = payments.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
       const remaining = Math.max(0, totalCommission - totalPaid);
 
       // 4. Fetch Allocated Customers (Display only)

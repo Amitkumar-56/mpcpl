@@ -1,5 +1,6 @@
 // src/app/api/cst/add-user/route.js
 import { executeQuery } from '@/lib/db';
+import crypto from 'crypto';
 import { NextResponse } from 'next/server';
 
 // Helper function to get logged-in user ID
@@ -83,6 +84,9 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
+    // Hash password with SHA256
+    const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+
     // Insert new user - ONLY EXISTING COLUMNS
     console.log('💾 Inserting new user...');
     const insertQuery = `
@@ -96,10 +100,10 @@ export async function POST(request) {
       name,           // name
       email,          // email
       phone,          // phone
-      password,       // password
+      hashedPassword, // password (hashed)
       loggedInUserId, // com_id
-      roleid,         // roleid = 2
-      1               // status = active
+      roleid,         // roleid
+      1               // status (active by default)
     ]);
 
     console.log('✅ User inserted successfully, ID:', result.insertId);
@@ -184,7 +188,7 @@ export async function GET(request) {
 // PUT - User update करने के लिए
 export async function PUT(request) {
   try {
-    const { id, name, email, phone } = await request.json();
+    const { id, name, email, phone, password } = await request.json();
 
     if (!id || !name || !email || !phone) {
       return NextResponse.json({ 
@@ -239,14 +243,26 @@ export async function PUT(request) {
       }, { status: 400 });
     }
 
-    // Update user
-    const updateQuery = `
-      UPDATE customers 
-      SET name = ?, email = ?, phone = ?
-      WHERE id = ? AND com_id = ?
-    `;
+    let updateQuery;
+    let params;
+    if (password && password.length >= 6) {
+      const hashedPassword = crypto.createHash('sha256').update(password).digest('hex');
+      updateQuery = `
+        UPDATE customers 
+        SET name = ?, email = ?, phone = ?, password = ?
+        WHERE id = ? AND com_id = ?
+      `;
+      params = [name, email, phone, hashedPassword, id, loggedInUserId];
+    } else {
+      updateQuery = `
+        UPDATE customers 
+        SET name = ?, email = ?, phone = ?
+        WHERE id = ? AND com_id = ?
+      `;
+      params = [name, email, phone, id, loggedInUserId];
+    }
     
-    await executeQuery(updateQuery, [name, email, phone, id, loggedInUserId]);
+    await executeQuery(updateQuery, params);
 
     return NextResponse.json({ 
       success: true,

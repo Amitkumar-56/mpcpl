@@ -33,7 +33,8 @@ export default function CustomerHistoryContent() {
       if (savedCustomer) {
         const customerData = JSON.parse(savedCustomer);
         if (customerData.id) {
-          return customerData.id.toString();
+          // Use com_id if present (for sub-users), otherwise id
+          return (customerData.com_id || customerData.id).toString();
         }
       }
     } catch (error) {
@@ -154,6 +155,19 @@ export default function CustomerHistoryContent() {
       case 2: return 'Postpaid';
       case 3: return 'Day Limit';
       default: return 'Unknown';
+    }
+  };
+
+  const getBillingTypeText = (transType) => {
+    switch(transType) {
+      case 'credit':
+      case 'inward':
+        return 'Credit/Inward';
+      case 'debit':
+      case 'outward':
+        return 'Debit/Outward';
+      default:
+        return transType || 'N/A';
     }
   };
 
@@ -352,6 +366,16 @@ export default function CustomerHistoryContent() {
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Amount (₹)
                           </th>
+                          {customerInfo?.client_type === 2 && (
+                            <>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Increase (₹)
+                              </th>
+                              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                Decrease (₹)
+                              </th>
+                            </>
+                          )}
                           <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Outstanding (₹)
                           </th>
@@ -399,6 +423,24 @@ export default function CustomerHistoryContent() {
                                 <span className="text-gray-400">₹0</span>
                               )}
                             </td>
+                            {customerInfo?.client_type === 2 && (
+                              <>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
+                                  {transaction.in_amount ? (
+                                    <span className="text-purple-600">₹{formatCurrency(transaction.in_amount)}</span>
+                                  ) : (
+                                    <span className="text-gray-400">₹0</span>
+                                  )}
+                                </td>
+                                <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
+                                  {transaction.d_amount ? (
+                                    <span className="text-red-600">₹{formatCurrency(transaction.d_amount)}</span>
+                                  ) : (
+                                    <span className="text-gray-400">₹0</span>
+                                  )}
+                                </td>
+                              </>
+                            )}
                             <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-right">
                               {transaction.new_amount ? (
                                 <span className="text-orange-600">₹{formatCurrency(transaction.new_amount)}</span>

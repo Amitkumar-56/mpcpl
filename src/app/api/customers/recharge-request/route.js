@@ -676,6 +676,18 @@ export async function POST(request) {
         [newBalance, newTotalDayAmount, newDayRemainingAmount, parseInt(customerId)]
       );
 
+      // Step 2: Insert into filling_history as INWARD transaction (record recharge impact)
+      try {
+        await connection.query(
+          `INSERT INTO filling_history 
+           (trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, cl_id, created_by, payment_status) 
+           VALUES ('inward', ?, ?, ?, ?, NULL, ?, 1, 1)`,
+          [rechargeAmount, safePaymentDate, oldBalance, newBalance, parseInt(customerId)]
+        );
+      } catch (historyErr) {
+        console.log('Note: filling_history insert skipped for day_limit recharge:', historyErr.message);
+      }
+
       await connection.commit();
       connection.release();
       

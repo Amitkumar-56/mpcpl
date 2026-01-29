@@ -1,7 +1,7 @@
+
 // src/app/api/cst/filling-requests/create-requests/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { createAuditLog } from "@/lib/auditLog";
 
 export async function POST(request) {
   try {
@@ -18,7 +18,8 @@ export async function POST(request) {
       request_type,
       qty,
       remarks,
-      customer_id
+      customer_id,
+      sub_product_id
     } = body;
 
     // Validate required fields
@@ -78,21 +79,42 @@ export async function POST(request) {
       }, { status: 403 });
     }
 
-    const blRows = await executeQuery(
-      'SELECT blocklocation FROM customers WHERE id = ?',
-      [parseInt(customer_id)]
-    );
-    const bl = blRows.length > 0 ? String(blRows[0].blocklocation || '').trim() : '';
-    const allowedIds = bl
-      .split(',')
-      .map(x => x.trim())
-      .filter(x => x !== '' && !isNaN(parseInt(x)))
-      .map(x => parseInt(x));
-    if (!allowedIds.includes(parseInt(station_id))) {
-      return NextResponse.json({
-        success: false,
-        message: `Selected station is not allowed for this customer`
-      }, { status: 403 });
+    // ✅ Enforce Day Limit creation rule for day limit customers
+    try {
+      const dayInfoRows = await executeQuery(
+        `SELECT c.client_type, cb.day_limit 
+         FROM customers c 
+         LEFT JOIN customer_balances cb ON c.id = cb.com_id 
+         WHERE c.id = ?`,
+        [parseInt(customer_id)]
+      );
+      const clientType = String(dayInfoRows?.[0]?.client_type || '');
+      const dayLimitVal = parseInt(dayInfoRows?.[0]?.day_limit || 0) || 0;
+      if (clientType === '3' && dayLimitVal > 0) {
+        const unpaidDays = await executeQuery(
+          `SELECT DATE(completed_date) as day_date
+           FROM filling_requests 
+           WHERE cid = ? 
+             AND status = 'Completed' 
+             AND payment_status = 0 
+           GROUP BY DATE(completed_date)`,
+          [parseInt(customer_id)]
+        );
+        const unpaidDistinctDays = Array.isArray(unpaidDays) ? unpaidDays.map(r => (r.day_date instanceof Date ? r.day_date.toISOString().slice(0,10) : String(r.day_date))) : [];
+        const todayStr = new Date().toISOString().slice(0,10);
+        if (unpaidDistinctDays.length >= dayLimitVal) {
+          const isSameDayAllowed = unpaidDistinctDays.includes(todayStr);
+          if (!isSameDayAllowed) {
+            const oldestDay = unpaidDistinctDays.sort()[0] || '';
+            return NextResponse.json({
+              success: false,
+              message: `Day limit reached (${unpaidDistinctDays.length}/${dayLimitVal}). You can create multiple requests only on existing unpaid day (${oldestDay}). Please clear payment for oldest day to create requests on a new date.`
+            }, { status: 403 });
+          }
+        }
+      }
+    } catch (eligErr) {
+      console.warn('Day limit eligibility check failed, continuing:', eligErr?.message || eligErr);
     }
 
     // Generate RID
@@ -112,65 +134,102 @@ export async function POST(request) {
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    // ✅ FIX: Get current IST time directly (server timezone should be IST)
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const currentDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // Get product details - product_id is now a product id, not product_code id
-    // Get the first product_code for this product
-    const productQuery = `
+    let chosenSubProductId = sub_product_id ? parseInt(sub_product_id) : null;
+    let productData = null;
+    const allCodesQuery = `
       SELECT 
-        pc.id as product_code_id,
+        pc.id as sub_product_id,
         pc.pcode,
         pc.product_id,
-        pc.id as sub_product_id,
-        p.pname as product_name,
-        p.id as main_product_id
-      FROM products p
-      LEFT JOIN product_codes pc ON pc.product_id = p.id
-      WHERE p.id = ?
+        p.pname as product_name
+      FROM product_codes pc
+      LEFT JOIN products p ON pc.product_id = p.id
+      WHERE pc.product_id = ?
       ORDER BY pc.id ASC
-      LIMIT 1
     `;
-    const productResult = await executeQuery(productQuery, [product_id]);
-    
-    if (productResult.length === 0 || !productResult[0].product_code_id) {
+    const codeRows = await executeQuery(allCodesQuery, [product_id]);
+    if (!codeRows || codeRows.length === 0) {
       return NextResponse.json({
         success: false,
-        message: 'Invalid product selected or no product code found for this product'
+        message: 'No product codes found for this product'
       }, { status: 400 });
     }
-
-    const productData = productResult[0];
+    const classify = (pcode) => {
+      const code = (pcode || '').toUpperCase().replace(/\s+/g, '');
+      if (product_id === 2 || product_id === 3) {
+        const isRetail = code.endsWith('R') || code.includes('-R') || code.includes('RTL') || code.includes('RETAIL');
+        return isRetail ? 'retail' : 'bulk';
+      } else if (product_id === 4) {
+        if (code.includes('BULK') || code.includes('DEFLB')) return 'bulk';
+        return 'retail';
+      } else if (product_id === 5) {
+        if (code.includes('BUCKET')) return 'bulk';
+        return 'retail';
+      }
+      return 'retail';
+    };
+    const qtyNum = parseFloat(qty) || 0;
+    const threshold = (product_id === 4 || product_id === 5) ? 3000 : 5000;
+    const desired = qtyNum >= threshold ? 'bulk' : 'retail';
+    // Always auto-select based on quantity threshold
+      const match = codeRows.find(r => classify(r.pcode) === desired);
+      chosenSubProductId = match ? match.sub_product_id : codeRows[0].sub_product_id;
+    
+    const chosenRow = codeRows.find(r => r.sub_product_id === chosenSubProductId) || codeRows[0];
+    productData = {
+      product_id: chosenRow.product_id,
+      product_name: chosenRow.product_name,
+      sub_product_id: chosenRow.sub_product_id,
+      pcode: chosenRow.pcode
+    };
 
     // Get price
-    const priceQuery = `
+    let price = 0;
+    const exactPriceQuery = `
       SELECT price 
       FROM deal_price 
       WHERE com_id = ? 
         AND station_id = ?
         AND product_id = ?
+        AND sub_product_id = ?
         AND is_active = 1
         AND status = 'active'
+        AND is_applied = 1
       ORDER BY updated_date DESC
       LIMIT 1
     `;
-
-    const priceResult = await executeQuery(priceQuery, [
-      customer_id,
-      station_id,
-      productData.product_id
+    const mainPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE com_id = ? 
+        AND station_id = ?
+        AND product_id = ?
+        AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+        AND is_active = 1
+        AND status = 'active'
+        AND is_applied = 1
+      ORDER BY updated_date DESC
+      LIMIT 1
+    `;
+    const exactRes = await executeQuery(exactPriceQuery, [
+      parseInt(customer_id),
+      parseInt(station_id),
+      parseInt(productData.product_id),
+      parseInt(productData.sub_product_id)
     ]);
-
-    let price = 0;
-    if (priceResult.length > 0) {
-      price = parseFloat(priceResult[0].price) || 0;
+    if (exactRes && exactRes.length > 0) {
+      price = parseFloat(exactRes[0].price) || 0;
+    } else {
+      const mainRes = await executeQuery(mainPriceQuery, [
+        parseInt(customer_id),
+        parseInt(station_id),
+        parseInt(productData.product_id)
+      ]);
+      if (mainRes && mainRes.length > 0) {
+        price = parseFloat(mainRes[0].price) || 0;
+      }
     }
 
     console.log('📊 Insert Data:', {
@@ -224,70 +283,6 @@ export async function POST(request) {
     console.log('✅ Database insert result:', result);
 
     if (result.affectedRows === 1) {
-      // ✅ Get customer name from customers table
-      let customerName = null;
-      let customerPermissions = {};
-      
-      try {
-        const customerInfo = await executeQuery(
-          `SELECT id, name FROM customers WHERE id = ?`,
-          [parseInt(customer_id)]
-        );
-        
-        if (customerInfo.length > 0) {
-          customerName = customerInfo[0].name;
-          
-          // ✅ Check customer_permissions
-          const permissionRows = await executeQuery(
-            `SELECT module_name, can_view, can_edit, can_create 
-             FROM customer_permissions 
-             WHERE customer_id = ?`,
-            [parseInt(customer_id)]
-          );
-          
-          permissionRows.forEach((row) => {
-            customerPermissions[row.module_name] = {
-              can_view: Boolean(row.can_view),
-              can_edit: Boolean(row.can_edit),
-              can_create: Boolean(row.can_create),
-            };
-          });
-        }
-      } catch (custError) {
-        console.error('Error fetching customer info:', custError);
-      }
-
-      // ✅ Create audit log with customer name and permissions
-      try {
-        await createAuditLog({
-          page: 'Customer Dashboard - Filling Requests',
-          uniqueCode: `FR-CST-${newRid}`,
-          section: 'Create Filling Request',
-          userId: parseInt(customer_id),
-          userName: customerName || `Customer ID: ${customer_id}`,
-          action: 'create',
-          remarks: `Created filling request ${newRid}: ${productData.product_name}, Qty: ${qty}, Vehicle: ${licence_plate.toUpperCase()}, Station: ${station_id}`,
-          oldValue: null,
-          newValue: {
-            rid: newRid,
-            customer_id: parseInt(customer_id),
-            customer_name: customerName,
-            product_id: productData.product_id,
-            product_name: productData.product_name,
-            station_id: parseInt(station_id),
-            vehicle_number: licence_plate.toUpperCase(),
-            qty: parseFloat(qty) || 0,
-            price: price,
-            total_amount: (price * parseFloat(qty || 0)).toFixed(2),
-            permissions: customerPermissions
-          }
-        });
-        console.log('✅ Audit log created for customer filling request');
-      } catch (auditError) {
-        console.error('Error creating audit log:', auditError);
-        // Continue even if audit log fails
-      }
-
       const stationQuery = `SELECT station_name FROM filling_stations WHERE id = ?`;
       const stationResult = await executeQuery(stationQuery, [station_id]);
       const stationName = stationResult.length > 0 ? stationResult[0].station_name : 'Unknown Station';

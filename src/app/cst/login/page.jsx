@@ -52,8 +52,8 @@ export default function CustomerLoginPage() {
         return;
       }
 
-      // ✅ Role check - customers table के roleid से check करें
-      if (Number(data.customer.roleid) !== 1) {
+      // ✅ Role check - customers table के roleid से check करें (Allow 1 & 2)
+      if (Number(data.customer.roleid) !== 1 && Number(data.customer.roleid) !== 2) {
         setError("Access denied - Invalid user role");
         return;
       }
@@ -74,7 +74,7 @@ export default function CustomerLoginPage() {
       // Small delay to ensure localStorage is set
       setTimeout(() => {
         window.location.href = "/cst/cstdashboard";
-      }, 100);
+      }, 500);
       
     } catch (err) {
       console.error("Login error:", err);

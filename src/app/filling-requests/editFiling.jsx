@@ -7,21 +7,20 @@ import Footer from "../../components/Footer";
 import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
 
-// OTP Modal Component - Without Auto-fill
-const OtpModal = ({ 
-  requestId, 
-  requestRid, 
+// OTP Modal Component - Fully Responsive
+const OtpModal = ({
+  requestId,
+  requestRid,
   generatedOtp,
-  onClose, 
+  onClose,
   onVerify,
-  onResend 
+  onResend
 }) => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [timer, setTimer] = useState(60);
   const [canResend, setCanResend] = useState(false);
-  const [showOtpHint, setShowOtpHint] = useState(false);
   const inputRefs = useRef([]);
 
   // Initialize refs
@@ -39,21 +38,14 @@ const OtpModal = ({
     }
   }, [timer]);
 
-  // Show OTP hint for development (but don't auto-fill)
+  // Focus on first input when modal opens
   useEffect(() => {
-    if (generatedOtp && generatedOtp.length === 6) {
-      console.log('🔢 Generated OTP (not auto-filled):', generatedOtp);
-      // Show hint but don't auto-fill
-      if (process.env.NODE_ENV === 'development') {
-        setShowOtpHint(true);
-      }
-      
-      // Focus on first input
-      if (inputRefs.current[0]) {
+    if (inputRefs.current[0]) {
+      setTimeout(() => {
         inputRefs.current[0].focus();
-      }
+      }, 100);
     }
-  }, [generatedOtp]);
+  }, []);
 
   const handleOtpChange = (index, value) => {
     if (!/^\d?$/.test(value)) return;
@@ -80,6 +72,29 @@ const OtpModal = ({
     }
   };
 
+  const handlePaste = (e) => {
+    e.preventDefault();
+    const pastedData = e.clipboardData.getData('text/plain').slice(0, 6);
+
+    if (/^\d{6}$/.test(pastedData)) {
+      const digits = pastedData.split('');
+      const newOtp = [...otp];
+      digits.forEach((digit, idx) => {
+        if (idx < 6) {
+          newOtp[idx] = digit;
+        }
+      });
+      setOtp(newOtp);
+
+      // Focus last input
+      setTimeout(() => {
+        if (inputRefs.current[5]) {
+          inputRefs.current[5].focus();
+        }
+      }, 10);
+    }
+  };
+
   const handleVerify = async () => {
     const otpString = otp.join("");
     if (otpString.length !== 6) {
@@ -91,16 +106,16 @@ const OtpModal = ({
     setError("");
     try {
       await onVerify(requestId, otpString);
+      // Close modal will be handled by parent on success
     } catch (err) {
       setError(err.message || "OTP verification failed");
-    } finally {
       setLoading(false);
     }
   };
 
   const handleResend = async () => {
-    if (!canResend) return;
-    
+    if (!canResend || loading) return;
+
     setLoading(true);
     setError("");
     try {
@@ -110,7 +125,9 @@ const OtpModal = ({
         setCanResend(false);
         setOtp(["", "", "", "", "", ""]);
         if (inputRefs.current[0]) {
-          inputRefs.current[0].focus();
+          setTimeout(() => {
+            inputRefs.current[0].focus();
+          }, 100);
         }
       }
     } catch (err) {
@@ -120,23 +137,20 @@ const OtpModal = ({
     }
   };
 
-  const toggleOtpHint = () => {
-    setShowOtpHint(!showOtpHint);
-  };
-
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl max-w-md w-full">
-        <div className="flex justify-between items-center p-6 border-b">
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900">OTP Verification</h3>
-            <p className="text-sm text-gray-600 mt-1">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-2 md:p-4">
+      <div className="bg-white rounded-xl w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="sticky top-0 bg-white flex justify-between items-center p-4 md:p-6 border-b z-10">
+          <div className="flex-1 min-w-0">
+            <h3 className="text-lg font-semibold text-gray-900 truncate">OTP Verification</h3>
+            <p className="text-sm text-gray-600 mt-1 truncate">
               Request ID: <span className="font-mono font-semibold">{requestRid}</span>
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            className="ml-4 p-1 md:p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
             disabled={loading}
           >
             <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -145,75 +159,50 @@ const OtpModal = ({
           </button>
         </div>
 
-        <div className="p-6">
-          <div className="text-center mb-6">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        {/* Body */}
+        <div className="p-4 md:p-6">
+          <div className="text-center mb-4 md:mb-6">
+            <div className="w-12 h-12 md:w-16 md:h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3 md:mb-4">
+              <svg className="w-6 h-6 md:w-8 md:h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
             </div>
-            <h4 className="text-xl font-semibold text-gray-900">Enter OTP</h4>
-            <p className="text-gray-600 mt-2">
-              Enter the 6-digit OTP to process the request
+            <h4 className="text-lg md:text-xl font-semibold text-gray-900">Enter OTP</h4>
+            <p className="text-gray-600 mt-2 text-sm md:text-base">
+              Enter the 6-digit OTP sent to the customer
             </p>
-            
-            {/* Show OTP hint button for development */}
-            {process.env.NODE_ENV === 'development' && generatedOtp && (
-              <div className="mt-3">
-                <button
-                  onClick={toggleOtpHint}
-                  className="text-sm text-blue-600 hover:text-blue-800 font-medium flex items-center justify-center mx-auto"
-                >
-                  {showOtpHint ? (
-                    <>
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.878 9.878L6.59 6.59m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                      Hide OTP
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                      Show OTP (Dev)
-                    </>
-                  )}
-                </button>
-                
-                {showOtpHint && (
-                  <div className="mt-2 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <p className="text-sm text-yellow-800 font-semibold">
-                      🔢 Development OTP: <span className="font-mono text-lg">{generatedOtp}</span>
-                    </p>
-                    <p className="text-xs text-yellow-600 mt-1">
-                      Manually enter this OTP in the boxes below
-                    </p>
-                  </div>
-                )}
+            {generatedOtp && (
+              <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 font-semibold">
+                  OTP: <span className="font-mono">{generatedOtp}</span>
+                </p>
+                <p className="text-xs text-blue-600 mt-1">Please enter this OTP to process</p>
               </div>
             )}
+
           </div>
 
-          {/* OTP Inputs */}
-          <div className="flex justify-center gap-2 mb-6">
+          {/* OTP Inputs - Responsive */}
+          <div className="flex justify-center gap-1 md:gap-2 mb-4 md:mb-6">
             {otp.map((digit, index) => (
               <input
                 key={index}
                 ref={el => inputRefs.current[index] = el}
                 type="text"
                 inputMode="numeric"
+                pattern="[0-9]*"
                 maxLength={1}
                 value={digit}
                 onChange={(e) => handleOtpChange(index, e.target.value)}
                 onKeyDown={(e) => handleKeyDown(index, e)}
-                className="w-12 h-12 text-center text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
+                onPaste={handlePaste}
+                className="w-10 h-10 md:w-12 md:h-12 text-center text-xl md:text-2xl font-bold border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-colors"
                 disabled={loading}
               />
             ))}
           </div>
 
+          {/* Error Message */}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
               <p className="text-red-600 text-sm text-center">{error}</p>
@@ -221,36 +210,39 @@ const OtpModal = ({
           )}
 
           {/* Resend OTP */}
-          <div className="text-center mb-6">
+          <div className="text-center mb-4 md:mb-6">
             <p className="text-gray-600 text-sm">
               Didn't receive OTP?{" "}
               <button
                 onClick={handleResend}
                 disabled={!canResend || loading}
-                className={`font-medium ${canResend ? "text-blue-600 hover:text-blue-800" : "text-gray-400 cursor-not-allowed"}`}
+                className={`font-medium ${canResend
+                    ? "text-blue-600 hover:text-blue-800"
+                    : "text-gray-400 cursor-not-allowed"
+                  }`}
               >
                 {canResend ? "Resend OTP" : `Resend in ${timer}s`}
               </button>
             </p>
           </div>
 
-          {/* Buttons */}
-          <div className="flex gap-3">
+          {/* Buttons - Responsive */}
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
             <button
               onClick={onClose}
               disabled={loading}
-              className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="order-2 sm:order-1 flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm md:text-base"
             >
               Cancel
             </button>
             <button
               onClick={handleVerify}
               disabled={loading || otp.join("").length !== 6}
-              className="flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+              className="order-1 sm:order-2 flex-1 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center text-sm md:text-base"
             >
               {loading ? (
                 <>
-                  <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                  <div className="animate-spin rounded-full h-4 w-4 md:h-5 md:w-5 border-b-2 border-white mr-2"></div>
                   Verifying...
                 </>
               ) : (
@@ -264,7 +256,8 @@ const OtpModal = ({
   );
 };
 
-// Icons Component with updated eligibility check
+
+// Icons Component
 const Icons = ({
   request,
   onView,
@@ -280,27 +273,24 @@ const Icons = ({
 }) => {
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
-  
-  // ✅ Updated: View button should be enabled for Processing and Completed status too
+
+  // View button logic
   const canView = permissions.can_view && (
-    // For Pending status - only if eligible
+    (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) ||
     (request.status === "Pending" && request.eligibility === "Yes") ||
-    // For Processing and Completed status - always enable
     request.status === "Processing" ||
     request.status === "Completed"
   );
 
-  // ✅ Staff (role 1): No edit button
-  // ✅ Incharge (role 2): Can edit only if status is Pending and eligible
-  // ✅ Team Leader (role 3) and above: Can edit based on permissions
-  const canEdit = userRole === 1 ? false : 
-                  userRole === 2 ? (request.eligibility === "Yes" && request.status === "Pending") || request.status === "Completed" :
-                  permissions.can_edit;
+  // Edit button logic based on role
+  const canEdit = userRole === 1 ? false :
+    userRole === 2 ? (request.eligibility === "Yes" && request.status === "Pending") || request.status === "Completed" :
+      permissions.can_edit;
 
-  // Get appropriate title based on status
+  // Get button title
   const getViewButtonTitle = () => {
     if (!permissions.can_view) return "No view permission";
-    
+
     if (request.status === "Pending") {
       if (request.eligibility === "Yes") {
         return "View & Process Request (OTP Required)";
@@ -317,22 +307,23 @@ const Icons = ({
 
   return (
     <div className="flex items-center space-x-1">
-      {/* View Icon - Enabled for eligible Pending, Processing, and Completed requests */}
+      {/* View Icon */}
       {permissions.can_view ? (
         <button
           onClick={() => {
-            if (request.status === "Pending" && request.eligibility === "Yes" && onOtpVerify) {
-              onOtpVerify(request); // Show OTP modal for eligible pending requests
+            if (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) {
+              onView(request.id);
+            } else if (request.status === "Pending" && request.eligibility === "Yes" && onOtpVerify) {
+              onOtpVerify(request);
             } else {
-              onView(request.id); // Direct view for Processing/Completed
+              onView(request.id);
             }
           }}
           disabled={!canView}
-          className={`p-1.5 rounded-full transition-colors ${
-            canView 
-              ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+          className={`p-1.5 rounded-full transition-colors ${canView
+              ? "text-blue-600 hover:bg-blue-50 cursor-pointer"
               : "text-gray-400 cursor-not-allowed opacity-50"
-          }`}
+            }`}
           title={getViewButtonTitle()}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -342,40 +333,36 @@ const Icons = ({
         </button>
       ) : null}
 
-      {/* Edit Icon - Based on role */}
+      {/* Edit Icon */}
       {canEdit && (
         <button
           onClick={() => onEdit(request.id)}
           disabled={!canEdit}
-          className={`p-1.5 rounded-full transition-colors ${
-            canEdit
+          className={`p-1.5 rounded-full transition-colors ${canEdit
               ? "text-green-600 hover:bg-green-50 cursor-pointer"
               : "text-gray-400 cursor-not-allowed opacity-50"
-          }`}
-          title={
-            canEdit
-              ? "Edit Request"
-              : "Cannot edit"
-          }
+            }`}
+          title={canEdit ? "Edit Request" : "Cannot edit"}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
           </svg>
         </button>
       )}
 
-      {/* Expand Icon - Always enabled */}
-      <button
-        onClick={() => onExpand(request)}
-        className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer"
-        title="Expand Details"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-        </svg>
-      </button>
+      {!(userRole === 1 || userRole === 2) && (
+        <button
+          onClick={() => onExpand(request)}
+          className="p-1.5 text-purple-600 hover:bg-purple-50 rounded-full transition-colors cursor-pointer"
+          title="Expand Details"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
+        </button>
+      )}
 
-      {/* Details Icon - Always enabled */}
+      {/* Details Icon */}
       <button
         onClick={() => onShowDetails(request)}
         className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-full transition-colors cursor-pointer"
@@ -386,39 +373,37 @@ const Icons = ({
         </svg>
       </button>
 
-      {/* Call Icon - Conditionally enabled */}
+      {/* Call Icon */}
       <button
         onClick={() => stationPhone && onCall(stationPhone, request.loading_station)}
         disabled={!stationPhone}
-        className={`p-1.5 rounded-full transition-colors ${
-          stationPhone 
-            ? "text-green-600 hover:bg-green-50 cursor-pointer" 
+        className={`p-1.5 rounded-full transition-colors ${stationPhone
+            ? "text-green-600 hover:bg-green-50 cursor-pointer"
             : "text-gray-400 cursor-not-allowed opacity-50"
-        }`}
-        title={stationPhone ? `Call Station\nStation: ${request.loading_station}\nPhone: ${stationPhone}\nVehicle: ${request.vehicle_number || 'N/A'}` : `No phone number\nVehicle: ${request.vehicle_number || 'N/A'}`}
+          }`}
+        title={stationPhone ? `Call Station\nStation: ${request.loading_station}\nPhone: ${stationPhone}` : "No phone number"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
         </svg>
       </button>
 
-      {/* Share Icon - Conditionally enabled */}
+      {/* Share Icon */}
       <button
         onClick={() => hasMapLink && onShare(request)}
         disabled={!hasMapLink}
-        className={`p-1.5 rounded-full transition-colors ${
-          hasMapLink 
-            ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+        className={`p-1.5 rounded-full transition-colors ${hasMapLink
+            ? "text-blue-600 hover:bg-blue-50 cursor-pointer"
             : "text-gray-400 cursor-not-allowed opacity-50"
-        }`}
-        title={hasMapLink ? `Share Station Location\nStation: ${request.loading_station}\nVehicle: ${request.vehicle_number || 'N/A'}\nMap: Click to copy` : `No map location\nVehicle: ${request.vehicle_number || 'N/A'}`}
+          }`}
+        title={hasMapLink ? "Share Station Location" : "No map location"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
         </svg>
       </button>
 
-      {/* WhatsApp Icon - Only if customer_phone exists */}
+      {/* WhatsApp Icon */}
       {request.customer_phone && (
         <button
           onClick={() => {
@@ -429,8 +414,6 @@ const Icons = ({
               `Product: ${request.product_name || 'N/A'}\n` +
               `Quantity: ${request.qty} liters\n` +
               `Station: ${request.loading_station || 'N/A'}\n` +
-              (hasMapLink ? `Location: ${request.station_map_link}\n` : '') +
-              (stationPhone ? `Station Phone: ${stationPhone}\n` : '') +
               `Status: ${request.status}`
             );
             const cleanPhone = request.customer_phone.replace(/\D/g, '');
@@ -438,20 +421,20 @@ const Icons = ({
             window.open(whatsappUrl, '_blank');
           }}
           className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors cursor-pointer"
-          title={`Send via WhatsApp\nCustomer: ${request.customer_phone}\nVehicle: ${request.vehicle_number || 'N/A'}`}
+          title={`Send via WhatsApp to customer`}
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335 .157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
           </svg>
         </button>
       )}
 
-      {/* PDF Icon - Only for Admin and Completed status */}
+      {/* PDF Icon */}
       {request.status === "Completed" && permissions.isAdmin && (
         <button
           onClick={() => onPdf(request.id)}
           className="p-1.5 text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer"
-          title="Download PDF Invoice (Admin Only)"
+          title="Download PDF Invoice"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -465,18 +448,16 @@ const Icons = ({
 // Expanded Details Component
 const ExpandedDetails = ({ request, onClose, userRole = null }) => {
   if (!request) return null;
-  
+
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const stationEmail = request.station_email && request.station_email !== "NULL" ? request.station_email : null;
   const stationManager = request.station_manager && request.station_manager !== "NULL" ? request.station_manager : null;
   const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
 
-  // ✅ For staff (role 1): Show limited information
-  // ✅ For incharge (role 2): Show more information but still limited for completed
   const isStaff = userRole === 1;
   const isIncharge = userRole === 2;
   const isCompleted = request.status === "Completed";
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -489,7 +470,7 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
           </button>
         </div>
         <div className="p-6 space-y-4">
-          {/* ✅ Staff: Limited view for completed requests */}
+          {/* Staff limited view for completed requests */}
           {isStaff && isCompleted ? (
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -506,18 +487,13 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">Status</label>
-                <span className={`px-2 py-1 rounded-full text-xs ${
-                  request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                  request.status === "Processing" ? "bg-blue-100 text-blue-800" :
-                  request.status === "Completed" ? "bg-green-100 text-green-800" :
-                  "bg-red-100 text-red-800"
-                }`}>
+                <span className={`px-2 py-1 rounded-full text-xs ${request.status === "Completed" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                  }`}>
                   {request.status}
                 </span>
               </div>
             </div>
           ) : (
-            /* ✅ Incharge and others: Full details */
             <>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -526,12 +502,11 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Status</label>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                    request.status === "Processing" ? "bg-blue-100 text-blue-800" :
-                    request.status === "Completed" ? "bg-green-100 text-green-800" :
-                    "bg-red-100 text-red-800"
-                  }`}>
+                  <span className={`px-2 py-1 rounded-full text-xs ${request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                      request.status === "Processing" ? "bg-blue-100 text-blue-800" :
+                        request.status === "Completed" ? "bg-green-100 text-green-800" :
+                          "bg-red-100 text-red-800"
+                    }`}>
                     {request.status}
                   </span>
                 </div>
@@ -566,9 +541,8 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                 <div className="border-t pt-4">
                   <label className="text-sm font-medium text-gray-600">Eligibility Check</label>
                   <div className="mt-2">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}>
                       {request.eligibility}
                     </span>
                     {request.eligibility_reason && (
@@ -628,7 +602,7 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                   </div>
                 </div>
               )}
-              
+
               <div className="border-t pt-4">
                 <label className="text-sm font-medium text-gray-600">Timeline</label>
                 <div className="mt-2 space-y-2">
@@ -640,17 +614,17 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                     <div className="flex justify-between">
                       <span>Completed:</span>
                       <span>
-                        {request.completed_date_formatted || 
-                         (request.completed_date ? 
-                           new Date(request.completed_date).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true,
-                             timeZone: "Asia/Kolkata"
-                           }) : '')}
+                        {request.completed_date_formatted ||
+                          (request.completed_date ?
+                            new Date(request.completed_date).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                              timeZone: "Asia/Kolkata"
+                            }) : '')}
                       </span>
                     </div>
                   )}
@@ -664,9 +638,10 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
   );
 };
 
-// Request Row Component
+// Request Row Component for Desktop
 const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare, onPdf, onShowDetails, onOtpVerify, permissions = { can_view: true, can_edit: true, can_create: false, isAdmin: false }, userRole = null }) => {
   const [isExpanded, setIsExpanded] = useState(false);
+  const [imagePreview, setImagePreview] = useState(null);
   const statusClass = {
     Pending: "bg-yellow-100 text-yellow-800",
     Processing: "bg-blue-100 text-blue-800",
@@ -680,14 +655,31 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
     Cancelled: "bg-red-50",
   }[request.status] || "";
 
-  // ✅ Staff: Hide completed requests
-  // ✅ Incharge: Show completed requests
+  // Staff: Hide completed requests
   const isStaff = userRole === 1;
   const isIncharge = userRole === 2;
-  
+
   if (isStaff && request.status === "Completed") {
     return null;
   }
+
+  const getRequestImages = () => {
+    const imgs = [];
+    if (request.images) {
+      try {
+        const parsed = typeof request.images === 'string' ? JSON.parse(request.images) : request.images;
+        if (parsed?.image1) imgs.push(parsed.image1);
+        if (parsed?.image2) imgs.push(parsed.image2);
+        if (parsed?.image3) imgs.push(parsed.image3);
+      } catch { }
+    }
+    if (imgs.length === 0) {
+      if (request.doc1) imgs.push(request.doc1);
+      if (request.doc2) imgs.push(request.doc2);
+      if (request.doc3) imgs.push(request.doc3);
+    }
+    return imgs.filter(Boolean);
+  };
 
   return (
     <>
@@ -700,6 +692,23 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
         <td className="py-3 px-4 text-sm">{request.driver_number}</td>
         <td className="py-3 px-4 text-sm">
+          <div className="flex items-center gap-2">
+            {getRequestImages().slice(0, 3).map((src, idx) => (
+              <button
+                key={idx}
+                onClick={() => setImagePreview(src)}
+                className="w-10 h-10 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+                aria-label="Preview image"
+              >
+                <img src={src} alt="doc" className="w-full h-full object-cover" />
+              </button>
+            ))}
+            {getRequestImages().length === 0 && (
+              <span className="text-xs text-gray-500">No images</span>
+            )}
+          </div>
+        </td>
+        <td className="py-3 px-4 text-sm">
           <div>{request.created_formatted ? request.created_formatted.split(' ')[0] : (request.created_date_formatted ? request.created_date_formatted.split(' ')[0] : (request.created ? new Date(request.created).toLocaleDateString("en-IN") : "N/A"))}</div>
           <div className="text-xs text-gray-500">
             {request.created_formatted ? request.created_formatted.split(' ').slice(1).join(' ') : (request.created_date_formatted ? request.created_date_formatted.split(' ').slice(1).join(' ') : (request.created ? new Date(request.created).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""))}
@@ -708,7 +717,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         <td className="py-3 px-4 text-sm">
           <div className="flex flex-col items-start gap-1">
             <span>
-              {request.completed_date_formatted 
+              {request.completed_date_formatted
                 ? request.completed_date_formatted.split(' ')[0]
                 : (request.completed_date && request.completed_date !== "0000-00-00 00:00:00"
                   ? new Date(request.completed_date).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })
@@ -734,8 +743,8 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
       </tr>
       {isExpanded && (
         <tr className="bg-green-50 border-b">
-          <td colSpan="9" className="py-3 px-4">
-            <div className="space-y-4 animate-fade-in">
+          <td colSpan="10" className="py-3 px-4">
+            <div className="space-y-4">
               <h4 className="text-sm font-semibold text-gray-900 mb-3">Additional Details</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {/* Status */}
@@ -743,6 +752,11 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                   <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
                   <div className="flex items-center gap-2">
                     <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+                    {request.status === "Pending" && (!request.deal_price || request.eligibility_reason === "Price not set") && (
+                      <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200">
+                        Price not set
+                      </span>
+                    )}
                     {request.status === "Processing" && request.processing_by_name && (
                       <span className="text-xs text-gray-600">By: {request.processing_by_name}</span>
                     )}
@@ -755,9 +769,8 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                     <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
                     {request.eligibility ? (
                       <div className="flex flex-col items-start">
-                        <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                          request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                        }`}>
+                        <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                          }`}>
                           {request.eligibility}
                         </span>
                         {request.eligibility_reason && (
@@ -770,100 +783,83 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                   </div>
                 )}
 
-                {/* ✅ Staff: Limited view for completed requests */}
-                {isStaff && request.status === "Completed" ? (
-                  <>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200">
-                      <div className="text-xs font-medium text-gray-500 mb-1">Vehicle Info</div>
-                      <div className="text-sm text-gray-900">{request.vehicle_number}</div>
-                      <div className="text-xs text-gray-500 mt-1">Driver: {request.driver_number}</div>
+                {/* Created By */}
+                {request.created_by_name && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
+                    <div className="text-sm text-gray-900">
+                      {request.created_by_name}
                     </div>
-                    <div className="bg-white rounded-lg p-3 border border-gray-200">
-                      <div className="text-xs font-medium text-gray-500 mb-1">Product</div>
-                      <div className="text-sm text-gray-900">{request.product_name || "N/A"}</div>
+                    {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {request.created_date_formatted || request.created_formatted ||
+                          (request.created_date || request.created ?
+                            new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true
+                            }) : '')}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Processed By */}
+                {request.processing_by_name && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
+                    <div className="text-sm text-gray-900">
+                      {request.processing_by_name || "-"}
                     </div>
-                  </>
-                ) : (
-                  <>
-                    {/* Created By - Always show if exists */}
-                    {request.created_by_name && (
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
-                        <div className="text-sm text-gray-900">
-                          {request.created_by_name}
-                        </div>
-                        {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {request.created_date_formatted || request.created_formatted || 
-                             (request.created_date || request.created ? 
-                               new Date(request.created_date || request.created).toLocaleString("en-IN", {
-                                 day: "2-digit",
-                                 month: "2-digit",
-                                 year: "numeric",
-                                 hour: "2-digit",
-                                 minute: "2-digit",
-                                 hour12: true
-                               }) : '')}
-                          </div>
-                        )}
+                    {request.processed_date_formatted && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {request.processed_date_formatted}
                       </div>
                     )}
+                  </div>
+                )}
 
-                    {/* Processed By */}
-                    {request.processing_by_name && (
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xs font-medium text-gray-500 mb-1">Processed By</div>
-                        <div className="text-sm text-gray-900">
-                          {request.processing_by_name || "-"}
-                        </div>
-                        {request.processed_date_formatted && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {request.processed_date_formatted}
-                          </div>
-                        )}
+                {/* Completed By */}
+                {request.status === "Completed" && (
+                  <div className="bg-white rounded-lg p-3 border border-gray-200">
+                    <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
+                    <div className="text-sm text-gray-900">
+                      {request.completed_by_name || "-"}
+                    </div>
+                    {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        {request.completed_date_formatted ||
+                          (request.completed_date ?
+                            new Date(request.completed_date).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                              timeZone: "Asia/Kolkata"
+                            }) : '')}
                       </div>
                     )}
-
-                    {/* Completed By - Only show if status is Completed */}
-                    {request.status === "Completed" && (
-                      <div className="bg-white rounded-lg p-3 border border-gray-200">
-                        <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
-                        <div className="text-sm text-gray-900">
-                          {request.completed_by_name || "-"}
-                        </div>
-                        {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
-                          <div className="text-xs text-gray-500 mt-1">
-                            {request.completed_date_formatted || 
-                             (request.completed_date ? 
-                               new Date(request.completed_date).toLocaleString("en-IN", {
-                                 day: "2-digit",
-                                 month: "2-digit",
-                                 year: "numeric",
-                                 hour: "2-digit",
-                                 minute: "2-digit",
-                                 hour12: true,
-                                 timeZone: "Asia/Kolkata"
-                               }) : '')}
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
+                  </div>
                 )}
 
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-                  <Icons 
-                    request={request} 
+                  <Icons
+                    request={request}
                     onView={onView}
-                    onEdit={onEdit} 
-                    onExpand={onExpand} 
-                    onCall={onCall} 
-                    onShare={onShare} 
-                    onPdf={onPdf} 
-                    onShowDetails={onShowDetails} 
-                    permissions={permissions} 
+                    onEdit={onEdit}
+                    onExpand={onExpand}
+                    onCall={onCall}
+                    onShare={onShare}
+                    onPdf={onPdf}
+                    onShowDetails={onShowDetails}
+                    permissions={permissions}
                     userRole={userRole}
                     onOtpVerify={onOtpVerify}
                   />
@@ -872,6 +868,32 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
             </div>
           </td>
         </tr>
+      )}
+      {imagePreview && (
+        <>
+          <tr>
+            <td colSpan="10" className="p-0">
+              <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setImagePreview(null)}></div>
+              <div className="fixed inset-0 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4">
+                  <div className="flex justify-between items-center p-3 border-b">
+                    <div className="font-medium">Image Preview</div>
+                    <button
+                      onClick={() => setImagePreview(null)}
+                      className="text-gray-500 hover:text-gray-700"
+                      aria-label="Close preview"
+                    >
+                      ×
+                    </button>
+                  </div>
+                  <div className="p-3">
+                    <img src={imagePreview} alt="preview" className="w-full h-auto object-contain max-h-[75vh]" />
+                  </div>
+                </div>
+              </div>
+            </td>
+          </tr>
+        </>
       )}
     </>
   );
@@ -896,16 +918,15 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
 
-  // ✅ Staff: Hide completed requests
-  // ✅ Incharge: Show completed requests
+  // Staff: Hide completed requests
   const isStaff = userRole === 1;
   const isIncharge = userRole === 2;
-  
+
   if (isStaff && request.status === "Completed") {
     return null;
   }
 
-  // ✅ For staff and completed requests: Limited view
+  // For staff and completed requests: Limited view
   const isStaffViewingCompleted = isStaff && request.status === "Completed";
 
   return (
@@ -918,10 +939,17 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             <div className="text-sm text-gray-600">{request.product_name || "N/A"}</div>
           </div>
         </div>
-        <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+        <div className="flex items-center gap-2">
+          <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+          {request.status === "Pending" && (!request.deal_price || request.eligibility_reason === "Price not set") && (
+            <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200">
+              Price not set
+            </span>
+          )}
+        </div>
       </div>
       <div className="space-y-3 text-sm">
-        {/* ✅ Staff viewing completed: Limited information */}
+        {/* Staff viewing completed: Limited information */}
         {isStaffViewingCompleted ? (
           <>
             <div className="grid grid-cols-2 gap-3">
@@ -940,7 +968,6 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             </div>
           </>
         ) : (
-          /* ✅ Regular view for others */
           <>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -999,15 +1026,14 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                 </div>
               )}
             </div>
-            
+
             {/* Eligibility Check */}
             {request.status === "Pending" && request.eligibility && (
               <div className="bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center justify-between">
                   <div className="font-medium text-gray-600 text-xs">Eligibility Check</div>
-                  <span className={`px-2 py-1 rounded-full text-xs text-white ${
-                    request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                  }`}>
+                  <span className={`px-2 py-1 rounded-full text-xs text-white ${request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                    }`}>
                     {request.eligibility}
                   </span>
                 </div>
@@ -1049,22 +1075,22 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </svg>
             )}
           </button>
-          <Icons 
-            request={request} 
-            onView={onView} 
-            onEdit={onEdit} 
-            onExpand={onExpand} 
-            onCall={onCall} 
-            onShare={onShare} 
-            onPdf={onPdf} 
-            onShowDetails={onShowDetails} 
-            permissions={permissions} 
+          <Icons
+            request={request}
+            onView={onView}
+            onEdit={onEdit}
+            onExpand={onExpand}
+            onCall={onCall}
+            onShare={onShare}
+            onPdf={onPdf}
+            onShowDetails={onShowDetails}
+            permissions={permissions}
             userRole={userRole}
             onOtpVerify={onOtpVerify}
           />
         </div>
       </div>
-      
+
       {/* Expanded Details */}
       {isExpanded && !isStaffViewingCompleted && (
         <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-lg p-4">
@@ -1073,7 +1099,14 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Status */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-1">Status</div>
-              <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+              <div className="flex items-center gap-2">
+                <span className={`px-2 py-1 rounded-full text-xs ${statusClass}`}>{request.status}</span>
+                {request.status === "Pending" && (!request.deal_price || request.eligibility_reason === "Price not set") && (
+                  <span className="px-2 py-1 rounded-full text-xs bg-red-100 text-red-800 border border-red-200">
+                    Price not set
+                  </span>
+                )}
+              </div>
               {request.status === "Processing" && request.processing_by_name && (
                 <div className="text-xs text-gray-600 mt-1">By: {request.processing_by_name}</div>
               )}
@@ -1088,9 +1121,8 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                 <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
                 {request.eligibility ? (
                   <>
-                    <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                      request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                    }`}>
+                    <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                      }`}>
                       {request.eligibility}
                     </span>
                     {request.eligibility_reason && (
@@ -1103,23 +1135,23 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </div>
             )}
 
-            {/* Created By - Always show if exists */}
+            {/* Created By */}
             {request.created_by_name && (
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <div className="text-xs font-medium text-gray-500 mb-1">Created By</div>
                 <div className="text-sm text-gray-900">{request.created_by_name}</div>
                 {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
                   <div className="text-xs text-gray-500 mt-1">
-                    {request.created_date_formatted || request.created_formatted || 
-                     (request.created_date || request.created ? 
-                       new Date(request.created_date || request.created).toLocaleString("en-IN", {
-                         day: "2-digit",
-                         month: "2-digit",
-                         year: "numeric",
-                         hour: "2-digit",
-                         minute: "2-digit",
-                         hour12: true
-                       }) : '')}
+                    {request.created_date_formatted || request.created_formatted ||
+                      (request.created_date || request.created ?
+                        new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        }) : '')}
                   </div>
                 )}
               </div>
@@ -1133,7 +1165,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </div>
             )}
 
-            {/* Completed By - Only show if status is Completed */}
+            {/* Completed By */}
             {request.status === "Completed" && (
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
@@ -1157,16 +1189,16 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Actions */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-              <Icons 
-                request={request} 
-                onView={onView} 
-                onEdit={onEdit} 
-                onExpand={onExpand} 
-                onCall={onCall} 
-                onShare={onShare} 
-                onPdf={onPdf} 
-                onShowDetails={onShowDetails} 
-                permissions={permissions} 
+              <Icons
+                request={request}
+                onView={onView}
+                onEdit={onEdit}
+                onExpand={onExpand}
+                onCall={onCall}
+                onShare={onShare}
+                onPdf={onPdf}
+                onShowDetails={onShowDetails}
+                permissions={permissions}
                 userRole={null}
                 onOtpVerify={onOtpVerify}
               />
@@ -1182,8 +1214,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
 const StatusFilters = ({ currentStatus, onStatusChange, userRole = null }) => {
   const router = useRouter();
 
-  // ✅ For staff (role 1) or incharge (role 2): Hide status filters (only search bar should show)
-  // ✅ Team Leader (role 3) and above: Show full filters
+  // For staff (role 1) or incharge (role 2): Hide status filters
   if (userRole === 1 || userRole === 2) {
     return null;
   }
@@ -1206,24 +1237,23 @@ const StatusFilters = ({ currentStatus, onStatusChange, userRole = null }) => {
         <button
           key={option.value}
           onClick={() => onStatusChange(option.value)}
-          className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 transform hover:scale-105 ${
-            currentStatus === option.value 
-              ? option.value === "" 
-                ? "bg-gray-700 text-white shadow-lg" 
+          className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-200 ${currentStatus === option.value
+              ? option.value === ""
+                ? "bg-gray-700 text-white shadow-lg"
                 : option.value === "Pending"
-                ? "bg-yellow-500 text-white shadow-lg"
-                : option.value === "Processing"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "bg-green-600 text-white shadow-lg"
+                  ? "bg-yellow-500 text-white shadow-lg"
+                  : option.value === "Processing"
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "bg-green-600 text-white shadow-lg"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-sm"
-          }`}
+            }`}
         >
           {option.label}
         </button>
       ))}
       <button
         onClick={handleReportsClick}
-        className="px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 transform hover:scale-105 shadow-md"
+        className="px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 shadow-md"
       >
         Reports
       </button>
@@ -1231,7 +1261,7 @@ const StatusFilters = ({ currentStatus, onStatusChange, userRole = null }) => {
   );
 };
 
-// SearchBar Component - Mobile Responsive
+// SearchBar Component
 const SearchBar = ({ onSearch, initialValue = "" }) => {
   const [searchTerm, setSearchTerm] = useState(initialValue);
   const handleSubmit = (e) => {
@@ -1245,11 +1275,11 @@ const SearchBar = ({ onSearch, initialValue = "" }) => {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search by RID, Vehicle, Client, Station, Company..."
+        placeholder="Search by RID, Vehicle, Client, Station..."
         className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 md:pr-12"
       />
-      <button 
-        type="submit" 
+      <button
+        type="submit"
         className="absolute right-2 md:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 md:p-1.5"
         aria-label="Search"
       >
@@ -1287,7 +1317,6 @@ export default function FillingRequests() {
     isOpen: false,
     requestId: null,
     requestRid: "",
-    generatedOtp: "",
     phoneNumber: null
   });
 
@@ -1335,7 +1364,6 @@ export default function FillingRequests() {
         });
         return;
       } else {
-        // No view permission - deny access
         setHasPermission(false);
         setPermissions({ can_view: false, can_edit: false, can_create: false });
         return;
@@ -1356,7 +1384,6 @@ export default function FillingRequests() {
         });
         return;
       } else {
-        // No view permission - deny access
         setHasPermission(false);
         setPermissions({ can_view: false, can_edit: false, can_create: false });
         return;
@@ -1391,7 +1418,6 @@ export default function FillingRequests() {
         setHasPermission(true);
         setPermissions(perms);
       } else {
-        // No view permission - deny access
         setHasPermission(false);
         setPermissions({ can_view: false, can_edit: false, can_create: false });
       }
@@ -1409,9 +1435,9 @@ export default function FillingRequests() {
         ...(statusFilter && { status: statusFilter }),
         ...(search && { search: search }),
       });
-      
+
       const response = await fetch(`/api/filling-requests/export?${params}`);
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -1432,14 +1458,14 @@ export default function FillingRequests() {
     }
   };
 
-  // Redirect if not authenticated (handled by SessionContext, but double-check)
+  // Redirect if not authenticated
   useEffect(() => {
     if (!authLoading && !user) {
       router.push("/login");
     }
   }, [user, authLoading, router]);
 
-  // Fetch requests with detailed logging
+  // Fetch requests - MODIFIED FOR STAFF/INCHARGE SEARCH
   useEffect(() => {
     const fetchRequests = async () => {
       try {
@@ -1448,17 +1474,14 @@ export default function FillingRequests() {
           records_per_page: searchParams.get("records_per_page") || "10",
           ...(statusFilter && { status: statusFilter }),
           ...(search && { search: search }),
+          // For staff and incharge, we need to only show pending requests when searching
+          ...((isStaff || isIncharge) && { forcePendingSearch: "true" })
         });
 
-        console.log("🔍 Fetching from:", `/api/filling-requests?${params}`);
-
         const response = await fetch(`/api/filling-requests?${params}`);
-        console.log("📡 Response status:", response.status);
-        console.log("📡 Response ok:", response.ok);
 
         if (response.ok) {
           const result = await response.json();
-          console.log("📦 Full API response:", result);
 
           let requestsData = [];
           let paginationData = {
@@ -1481,15 +1504,10 @@ export default function FillingRequests() {
             paginationData.totalRecords = result.length;
           }
 
-          console.log("✅ Processed requests count:", requestsData.length);
-          console.log("✅ Pagination data:", paginationData);
-
           setRequests(requestsData);
           setPagination(paginationData);
         } else {
-          console.error("❌ Failed to fetch requests. Status:", response.status);
-          const errorText = await response.text();
-          console.error("❌ Error response:", errorText);
+          console.error("Failed to fetch requests. Status:", response.status);
           setRequests([]);
           setPagination({
             page: 1,
@@ -1499,8 +1517,7 @@ export default function FillingRequests() {
           });
         }
       } catch (error) {
-        console.error("❌ Fetch error:", error);
-        console.error("❌ Error details:", error.message);
+        console.error("Fetch error:", error);
         setRequests([]);
         setPagination({
           page: 1,
@@ -1511,11 +1528,10 @@ export default function FillingRequests() {
       }
     };
 
-    // ✅ Only fetch data if user is authenticated AND has permission
+    // Only fetch data if user is authenticated AND has permission
     if (user && hasPermission && !authLoading) {
       fetchRequests();
     } else if (user && !hasPermission && !authLoading) {
-      // User authenticated but no permission - don't fetch data
       setRequests([]);
       setPagination({
         page: 1,
@@ -1524,23 +1540,37 @@ export default function FillingRequests() {
         totalPages: 1,
       });
     }
-  }, [searchParams, statusFilter, search, user, hasPermission, authLoading]);
+  }, [searchParams, statusFilter, search, user, hasPermission, authLoading, isStaff, isIncharge]);
 
-  // Filter requests based on role
+  // Filter requests based on role - MODIFIED FOR BETTER SEARCH HANDLING
   useEffect(() => {
     if (requests.length > 0) {
       let filtered = requests;
-      
-      // ✅ Staff: Hide completed requests
-      if (isStaff) {
-        filtered = filtered.filter(request => request.status !== "Completed");
+
+      // For staff and incharge (roles 1 and 2)
+      if (isStaff || isIncharge) {
+        if (search) {
+          // When searching (e.g. by vehicle number), show ONLY pending requests
+          // This allows them to find the specific pending request they need to process
+          filtered = filtered.filter(request => request.status === "Pending");
+        } else {
+          // When NOT searching, HIDE pending requests
+          // "pending request nhi show hogi tab tak..."
+          filtered = filtered.filter(request => request.status !== "Pending");
+
+          // For staff: Also hide completed requests (show only Processing)
+          if (isStaff) {
+            filtered = filtered.filter(request => request.status !== "Completed");
+          }
+          // Incharge sees Processing + Completed (but not Pending)
+        }
       }
-      
+
       setFilteredRequests(filtered);
     } else {
       setFilteredRequests([]);
     }
-  }, [requests, isStaff]);
+  }, [requests, isStaff, isIncharge, search]);
 
   // Handlers
   const handleStatusChange = useCallback((newStatus) => {
@@ -1576,22 +1606,35 @@ export default function FillingRequests() {
   const handleOtpVerify = useCallback((request) => {
     // Check eligibility
     if (request.status === "Pending" && request.eligibility === "Yes") {
-      // Generate random OTP immediately (6 digits)
-      const generatedOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      console.log('🔢 Generated OTP for request:', {
-        rid: request.rid,
-        otp: generatedOtp
-      });
-      
-      // Show OTP modal with generated OTP (NOT auto-filled)
-      setOtpModal({
-        isOpen: true,
-        requestId: request.id,
-        requestRid: request.rid,
-        generatedOtp: generatedOtp,
-        phoneNumber: request.driver_number || request.customer_phone || null
-      });
+      (async () => {
+        try {
+          const token = typeof window !== 'undefined'
+            ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '')
+            : '';
+          const res = await fetch('/api/process-request-otp', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+            },
+            body: JSON.stringify({ requestId: request.id, action: 'generate' })
+          });
+          const data = await res.json();
+          if (!res.ok || !data.success) {
+            alert(data.error || 'Failed to generate OTP');
+            return;
+          }
+          setOtpModal({
+            isOpen: true,
+            requestId: request.id,
+            requestRid: request.rid,
+            phoneNumber: request.driver_number || request.customer_phone || null,
+            generatedOtp: data.otp || null
+          });
+        } catch (e) {
+          alert('Failed to generate OTP');
+        }
+      })();
     } else {
       alert(`Cannot process request:\n${request.eligibility_reason || "Not eligible"}`);
     }
@@ -1600,63 +1643,64 @@ export default function FillingRequests() {
   const verifyOtp = async (requestId, otp) => {
     try {
       console.log('✅ Verifying OTP for request:', requestId);
-      
-      // Find the request
+
       const request = requests.find(req => req.id === requestId);
-      
       if (!request) {
         throw new Error("Request not found");
       }
 
-      // Check if OTP matches (for demo/development)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 Development OTP check:', {
-          enteredOtp: otp,
-          expectedOtp: otpModal.generatedOtp
-        });
-        
-        // For development, accept any 6-digit OTP
-        if (otp.length === 6 && /^\d{6}$/.test(otp)) {
-          console.log('✅ OTP accepted in development mode');
-        } else {
-          throw new Error("Invalid OTP format");
-        }
-      }
+      // Check if we're in development mode
+      const isDevelopment = window.location.hostname === 'localhost' ||
+        window.location.hostname.includes('dev') ||
+        window.location.hostname.includes('staging') ||
+        window.location.hostname.includes('127.0.0.1');
 
-      // Process the request after OTP verification
+      console.log('🌐 Environment check:', {
+        hostname: window.location.hostname,
+        isDevelopment: isDevelopment
+      });
+
+      // API call to verify OTP and process
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '')
+        : '';
       const processResponse = await fetch('/api/process-request-otp', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({
           requestId: requestId,
           otp: otp,
-          userId: user?.id 
+          userId: user?.id,
+          isDevelopment: isDevelopment
         })
       });
-      
+
       const processResult = await processResponse.json();
-      
+
       if (processResponse.ok && processResult.success) {
         // Close OTP modal
-        setOtpModal({ isOpen: false, requestId: null, requestRid: "", generatedOtp: "", phoneNumber: null });
-        
+        setOtpModal({ isOpen: false, requestId: null, requestRid: "", phoneNumber: null });
+
         // Show success message
         alert(`✅ Request processed successfully!\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
-        
+
         // Update local state
-        setRequests(prevRequests => 
-          prevRequests.map(req => 
-            req.id === requestId 
+        setRequests(prevRequests =>
+          prevRequests.map(req =>
+            req.id === requestId
               ? { ...req, status: 'Processing', eligibility: 'N/A' }
               : req
           )
         );
-        
+
         // Navigate to details page after 1 second
         setTimeout(() => {
           router.push(`/filling-details-admin?id=${requestId}`);
         }, 1000);
-        
+
         return true;
       } else {
         throw new Error(processResult.error || 'Failed to process request');
@@ -1668,16 +1712,23 @@ export default function FillingRequests() {
 
   const resendOtp = async (requestId) => {
     try {
-      // Generate new OTP
-      const newOtp = Math.floor(100000 + Math.random() * 900000).toString();
-      
-      // Update modal with new OTP
-      setOtpModal(prev => ({
-        ...prev,
-        generatedOtp: newOtp
-      }));
-      
-      console.log('🔄 New OTP generated:', newOtp);
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '')
+        : '';
+      const res = await fetch('/api/process-request-otp', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
+        body: JSON.stringify({ requestId, action: 'generate' })
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || 'Failed to resend OTP');
+      }
+      // No UI display of OTP; server does not return OTP value
+      console.log('🔄 New OTP generated:', data.otp);
       return true;
     } catch (error) {
       throw new Error(error.message || "Failed to resend OTP");
@@ -1685,105 +1736,21 @@ export default function FillingRequests() {
   };
 
   const closeOtpModal = () => {
-    setOtpModal({ isOpen: false, requestId: null, requestRid: "", generatedOtp: "", phoneNumber: null });
+    setOtpModal({ isOpen: false, requestId: null, requestRid: "", phoneNumber: null });
   };
 
-  // Original handleView function (for non-OTP cases - Team Leader+)
+  // Original handleView function
   const handleView = useCallback(async (requestId) => {
     try {
       const request = requests.find(req => req.id === requestId);
-      
+
       if (!request) {
-        console.error("Request not found:", requestId);
         alert("Request not found");
         return;
       }
-      
-      console.log("👁️ Viewing request:", {
-        id: requestId,
-        rid: request.rid,
-        status: request.status,
-        eligibility: request.eligibility,
-        eligibility_reason: request.eligibility_reason
-      });
-      
-      // ✅ Step 1: If Pending and eligible, auto-process
-      if (request.status === "Pending" && request.eligibility === "Yes") {
-        console.log("🔄 Auto-processing request:", request.rid);
-        
-        try {
-          // Show loading indicator
-          const viewButton = document.querySelector(`button[onclick*="${requestId}"]`);
-          if (viewButton) {
-            viewButton.disabled = true;
-            viewButton.innerHTML = '<div class="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>';
-          }
-          
-          // Call auto-process API
-          const processResponse = await fetch('/api/auto-process-request', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ requestId: request.id })
-          });
-          
-          const processResult = await processResponse.json();
-          
-          // Reset button
-          if (viewButton) {
-            viewButton.disabled = false;
-            viewButton.innerHTML = `
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-            `;
-          }
-          
-          if (processResponse.ok && processResult.success) {
-            console.log("✅ Auto-process successful:", processResult.message);
-            
-            // Show success message
-            alert(`✅ ${processResult.message}\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
-            
-            // ✅ Update local state immediately for better UX
-            setRequests(prevRequests => 
-              prevRequests.map(req => 
-                req.id === requestId 
-                  ? { ...req, status: 'Processing', eligibility: 'N/A' }
-                  : req
-              )
-            );
-            
-            // ✅ Now navigate to details page
-            setTimeout(() => {
-              router.push(`/filling-details-admin?id=${requestId}`);
-            }, 500);
-            return;
-            
-          } else {
-            console.error("❌ Auto-process failed:", processResult.error);
-            alert(`❌ ${processResult.error || 'Failed to process request'}`);
-            return;
-          }
-        } catch (apiError) {
-          console.error("❌ API call error:", apiError);
-          alert("Network error. Please check your connection and try again.");
-          return;
-        }
-      }
-      
-      // ✅ Step 2: If not eligible, show error
-      if (request.status === "Pending" && request.eligibility === "No") {
-        alert(`❌ Cannot process request:\n\n${request.eligibility_reason || "Not eligible"}`);
-        return;
-      }
-      
-      // ✅ Step 3: If already Processing/Completed or not eligible, just navigate
-      console.log("📋 Navigating to details page for request:", request.rid);
       router.push(`/filling-details-admin?id=${requestId}`);
-      
+
     } catch (error) {
-      console.error("❌ Error in handleView:", error);
       alert("Error processing request. Please try again.");
     }
   }, [requests, router]);
@@ -1797,21 +1764,17 @@ export default function FillingRequests() {
   }, []);
 
   const handleCall = useCallback((stationPhone, stationName = "") => {
-    console.log("📞 Calling station:", { stationName, stationPhone });
-    
     if (!stationPhone || stationPhone === "NULL" || stationPhone.trim() === "") {
       alert(`📞 No phone number available for station: ${stationName || "Unknown Station"}`);
       return;
     }
-    
+
     const cleanPhoneNumber = stationPhone.trim().replace(/[\s\-\(\)]/g, '');
     const isValidIndianNumber = /^[6-9]\d{9}$/.test(cleanPhoneNumber);
-    
+
     if (isValidIndianNumber) {
-      console.log("🇮🇳 Calling Indian number:", cleanPhoneNumber);
       window.open(`tel:+91${cleanPhoneNumber}`);
     } else if (cleanPhoneNumber.length >= 10) {
-      console.log("📞 Calling international number:", cleanPhoneNumber);
       window.open(`tel:${cleanPhoneNumber}`);
     } else {
       alert(`❌ Invalid phone number for station "${stationName}": ${stationPhone}`);
@@ -1821,28 +1784,26 @@ export default function FillingRequests() {
   const handleShare = useCallback(async (request) => {
     try {
       const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
-      
+
       if (!stationMapLink) {
         alert("🗺️ No Google Maps location available for this station");
         return;
       }
 
       let shareText = `⛽ Filling Request Details\n\n` +
-                     `📋 Request ID: ${request.rid}\n` +
-                     `🚚 Vehicle: ${request.vehicle_number}\n` +
-                     `👤 Client: ${request.customer_name || "N/A"}\n` +
-                     `⛽ Product: ${request.product_name || "N/A"}\n` +
-                     `📦 Quantity: ${request.qty} liters\n` +
-                     `🏭 Station: ${request.loading_station || "N/A"}\n` +
-                     `📍 Location: ${stationMapLink}\n` +
-                     `🔄 Status: ${request.status}\n\n` +
-                     `📅 Created: ${request.created_formatted || request.created_date_formatted || (request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A")}`;
+        `📋 Request ID: ${request.rid}\n` +
+        `🚚 Vehicle: ${request.vehicle_number}\n` +
+        `👤 Client: ${request.customer_name || "N/A"}\n` +
+        `⛽ Product: ${request.product_name || "N/A"}\n` +
+        `📦 Quantity: ${request.qty} liters\n` +
+        `🏭 Station: ${request.loading_station || "N/A"}\n` +
+        `📍 Location: ${stationMapLink}\n` +
+        `🔄 Status: ${request.status}\n\n` +
+        `📅 Created: ${request.created_formatted || request.created_date_formatted || (request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A")}`;
 
       if (request.completed_date && request.completed_date !== "0000-00-00 00:00:00") {
         shareText += `\n✅ Completed: ${request.completed_date_formatted || new Date(request.completed_date).toLocaleString("en-IN")}`;
       }
-
-      console.log("📤 Sharing station location:", shareText);
 
       if (navigator.share) {
         try {
@@ -1851,7 +1812,6 @@ export default function FillingRequests() {
             text: shareText,
             url: stationMapLink,
           });
-          console.log("✅ Shared successfully via Web Share API");
         } catch (error) {
           if (error.name !== 'AbortError') {
             await navigator.clipboard.writeText(shareText);
@@ -1859,33 +1819,23 @@ export default function FillingRequests() {
           }
         }
       } else {
-        try {
-          await navigator.clipboard.writeText(shareText);
-          alert("📋 Station location copied to clipboard!\n\nYou can paste it in WhatsApp or any messaging app.");
-        } catch (error) {
-          const textArea = document.createElement('textarea');
-          textArea.value = shareText;
-          document.body.appendChild(textArea);
-          textArea.select();
-          document.execCommand('copy');
-          document.body.removeChild(textArea);
-          alert("📋 Station location copied to clipboard!");
-        }
+        await navigator.clipboard.writeText(shareText);
+        alert("📋 Station location copied to clipboard!\n\nYou can paste it in WhatsApp or any messaging app.");
       }
     } catch (error) {
-      console.error("❌ Error sharing station location:", error);
+      console.error("Error sharing station location:", error);
       alert("Error sharing station location");
     }
   }, []);
 
   const handlePdf = useCallback((requestId) => {
     const request = requests.find(req => req.id === requestId);
-    
+
     if (request && request.status !== "Completed") {
       alert("PDF can only be generated for completed requests");
       return;
     }
-    
+
     router.push(`/filling-requests/pdf-modal?id=${requestId}`);
   }, [requests, router]);
 
@@ -1918,7 +1868,7 @@ export default function FillingRequests() {
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
         onOtpVerify={handleOtpVerify}
-        permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
+        permissions={{ ...permissions, isAdmin: user && Number(user.role) === 5 }}
         userRole={userRole}
       />
     )), [filteredRequests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, handleOtpVerify, permissions, user, userRole]);
@@ -1937,12 +1887,12 @@ export default function FillingRequests() {
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
         onOtpVerify={handleOtpVerify}
-        permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
+        permissions={{ ...permissions, isAdmin: user && Number(user.role) === 5 }}
         userRole={userRole}
       />
     )), [filteredRequests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, handleOtpVerify, permissions, user, userRole]);
 
-  // ✅ Show loading while checking authentication
+  // Show loading while checking authentication
   if (authLoading) {
     return (
       <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -1960,12 +1910,12 @@ export default function FillingRequests() {
     );
   }
 
-  // ✅ Redirect if user is not authenticated
+  // Redirect if user is not authenticated
   if (!user) {
     return null;
   }
 
-  // ✅ Show access denied if no permission - don't load data
+  // Show access denied if no permission
   if (!hasPermission) {
     return (
       <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -1991,35 +1941,35 @@ export default function FillingRequests() {
 
       <div className="flex flex-col flex-1 overflow-hidden">
         <Header />
-        <main className="flex-1 px-4 py-0 overflow-auto">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-              <button onClick={() => router.back()} className="mr-3 text-blue-600 hover:text-blue-800">←</button>
+        <main className="flex-1 px-2 md:px-4 py-0 md:py-0 overflow-auto">
+          <div className="mb-4 md:mb-6">
+            <h1 className="text-xl md:text-2xl font-bold text-gray-800 flex items-center">
+              <button onClick={() => router.back()} className="mr-2 md:mr-3 text-blue-600 hover:text-blue-800">←</button>
               Purchase Order Requests
             </h1>
           </div>
 
-          <div className="bg-white shadow-lg rounded-xl p-6 mb-6">
+          <div className="bg-white shadow-lg rounded-xl p-4 md:p-6 mb-6">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-4 gap-4">
-              {/* ✅ For Team Leader (role 3) and above: Show status filters */}
+              {/* For Team Leader (role 3) and above: Show status filters */}
               {userRole >= 3 && (
                 <div className="flex flex-col md:flex-row md:items-center gap-4">
                   <StatusFilters currentStatus={statusFilter} onStatusChange={handleStatusChange} userRole={userRole} />
                 </div>
               )}
-              {/* ✅ For Staff/Incharge: Only search bar, for Team Leader+: Search bar + filters */}
+              {/* Search bar */}
               <div className={userRole >= 3 ? "md:w-1/3" : "w-full"}>
                 <SearchBar onSearch={handleSearch} initialValue={search} />
               </div>
             </div>
 
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
               <div className="flex items-center space-x-2 text-sm">
                 <span>Show</span>
                 <select
                   value={pagination.recordsPerPage}
                   onChange={(e) => handleRecordsPerPageChange(e.target.value)}
-                  className="border rounded px-2 py-1"
+                  className="border rounded px-2 py-1 text-sm"
                 >
                   <option value="10">10</option>
                   <option value="25">25</option>
@@ -2045,107 +1995,112 @@ export default function FillingRequests() {
 
             <>
               <div className="hidden md:block overflow-x-auto">
-                  <table className="min-w-full bg-white border rounded-lg">
-                    <thead>
-                      <tr className="bg-gray-100 text-gray-700">
-                        <th className="py-3 px-4 border-b">#</th>
-                        <th className="py-3 px-4 border-b">Request ID</th>
-                        <th className="py-3 px-4 border-b">Product</th>
-                        <th className="py-3 px-4 border-b">Loading Station</th>
-                        <th className="py-3 px-4 border-b">Vehicle No</th>
-                        <th className="py-3 px-4 border-b">Client Name</th>
-                        <th className="py-3 px-4 border-b">Driver Phone</th>
-                        <th className="py-3 px-4 border-b">Date & Time</th>
-                        <th className="py-3 px-4 border-b">Completed Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requestItems.length > 0 ? requestItems : (
-                        <tr>
-                          <td colSpan="9" className="py-8 text-center text-gray-500">
-                            <div className="flex flex-col items-center">
-                              <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <p className="text-lg font-medium">No requests found</p>
-                              <p className="text-sm text-gray-600 mt-1">
-                                {statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
-                              </p>
-                              {search && (
-                                <p className="text-sm text-gray-600">Try changing your search criteria</p>
+                <table className="min-w-full bg-white border rounded-lg">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700">
+                      <th className="py-3 px-4 border-b">#</th>
+                      <th className="py-3 px-4 border-b">Request ID</th>
+                      <th className="py-3 px-4 border-b">Product</th>
+                      <th className="py-3 px-4 border-b">Loading Station</th>
+                      <th className="py-3 px-4 border-b">Vehicle No</th>
+                      <th className="py-3 px-4 border-b">Client Name</th>
+                      <th className="py-3 px-4 border-b">Driver Phone</th>
+                      <th className="py-3 px-4 border-b">Images</th>
+                      <th className="py-3 px-4 border-b">Date & Time</th>
+                      <th className="py-3 px-4 border-b">Completed Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requestItems.length > 0 ? requestItems : (
+                      <tr>
+                        <td colSpan="9" className="py-8 text-center text-gray-500">
+                          <div className="flex flex-col items-center">
+                            <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-lg font-medium">No requests found</p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {search ? "No matching requests found" :
+                                statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
+                              {(isStaff || isIncharge) && search && (
+                                <span className="block text-xs mt-1">Showing only pending requests for search</span>
                               )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                <div className="block md:hidden">
-                  {mobileRequestItems.length > 0 ? mobileRequestItems : (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="flex flex-col items-center">
-                        <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-lg font-medium">No requests found</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {pagination.totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-3">
-                    <div className="text-sm text-gray-600">
-                      Showing {(pagination.page - 1) * pagination.recordsPerPage + 1} to{" "}
-                      {Math.min(pagination.page * pagination.recordsPerPage, pagination.totalRecords)} of{" "}
-                      {pagination.totalRecords} entries
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => handlePageChange(pagination.page - 1)}
-                        disabled={pagination.page === 1}
-                        className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50"
-                      >
-                        Previous
-                      </button>
-                      {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (pagination.totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (pagination.page <= 3) {
-                          pageNum = i + 1;
-                        } else if (pagination.page >= pagination.totalPages - 2) {
-                          pageNum = pagination.totalPages - 4 + i;
-                        } else {
-                          pageNum = pagination.page - 2 + i;
-                        }
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => handlePageChange(pageNum)}
-                            className={`px-3 py-1 border rounded ${
-                              pagination.page === pageNum ? "bg-blue-600 text-white" : "hover:bg-gray-50"
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                      <button
-                        onClick={() => handlePageChange(pagination.page + 1)}
-                        disabled={pagination.page === pagination.totalPages}
-                        className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50"
-                      >
-                        Next
-                      </button>
+              <div className="block md:hidden">
+                {mobileRequestItems.length > 0 ? mobileRequestItems : (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="flex flex-col items-center">
+                      <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-lg font-medium">No requests found</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {search ? "No matching requests found" :
+                          statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
+                        {(isStaff || isIncharge) && search && (
+                          <span className="block text-xs mt-1">Showing only pending requests for search</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                 )}
+              </div>
+
+              {pagination.totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-3">
+                  <div className="text-sm text-gray-600">
+                    Showing {(pagination.page - 1) * pagination.recordsPerPage + 1} to{" "}
+                    {Math.min(pagination.page * pagination.recordsPerPage, pagination.totalRecords)} of{" "}
+                    {pagination.totalRecords} entries
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={pagination.page === 1}
+                      className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (pagination.page <= 3) {
+                        pageNum = i + 1;
+                      } else if (pagination.page >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = pagination.page - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`px-3 py-1 border rounded text-sm ${pagination.page === pageNum ? "bg-blue-600 text-white" : "hover:bg-gray-50"
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={pagination.page === pagination.totalPages}
+                      className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           </div>
 
@@ -2153,8 +2108,8 @@ export default function FillingRequests() {
           {otpModal.isOpen && (
             <OtpModal
               requestId={otpModal.requestId}
-              requestRid={otpModal.requestRid}
               generatedOtp={otpModal.generatedOtp}
+              requestRid={otpModal.requestRid}
               onClose={closeOtpModal}
               onVerify={verifyOtp}
               onResend={resendOtp}
@@ -2187,16 +2142,16 @@ export default function FillingRequests() {
                     </div>
                     {(detailsModal.created_date_formatted || detailsModal.created_formatted || detailsModal.created_date || detailsModal.created) && (
                       <div className="text-xs text-gray-500 mt-1">
-                        {detailsModal.created_date_formatted || detailsModal.created_formatted || 
-                         (detailsModal.created_date || detailsModal.created ? 
-                           new Date(detailsModal.created_date || detailsModal.created).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true
-                           }) : '')}
+                        {detailsModal.created_date_formatted || detailsModal.created_formatted ||
+                          (detailsModal.created_date || detailsModal.created ?
+                            new Date(detailsModal.created_date || detailsModal.created).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true
+                            }) : '')}
                       </div>
                     )}
                   </div>
@@ -2231,7 +2186,7 @@ export default function FillingRequests() {
           {permissions.can_create && userRole >= 3 && (
             <a
               href="/create-request"
-              className="fixed bottom-6 right-6 bg-blue-600 text-white px-6 py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center"
+              className="fixed bottom-6 right-6 bg-blue-600 text-white px-4 py-3 md:px-6 md:py-3 rounded-full shadow-lg hover:bg-blue-700 transition-colors z-10 flex items-center text-sm md:text-base"
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />

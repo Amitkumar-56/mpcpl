@@ -3,6 +3,7 @@
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Footer from "@/components/Footer";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from 'react';
 
 export default function LoadingStationsPage() {
@@ -11,19 +12,29 @@ export default function LoadingStationsPage() {
   const [error, setError] = useState('');
   const [customer, setCustomer] = useState(null);
 
+  const router = useRouter();
+
   useEffect(() => {
     const savedCustomer = localStorage.getItem("customer");
     if (!savedCustomer) {
-      window.location.href = "/cst/login";
+      console.warn("Loading Stations: No customer found in localStorage");
+      // Don't redirect immediately, give it a moment or show a message
+      // But for security, we should redirect if truly not logged in
+      router.push("/cst/login");
       return;
     }
     
-    const customerData = JSON.parse(savedCustomer);
-    setCustomer(customerData);
-    
-    // Use logged-in customer's ID
-    if (customerData && customerData.id) {
-      fetchStations(customerData.id);
+    try {
+      const customerData = JSON.parse(savedCustomer);
+      setCustomer(customerData);
+      
+      // Use logged-in customer's ID
+      if (customerData && customerData.id) {
+        fetchStations(customerData.com_id || customerData.id);
+      }
+    } catch (err) {
+      console.error("Error parsing customer data:", err);
+      router.push("/cst/login");
     }
   }, []);
 

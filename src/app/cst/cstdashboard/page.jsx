@@ -9,20 +9,16 @@ import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  BiBell,
-  BiCheckDouble,
-  BiHistory,
-  BiMessageRounded,
-  BiMinus,
-  BiReceipt,
-  BiRefresh,
-  BiSend,
-  BiTime,
-  BiUser,
-  BiWallet,
-  BiWifi,
-  BiWifiOff,
-  BiX
+    BiCheckDouble,
+    BiMessageRounded,
+    BiMinus,
+    BiReceipt,
+    BiSend,
+    BiTime,
+    BiUser,
+    BiWifi,
+    BiWifiOff,
+    BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -51,39 +47,55 @@ export default function CustomerDashboardPage() {
   const [outstandingToday, setOutstandingToday] = useState(0);
   const [outstandingYesterday, setOutstandingYesterday] = useState(0);
   const [outstandingTotal, setOutstandingTotal] = useState(0);
-  const [lowBalanceMsg, setLowBalanceMsg] = useState(null);
-  const [paymentOverdueMsg, setPaymentOverdueMsg] = useState(null);
   const messagesEndRef = useRef(null);
 
   // Load user data
   useEffect(() => {
-    const savedUser = localStorage.getItem("customer");
-    if (!savedUser) {
+    try {
+      const savedUser = localStorage.getItem("customer");
+      console.log("Dashboard: Checking user", savedUser);
+      
+      if (!savedUser) {
+        console.log("Dashboard: No user found, redirecting to login");
+        router.push("/cst/login");
+        return;
+      }
+      
+      const parsedUser = JSON.parse(savedUser);
+      console.log("Dashboard: Parsed user", parsedUser);
+      
+      // Allow roleid 1 (Main Customer) and 2 (Sub-User)
+      const roleId = Number(parsedUser.roleid);
+      console.log("Dashboard: Validating role", roleId);
+      
+      if (roleId !== 1 && roleId !== 2) {
+        console.error("Dashboard: Invalid role detected", parsedUser.roleid);
+        alert(`Access Error: Invalid User Role (${parsedUser.roleid}). Please login again.`);
+        router.push("/cst/login");
+        return;
+      }
+      
+      setUser(parsedUser);
+      setLoading(false);
+    } catch (err) {
+      console.error("Dashboard: Error parsing user", err);
+      alert("Error reading user data. Please login again.");
       router.push("/cst/login");
-      return;
     }
-    
-    const parsedUser = JSON.parse(savedUser);
-    if (Number(parsedUser.roleid) !== 1) {
-      router.push("/cst/login");
-      return;
-    }
-    
-    setUser(parsedUser);
-    setLoading(false);
   }, [router]);
 
   // Fetch day limit status
   useEffect(() => {
     if (!user?.id) return;
     
+    const customerId = user.com_id || user.id;
+    
     const fetchDayLimitStatus = async () => {
       try {
-        const response = await fetch(`/api/customers/recharge-request?id=${user.id}`);
+        const response = await fetch(`/api/customers/recharge-request?id=${customerId}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.customer) {
-            // Check if customer has day limit and calculate status
             const dayLimit = data.customer.day_limit || 0;
             const amtLimit = data.customer.amtlimit || 0;
             const paymentDaysPending = data.pending?.payment_days_pending || 0;
@@ -102,7 +114,6 @@ export default function CustomerDashboardPage() {
               });
             }
 
-            // Amount Limit Logic
             if (amtLimit > 0) {
               const isAmtOverdue = totalUnpaid >= amtLimit;
               const remainingAmt = Math.max(0, amtLimit - totalUnpaid);
@@ -124,21 +135,19 @@ export default function CustomerDashboardPage() {
     fetchDayLimitStatus();
   }, [user?.id]);
 
+  // Fetch outstanding
   useEffect(() => {
     if (!user?.id) return;
     const fetchOutstanding = async () => {
       try {
-        const response = await fetch(`/api/cst/customer-history?cl_id=${user.id}`);
+        const cid = user.com_id || user.id;
+        const response = await fetch(`/api/cst/customer-history?cl_id=${cid}`);
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.outstandings) {
             setOutstandingToday(data.outstandings.today || 0);
             setOutstandingYesterday(data.outstandings.yesterday || 0);
             setOutstandingTotal(data.outstandings.total || (data.outstandings.yesterday + data.outstandings.today) || 0);
-            if (data.notifications) {
-              setLowBalanceMsg(data.notifications.balanceNotification || null);
-              setPaymentOverdueMsg(data.notifications.paymentNotification || null);
-            }
           }
         }
       } catch (e) {
@@ -148,7 +157,7 @@ export default function CustomerDashboardPage() {
     fetchOutstanding();
   }, [user?.id]);
 
-  // 🔥 SIMPLIFIED SOCKET CONNECTION
+  // Socket connection
   useEffect(() => {
     if (!user?.id) return;
     
@@ -157,85 +166,53 @@ export default function CustomerDashboardPage() {
     
     const initAndConnect = async () => {
       try {
-        // ✅ Initialize socket endpoint first
-        try {
-          await fetch('/api/socket');
-        } catch (e) {
-          console.log('Socket endpoint initialization:', e);
-        }
-        
-        // ✅ Use window.location.origin for socket URL
-        const socketUrl = typeof window !== 'undefined' 
-          ? window.location.origin 
-          : (process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3000');
-        
-        console.log('Connecting to socket:', socketUrl);
-        
-        newSocket = io(socketUrl, {
-          path: '/api/socket',
-          transports: ['websocket', 'polling'],
-          reconnection: true,
-          reconnectionAttempts: 10,
-          reconnectionDelay: 1000,
-          reconnectionDelayMax: 5000,
-          timeout: 20000,
-          withCredentials: true,
-          forceNew: false,
+        await fetch('/api/socket');
+        newSocket = io({
+          path: '/api/socket/io',
+          addTrailingSlash: false,
         });
-        
+
         newSocket.on('connect', () => {
-          console.log('✅ Socket connected successfully!', newSocket.id);
           setConnectionStatus('connected');
-          // ✅ Emit customer_join after connection is established
+          
+          // Use com_id for sub-users so they join the main customer's room
+          const roomId = user.com_id || user.id;
+          
+          console.log('Socket connected, joining room:', roomId);
           newSocket.emit('customer_join', {
-            customerId: user.id.toString(),
+            customerId: roomId.toString(),
             customerName: user.name || 'Customer'
           });
         });
-        
-        newSocket.on('disconnect', (reason) => {
-          console.log('Socket disconnected:', reason);
+
+        newSocket.on('disconnect', () => {
           setConnectionStatus('disconnected');
-          // ✅ Auto-reconnect on unexpected disconnect
-          if (reason === 'io server disconnect') {
-            newSocket.connect();
-          }
         });
         
         newSocket.on('connect_error', (err) => {
-          console.error('Socket connect_error:', err?.message || err);
+          console.error('Socket connection error:', err);
           setConnectionStatus('error');
         });
         
-        newSocket.on('reconnect_attempt', (attemptNumber) => {
-          console.log('Reconnection attempt:', attemptNumber);
+        newSocket.on('reconnect_attempt', () => {
           setConnectionStatus('reconnecting');
         });
         
-        newSocket.on('reconnect', (attemptNumber) => {
-          console.log('✅ Socket reconnected after', attemptNumber, 'attempts');
+        newSocket.on('reconnect', () => {
           setConnectionStatus('connected');
-          // ✅ Re-emit customer_join after reconnection
+          
+          const roomId = user.com_id || user.id;
           newSocket.emit('customer_join', {
-            customerId: user.id.toString(),
+            customerId: roomId.toString(),
             customerName: user.name || 'Customer'
           });
         });
         
-        newSocket.on('reconnect_failed', () => {
-          console.error('Socket reconnection failed');
-          setConnectionStatus('error');
-        });
-        
         newSocket.on('joined_success', (data) => {
-          console.log('✅ Joined customer room successfully:', data);
+          console.log('Joined customer room:', data);
         });
         
-        newSocket.on('error', (error) => {
-          console.error('Socket error:', error);
-        });
-        
-        // ✅ Message handlers
+        // Message handlers
         const mergeMessages = (prev, incoming) => {
           const byId = incoming.id;
           const byTemp = incoming.tempId;
@@ -253,7 +230,6 @@ export default function CustomerDashboardPage() {
             }
           }
           if (!replaced) next.push(incoming);
-          // Deduplicate by id/tempId
           const seen = new Set();
           return next.filter(m => {
             const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
@@ -279,7 +255,6 @@ export default function CustomerDashboardPage() {
                 ? { ...msg, id: data.messageId, status: data.status, tempId: undefined }
                 : msg
             );
-            // Remove any duplicate entries that already have same id
             const seen = new Set();
             return updated.filter(m => {
               const key = m.id ? `id:${m.id}` : `temp:${m.tempId}`;
@@ -304,10 +279,8 @@ export default function CustomerDashboardPage() {
     
     initAndConnect();
     
-    // ✅ Cleanup function
     return () => {
       if (newSocket) {
-        console.log('Cleaning up socket connection');
         newSocket.removeAllListeners();
         newSocket.disconnect();
         setSocket(null);
@@ -326,13 +299,12 @@ export default function CustomerDashboardPage() {
     try {
       if (!user?.id) return;
       
-      console.log('📥 Fetching messages...');
-      const response = await fetch(`/api/chat/messages?customerId=${user.id}`);
+      const chatCustomerId = user.com_id || user.id;
+      const response = await fetch(`/api/chat/messages?customerId=${chatCustomerId}`);
       
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
-          // Ensure uniqueness when loading history
           const loaded = data.messages || [];
           const seen = new Set();
           const unique = loaded.filter(m => {
@@ -357,7 +329,6 @@ export default function CustomerDashboardPage() {
       return;
     }
 
-    console.log('🚀 Sending message...');
     setSending(true);
 
     const tempId = `temp-${Date.now()}`;
@@ -462,7 +433,7 @@ export default function CustomerDashboardPage() {
     switch(connectionStatus) {
       case 'connected': return 'bg-green-500';
       case 'connecting': 
-      case 'reconnecting': return 'bg-yellow-500 animate-pulse';
+      case 'reconnecting': return 'bg-yellow-500';
       case 'disconnected': return 'bg-gray-500';
       case 'error': return 'bg-red-500';
       default: return 'bg-gray-500';
@@ -473,7 +444,7 @@ export default function CustomerDashboardPage() {
     switch(connectionStatus) {
       case 'connected': return <BiWifi className="w-4 h-4" />;
       case 'connecting':
-      case 'reconnecting': return <BiWifi className="w-4 h-4 animate-spin" />;
+      case 'reconnecting': return <BiWifi className="w-4 h-4" />;
       default: return <BiWifiOff className="w-4 h-4" />;
     }
   };
@@ -524,238 +495,97 @@ export default function CustomerDashboardPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      <Sidebar activePage={activePage} setActivePage={setActivePage} />
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      <Sidebar user={user} activePage={activePage} setActivePage={setActivePage} />
       
       <div className="flex flex-col flex-1 overflow-hidden">
-        <CstHeader />
+        <CstHeader user={user} />
         
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           
           {activePage === "Dashboard" && (
             <div className="space-y-6">
-              {/* Day Limit Overdue Warning Banner */}
-              {dayLimitStatus && dayLimitStatus.isOverdue && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-start">
-                      <div className="w-3 h-3 rounded-full bg-red-500 mr-3 mt-1 flex-shrink-0"></div>
-                      <div>
-                        <p className="font-medium text-red-800">
-                          Day Limit Exceeded - Please Recharge
-                        </p>
-                        <p className="text-sm text-red-600">
-                          Your day limit has been exceeded. Days elapsed: {dayLimitStatus.daysElapsed} days (Limit: {dayLimitStatus.dayLimit} days). 
-                          Total payment due: ₹{dayLimitStatus.totalUnpaid.toFixed(2)}. Please recharge your account to continue.
-                        </p>
+              {/* Alerts Section */}
+              <div className="space-y-4">
+                {/* Day Limit Overdue */}
+                {dayLimitStatus && dayLimitStatus.isOverdue && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                      <div className="flex items-start">
+                        <div className="w-3 h-3 rounded-full bg-red-500 mr-3 mt-1"></div>
+                        <div>
+                          <p className="font-medium text-red-800">Day Limit Exceeded</p>
+                          <p className="text-sm text-red-600">
+                            Days elapsed: {dayLimitStatus.daysElapsed}/{dayLimitStatus.dayLimit}. 
+                            Due: ₹{dayLimitStatus.totalUnpaid.toFixed(2)}
+                          </p>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex space-x-2 w-full md:w-auto">
-                      <button
-                        onClick={() => setShowRechargeModal(true)}
-                        className="flex-1 md:flex-none bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold text-center"
-                      >
-                        Recharge Now
-                      </button>
-                      <button 
-                        onClick={redirectToCustomerHistory}
-                        className="flex-1 md:flex-none bg-red-100 hover:bg-red-200 text-red-800 px-4 py-2 rounded-lg text-sm transition-colors text-center"
-                      >
-                        View History
-                      </button>
+                     
                     </div>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Day Limit Warning (Not Overdue Yet) */}
-              {dayLimitStatus && !dayLimitStatus.isOverdue && dayLimitStatus.remainingDays <= 3 && dayLimitStatus.remainingDays > 0 && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-start">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-3 mt-1 flex-shrink-0"></div>
-                      <div>
-                        <p className="font-medium text-yellow-800">
-                          Day Limit Warning
-                        </p>
-                        <p className="text-sm text-yellow-600">
-                          Only {dayLimitStatus.remainingDays} day(s) remaining before limit expires. Please recharge to avoid service interruption.
-                        </p>
+                {/* Connection Error */}
+                {connectionStatus === 'error' && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center">
+                        <div className="w-3 h-3 rounded-full bg-red-500 mr-3"></div>
+                        <div>
+                          <p className="text-sm text-red-800">Chat Connection Issue</p>
+                        </div>
                       </div>
-                    </div>
-                    <button 
-                      onClick={() => setShowRechargeModal(true)}
-                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
-                    >
-                      Recharge Now
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Amount Limit Overdue Warning Banner */}
-              {amtLimitStatus && amtLimitStatus.isOverdue && (
-                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-start">
-                      <div className="w-3 h-3 rounded-full bg-red-500 mr-3 mt-1 flex-shrink-0"></div>
-                      <div>
-                        <p className="font-medium text-red-800">
-                          Credit Limit Exceeded - Please Recharge
-                        </p>
-                        <p className="text-sm text-red-600">
-                          Your credit limit of ₹{amtLimitStatus.amtLimit.toLocaleString()} has been exceeded. 
-                          Total payment due: ₹{amtLimitStatus.totalUnpaid.toFixed(2)}. Please recharge your account immediately.
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2 w-full md:w-auto">
-                      <button 
-                        onClick={() => setShowRechargeModal(true)}
-                        className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
-                      >
-                        Recharge Now
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Amount Limit Warning (Near Limit) */}
-              {amtLimitStatus && !amtLimitStatus.isOverdue && amtLimitStatus.remainingAmt <= (amtLimitStatus.amtLimit * 0.2) && (
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-start">
-                      <div className="w-3 h-3 rounded-full bg-yellow-500 mr-3 mt-1 flex-shrink-0"></div>
-                      <div>
-                        <p className="font-medium text-yellow-800">
-                          Credit Limit Warning
-                        </p>
-                        <p className="text-sm text-yellow-600">
-                          You have used ₹{amtLimitStatus.totalUnpaid.toFixed(2)} of your ₹{amtLimitStatus.amtLimit.toLocaleString()} limit.
-                          Remaining: ₹{amtLimitStatus.remainingAmt.toFixed(2)}. Please recharge soon.
-                        </p>
-                      </div>
-                    </div>
-                    <button 
-                      onClick={() => setShowRechargeModal(true)}
-                      className="bg-yellow-600 hover:bg-yellow-700 text-white px-4 py-2 rounded-lg text-sm transition-colors font-semibold"
-                    >
-                      Recharge Now
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Connection Status Banner - Only show error, not connecting/reconnecting */}
-              {connectionStatus === 'error' && (
-                <div className="border rounded-lg p-4 bg-red-50 border-red-200">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-start">
-                      <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3 mt-1 flex-shrink-0`}></div>
-                      <div>
-                        <p className="font-medium text-red-800">
-                          Chat Connection Issue
-                        </p>
-                        <p className="text-sm text-red-600">
-                          Status: {connectionStatus} - Please check your internet connection
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex space-x-2 w-full md:w-auto">
                       <button
                         onClick={reconnectSocket}
-                        className="flex-1 md:flex-none justify-center px-3 py-1 rounded-lg text-sm transition-colors flex items-center bg-red-100 hover:bg-red-200 text-red-800"
+                        className="bg-red-100 hover:bg-red-200 text-red-800 px-3 py-1 rounded text-sm"
                       >
-                        <BiRefresh className="mr-1" /> 
                         Retry
-                      </button>
-                      <button 
-                        onClick={() => window.location.reload()}
-                        className="flex-1 md:flex-none justify-center bg-gray-100 hover:bg-gray-200 text-gray-800 px-3 py-1 rounded-lg text-sm transition-colors"
-                      >
-                        Refresh Page
                       </button>
                     </div>
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              {/* Rest of your dashboard UI remains the same */}
-              <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-xl shadow-lg p-6 text-white">
+              {/* Header Card */}
+              <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
-                    <p className="text-blue-100">
+                    <p className="text-gray-600">
                       {connectionStatus === 'connected' 
                         ? 'Live support is available' 
                         : `Connection: ${connectionStatus}`
                       }
                     </p>
                   </div>
-                  <div className="flex flex-wrap justify-center gap-3 w-full md:w-auto">
-                    <button
-                      onClick={redirectToMyUsers}
-                      className="flex-1 md:flex-none justify-center bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
-                    >
-                      <BiUser className="w-5 h-5" />
-                      <span>My Users</span>
-                    </button>
-                    
-                    <button 
-                      onClick={redirectToCustomerHistory}
-                      className="flex-1 md:flex-none justify-center bg-white text-blue-600 hover:bg-blue-50 px-4 py-2 rounded-lg font-semibold transition-all duration-300 flex items-center space-x-2 shadow-lg hover:shadow-xl"
-                    >
-                      <BiHistory className="w-5 h-5" />
-                      <span>Transaction History</span>
-                    </button>
-                  </div>
+                 
                 </div>
               </div>
 
-              {/* Status Cards */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <div className={`p-3 rounded-full ${
-                        connectionStatus === 'connected' ? 'bg-green-100 text-green-600' :
-                        connectionStatus === 'connecting' || connectionStatus === 'reconnecting' ? 'bg-yellow-100 text-yellow-600' :
-                        'bg-red-100 text-red-600'
-                      }`}>
-                        {getConnectionStatusIcon()}
-                      </div>
-                      <div className="ml-4">
-                        <h4 className="text-sm font-medium text-gray-500">Connection</h4>
-                        <p className="text-lg font-bold text-gray-900 capitalize">{connectionStatus}</p>
-                      </div>
-                    </div>
-                    <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()}`}></div>
-                  </div>
-                </div>
-
-                <div className="bg-white rounded-lg shadow p-6">
+              {/* Stats Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-purple-100 text-purple-600">
-                      <BiBell className="w-6 h-6" />
+                    <div className={`p-2 rounded ${connectionStatus === 'connected' ? 'bg-green-100' : 'bg-gray-100'}`}>
+                      {getConnectionStatusIcon()}
                     </div>
-                    <div className="ml-4">
-                      <h4 className="text-sm font-medium text-gray-500">Notifications</h4>
-                      <p className="text-2xl font-bold text-gray-900">{notifications.length}</p>
+                    <div className="ml-3">
+                      <h4 className="text-sm text-gray-500">Connection</h4>
+                      <p className="font-medium capitalize">{connectionStatus}</p>
                     </div>
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6">
+                <div className="bg-white rounded-lg shadow p-4">
                   <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-blue-100 text-blue-600">
-                      <BiMessageRounded className="w-6 h-6" />
+                    <div className="p-2 rounded bg-green-100">
+                      <BiMessageRounded className="w-4 h-4 text-green-600" />
                     </div>
-                    <div className="ml-4">
-                      <h4 className="text-sm font-medium text-gray-500">Live Support</h4>
-                      <p className="text-lg font-bold text-gray-900">Real-time Chat</p>
+                    <div className="ml-3">
+                      <h4 className="text-sm text-gray-500">Live Support</h4>
                       <button 
                         onClick={toggleChat}
-                        className="mt-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm"
+                        className="text-sm text-green-600 hover:text-green-700"
                       >
                         {showChat ? 'Close Chat' : 'Start Chat'}
                       </button>
@@ -763,111 +593,61 @@ export default function CustomerDashboardPage() {
                   </div>
                 </div>
 
-                <div className="bg-white rounded-lg shadow p-6">
-                  <div className="flex items-center">
-                    <div className="p-3 rounded-full bg-green-100 text-green-600">
-                      <BiWallet className="w-6 h-6" />
-                    </div>
-                    <div className="ml-4">
-                      <h4 className="text-sm font-medium text-gray-500">Wallet Balance</h4>
-                      <p className="text-lg font-bold text-gray-900">Quick Recharge</p>
-                      <button 
-                        onClick={() => setShowRechargeModal(true)}
-                        className="mt-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center space-x-1"
-                      >
-                        <BiWallet className="w-4 h-4" />
-                        <span>Recharge Now</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
               </div>
 
               {/* Quick Actions */}
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                  <button 
-                    onClick={redirectToMyUsers}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-purple-500 hover:bg-purple-50 transition-all duration-300 flex items-center space-x-3 group"
-                  >
-                    <div className="p-3 bg-purple-100 text-purple-600 rounded-lg group-hover:bg-purple-600 group-hover:text-white transition-colors">
-                      <BiUser className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-semibold text-gray-800">My Users</h4>
-                      <p className="text-sm text-gray-600">Manage your users</p>
-                    </div>
-                  </button>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  {user?.roleid === 1 && (
+                    <button 
+                      onClick={redirectToMyUsers}
+                      className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
+                    >
+                      <div className="p-2 bg-blue-100 text-blue-600 rounded">
+                        <BiUser className="w-5 h-5" />
+                      </div>
+                      <div className="text-left">
+                        <h4 className="font-medium text-gray-800">My Users</h4>
+                        <p className="text-sm text-gray-600">Manage users</p>
+                      </div>
+                    </button>
+                  )}
 
                   <button 
                     onClick={redirectToCustomerHistory}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-blue-500 hover:bg-blue-50 transition-all duration-300 flex items-center space-x-3 group"
+                    className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
                   >
-                    <div className="p-3 bg-blue-100 text-blue-600 rounded-lg group-hover:bg-blue-600 group-hover:text-white transition-colors">
-                      <BiReceipt className="w-6 h-6" />
+                    <div className="p-2 bg-green-100 text-green-600 rounded">
+                      <BiReceipt className="w-5 h-5" />
                     </div>
                     <div className="text-left">
-                      <h4 className="font-semibold text-gray-800">Transaction History</h4>
-                      <p className="text-sm text-gray-600">View all your transactions</p>
+                      <h4 className="font-medium text-gray-800">History</h4>
+                      <p className="text-sm text-gray-600">View transactions</p>
                     </div>
                   </button>
 
-                  <button 
-                    onClick={() => setShowRechargeModal(true)}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-green-500 hover:bg-green-50 transition-all duration-300 flex items-center space-x-3 group"
-                  >
-                    <div className="p-3 bg-green-100 text-green-600 rounded-lg group-hover:bg-green-600 group-hover:text-white transition-colors">
-                      <BiWallet className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-semibold text-gray-800">Recharge Wallet</h4>
-                      <p className="text-sm text-gray-600">Add balance to your account</p>
-                    </div>
-                  </button>
-
-                  <button 
-                    onClick={toggleChat}
-                    className="p-4 border border-gray-200 rounded-lg hover:border-orange-500 hover:bg-orange-50 transition-all duration-300 flex items-center space-x-3 group"
-                  >
-                    <div className="p-3 bg-orange-100 text-orange-600 rounded-lg group-hover:bg-orange-600 group-hover:text-white transition-colors">
-                      <BiMessageRounded className="w-6 h-6" />
-                    </div>
-                    <div className="text-left">
-                      <h4 className="font-semibold text-gray-800">Live Support</h4>
-                      <p className="text-sm text-gray-600">Chat with support team</p>
-                    </div>
-                  </button>
+                 
+                 
                 </div>
               </div>
 
-              {/* Outstanding Summary Section */}
-              <div className="px-4 lg:px-6 pb-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Outstanding Summary</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                  <div className="rounded-xl p-5 bg-gradient-to-br from-blue-500 to-blue-600 text-white shadow-lg hover:shadow-xl transition-shadow">
-                    <div className="text-xs opacity-90 mb-1 font-medium">Yesterday Outstanding</div>
-                    <div className="text-2xl md:text-3xl font-bold">₹{outstandingYesterday.toLocaleString('en-IN')}</div>
-                    <div className="text-xs opacity-75 mt-1">Previous days total</div>
+              {/* Outstanding Summary */}
+              <div className="bg-white rounded-lg shadow p-6">
+                <h2 className="text-lg font-semibold text-gray-800 mb-4">Outstanding Summary</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="p-4 bg-blue-50 rounded-lg">
+                    <div className="text-sm text-gray-600 mb-1">Yesterday</div>
+                    <div className="text-xl font-bold text-gray-900">₹{outstandingYesterday.toLocaleString()}</div>
                   </div>
-                  <div className="rounded-xl p-5 bg-gradient-to-br from-green-500 to-green-600 text-white shadow-lg hover:shadow-xl transition-shadow">
-                    <div className="text-xs opacity-90 mb-1 font-medium">Today Outstanding</div>
-                    <div className="text-2xl md:text-3xl font-bold">₹{outstandingToday.toLocaleString('en-IN')}</div>
-                    <div className="text-xs opacity-75 mt-1">Today's transactions</div>
+                  <div className="p-4 bg-green-50 rounded-lg">
+                    <div className="text-sm text-gray-600 mb-1">Today</div>
+                    <div className="text-xl font-bold text-gray-900">₹{outstandingToday.toLocaleString()}</div>
                   </div>
-                  <div className="rounded-xl p-5 bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg hover:shadow-xl transition-shadow">
-                    <div className="text-xs opacity-90 mb-1 font-medium">Total Outstanding</div>
-                    <div className="text-2xl md:text-3xl font-bold">₹{outstandingTotal.toLocaleString('en-IN')}</div>
-                    <div className="text-xs opacity-75 mt-1">Yesterday + Today</div>
+                  <div className="p-4 bg-purple-50 rounded-lg">
+                    <div className="text-sm text-gray-600 mb-1">Total Outstanding</div>
+                    <div className="text-xl font-bold text-purple-900">₹{outstandingTotal.toLocaleString()}</div>
                   </div>
-                  {/* Current Balance Card */}
-                  {user && (
-                    <div className="rounded-xl p-5 bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg hover:shadow-xl transition-shadow">
-                      <div className="text-xs opacity-90 mb-1 font-medium">Current Balance</div>
-                      <div className="text-2xl md:text-3xl font-bold">₹{((user.balance || 0) + (user.amtlimit || 0)).toLocaleString('en-IN')}</div>
-                      <div className="text-xs opacity-75 mt-1">Available for use</div>
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -882,18 +662,16 @@ export default function CustomerDashboardPage() {
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h3 className="text-xl font-bold text-gray-800 mb-4">Recharge Your Wallet</h3>
+              <h3 className="text-lg font-bold text-gray-800 mb-4">Recharge Wallet</h3>
               
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Enter Amount (₹)
-                </label>
+                <label className="block text-sm text-gray-700 mb-2">Amount (₹)</label>
                 <input
                   type="number"
                   value={rechargeAmount}
                   onChange={(e) => setRechargeAmount(e.target.value)}
                   placeholder="Enter amount"
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full p-3 border border-gray-300 rounded-lg"
                   min="1"
                 />
               </div>
@@ -903,28 +681,28 @@ export default function CustomerDashboardPage() {
                   <button
                     key={amount}
                     onClick={() => setRechargeAmount(amount.toString())}
-                    className="p-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="p-2 border border-gray-300 rounded hover:bg-gray-50"
                   >
                     ₹{amount}
                   </button>
                 ))}
               </div>
 
-              <div className="flex flex-col-reverse md:flex-row gap-3">
+              <div className="flex gap-3">
                 <button
                   onClick={handleRecharge}
                   disabled={!rechargeAmount}
-                  className="flex-1 bg-green-600 text-white py-3 rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-semibold text-center"
+                  className="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 disabled:bg-gray-400"
                 >
-                  Proceed to Pay ₹{rechargeAmount || '0'}
+                  Pay ₹{rechargeAmount || '0'}
                 </button>
-              </div>
                 <button
                   onClick={() => setShowRechargeModal(false)}
-                  className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50"
                 >
                   Cancel
                 </button>
+              </div>
             </div>
           </div>
         </div>
@@ -932,28 +710,25 @@ export default function CustomerDashboardPage() {
 
       {/* Chat Widget */}
       {showChat && (
-        <div className={`fixed bottom-0 right-0 md:bottom-4 md:right-4 z-50 w-full md:w-96 ${chatMinimized ? "h-14" : "h-[80vh] md:h-auto"} md:max-h-[600px] transition-all duration-300 bg-white rounded-t-xl md:rounded-lg shadow-2xl flex flex-col border border-gray-300`}>
+        <div className={`fixed bottom-0 right-0 md:bottom-4 md:right-4 z-50 w-full md:w-80 ${chatMinimized ? "h-12" : "h-[60vh] md:h-96"} md:max-h-96 transition-all bg-white rounded-t-lg md:rounded-lg shadow-lg flex flex-col border`}>
           {/* Chat Header */}
-          <div className="bg-blue-600 p-4 flex items-center justify-between text-white rounded-t-lg">
+          <div className="bg-blue-600 p-3 flex items-center justify-between text-white">
             <div className="flex items-center">
-              <div className={`w-3 h-3 rounded-full ${getConnectionStatusColor()} mr-3`}></div>
-              <div>
-                <h2 className="text-lg font-semibold">Customer Support</h2>
-                <p className="text-blue-100 text-xs capitalize">{connectionStatus}</p>
-              </div>
+              <div className={`w-2 h-2 rounded-full ${getConnectionStatusColor()} mr-2`}></div>
+              <h2 className="font-medium">Support</h2>
             </div>
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <button 
                 onClick={(e) => { e.stopPropagation(); minimizeChat(); }}
-                className="hover:bg-blue-700 p-1 rounded transition-colors"
+                className="hover:bg-blue-700 p-1 rounded"
               >
-                <BiMinus className="w-5 h-5" />
+                <BiMinus className="w-4 h-4" />
               </button>
               <button 
                 onClick={(e) => { e.stopPropagation(); setShowChat(false); }}
-                className="hover:bg-blue-700 p-1 rounded transition-colors"
+                className="hover:bg-blue-700 p-1 rounded"
               >
-                <BiX className="w-5 h-5" />
+                <BiX className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -961,99 +736,86 @@ export default function CustomerDashboardPage() {
           {!chatMinimized && (
             <>
               {/* Messages Area */}
-              <div className="flex-1 p-4 overflow-y-auto bg-gray-50 max-h-80 space-y-3">
-            {messages.length === 0 ? (
-              <p className="text-center text-gray-500 py-8">No messages yet. Start a conversation!</p>
-            ) : (
-              messages.map((msg) => (
-                <div 
-                  key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
-                  className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
-                >
-                  <div 
-                    className={`max-w-[80%] px-4 py-2 rounded-2xl ${
-                      msg.sender === 'customer' 
-                        ? 'bg-blue-500 text-white rounded-br-none' 
-                        : 'bg-white text-gray-800 border rounded-bl-none'
-                    }`}
-                  >
-                    <p className="text-sm">{msg.text}</p>
-                    <div className={`flex items-center justify-end space-x-1 mt-1 ${
-                      msg.sender === 'customer' ? 'text-blue-100' : 'text-gray-500'
-                    }`}>
-                      <span className="text-xs">{formatTime(msg.timestamp)}</span>
-                      {getStatusIcon(msg)}
+              <div className="flex-1 p-3 overflow-y-auto bg-gray-50 space-y-2">
+                {messages.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">No messages yet</p>
+                ) : (
+                  messages.map((msg) => (
+                    <div 
+                      key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
+                      className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
+                    >
+                      <div 
+                        className={`max-w-[80%] px-3 py-2 rounded-lg ${
+                          msg.sender === 'customer' 
+                            ? 'bg-blue-100 text-gray-800' 
+                            : 'bg-white text-gray-800 border'
+                        }`}
+                      >
+                        <p className="text-sm">{msg.text}</p>
+                        <div className="flex items-center justify-end gap-1 mt-1 text-xs text-gray-500">
+                          <span>{formatTime(msg.timestamp)}</span>
+                          {getStatusIcon(msg)}
+                        </div>
+                      </div>
+                    </div>
+                  ))
+                )}
+                
+                {isTyping && (
+                  <div className="flex justify-start">
+                    <div className="bg-white border rounded-lg px-3 py-2">
+                      <div className="flex space-x-1">
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))
-            )}
-            
-            {/* Typing Indicator */}
-            {isTyping && (
-              <div className="flex justify-start">
-                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-none px-4 py-2">
-                  <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                    <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
-                  </div>
-                  <p className="text-xs text-gray-500 mt-1">{typingEmployee} is typing...</p>
+                )}
+                
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <div className="p-3 border-t bg-white">
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    className="flex-1 p-2 border rounded"
+                    placeholder={
+                      connectionStatus === 'connected' 
+                        ? "Type message..." 
+                        : "Connecting..."
+                    }
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyDown={handleKeyPress}
+                    disabled={sending || connectionStatus !== 'connected'}
+                  />
+                  <button
+                    onClick={sendMessage}
+                    disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
+                    className="p-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-gray-400"
+                  >
+                    <BiSend className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
-            )}
-            
-            <div ref={messagesEndRef} />
-          </div>
-              {/* Input Area */}
-          {/* Input Area */}
-          <div className="p-3 border-t border-gray-300 bg-white rounded-b-lg">
-            <div className="flex space-x-2">
-              <input
-                type="text"
-                className="flex-1 p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder={
-                  connectionStatus === 'connected' 
-                    ? "Type your message..." 
-                    : "Connecting to chat..."
-                }
-                value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyDown={handleKeyPress}
-                disabled={sending || connectionStatus !== 'connected'}
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!newMessage.trim() || sending || connectionStatus !== 'connected'}
-                className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-              >
-                {sending ? (
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                ) : (
-                  <BiSend className="w-5 h-5" />
-                )}
-              </button>
-            </div>
-            {connectionStatus !== 'connected' && (
-              <p className="text-xs text-red-500 mt-2 text-center">
-                Cannot send messages - {connectionStatus}
-              </p>
-            )}
-          </div>
-        </>
+            </>
+          )}
+        </div>
       )}
-      </div>
-    )}
 
       {/* Chat Toggle Button */}
       {!showChat && (
         <button 
           onClick={toggleChat}
-          className="fixed bottom-6 right-6 bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-colors z-40 flex items-center justify-center"
+          className="fixed bottom-4 right-4 bg-blue-600 text-white rounded-full p-3 shadow z-40"
         >
-          <BiMessageRounded className="w-6 h-6" />
+          <BiMessageRounded className="w-5 h-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center animate-pulse">
+            <span className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center">
               {unreadCount}
             </span>
           )}

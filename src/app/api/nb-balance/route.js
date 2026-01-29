@@ -1,4 +1,3 @@
-// src/app/api/nb-balance/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -10,46 +9,73 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 10;
     const offset = (page - 1) * limit;
 
+    console.log('📊 nb-balance GET called with:', { page, limit, offset });
+
     // Get total cash balance
     const cashBalance = await executeQuery(
-      'SELECT balance FROM cash_balance LIMIT 1'
+      'SELECT COALESCE(balance, 0) as balance FROM cash_balance LIMIT 1'
     );
 
-    // Get cash history with pagination
-    const cashHistory = await executeQuery(`
+    // Use string interpolation for LIMIT/OFFSET to avoid parameter issues
+    const cashHistoryQuery = `
       SELECT r.id, c.name, r.amount, r.payment_date, 
              r.comments, r.payment_type 
       FROM recharge_wallets r 
       JOIN customers c ON r.com_id = c.id 
       WHERE r.payment_type = 'Cash' 
       ORDER BY r.id DESC 
-      LIMIT ? OFFSET ?
-    `, [limit, offset]);
+      LIMIT ${limit} OFFSET ${offset}
+    `;
+    
+    const cashHistory = await executeQuery(cashHistoryQuery);
 
     // Get total count for pagination
-    const totalCount = await executeQuery(`
+    const totalCountResult = await executeQuery(`
       SELECT COUNT(*) as count 
       FROM recharge_wallets r 
       WHERE r.payment_type = 'Cash'
     `);
+    
+    const totalCount = totalCountResult[0]?.count || 0;
+
+    console.log('✅ Cash data fetched successfully:', {
+      cashBalance: cashBalance[0]?.balance || 0,
+      cashHistoryCount: cashHistory?.length || 0,
+      totalCount
+    });
 
     return NextResponse.json({
       success: true,
       data: {
         totalCash: cashBalance[0]?.balance || 0,
-        cashHistory,
+        cashHistory: cashHistory || [],
         pagination: {
           currentPage: page,
-          totalPages: Math.ceil(totalCount[0]?.count / limit),
-          totalRecords: totalCount[0]?.count
+          totalPages: Math.ceil(totalCount / limit),
+          totalRecords: totalCount
         }
       }
     });
 
   } catch (error) {
-    console.error('Error fetching cash data:', error);
+    console.error('❌ Error fetching cash data:', error);
+    console.error('❌ Error details:', {
+      message: error.message,
+      code: error.code,
+      errno: error.errno,
+      sqlState: error.sqlState
+    });
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch cash data' },
+      { 
+        success: false, 
+        error: 'Failed to fetch cash data',
+        message: error.message,
+        details: process.env.NODE_ENV === 'development' ? {
+          sqlState: error.sqlState,
+          errno: error.errno
+        } : undefined
+      },
       { status: 500 }
     );
   }
@@ -68,14 +94,27 @@ export async function PUT(request) {
       );
     }
 
+    console.log('🔄 Updating cash record:', { id, amount, payment_date });
+
     const result = await executeQuery(
       `UPDATE recharge_wallets 
        SET amount = ?, payment_date = ?, comments = ?, payment_type = ? 
        WHERE id = ?`,
-      [amount, payment_date, comments, payment_type, id]
+      [parseFloat(amount), payment_date, comments, payment_type, parseInt(id)]
     );
 
     if (result.affectedRows > 0) {
+      // Update cash balance
+      await executeQuery(`
+        UPDATE cash_balance 
+        SET balance = (
+          SELECT COALESCE(SUM(amount), 0) 
+          FROM recharge_wallets 
+          WHERE payment_type = 'Cash'
+        )
+        WHERE id = 1
+      `);
+
       return NextResponse.json({
         success: true,
         message: 'Record updated successfully'
@@ -88,9 +127,9 @@ export async function PUT(request) {
     }
 
   } catch (error) {
-    console.error('Error updating record:', error);
+    console.error('❌ Error updating record:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to update record' },
+      { success: false, error: 'Failed to update record: ' + error.message },
       { status: 500 }
     );
   }

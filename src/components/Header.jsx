@@ -133,7 +133,7 @@ export default function Header({ onMenuToggle }) {
     return (
       <header className="bg-white shadow-sm">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+          <h1 className="text-2xl font-bold text-blue-800">MPCPL</h1>
           <div className="flex items-center gap-4">
             <div className="animate-pulse bg-gray-200 rounded-full w-8 h-8"></div>
           </div>
@@ -169,7 +169,7 @@ export default function Header({ onMenuToggle }) {
       <div className="container mx-auto px-4 py-3 flex justify-between items-center">
         {/* Logo */}
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+          <h1 className="text-2xl font-bold text-blue-800">MPCPL</h1>
           
           {/* Show current page title */}
           {pathname !== '/dashboard' && (

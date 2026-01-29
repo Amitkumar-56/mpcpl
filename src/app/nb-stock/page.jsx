@@ -13,7 +13,6 @@ export default function NonBillingStocks() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const router = useRouter();
-
   // Fetch stocks data
   useEffect(() => {
     fetchStocks();
