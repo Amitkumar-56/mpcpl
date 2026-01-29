@@ -1,5 +1,4 @@
 'use client';
-
 import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
