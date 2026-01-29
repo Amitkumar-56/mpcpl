@@ -608,6 +608,7 @@ export default function FillingDetailsAdmin() {
       ? 'Credit Limit'
       : 'Day Limit';
 
+  // ✅ Check if user is Staff (1) or Incharge (2)
   const isStaffOrIncharge = user && ['1', '2'].includes(String(user.role));
 
   const getDealPrice = () => {
@@ -618,7 +619,21 @@ export default function FillingDetailsAdmin() {
 
   // Loading component
   if (loading) {
-    return null;
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col">
+        <Header />
+        <div className="flex flex-col md:flex-row flex-1">
+          <Sidebar />
+          <div className="flex-1 flex items-center justify-center md:ml-64 p-4">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+              <p className="mt-4 text-gray-600">Loading request details...</p>
+            </div>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    );
   }
 
   // Error component
@@ -760,10 +775,6 @@ export default function FillingDetailsAdmin() {
                       </span>
                     )}
                     
-                    {/* ✅ DEAL PRICE ALWAYS SHOW - FOR ALL USERS */}
-                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
-                      Deal Price: ₹{dealPrice.toFixed(2)}
-                    </span>
                   </div>
                 </div>
               </div>
@@ -840,17 +851,7 @@ export default function FillingDetailsAdmin() {
                           <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Product</td>
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.product_name}</td>
                         </tr>
-                        <tr className="flex flex-col md:table-row">
-                          <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Deal Price</td>
-                          <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
-                            <span className={dealPrice > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                              ₹{dealPrice.toFixed(2)}
-                            </span>
-                            {dealPrice === 0 && (
-                              <span className="text-xs text-gray-500 ml-2">(Not set in deal_price table)</span>
-                            )}
-                          </td>
-                        </tr>
+                       
                         {requestData.sub_product_code && (
                           <tr className="flex flex-col md:table-row">
                             <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Sub-Product</td>
@@ -1247,7 +1248,7 @@ export default function FillingDetailsAdmin() {
                   <div className="px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-b border-gray-200">
                     <h2 className="text-base md:text-lg font-semibold text-gray-900 flex flex-col md:flex-row md:items-center gap-2 md:space-x-2">
                       {/* ✅ Hide balance details for staff (1) and incharge (2) */}
-                      {!isStaffOrIncharge && (
+                      {!isStaffOrIncharge ? (
                         <>
                           <span>Update Request</span>
                           <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>Available Stock: {requestData.station_stock || 0} Ltr</span>
@@ -1255,27 +1256,21 @@ export default function FillingDetailsAdmin() {
                             {limitBadgeLabel}: {limitBadgeValue}
                           </span>
                           {/* ✅ Hide Hold Balance for Staff/Incharge */}
-                          {holdBalanceAmount > 0 && !isStaffOrIncharge && (
+                          {holdBalanceAmount > 0 && (
                             <span className='bg-orange-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
                               Hold Balance: ₹{formatAmount(holdBalanceAmount)}
                             </span>
                           )}
-                          {/* ✅ DEAL PRICE ALWAYS SHOW */}
-                          <span className='bg-blue-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
-                            Deal Price: ₹{dealPrice.toFixed(2)}
-                          </span>
+                          
                         </>
-                      )}
-                      {isStaffOrIncharge && (
+                      ) : (
                         <>
                           <span>Update Request</span>
                           <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
                             Available Stock: {requestData.station_stock || 0} Ltr
                           </span>
-                          {/* ✅ DEAL PRICE ALWAYS SHOW - FOR STAFF/INCHARGE TOO */}
-                          <span className='bg-blue-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
-                            Deal Price: ₹{dealPrice.toFixed(2)}
-                          </span>
+                         
+                          
                         </>
                       )}
                     </h2>
@@ -1382,15 +1377,7 @@ export default function FillingDetailsAdmin() {
                                     <span className="text-gray-500">Ltr</span>
                                   </div>
                                 </div>
-                                <p className="mt-1 text-sm text-gray-500">
-                                  Available stock: <span className="font-medium">{requestData.station_stock || 0} Ltr</span>
-                                </p>
-                                {formData.aqty && !isNaN(parseFloat(formData.aqty)) && (
-                                  <p className="mt-1 text-sm text-green-600">
-                                    Calculated Amount: <span className="font-bold">₹{calculateAmount()}</span>
-                                    <span className="text-xs text-gray-500 ml-2">(Price: ₹{dealPrice.toFixed(2)})</span>
-                                  </p>
-                                )}
+                               
                               </div>
                             </td>
                           </tr>

@@ -1001,7 +1001,7 @@ async function handleCompletedStatus(data) {
   const calculatedAmount = finalPrice * aqty;
   const newStock = oldstock - aqty;
 
-  // Get current balance data
+  // Get current balance data BEFORE any update
   const getLatestAmountQuery = `
     SELECT 
       amtlimit as raw_available_balance,
@@ -1015,39 +1015,43 @@ async function handleCompletedStatus(data) {
   `;
   const latestAmountRows = await executeQuery(getLatestAmountQuery, [cl_id]);
 
-  let raw_available_balance = 0;
+  let initial_raw_available_balance = 0;
+  let initial_hold_balance = 0;
   let old_used_amount = 0;
-  let old_hold_balance = 0;
   let customerDayLimit = 0;
 
   if (latestAmountRows.length > 0) {
-    raw_available_balance = parseFloat(latestAmountRows[0].raw_available_balance) || 0;
+    initial_raw_available_balance = parseFloat(latestAmountRows[0].raw_available_balance) || 0;
+    initial_hold_balance = parseFloat(latestAmountRows[0].hold_balance) || 0;
     old_used_amount = parseFloat(latestAmountRows[0].used_amount) || 0;
-    old_hold_balance = parseFloat(latestAmountRows[0].hold_balance) || 0;
     customerDayLimit = parseInt(latestAmountRows[0].day_limit) || 0;
   }
 
-  // ✅ Calculate available balance = raw_available_balance + hold_balance
-  const available_balance_calculated = raw_available_balance + old_hold_balance;
-
-  console.log('💰 Balance Update Calculation (COMPLETED):', {
-    isDayLimitCustomer,
-    raw_available_balance,
-    old_hold_balance,
-    available_balance: available_balance_calculated,
-    calculated_amount: calculatedAmount,
-    customerDayLimit,
-    finalPrice,
-    aqty
+  console.log('💰 INITIAL BALANCES BEFORE COMPLETION:', {
+    initial_raw_available_balance,
+    initial_hold_balance,
+    old_used_amount,
+    total_available_before: initial_raw_available_balance + initial_hold_balance,
+    calculatedAmount,
+    isDayLimitCustomer
   });
 
   const now = getIndianTime();
 
+  // Calculate new values based on the logic
+  let new_raw_available_balance = 0;
+  let new_hold_balance = 0;
+  let new_used_amount = old_used_amount + calculatedAmount;
+
   if (isDayLimitCustomer) {
-    // Day limit customer: No balance check, only used_amount increases
-    // Use from hold_balance if available
-    const amountFromHold = Math.min(calculatedAmount, old_hold_balance);
+    // Day limit customer logic
+    console.log('📅 Processing Day Limit Customer...');
     
+    // For day limit customers, just move from hold_balance to balance
+    // Use from hold_balance if available
+    const amountFromHold = Math.min(calculatedAmount, initial_hold_balance);
+    
+    // Update customer balances
     await executeQuery(
       `UPDATE customer_balances 
        SET balance = balance + ?,
@@ -1057,64 +1061,67 @@ async function handleCompletedStatus(data) {
       [calculatedAmount, amountFromHold, now, cl_id]
     );
     
-    console.log('✅ Day limit customer - Hold balance settled, used amount increased');
+    // Get updated values for logging
+    const updatedBalances = await executeQuery(
+      `SELECT amtlimit as raw_available_balance, hold_balance, balance FROM customer_balances WHERE com_id = ?`,
+      [cl_id]
+    );
+    
+    if (updatedBalances.length > 0) {
+      new_raw_available_balance = parseFloat(updatedBalances[0].raw_available_balance) || 0;
+      new_hold_balance = parseFloat(updatedBalances[0].hold_balance) || 0;
+      new_used_amount = parseFloat(updatedBalances[0].balance) || 0;
+    }
+    
+    console.log('✅ Day limit customer - Hold balance settled:', {
+      amountFromHold,
+      calculatedAmount,
+      new_raw_available_balance,
+      new_hold_balance,
+      new_used_amount
+    });
+    
   } else {
-    // Credit limit customer
-    // First check if we have sufficient available balance
-    if (available_balance_calculated < calculatedAmount) {
+    // Credit limit customer logic - Your 3 conditions logic
+    console.log('💰 Processing Credit Limit Customer...');
+    
+    // Calculate total available before (raw + hold)
+    const total_available_before = initial_raw_available_balance + initial_hold_balance;
+    
+    // Check if sufficient balance exists
+    if (total_available_before < calculatedAmount) {
       throw new Error('INSUFFICIENT_LIMIT_ON_COMPLETE');
     }
     
-    // First use from hold_balance (up to calculatedAmount)
-    const amountFromHold = Math.min(calculatedAmount, old_hold_balance);
+    // Calculate new raw_available_balance and hold_balance
+    // Formula: new_raw_available_balance = total_available_before - calculatedAmount
+    // Formula: new_hold_balance = 0 (all hold balance is cleared)
+    new_raw_available_balance = total_available_before - calculatedAmount;
+    new_hold_balance = 0;
     
-    // Remaining amount needed from raw_available_balance
-    const amountFromRawBalance = Math.max(0, calculatedAmount - amountFromHold);
-    
-    // Calculate excess hold that needs to be returned to raw_available_balance
-    const excessHold = Math.max(0, old_hold_balance - calculatedAmount);
-    
-    console.log('💰 Hold Settlement Breakdown:', {
+    console.log('🧮 CALCULATION FOR CREDIT LIMIT CUSTOMER:', {
+      total_available_before,
       calculatedAmount,
-      available_balance: available_balance_calculated,
-      old_hold_balance,
-      raw_available_balance,
-      amountFromHold,
-      amountFromRawBalance,
-      excessHold
+      new_raw_available_balance,
+      new_hold_balance
     });
     
-    // ✅ CORRECT UPDATE LOGIC:
-    // raw_available_balance = raw_available_balance - amountFromRawBalance + excessHold
-    // hold_balance = old_hold_balance - amountFromHold
-    // balance = balance + calculatedAmount
+    // Update customer balances
     await executeQuery(
       `UPDATE customer_balances 
-       SET amtlimit = amtlimit - ? + ?, 
-           hold_balance = hold_balance - ?,
+       SET amtlimit = ?,
+           hold_balance = ?,
            balance = balance + ?,
            updated_at = ? 
        WHERE com_id = ?`,
-      [amountFromRawBalance, excessHold, amountFromHold, calculatedAmount, now, cl_id]
+      [new_raw_available_balance, new_hold_balance, calculatedAmount, now, cl_id]
     );
     
-    console.log('✅ Credit limit customer - Hold settlement complete');
-  }
-
-  // Get updated balances for logging
-  const updatedBalances = await executeQuery(
-    `SELECT amtlimit as raw_available_balance, balance, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
-    [cl_id]
-  );
-  
-  let new_raw_available_balance = null;
-  let new_available_balance = null;
-  let new_used_amount = old_used_amount + calculatedAmount;
-  
-  if (updatedBalances.length > 0) {
-    new_raw_available_balance = parseFloat(updatedBalances[0].raw_available_balance) || 0;
-    const new_hold_balance = parseFloat(updatedBalances[0].hold_balance) || 0;
-    new_available_balance = new_raw_available_balance + new_hold_balance;
+    console.log('✅ Credit limit customer - Updated balances:', {
+      new_raw_available_balance,
+      new_hold_balance,
+      calculatedAmount
+    });
   }
 
   // ✅ Update filling request with payment_status
@@ -1164,11 +1171,11 @@ async function handleCompletedStatus(data) {
       'payment_status'
     ];
     const baseVals = [
-      rid, fs_id, product_id, sub_product_id || null, 'Outward', oldstock, aqty, calculatedAmount,
+      rid, fs_id, product_id, chosenSubProduct || null, 'Outward', oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
       old_used_amount,
       new_used_amount,
-      isDayLimitCustomer ? null : new_available_balance,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // total available
       paymentStatus
     ];
 
@@ -1201,11 +1208,11 @@ async function handleCompletedStatus(data) {
       VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
     await executeQuery(insertHistoryQuery, [
-      rid, fs_id, product_id, sub_product_id || null, oldstock, aqty, calculatedAmount,
+      rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
       newStock, now, cl_id, userId,
       old_used_amount,
       new_used_amount,
-      isDayLimitCustomer ? null : new_available_balance,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
       paymentStatus
     ]);
   }
@@ -1245,6 +1252,14 @@ async function handleCompletedStatus(data) {
     previous_new_amount || 0,
     previous_new_amount + calculatedAmount
   );
+
+  console.log('✅ FINAL BALANCES AFTER COMPLETION:', {
+    new_raw_available_balance,
+    new_hold_balance,
+    new_used_amount,
+    total_available_after: new_raw_available_balance + new_hold_balance,
+    calculatedAmount
+  });
 
   return 'Request Completed Successfully';
 }
