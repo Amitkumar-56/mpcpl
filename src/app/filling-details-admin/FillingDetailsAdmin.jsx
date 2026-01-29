@@ -58,7 +58,6 @@ export default function FillingDetailsAdmin() {
     }
   }, [user, authLoading]);
 
-  // Auto-set status to Completed for Staff/Incharge when status is Processing
   useEffect(() => {
     if (requestData && user && ['1', '2'].includes(String(user.role))) {
       if (requestData.status === 'Processing') {
@@ -129,33 +128,6 @@ export default function FillingDetailsAdmin() {
     if (u.startsWith('public/')) return '/' + u.substring(7);
     return '/' + u;
   };
-  const openCrop = (docKey) => {
-    const src = uploadedFiles[docKey];
-    if (src) setCropModal({ open: true, src, docKey });
-  };
-  const closeCrop = () => setCropModal({ open: false, src: null, docKey: null });
-  const applyCenterCrop = async () => {
-    if (!cropModal.src || !cropModal.docKey) return;
-    const img = new Image();
-    img.src = cropModal.src;
-    await new Promise((resolve) => { img.onload = resolve; });
-    const size = Math.min(img.naturalWidth, img.naturalHeight);
-    const sx = (img.naturalWidth - size) / 2;
-    const sy = (img.naturalHeight - size) / 2;
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(img, sx, sy, size, size, 0, 0, size, size);
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const file = new File([blob], (formData[cropModal.docKey]?.name || `${cropModal.docKey}.png`), { type: blob.type || 'image/png' });
-      setFormData(prev => ({ ...prev, [cropModal.docKey]: file }));
-      const url = URL.createObjectURL(blob);
-      setUploadedFiles(prev => ({ ...prev, [cropModal.docKey]: url }));
-      closeCrop();
-    }, 'image/png', 0.92);
-  };
 
   if (authLoading) {
     return (
@@ -221,7 +193,9 @@ export default function FillingDetailsAdmin() {
         console.log('🔄 Current request status from API:', data.data.status);
         console.log('📊 Form data set to:', {
           aqty: data.data.aqty || data.data.qty || '',
-          status: data.data.status || 'Pending'
+          status: data.data.status || 'Pending',
+          fuel_price: data.data.fuel_price,
+          price: data.data.price
         });
       } else {
         throw new Error(data.error || 'Failed to fetch request details');
@@ -300,46 +274,43 @@ export default function FillingDetailsAdmin() {
       return;
     }
 
-    // Price must be set (> 0) for any status change
+    // ✅ Deal price check
     const currentPrice = parseFloat(requestData.fuel_price || requestData.price || 0);
-    if (currentPrice <= 0) {
+    
+    // ✅ Only show price modal for Admin roles (not staff/incharge)
+    const isStaffOrIncharge = user && ['1', '2'].includes(String(user.role));
+    
+    if (currentPrice <= 0 && !isStaffOrIncharge) {
       setShowPriceModal(true);
       return;
     }
 
+    // For staff/incharge, they can proceed even with 0 price
+    if (currentPrice <= 0 && isStaffOrIncharge) {
+      console.log('⚠️ Staff/Incharge proceeding with 0 price');
+    }
+
     // Pre-check credit/day/daily limit before Processing/Completed
-    if (formData.status === 'Processing' || formData.status === 'Completed') {
+    if ((formData.status === 'Processing' || formData.status === 'Completed') && !isStaffOrIncharge) {
       const requiredAmount = currentPrice * aqtyValue;
       const availAmt = parseFloat(requestData.available_balance || 0);
       const holdBal = parseFloat(requestData.hold_balance || 0);
-      const limitType = availableBalance.limitType;
-      if (limitType === 'credit') {
-        if (formData.status === 'Processing') {
-          if (availAmt <= 0 || availAmt < requiredAmount) {
-            setLimitTitle('Credit Limit Overdue');
-            setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availAmt.toFixed(2)}. Please increase limit or reduce quantity.`);
-            setShowLimitModal(true);
-            return;
-          }
-        } else {
-          const combined = availAmt + holdBal;
-          if (combined <= 0 || combined < requiredAmount) {
-            setLimitTitle('Credit Limit Overdue');
-            setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${combined.toFixed(2)}. Please increase limit or reduce quantity.`);
-            setShowLimitModal(true);
-            return;
-          }
+      
+      if (formData.status === 'Processing') {
+        if (availAmt <= 0 || availAmt < requiredAmount) {
+          setLimitTitle('Credit Limit Overdue');
+          setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availAmt.toFixed(2)}. Please increase limit or reduce quantity.`);
+          setShowLimitModal(true);
+          return;
         }
-      } else if (limitType === 'daily' && availableBalance.isInsufficient) {
-        setLimitTitle('Daily Limit Overdue');
-        setLimitMessage('Daily limit is exhausted. Please wait for reset or contact Admin.');
-        setShowLimitModal(true);
-        return;
-      } else if (limitType === 'day' && availableBalance.isInsufficient) {
-        setLimitTitle('Day Limit Overdue');
-        setLimitMessage('Credit days have expired. Please clear outstanding or renew limit.');
-        setShowLimitModal(true);
-        return;
+      } else {
+        const combined = availAmt + holdBal;
+        if (combined <= 0 || combined < requiredAmount) {
+          setLimitTitle('Credit Limit Overdue');
+          setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${combined.toFixed(2)}. Please increase limit or reduce quantity.`);
+          setShowLimitModal(true);
+          return;
+        }
       }
     }
 
@@ -378,6 +349,7 @@ export default function FillingDetailsAdmin() {
 
       console.log('📤 Submitting form data with status:', formData.status);
       console.log('🔹 Current page status:', requestData.status);
+      console.log('💰 Deal price being sent:', requestData.fuel_price || requestData.price || 0);
 
       const response = await fetch('/api/filling-details-admin', {
         method: 'POST',
@@ -407,8 +379,8 @@ export default function FillingDetailsAdmin() {
           case 'Completed':
             successMessage = 'Request Completed Successfully!';
             break;
-          case 'Cancelled':
-            successMessage = 'Request Cancelled Successfully!';
+          case 'Cancel':
+            successMessage = 'Request Cancelled Successfully! Hold balance restored to amtlimit.';
             break;
           default:
             successMessage = result.message || 'Request updated successfully!';
@@ -419,7 +391,7 @@ export default function FillingDetailsAdmin() {
         // IMMEDIATELY update local state to show new status
         setRequestData(prev => ({
           ...prev,
-          status: formData.status // Use the status from form
+          status: formData.status
         }));
 
         console.log('🔄 Local state updated to:', formData.status);
@@ -427,15 +399,14 @@ export default function FillingDetailsAdmin() {
         // Refresh data from server to confirm
         await fetchRequestDetails();
 
-        // ✅✅✅ FIXED: Redirect ONLY for Completed and Cancelled status
-        if (formData.status === 'Completed' || formData.status === 'Cancelled') {
+        // ✅✅✅ Redirect ONLY for Completed and Cancelled status
+        if (formData.status === 'Completed' || formData.status === 'Cancel') {
           console.log('🔀 Redirecting to filling-requests page for Completed/Cancelled status');
           setTimeout(() => {
             router.push('/filling-requests');
           }, 1500);
         } else {
           console.log('📍 Staying on same page for Processing status');
-          // Stay on the same page for Processing status
         }
 
       } else {
@@ -458,10 +429,39 @@ export default function FillingDetailsAdmin() {
     setSubmitting(true);
     try {
       const submitData = new FormData();
+      
       submitData.append('id', id);
       submitData.append('rid', requestData.rid);
-      submitData.append('status', 'Cancelled'); // ✅ FIXED: Use 'Cancelled' instead of 'Cancel'
+      submitData.append('status', 'Cancel');
+      
+      submitData.append('fs_id', requestData.fs_id);
+      submitData.append('cl_id', requestData.cid);
+      submitData.append('product_id', requestData.product);
+      submitData.append('sub_product_id', requestData.sub_product_id || '');
+      submitData.append('billing_type', requestData.billing_type);
+      submitData.append('oldstock', requestData.station_stock || 0);
+      submitData.append('credit_limit', requestData.credit_limit || 0);
+      submitData.append('available_balance', requestData.available_balance || 0);
+      submitData.append('day_limit', requestData.day_limit || 0);
+      submitData.append('price', requestData.fuel_price || requestData.price || 0);
+      submitData.append('aqty', requestData.aqty || requestData.qty || 0);
+      
       submitData.append('remarks', cancelRemarks);
+      
+      const emptyBlob = new Blob([], { type: 'application/octet-stream' });
+      const emptyFile = new File([emptyBlob], 'empty.txt');
+      submitData.append('doc1', emptyFile);
+      submitData.append('doc2', emptyFile);
+      submitData.append('doc3', emptyFile);
+      
+      console.log('📤 Sending cancel request:', {
+        rid: requestData.rid,
+        status: 'Cancel',
+        cl_id: requestData.cid,
+        remarks: cancelRemarks,
+        available_balance: requestData.available_balance,
+        hold_balance: requestData.hold_balance
+      });
 
       const response = await fetch('/api/filling-details-admin', {
         method: 'POST',
@@ -469,25 +469,28 @@ export default function FillingDetailsAdmin() {
       });
 
       const result = await response.json();
+      console.log('✅ Cancel API response:', result);
 
       if (result.success) {
-        alert('Request cancelled successfully!');
-
+        alert('Request cancelled successfully! Hold balance restored to amtlimit.');
+        
         // Immediately update local state
         setRequestData(prev => ({
           ...prev,
-          status: 'Cancelled'
+          status: 'Cancel'
         }));
 
         setShowCancelModal(false);
         setCancelRemarks('');
+        
+        // Refresh data to show updated balances
         await fetchRequestDetails();
 
-        // ✅✅✅ FIXED: Redirect for Cancelled status
+        // ✅ Redirect for Cancelled status
         console.log('🔀 Redirecting to filling-requests page for Cancelled status');
         setTimeout(() => {
           router.push('/filling-requests');
-        }, 1500);
+        }, 2000);
       } else {
         throw new Error(result.error || result.message);
       }
@@ -500,11 +503,9 @@ export default function FillingDetailsAdmin() {
   };
 
   const handleRenewLimit = () => {
-    // Redirect to credit limit page for this customer
     router.push(`/credit-limit?id=${requestData.cid}`);
   };
 
-  // Calculate available balance with CORRECTED logic including day limit
   const calculateAvailableBalance = () => {
     if (!requestData) {
       return {
@@ -516,7 +517,12 @@ export default function FillingDetailsAdmin() {
 
     const dayLimit = parseFloat(requestData.day_limit) || 0;
     const creditLimit = parseFloat(requestData.credit_limit) || 0;
-    const availableBalance = parseFloat(requestData.available_balance) || 0;
+    const rawAvailableBalance = parseFloat(requestData.raw_available_balance) || 0;
+    const holdBalance = parseFloat(requestData.hold_balance) || 0;
+    
+    // ✅ Calculate available balance = raw_available_balance + hold_balance
+    const availableBalance = rawAvailableBalance + holdBalance;
+    
     const usedAmount = parseFloat(requestData.used_amount) || 0;
     const daysElapsed = parseFloat(requestData.days_elapsed) || 0;
     const remainingDays = parseFloat(requestData.remaining_days) || 0;
@@ -532,7 +538,9 @@ export default function FillingDetailsAdmin() {
         creditLimit,
         usedAmount,
         daysElapsed,
-        remainingDays
+        remainingDays,
+        holdBalance,
+        rawAvailableBalance
       };
     }
 
@@ -546,7 +554,9 @@ export default function FillingDetailsAdmin() {
         creditLimit,
         usedAmount,
         daysElapsed,
-        remainingDays
+        remainingDays,
+        holdBalance,
+        rawAvailableBalance
       };
     } else {
       // Credit limit system active
@@ -558,7 +568,9 @@ export default function FillingDetailsAdmin() {
         creditLimit,
         usedAmount,
         daysElapsed,
-        remainingDays
+        remainingDays,
+        holdBalance,
+        rawAvailableBalance
       };
     }
   };
@@ -566,13 +578,13 @@ export default function FillingDetailsAdmin() {
   const availableBalance = calculateAvailableBalance();
   const formatAmount = (value) => (Number(value || 0)).toLocaleString('en-IN');
 
-  // Calculate values for display
   const creditLimitTotal = parseFloat(requestData?.credit_limit) || 0;
   const availableBalanceAmount = parseFloat(requestData?.available_balance) || 0;
   const usedAmount = parseFloat(requestData?.used_amount) || 0;
+  const holdBalanceAmount = parseFloat(requestData?.hold_balance) || 0;
+  const rawAvailableBalance = parseFloat(requestData?.raw_available_balance) || 0;
 
   const dailyLimitTotal = parseFloat(requestData?.day_limit) || 0;
-  // ✅ FIXED: Since day_amount doesn't exist, set to 0
   const dailyUsedAmount = 0;
   const dailyAvailableAmount = Math.max(0, dailyLimitTotal - dailyUsedAmount);
 
@@ -588,13 +600,21 @@ export default function FillingDetailsAdmin() {
     ? `${availableBalance.remainingDays} days remaining`
     : `₹${formatAmount(availableBalance.limitType === 'daily'
       ? dailyAvailableAmount
-      : availableBalanceAmount)}`;
+      : availableBalance.availableBalance)}`;
 
   const limitExceededLabel = availableBalance.limitType === 'daily'
     ? 'Daily Limit'
     : availableBalance.limitType === 'credit'
       ? 'Credit Limit'
       : 'Day Limit';
+
+  const isStaffOrIncharge = user && ['1', '2'].includes(String(user.role));
+
+  const getDealPrice = () => {
+    return parseFloat(requestData?.fuel_price || requestData?.price || 0);
+  };
+  
+  const dealPrice = getDealPrice();
 
   // Loading component
   if (loading) {
@@ -659,6 +679,7 @@ export default function FillingDetailsAdmin() {
 
   const getStatusClass = (status) => {
     switch (status) {
+      case 'Cancel':
       case 'Cancelled':
         return 'bg-red-100 text-red-800 border-red-200';
       case 'Processing':
@@ -674,12 +695,10 @@ export default function FillingDetailsAdmin() {
 
   const calculateAmount = () => {
     const aqty = parseFloat(formData.aqty) || 0;
-    const price = requestData.fuel_price || requestData.price || 0;
+    const price = dealPrice;
     return (aqty * price).toFixed(2);
   };
-  const currentDealPrice = parseFloat(requestData?.fuel_price || requestData?.price || 0) || 0;
 
-  // ✅ FIXED: Check for all cancelled status variations
   const isFinalStatus = requestData.status === 'Cancel' ||
     requestData.status === 'Cancelled' ||
     requestData.status === 'Completed';
@@ -726,17 +745,31 @@ export default function FillingDetailsAdmin() {
                     {requestData.status_updated_by_name && requestData.status !== 'Processing' && requestData.status !== 'Completed' && (
                       <span className="text-xs text-gray-600">By: {requestData.status_updated_by_name}</span>
                     )}
-                    {availableBalance.isInsufficient && (
+                    
+                    {/* ✅ Hide limit exceeded badge for Staff/Incharge */}
+                    {availableBalance.isInsufficient && !isStaffOrIncharge && (
                       <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800 border border-red-200">
                         {limitExceededLabel} Exceeded
                       </span>
                     )}
+                    
+                    {/* ✅ Hide hold balance for Staff/Incharge */}
+                    {holdBalanceAmount > 0 && !isStaffOrIncharge && (
+                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-orange-100 text-orange-800 border border-orange-200">
+                        Hold Balance: ₹{formatAmount(holdBalanceAmount)}
+                      </span>
+                    )}
+                    
+                    {/* ✅ DEAL PRICE ALWAYS SHOW - FOR ALL USERS */}
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800 border border-green-200">
+                      Deal Price: ₹{dealPrice.toFixed(2)}
+                    </span>
                   </div>
                 </div>
               </div>
 
-              {/* Limit Alert */}
-              {availableBalance.isInsufficient && (
+              {/* ✅ Hide Limit Alert for Staff/Incharge */}
+              {availableBalance.isInsufficient && !isStaffOrIncharge && (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
                   <div className="flex items-center">
                     <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
@@ -760,6 +793,25 @@ export default function FillingDetailsAdmin() {
                             Day Limit: {dailyLimitTotal} days, Days Elapsed: {availableBalance.daysElapsed} days, Remaining: {availableBalance.remainingDays} days
                           </>
                         )}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ✅ Hide Hold Balance Alert for Staff/Incharge */}
+              {requestData.status === 'Processing' && holdBalanceAmount > 0 && !isStaffOrIncharge && (
+                <div className="bg-orange-50 border border-orange-200 rounded-lg p-4 mb-6">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-orange-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div>
+                      <p className="text-orange-700 font-medium">
+                        Hold Balance Active: ₹{formatAmount(holdBalanceAmount)}
+                      </p>
+                      <p className="text-orange-600 text-sm">
+                        This amount is reserved from raw available balance. If request is cancelled, this amount will be restored.
                       </p>
                     </div>
                   </div>
@@ -791,10 +843,11 @@ export default function FillingDetailsAdmin() {
                         <tr className="flex flex-col md:table-row">
                           <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Deal Price</td>
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
-                            {currentDealPrice > 0 ? (
-                              <span className="text-green-600 font-medium">₹{currentDealPrice}</span>
-                            ) : (
-                              <span className="text-red-600 font-medium">Price not set</span>
+                            <span className={dealPrice > 0 ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+                              ₹{dealPrice.toFixed(2)}
+                            </span>
+                            {dealPrice === 0 && (
+                              <span className="text-xs text-gray-500 ml-2">(Not set in deal_price table)</span>
                             )}
                           </td>
                         </tr>
@@ -817,8 +870,42 @@ export default function FillingDetailsAdmin() {
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.client_phone}</td>
                         </tr>
 
-                        {/* Limit Information - CORRECTED with Day Limit Details */}
-                        {availableBalance.limitType === 'daily' && (
+                        {/* ✅ Hide Raw Available Balance Display for Staff/Incharge */}
+                        {!isStaffOrIncharge && (
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Raw Available Balance</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm font-medium text-blue-600 break-words">
+                              ₹{formatAmount(rawAvailableBalance)}
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* ✅ Hide Hold Balance Display for Staff/Incharge */}
+                        {holdBalanceAmount > 0 && !isStaffOrIncharge && (
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Hold Balance</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm font-medium text-orange-600 break-words">
+                              ₹{formatAmount(holdBalanceAmount)}
+                              <span className="text-xs text-gray-500 ml-2">(Will be restored to raw available balance if cancelled)</span>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* ✅ Hide Total Available Balance Display for Staff/Incharge */}
+                        {!isStaffOrIncharge && (
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Total Available Balance</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm font-medium break-words">
+                              <span className={availableBalance.isInsufficient ? 'text-red-600' : 'text-green-600'}>
+                                ₹{formatAmount(availableBalance.availableBalance)}
+                              </span>
+                              <span className="text-xs text-gray-500 ml-2">(Raw + Hold)</span>
+                            </td>
+                          </tr>
+                        )}
+
+                        {/* Limit Information - Hide for Staff/Incharge */}
+                        {!isStaffOrIncharge && availableBalance.limitType === 'daily' && (
                           <>
                             <tr className="flex flex-col md:table-row">
                               <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Daily Limit</td>
@@ -839,7 +926,7 @@ export default function FillingDetailsAdmin() {
                           </>
                         )}
 
-                        {availableBalance.limitType === 'credit' && (
+                        {!isStaffOrIncharge && availableBalance.limitType === 'credit' && (
                           <>
                             <tr className="hidden">
                               <td className="px-4 py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Credit Limit</td>
@@ -860,7 +947,7 @@ export default function FillingDetailsAdmin() {
                           </>
                         )}
 
-                        {availableBalance.limitType === 'day' && (
+                        {!isStaffOrIncharge && availableBalance.limitType === 'day' && (
                           <>
                             <tr className="flex flex-col md:table-row">
                               <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Day Limit (Credit Days)</td>
@@ -868,7 +955,7 @@ export default function FillingDetailsAdmin() {
                             </tr>
                             <tr className="flex flex-col md:table-row">
                               <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Days Elapsed</td>
-                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{availableBalance.daysElapsed} days</td>
+                              <td className="px-3 md:px-4 py-2 md-py-3 text-sm text-gray-900 break-words">{availableBalance.daysElapsed} days</td>
                             </tr>
                             <tr className="flex flex-col md:table-row">
                               <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Remaining Days</td>
@@ -877,19 +964,6 @@ export default function FillingDetailsAdmin() {
                                   {availableBalance.remainingDays} days
                                 </span>
                               </td>
-                            </tr>
-                            <tr className="flex flex-col md:table-row">
-                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">First Transaction Date</td>
-                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
-                                {requestData.first_completed_date ?
-                                  new Date(requestData.first_completed_date).toLocaleDateString('en-IN') :
-                                  'No completed transactions'
-                                }
-                              </td>
-                            </tr>
-                            <tr className="flex flex-col md:table-row">
-                              <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Limit Mode</td>
-                              <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">Unlimited requests within credit days window</td>
                             </tr>
                           </>
                         )}
@@ -991,7 +1065,7 @@ export default function FillingDetailsAdmin() {
                 </div>
               </div>
 
-              {/* Activity Logs Section - Always show with button to view logs */}
+              {/* Activity Logs Section */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden">
                 <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-gray-900 flex items-center">
@@ -1019,7 +1093,7 @@ export default function FillingDetailsAdmin() {
                   {requestData.logs && (requestData.logs.created_by_name || requestData.logs.processed_by_name || requestData.logs.completed_by_name || requestData.logs.cancelled_by_name) ? (
                     <>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                        {/* Created By - Show for customer or employee, but hide if SWIFT (default/system name) */}
+                        {/* Created By */}
                         {requestData.logs && requestData.logs.created_by_name &&
                           requestData.logs.created_by_name !== 'System' &&
                           requestData.logs.created_by_name.toUpperCase() !== 'SWIFT' && (
@@ -1051,7 +1125,7 @@ export default function FillingDetailsAdmin() {
                               )}
                             </div>
                           )}
-                        {/* Processed By - Only employee/admin */}
+                        {/* Processed By */}
                         {requestData.logs && requestData.logs.processed_by_name && (
                           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                             <div className="flex items-center mb-2">
@@ -1078,7 +1152,7 @@ export default function FillingDetailsAdmin() {
                             )}
                           </div>
                         )}
-                        {/* Completed By - Only employee/admin */}
+                        {/* Completed By */}
                         {requestData.logs && requestData.logs.completed_by_name && (
                           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
                             <div className="flex items-center mb-2">
@@ -1094,29 +1168,6 @@ export default function FillingDetailsAdmin() {
                             {(requestData.logs.completed_date || requestData.logs.completed_date_formatted) && (
                               <p className="text-xs text-gray-500 mt-1">
                                 {requestData.logs.completed_date_formatted || new Date(requestData.logs.completed_date).toLocaleString('en-IN', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit',
-                                  hour12: true
-                                })}
-                              </p>
-                            )}
-                          </div>
-                        )}
-                        {requestData.logs.cancelled_by_name && (
-                          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                            <div className="flex items-center mb-2">
-                              <svg className="w-5 h-5 text-red-500 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 11-16 0 8 8 0 0116 0zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                              </svg>
-                              <span className="text-sm font-semibold text-red-900">Cancelled By</span>
-                            </div>
-                            <p className="text-sm text-gray-700 font-medium">{requestData.logs.cancelled_by_name}</p>
-                            {requestData.logs.cancelled_date && (
-                              <p className="text-xs text-gray-500 mt-1">
-                                {new Date(requestData.logs.cancelled_date).toLocaleString('en-IN', {
                                   day: '2-digit',
                                   month: '2-digit',
                                   year: 'numeric',
@@ -1190,23 +1241,42 @@ export default function FillingDetailsAdmin() {
                 </div>
               </div>
 
-              {/* ✅✅✅ FIXED: Hide Update Request form for Completed and ALL Cancelled status variations */}
+              {/* ✅ Hide Update Request form for Completed and ALL Cancelled status variations */}
               {!isFinalStatus && (
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
                   <div className="px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-b border-gray-200">
                     <h2 className="text-base md:text-lg font-semibold text-gray-900 flex flex-col md:flex-row md:items-center gap-2 md:space-x-2">
-                      {/* Hide details for staff (1) and incharge (2) */}
-                      {!['1', '2'].includes(String(user?.role)) && (
+                      {/* ✅ Hide balance details for staff (1) and incharge (2) */}
+                      {!isStaffOrIncharge && (
                         <>
                           <span>Update Request</span>
                           <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>Available Stock: {requestData.station_stock || 0} Ltr</span>
                           <span className={`px-2 py-1 text-xs md:text-sm font-medium rounded w-fit ${availableBalance.isInsufficient ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
                             {limitBadgeLabel}: {limitBadgeValue}
                           </span>
+                          {/* ✅ Hide Hold Balance for Staff/Incharge */}
+                          {holdBalanceAmount > 0 && !isStaffOrIncharge && (
+                            <span className='bg-orange-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
+                              Hold Balance: ₹{formatAmount(holdBalanceAmount)}
+                            </span>
+                          )}
+                          {/* ✅ DEAL PRICE ALWAYS SHOW */}
+                          <span className='bg-blue-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
+                            Deal Price: ₹{dealPrice.toFixed(2)}
+                          </span>
                         </>
                       )}
-                      {['1', '2'].includes(String(user?.role)) && (
-                        <span>Update Request</span>
+                      {isStaffOrIncharge && (
+                        <>
+                          <span>Update Request</span>
+                          <span className='bg-yellow-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
+                            Available Stock: {requestData.station_stock || 0} Ltr
+                          </span>
+                          {/* ✅ DEAL PRICE ALWAYS SHOW - FOR STAFF/INCHARGE TOO */}
+                          <span className='bg-blue-400 text-black rounded px-2 py-1 text-xs md:text-sm font-medium w-fit'>
+                            Deal Price: ₹{dealPrice.toFixed(2)}
+                          </span>
+                        </>
                       )}
                     </h2>
                   </div>
@@ -1316,8 +1386,9 @@ export default function FillingDetailsAdmin() {
                                   Available stock: <span className="font-medium">{requestData.station_stock || 0} Ltr</span>
                                 </p>
                                 {formData.aqty && !isNaN(parseFloat(formData.aqty)) && (
-                                  <p className="mt-1 text-sm text-green-600 hidden">
+                                  <p className="mt-1 text-sm text-green-600">
                                     Calculated Amount: <span className="font-bold">₹{calculateAmount()}</span>
+                                    <span className="text-xs text-gray-500 ml-2">(Price: ₹{dealPrice.toFixed(2)})</span>
                                   </p>
                                 )}
                               </div>
@@ -1336,7 +1407,7 @@ export default function FillingDetailsAdmin() {
                                   onChange={handleInputChange}
                                   className="block w-full border border-gray-300 rounded-lg shadow-sm py-2 px-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
                                 >
-                                  {['1', '2'].includes(String(user?.role)) ? (
+                                  {isStaffOrIncharge ? (
                                     <>
                                       {requestData.status === 'Pending' && (
                                         <>
@@ -1354,10 +1425,15 @@ export default function FillingDetailsAdmin() {
                                       <option value="Pending">Pending</option>
                                       <option value="Processing">Processing</option>
                                       <option value="Completed">Completed</option>
-                                      <option value="Cancelled">Cancelled</option>
+                                      <option value="Cancel">Cancelled</option>
                                     </>
                                   )}
                                 </select>
+                                {formData.status === 'Cancel' && !isStaffOrIncharge && (
+                                  <p className="text-xs text-red-600 mt-1">
+                                    Note: Cancelling will restore hold balance to raw available balance
+                                  </p>
+                                )}
                               </div>
                             </td>
                           </tr>
@@ -1382,7 +1458,8 @@ export default function FillingDetailsAdmin() {
                             <td className="px-3 md:px-4 py-3 md:py-4 bg-gray-50"></td>
                             <td className="px-3 md:px-4 py-3 md:py-4">
                               <div className="flex flex-col sm:flex-row justify-end gap-3 md:space-x-4">
-                                {!['1', '2'].includes(String(user?.role)) && (
+                                {/* ✅ Hide Cancel button for Staff/Incharge */}
+                                {!isStaffOrIncharge && requestData.status === 'Processing' && (
                                   <button
                                     type="button"
                                     onClick={() => setShowCancelModal(true)}
@@ -1406,7 +1483,9 @@ export default function FillingDetailsAdmin() {
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                       </svg>
-                                      {formData.status === 'Processing' ? 'Processing...' : 'Updating...'}
+                                      {formData.status === 'Processing' ? 'Processing...' : 
+                                       formData.status === 'Cancel' ? 'Cancelling...' : 
+                                       'Updating...'}
                                     </>
                                   ) : (
                                     <>
@@ -1415,8 +1494,8 @@ export default function FillingDetailsAdmin() {
                                       </svg>
                                       {formData.status === 'Processing' ? 'Mark as Processing' :
                                         formData.status === 'Completed' ? 'Complete Request' :
-                                          formData.status === 'Cancelled' ? 'Cancel Request' :
-                                            'Update Request'}
+                                        formData.status === 'Cancel' ? 'Cancel Request' :
+                                        'Update Request'}
                                     </>
                                   )}
                                 </button>
@@ -1459,11 +1538,6 @@ export default function FillingDetailsAdmin() {
                         Completed by: <span className="font-semibold">{requestData.completed_by_name}</span>
                       </p>
                     )}
-                    {requestData.status === 'Processing' && requestData.processing_by_name && (
-                      <p className="text-sm text-gray-600 mb-2">
-                        Processing by: <span className="font-semibold">{requestData.processing_by_name}</span>
-                      </p>
-                    )}
                     <p className="text-gray-600 mb-4">
                       {requestData.status === 'Completed'
                         ? 'This filling request has been completed successfully.'
@@ -1482,11 +1556,21 @@ export default function FillingDetailsAdmin() {
                 </div>
               )}
 
-              {/* Cancel Modal */}
-              {showCancelModal && (
+              {/* Cancel Modal - Hide for Staff/Incharge */}
+              {showCancelModal && !isStaffOrIncharge && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                   <div className="bg-white rounded-lg p-6 w-96">
                     <h3 className="text-lg font-semibold mb-4">Cancel Request</h3>
+                    {holdBalanceAmount > 0 && (
+                      <div className="bg-orange-50 border border-orange-200 rounded-lg p-3 mb-4">
+                        <p className="text-sm text-orange-700">
+                          ⚠️ Hold Balance: <span className="font-bold">₹{formatAmount(holdBalanceAmount)}</span>
+                        </p>
+                        <p className="text-xs text-orange-600 mt-1">
+                          This amount will be restored to raw available balance after cancellation.
+                        </p>
+                      </div>
+                    )}
                     <textarea
                       value={cancelRemarks}
                       onChange={(e) => setCancelRemarks(e.target.value)}
@@ -1514,8 +1598,8 @@ export default function FillingDetailsAdmin() {
                 </div>
               )}
 
-              {/* Limit Overdue Modal */}
-              {showLimitModal && (
+              {/* Limit Overdue Modal - Hide for Staff/Incharge */}
+              {showLimitModal && !isStaffOrIncharge && (
                 <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
                   <div className="bg-white rounded-lg p-6 w-96">
                     <h3 className="text-lg font-semibold mb-4 text-red-600">{limitTitle}</h3>
@@ -1527,26 +1611,19 @@ export default function FillingDetailsAdmin() {
                       >
                         Close
                       </button>
-                      {!(user && (String(user.role) === '1' || String(user.role) === '2')) && (
-                        <button
-                          onClick={handleRenewLimit}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                        >
-                          Renew Limit
-                        </button>
-                      )}
-                      {(user && (String(user.role) === '1' || String(user.role) === '2')) && (
-                        <span className="text-red-600 self-center">
-                          Please contact Admin to update limit then process
-                        </span>
-                      )}
+                      <button
+                        onClick={handleRenewLimit}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                      >
+                        Renew Limit
+                      </button>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Deal Price Modal - No Backdrop */}
-              {showPriceModal && (
+              {/* Deal Price Modal - Show only for non-Staff/Incharge */}
+              {showPriceModal && !isStaffOrIncharge && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
                   <div className="bg-white rounded-lg shadow-xl p-6 w-96 border border-gray-200 pointer-events-auto">
                     <h3 className="text-lg font-semibold mb-4 text-red-600">Deal Price Alert</h3>
@@ -1558,19 +1635,12 @@ export default function FillingDetailsAdmin() {
                       >
                         Close
                       </button>
-                      {!(user && (String(user.role) === '1' || String(user.role) === '2')) && (
-                        <button
-                          onClick={handleRenewLimit}
-                          className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                        >
-                          Renew Limit
-                        </button>
-                      )}
-                      {(user && (String(user.role) === '1' || String(user.role) === '2')) && (
-                        <span className="text-red-600 self-center">
-                          Please contact Admin to update limit then process
-                        </span>
-                      )}
+                      <button
+                        onClick={handleRenewLimit}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+                      >
+                        Renew Limit
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1579,7 +1649,7 @@ export default function FillingDetailsAdmin() {
           </div>
         </main>
         <Footer />
-      </div >
-    </div >
+      </div>
+    </div>
   );
 }
