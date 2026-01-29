@@ -8,15 +8,13 @@ import Header from "../../components/Header";
 import Sidebar from "../../components/sidebar";
 
 // OTP Modal Component - Fully Responsive
-// OTP Modal Component - Fully Responsive
-// OTP Modal Component - Fully Responsive
-const OtpModal = ({ 
-  requestId, 
-  requestRid, 
+const OtpModal = ({
+  requestId,
+  requestRid,
   generatedOtp,
-  onClose, 
+  onClose,
   onVerify,
-  onResend 
+  onResend
 }) => {
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
@@ -77,7 +75,7 @@ const OtpModal = ({
   const handlePaste = (e) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text/plain').slice(0, 6);
-    
+
     if (/^\d{6}$/.test(pastedData)) {
       const digits = pastedData.split('');
       const newOtp = [...otp];
@@ -87,7 +85,7 @@ const OtpModal = ({
         }
       });
       setOtp(newOtp);
-      
+
       // Focus last input
       setTimeout(() => {
         if (inputRefs.current[5]) {
@@ -117,7 +115,7 @@ const OtpModal = ({
 
   const handleResend = async () => {
     if (!canResend || loading) return;
-    
+
     setLoading(true);
     setError("");
     try {
@@ -150,7 +148,7 @@ const OtpModal = ({
               Request ID: <span className="font-mono font-semibold">{requestRid}</span>
             </p>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="ml-4 p-1 md:p-2 hover:bg-gray-100 rounded-full transition-colors flex-shrink-0"
             disabled={loading}
@@ -181,7 +179,7 @@ const OtpModal = ({
                 <p className="text-xs text-blue-600 mt-1">Please enter this OTP to process</p>
               </div>
             )}
-            
+
           </div>
 
           {/* OTP Inputs - Responsive */}
@@ -218,11 +216,10 @@ const OtpModal = ({
               <button
                 onClick={handleResend}
                 disabled={!canResend || loading}
-                className={`font-medium ${
-                  canResend 
-                    ? "text-blue-600 hover:text-blue-800" 
+                className={`font-medium ${canResend
+                    ? "text-blue-600 hover:text-blue-800"
                     : "text-gray-400 cursor-not-allowed"
-                }`}
+                  }`}
               >
                 {canResend ? "Resend OTP" : `Resend in ${timer}s`}
               </button>
@@ -276,7 +273,7 @@ const Icons = ({
 }) => {
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const hasMapLink = request.station_map_link && request.station_map_link !== "NULL";
-  
+
   // View button logic
   const canView = permissions.can_view && (
     (userRole === 3 || userRole === 4 || userRole === 5 || userRole === 7) ||
@@ -286,14 +283,14 @@ const Icons = ({
   );
 
   // Edit button logic based on role
-  const canEdit = userRole === 1 ? false : 
-                  userRole === 2 ? (request.eligibility === "Yes" && request.status === "Pending") || request.status === "Completed" :
-                  permissions.can_edit;
+  const canEdit = userRole === 1 ? false :
+    userRole === 2 ? (request.eligibility === "Yes" && request.status === "Pending") || request.status === "Completed" :
+      permissions.can_edit;
 
   // Get button title
   const getViewButtonTitle = () => {
     if (!permissions.can_view) return "No view permission";
-    
+
     if (request.status === "Pending") {
       if (request.eligibility === "Yes") {
         return "View & Process Request (OTP Required)";
@@ -323,11 +320,10 @@ const Icons = ({
             }
           }}
           disabled={!canView}
-          className={`p-1.5 rounded-full transition-colors ${
-            canView 
-              ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+          className={`p-1.5 rounded-full transition-colors ${canView
+              ? "text-blue-600 hover:bg-blue-50 cursor-pointer"
               : "text-gray-400 cursor-not-allowed opacity-50"
-          }`}
+            }`}
           title={getViewButtonTitle()}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -342,11 +338,10 @@ const Icons = ({
         <button
           onClick={() => onEdit(request.id)}
           disabled={!canEdit}
-          className={`p-1.5 rounded-full transition-colors ${
-            canEdit
+          className={`p-1.5 rounded-full transition-colors ${canEdit
               ? "text-green-600 hover:bg-green-50 cursor-pointer"
               : "text-gray-400 cursor-not-allowed opacity-50"
-          }`}
+            }`}
           title={canEdit ? "Edit Request" : "Cannot edit"}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -382,11 +377,10 @@ const Icons = ({
       <button
         onClick={() => stationPhone && onCall(stationPhone, request.loading_station)}
         disabled={!stationPhone}
-        className={`p-1.5 rounded-full transition-colors ${
-          stationPhone 
-            ? "text-green-600 hover:bg-green-50 cursor-pointer" 
+        className={`p-1.5 rounded-full transition-colors ${stationPhone
+            ? "text-green-600 hover:bg-green-50 cursor-pointer"
             : "text-gray-400 cursor-not-allowed opacity-50"
-        }`}
+          }`}
         title={stationPhone ? `Call Station\nStation: ${request.loading_station}\nPhone: ${stationPhone}` : "No phone number"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -398,11 +392,10 @@ const Icons = ({
       <button
         onClick={() => hasMapLink && onShare(request)}
         disabled={!hasMapLink}
-        className={`p-1.5 rounded-full transition-colors ${
-          hasMapLink 
-            ? "text-blue-600 hover:bg-blue-50 cursor-pointer" 
+        className={`p-1.5 rounded-full transition-colors ${hasMapLink
+            ? "text-blue-600 hover:bg-blue-50 cursor-pointer"
             : "text-gray-400 cursor-not-allowed opacity-50"
-        }`}
+          }`}
         title={hasMapLink ? "Share Station Location" : "No map location"}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -431,7 +424,7 @@ const Icons = ({
           title={`Send via WhatsApp to customer`}
         >
           <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335 .157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335 .157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
           </svg>
         </button>
       )}
@@ -455,7 +448,7 @@ const Icons = ({
 // Expanded Details Component
 const ExpandedDetails = ({ request, onClose, userRole = null }) => {
   if (!request) return null;
-  
+
   const stationPhone = request.station_phone && request.station_phone !== "NULL" ? request.station_phone : null;
   const stationEmail = request.station_email && request.station_email !== "NULL" ? request.station_email : null;
   const stationManager = request.station_manager && request.station_manager !== "NULL" ? request.station_manager : null;
@@ -464,7 +457,7 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
   const isStaff = userRole === 1;
   const isIncharge = userRole === 2;
   const isCompleted = request.status === "Completed";
-  
+
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -494,9 +487,8 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-600">Status</label>
-                <span className={`px-2 py-1 rounded-full text-xs ${
-                  request.status === "Completed" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
-                }`}>
+                <span className={`px-2 py-1 rounded-full text-xs ${request.status === "Completed" ? "bg-green-100 text-green-800" : "bg-gray-100 text-gray-800"
+                  }`}>
                   {request.status}
                 </span>
               </div>
@@ -510,12 +502,11 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                 </div>
                 <div>
                   <label className="text-sm font-medium text-gray-600">Status</label>
-                  <span className={`px-2 py-1 rounded-full text-xs ${
-                    request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
-                    request.status === "Processing" ? "bg-blue-100 text-blue-800" :
-                    request.status === "Completed" ? "bg-green-100 text-green-800" :
-                    "bg-red-100 text-red-800"
-                  }`}>
+                  <span className={`px-2 py-1 rounded-full text-xs ${request.status === "Pending" ? "bg-yellow-100 text-yellow-800" :
+                      request.status === "Processing" ? "bg-blue-100 text-blue-800" :
+                        request.status === "Completed" ? "bg-green-100 text-green-800" :
+                          "bg-red-100 text-red-800"
+                    }`}>
                     {request.status}
                   </span>
                 </div>
@@ -550,9 +541,8 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                 <div className="border-t pt-4">
                   <label className="text-sm font-medium text-gray-600">Eligibility Check</label>
                   <div className="mt-2">
-                    <span className={`px-2 py-1 rounded-full text-xs ${
-                      request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
-                    }`}>
+                    <span className={`px-2 py-1 rounded-full text-xs ${request.eligibility === "Yes" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"
+                      }`}>
                       {request.eligibility}
                     </span>
                     {request.eligibility_reason && (
@@ -612,7 +602,7 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                   </div>
                 </div>
               )}
-              
+
               <div className="border-t pt-4">
                 <label className="text-sm font-medium text-gray-600">Timeline</label>
                 <div className="mt-2 space-y-2">
@@ -624,17 +614,17 @@ const ExpandedDetails = ({ request, onClose, userRole = null }) => {
                     <div className="flex justify-between">
                       <span>Completed:</span>
                       <span>
-                        {request.completed_date_formatted || 
-                         (request.completed_date ? 
-                           new Date(request.completed_date).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true,
-                             timeZone: "Asia/Kolkata"
-                           }) : '')}
+                        {request.completed_date_formatted ||
+                          (request.completed_date ?
+                            new Date(request.completed_date).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                              timeZone: "Asia/Kolkata"
+                            }) : '')}
                       </span>
                     </div>
                   )}
@@ -668,7 +658,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
   // Staff: Hide completed requests
   const isStaff = userRole === 1;
   const isIncharge = userRole === 2;
-  
+
   if (isStaff && request.status === "Completed") {
     return null;
   }
@@ -681,7 +671,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         if (parsed?.image1) imgs.push(parsed.image1);
         if (parsed?.image2) imgs.push(parsed.image2);
         if (parsed?.image3) imgs.push(parsed.image3);
-      } catch {}
+      } catch { }
     }
     if (imgs.length === 0) {
       if (request.doc1) imgs.push(request.doc1);
@@ -703,7 +693,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         <td className="py-3 px-4 text-sm">{request.driver_number}</td>
         <td className="py-3 px-4 text-sm">
           <div className="flex items-center gap-2">
-            {getRequestImages().slice(0,3).map((src, idx) => (
+            {getRequestImages().slice(0, 3).map((src, idx) => (
               <button
                 key={idx}
                 onClick={() => setImagePreview(src)}
@@ -727,7 +717,7 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         <td className="py-3 px-4 text-sm">
           <div className="flex flex-col items-start gap-1">
             <span>
-              {request.completed_date_formatted 
+              {request.completed_date_formatted
                 ? request.completed_date_formatted.split(' ')[0]
                 : (request.completed_date && request.completed_date !== "0000-00-00 00:00:00"
                   ? new Date(request.completed_date).toLocaleDateString("en-IN", { timeZone: "Asia/Kolkata" })
@@ -779,9 +769,8 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                     <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
                     {request.eligibility ? (
                       <div className="flex flex-col items-start">
-                        <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                          request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                        }`}>
+                        <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                          }`}>
                           {request.eligibility}
                         </span>
                         {request.eligibility_reason && (
@@ -803,16 +792,16 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                     </div>
                     {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
                       <div className="text-xs text-gray-500 mt-1">
-                        {request.created_date_formatted || request.created_formatted || 
-                         (request.created_date || request.created ? 
-                           new Date(request.created_date || request.created).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true
-                           }) : '')}
+                        {request.created_date_formatted || request.created_formatted ||
+                          (request.created_date || request.created ?
+                            new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true
+                            }) : '')}
                       </div>
                     )}
                   </div>
@@ -842,17 +831,17 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                     </div>
                     {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
                       <div className="text-xs text-gray-500 mt-1">
-                        {request.completed_date_formatted || 
-                         (request.completed_date ? 
-                           new Date(request.completed_date).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true,
-                             timeZone: "Asia/Kolkata"
-                           }) : '')}
+                        {request.completed_date_formatted ||
+                          (request.completed_date ?
+                            new Date(request.completed_date).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true,
+                              timeZone: "Asia/Kolkata"
+                            }) : '')}
                       </div>
                     )}
                   </div>
@@ -861,16 +850,16 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                 {/* Actions */}
                 <div className="bg-white rounded-lg p-3 border border-gray-200">
                   <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-                  <Icons 
-                    request={request} 
+                  <Icons
+                    request={request}
                     onView={onView}
-                    onEdit={onEdit} 
-                    onExpand={onExpand} 
-                    onCall={onCall} 
-                    onShare={onShare} 
-                    onPdf={onPdf} 
-                    onShowDetails={onShowDetails} 
-                    permissions={permissions} 
+                    onEdit={onEdit}
+                    onExpand={onExpand}
+                    onCall={onCall}
+                    onShare={onShare}
+                    onPdf={onPdf}
+                    onShowDetails={onShowDetails}
+                    permissions={permissions}
                     userRole={userRole}
                     onOtpVerify={onOtpVerify}
                   />
@@ -932,7 +921,7 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
   // Staff: Hide completed requests
   const isStaff = userRole === 1;
   const isIncharge = userRole === 2;
-  
+
   if (isStaff && request.status === "Completed") {
     return null;
   }
@@ -1037,15 +1026,14 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                 </div>
               )}
             </div>
-            
+
             {/* Eligibility Check */}
             {request.status === "Pending" && request.eligibility && (
               <div className="bg-gray-50 p-3 rounded-md">
                 <div className="flex items-center justify-between">
                   <div className="font-medium text-gray-600 text-xs">Eligibility Check</div>
-                  <span className={`px-2 py-1 rounded-full text-xs text-white ${
-                    request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                  }`}>
+                  <span className={`px-2 py-1 rounded-full text-xs text-white ${request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                    }`}>
                     {request.eligibility}
                   </span>
                 </div>
@@ -1087,22 +1075,22 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               </svg>
             )}
           </button>
-          <Icons 
-            request={request} 
-            onView={onView} 
-            onEdit={onEdit} 
-            onExpand={onExpand} 
-            onCall={onCall} 
-            onShare={onShare} 
-            onPdf={onPdf} 
-            onShowDetails={onShowDetails} 
-            permissions={permissions} 
+          <Icons
+            request={request}
+            onView={onView}
+            onEdit={onEdit}
+            onExpand={onExpand}
+            onCall={onCall}
+            onShare={onShare}
+            onPdf={onPdf}
+            onShowDetails={onShowDetails}
+            permissions={permissions}
             userRole={userRole}
             onOtpVerify={onOtpVerify}
           />
         </div>
       </div>
-      
+
       {/* Expanded Details */}
       {isExpanded && !isStaffViewingCompleted && (
         <div className="mt-3 pt-3 border-t border-green-200 bg-green-50 rounded-lg p-4">
@@ -1133,9 +1121,8 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                 <div className="text-xs font-medium text-gray-500 mb-1">Eligibility Check</div>
                 {request.eligibility ? (
                   <>
-                    <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${
-                      request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
-                    }`}>
+                    <span className={`inline-block px-2 py-1 rounded-full text-white text-xs ${request.eligibility === "Yes" ? "bg-green-500" : "bg-red-500"
+                      }`}>
                       {request.eligibility}
                     </span>
                     {request.eligibility_reason && (
@@ -1155,16 +1142,16 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
                 <div className="text-sm text-gray-900">{request.created_by_name}</div>
                 {(request.created_date_formatted || request.created_formatted || request.created_date || request.created) && (
                   <div className="text-xs text-gray-500 mt-1">
-                    {request.created_date_formatted || request.created_formatted || 
-                     (request.created_date || request.created ? 
-                       new Date(request.created_date || request.created).toLocaleString("en-IN", {
-                         day: "2-digit",
-                         month: "2-digit",
-                         year: "numeric",
-                         hour: "2-digit",
-                         minute: "2-digit",
-                         hour12: true
-                       }) : '')}
+                    {request.created_date_formatted || request.created_formatted ||
+                      (request.created_date || request.created ?
+                        new Date(request.created_date || request.created).toLocaleString("en-IN", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: true
+                        }) : '')}
                   </div>
                 )}
               </div>
@@ -1202,16 +1189,16 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             {/* Actions */}
             <div className="bg-white rounded-lg p-3 border border-gray-200">
               <div className="text-xs font-medium text-gray-500 mb-2">Actions</div>
-              <Icons 
-                request={request} 
-                onView={onView} 
-                onEdit={onEdit} 
-                onExpand={onExpand} 
-                onCall={onCall} 
-                onShare={onShare} 
-                onPdf={onPdf} 
-                onShowDetails={onShowDetails} 
-                permissions={permissions} 
+              <Icons
+                request={request}
+                onView={onView}
+                onEdit={onEdit}
+                onExpand={onExpand}
+                onCall={onCall}
+                onShare={onShare}
+                onPdf={onPdf}
+                onShowDetails={onShowDetails}
+                permissions={permissions}
                 userRole={null}
                 onOtpVerify={onOtpVerify}
               />
@@ -1250,17 +1237,16 @@ const StatusFilters = ({ currentStatus, onStatusChange, userRole = null }) => {
         <button
           key={option.value}
           onClick={() => onStatusChange(option.value)}
-          className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-200 ${
-            currentStatus === option.value 
-              ? option.value === "" 
-                ? "bg-gray-700 text-white shadow-lg" 
+          className={`px-3 py-1.5 rounded-lg text-xs md:text-sm font-semibold transition-all duration-200 ${currentStatus === option.value
+              ? option.value === ""
+                ? "bg-gray-700 text-white shadow-lg"
                 : option.value === "Pending"
-                ? "bg-yellow-500 text-white shadow-lg"
-                : option.value === "Processing"
-                ? "bg-blue-600 text-white shadow-lg"
-                : "bg-green-600 text-white shadow-lg"
+                  ? "bg-yellow-500 text-white shadow-lg"
+                  : option.value === "Processing"
+                    ? "bg-blue-600 text-white shadow-lg"
+                    : "bg-green-600 text-white shadow-lg"
               : "bg-gray-200 text-gray-700 hover:bg-gray-300 shadow-sm"
-          }`}
+            }`}
         >
           {option.label}
         </button>
@@ -1292,8 +1278,8 @@ const SearchBar = ({ onSearch, initialValue = "" }) => {
         placeholder="Search by RID, Vehicle, Client, Station..."
         className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 md:pr-12"
       />
-      <button 
-        type="submit" 
+      <button
+        type="submit"
         className="absolute right-2 md:right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600 p-1 md:p-1.5"
         aria-label="Search"
       >
@@ -1449,9 +1435,9 @@ export default function FillingRequests() {
         ...(statusFilter && { status: statusFilter }),
         ...(search && { search: search }),
       });
-      
+
       const response = await fetch(`/api/filling-requests/export?${params}`);
-      
+
       if (response.ok) {
         const blob = await response.blob();
         const url = window.URL.createObjectURL(blob);
@@ -1479,7 +1465,7 @@ export default function FillingRequests() {
     }
   }, [user, authLoading, router]);
 
-  // Fetch requests
+  // Fetch requests - MODIFIED FOR STAFF/INCHARGE SEARCH
   useEffect(() => {
     const fetchRequests = async () => {
       try {
@@ -1488,6 +1474,8 @@ export default function FillingRequests() {
           records_per_page: searchParams.get("records_per_page") || "10",
           ...(statusFilter && { status: statusFilter }),
           ...(search && { search: search }),
+          // For staff and incharge, we need to only show pending requests when searching
+          ...((isStaff || isIncharge) && { forcePendingSearch: "true" })
         });
 
         const response = await fetch(`/api/filling-requests?${params}`);
@@ -1552,23 +1540,37 @@ export default function FillingRequests() {
         totalPages: 1,
       });
     }
-  }, [searchParams, statusFilter, search, user, hasPermission, authLoading]);
+  }, [searchParams, statusFilter, search, user, hasPermission, authLoading, isStaff, isIncharge]);
 
-  // Filter requests based on role
+  // Filter requests based on role - MODIFIED FOR BETTER SEARCH HANDLING
   useEffect(() => {
     if (requests.length > 0) {
       let filtered = requests;
-      
-      // Staff: Hide completed requests
-      if (isStaff) {
-        filtered = filtered.filter(request => request.status !== "Completed");
+
+      // For staff and incharge (roles 1 and 2)
+      if (isStaff || isIncharge) {
+        if (search) {
+          // When searching (e.g. by vehicle number), show ONLY pending requests
+          // This allows them to find the specific pending request they need to process
+          filtered = filtered.filter(request => request.status === "Pending");
+        } else {
+          // When NOT searching, HIDE pending requests
+          // "pending request nhi show hogi tab tak..."
+          filtered = filtered.filter(request => request.status !== "Pending");
+
+          // For staff: Also hide completed requests (show only Processing)
+          if (isStaff) {
+            filtered = filtered.filter(request => request.status !== "Completed");
+          }
+          // Incharge sees Processing + Completed (but not Pending)
+        }
       }
-      
+
       setFilteredRequests(filtered);
     } else {
       setFilteredRequests([]);
     }
-  }, [requests, isStaff]);
+  }, [requests, isStaff, isIncharge, search]);
 
   // Handlers
   const handleStatusChange = useCallback((newStatus) => {
@@ -1606,12 +1608,12 @@ export default function FillingRequests() {
     if (request.status === "Pending" && request.eligibility === "Yes") {
       (async () => {
         try {
-          const token = typeof window !== 'undefined' 
-            ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '') 
+          const token = typeof window !== 'undefined'
+            ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '')
             : '';
           const res = await fetch('/api/process-request-otp', {
             method: 'POST',
-            headers: { 
+            headers: {
               'Content-Type': 'application/json',
               ...(token ? { 'Authorization': `Bearer ${token}` } : {})
             },
@@ -1641,17 +1643,17 @@ export default function FillingRequests() {
   const verifyOtp = async (requestId, otp) => {
     try {
       console.log('✅ Verifying OTP for request:', requestId);
-      
+
       const request = requests.find(req => req.id === requestId);
       if (!request) {
         throw new Error("Request not found");
       }
 
       // Check if we're in development mode
-      const isDevelopment = window.location.hostname === 'localhost' || 
-                           window.location.hostname.includes('dev') ||
-                           window.location.hostname.includes('staging') ||
-                           window.location.hostname.includes('127.0.0.1');
+      const isDevelopment = window.location.hostname === 'localhost' ||
+        window.location.hostname.includes('dev') ||
+        window.location.hostname.includes('staging') ||
+        window.location.hostname.includes('127.0.0.1');
 
       console.log('🌐 Environment check:', {
         hostname: window.location.hostname,
@@ -1659,46 +1661,46 @@ export default function FillingRequests() {
       });
 
       // API call to verify OTP and process
-      const token = typeof window !== 'undefined' 
-        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '') 
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '')
         : '';
       const processResponse = await fetch('/api/process-request-otp', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           requestId: requestId,
           otp: otp,
           userId: user?.id,
           isDevelopment: isDevelopment
         })
       });
-      
+
       const processResult = await processResponse.json();
-      
+
       if (processResponse.ok && processResult.success) {
         // Close OTP modal
         setOtpModal({ isOpen: false, requestId: null, requestRid: "", phoneNumber: null });
-        
+
         // Show success message
         alert(`✅ Request processed successfully!\n\nRequest ID: ${request.rid}\nNew Status: Processing`);
-        
+
         // Update local state
-        setRequests(prevRequests => 
-          prevRequests.map(req => 
-            req.id === requestId 
+        setRequests(prevRequests =>
+          prevRequests.map(req =>
+            req.id === requestId
               ? { ...req, status: 'Processing', eligibility: 'N/A' }
               : req
           )
         );
-        
+
         // Navigate to details page after 1 second
         setTimeout(() => {
           router.push(`/filling-details-admin?id=${requestId}`);
         }, 1000);
-        
+
         return true;
       } else {
         throw new Error(processResult.error || 'Failed to process request');
@@ -1710,12 +1712,12 @@ export default function FillingRequests() {
 
   const resendOtp = async (requestId) => {
     try {
-      const token = typeof window !== 'undefined' 
-        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '') 
+      const token = typeof window !== 'undefined'
+        ? (localStorage.getItem('token') || sessionStorage.getItem('token') || '')
         : '';
       const res = await fetch('/api/process-request-otp', {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           ...(token ? { 'Authorization': `Bearer ${token}` } : {})
         },
@@ -1741,13 +1743,13 @@ export default function FillingRequests() {
   const handleView = useCallback(async (requestId) => {
     try {
       const request = requests.find(req => req.id === requestId);
-      
+
       if (!request) {
         alert("Request not found");
         return;
       }
       router.push(`/filling-details-admin?id=${requestId}`);
-      
+
     } catch (error) {
       alert("Error processing request. Please try again.");
     }
@@ -1766,10 +1768,10 @@ export default function FillingRequests() {
       alert(`📞 No phone number available for station: ${stationName || "Unknown Station"}`);
       return;
     }
-    
+
     const cleanPhoneNumber = stationPhone.trim().replace(/[\s\-\(\)]/g, '');
     const isValidIndianNumber = /^[6-9]\d{9}$/.test(cleanPhoneNumber);
-    
+
     if (isValidIndianNumber) {
       window.open(`tel:+91${cleanPhoneNumber}`);
     } else if (cleanPhoneNumber.length >= 10) {
@@ -1782,22 +1784,22 @@ export default function FillingRequests() {
   const handleShare = useCallback(async (request) => {
     try {
       const stationMapLink = request.station_map_link && request.station_map_link !== "NULL" ? request.station_map_link : null;
-      
+
       if (!stationMapLink) {
         alert("🗺️ No Google Maps location available for this station");
         return;
       }
 
       let shareText = `⛽ Filling Request Details\n\n` +
-                     `📋 Request ID: ${request.rid}\n` +
-                     `🚚 Vehicle: ${request.vehicle_number}\n` +
-                     `👤 Client: ${request.customer_name || "N/A"}\n` +
-                     `⛽ Product: ${request.product_name || "N/A"}\n` +
-                     `📦 Quantity: ${request.qty} liters\n` +
-                     `🏭 Station: ${request.loading_station || "N/A"}\n` +
-                     `📍 Location: ${stationMapLink}\n` +
-                     `🔄 Status: ${request.status}\n\n` +
-                     `📅 Created: ${request.created_formatted || request.created_date_formatted || (request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A")}`;
+        `📋 Request ID: ${request.rid}\n` +
+        `🚚 Vehicle: ${request.vehicle_number}\n` +
+        `👤 Client: ${request.customer_name || "N/A"}\n` +
+        `⛽ Product: ${request.product_name || "N/A"}\n` +
+        `📦 Quantity: ${request.qty} liters\n` +
+        `🏭 Station: ${request.loading_station || "N/A"}\n` +
+        `📍 Location: ${stationMapLink}\n` +
+        `🔄 Status: ${request.status}\n\n` +
+        `📅 Created: ${request.created_formatted || request.created_date_formatted || (request.created ? new Date(request.created).toLocaleString("en-IN") : "N/A")}`;
 
       if (request.completed_date && request.completed_date !== "0000-00-00 00:00:00") {
         shareText += `\n✅ Completed: ${request.completed_date_formatted || new Date(request.completed_date).toLocaleString("en-IN")}`;
@@ -1828,12 +1830,12 @@ export default function FillingRequests() {
 
   const handlePdf = useCallback((requestId) => {
     const request = requests.find(req => req.id === requestId);
-    
+
     if (request && request.status !== "Completed") {
       alert("PDF can only be generated for completed requests");
       return;
     }
-    
+
     router.push(`/filling-requests/pdf-modal?id=${requestId}`);
   }, [requests, router]);
 
@@ -1866,7 +1868,7 @@ export default function FillingRequests() {
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
         onOtpVerify={handleOtpVerify}
-        permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
+        permissions={{ ...permissions, isAdmin: user && Number(user.role) === 5 }}
         userRole={userRole}
       />
     )), [filteredRequests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, handleOtpVerify, permissions, user, userRole]);
@@ -1885,7 +1887,7 @@ export default function FillingRequests() {
         onPdf={handlePdf}
         onShowDetails={handleShowDetails}
         onOtpVerify={handleOtpVerify}
-        permissions={{...permissions, isAdmin: user && Number(user.role) === 5}}
+        permissions={{ ...permissions, isAdmin: user && Number(user.role) === 5 }}
         userRole={userRole}
       />
     )), [filteredRequests, handleView, handleEdit, handleExpand, handleCall, handleShare, handlePdf, handleShowDetails, handleOtpVerify, permissions, user, userRole]);
@@ -1993,108 +1995,112 @@ export default function FillingRequests() {
 
             <>
               <div className="hidden md:block overflow-x-auto">
-                  <table className="min-w-full bg-white border rounded-lg">
-                    <thead>
-                      <tr className="bg-gray-100 text-gray-700">
-                        <th className="py-3 px-4 border-b">#</th>
-                        <th className="py-3 px-4 border-b">Request ID</th>
-                        <th className="py-3 px-4 border-b">Product</th>
-                        <th className="py-3 px-4 border-b">Loading Station</th>
-                        <th className="py-3 px-4 border-b">Vehicle No</th>
-                        <th className="py-3 px-4 border-b">Client Name</th>
-                        <th className="py-3 px-4 border-b">Driver Phone</th>
-                        <th className="py-3 px-4 border-b">Images</th>
-                        <th className="py-3 px-4 border-b">Date & Time</th>
-                        <th className="py-3 px-4 border-b">Completed Date</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {requestItems.length > 0 ? requestItems : (
-                        <tr>
-                          <td colSpan="9" className="py-8 text-center text-gray-500">
-                            <div className="flex flex-col items-center">
-                              <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                              </svg>
-                              <p className="text-lg font-medium">No requests found</p>
-                              <p className="text-sm text-gray-600 mt-1">
-                                {statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
-                              </p>
-                              {search && (
-                                <p className="text-sm text-gray-600">Try changing your search criteria</p>
+                <table className="min-w-full bg-white border rounded-lg">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700">
+                      <th className="py-3 px-4 border-b">#</th>
+                      <th className="py-3 px-4 border-b">Request ID</th>
+                      <th className="py-3 px-4 border-b">Product</th>
+                      <th className="py-3 px-4 border-b">Loading Station</th>
+                      <th className="py-3 px-4 border-b">Vehicle No</th>
+                      <th className="py-3 px-4 border-b">Client Name</th>
+                      <th className="py-3 px-4 border-b">Driver Phone</th>
+                      <th className="py-3 px-4 border-b">Images</th>
+                      <th className="py-3 px-4 border-b">Date & Time</th>
+                      <th className="py-3 px-4 border-b">Completed Date</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requestItems.length > 0 ? requestItems : (
+                      <tr>
+                        <td colSpan="9" className="py-8 text-center text-gray-500">
+                          <div className="flex flex-col items-center">
+                            <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <p className="text-lg font-medium">No requests found</p>
+                            <p className="text-sm text-gray-600 mt-1">
+                              {search ? "No matching requests found" :
+                                statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
+                              {(isStaff || isIncharge) && search && (
+                                <span className="block text-xs mt-1">Showing only pending requests for search</span>
                               )}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                            </p>
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
 
-                <div className="block md:hidden">
-                  {mobileRequestItems.length > 0 ? mobileRequestItems : (
-                    <div className="text-center py-8 text-gray-500">
-                      <div className="flex flex-col items-center">
-                        <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        <p className="text-lg font-medium">No requests found</p>
-                        <p className="text-sm text-gray-600 mt-1">
-                          {statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {pagination.totalPages > 1 && (
-                  <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-3">
-                    <div className="text-sm text-gray-600">
-                      Showing {(pagination.page - 1) * pagination.recordsPerPage + 1} to{" "}
-                      {Math.min(pagination.page * pagination.recordsPerPage, pagination.totalRecords)} of{" "}
-                      {pagination.totalRecords} entries
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <button
-                        onClick={() => handlePageChange(pagination.page - 1)}
-                        disabled={pagination.page === 1}
-                        className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm"
-                      >
-                        Previous
-                      </button>
-                      {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
-                        let pageNum;
-                        if (pagination.totalPages <= 5) {
-                          pageNum = i + 1;
-                        } else if (pagination.page <= 3) {
-                          pageNum = i + 1;
-                        } else if (pagination.page >= pagination.totalPages - 2) {
-                          pageNum = pagination.totalPages - 4 + i;
-                        } else {
-                          pageNum = pagination.page - 2 + i;
-                        }
-                        return (
-                          <button
-                            key={pageNum}
-                            onClick={() => handlePageChange(pageNum)}
-                            className={`px-3 py-1 border rounded text-sm ${
-                              pagination.page === pageNum ? "bg-blue-600 text-white" : "hover:bg-gray-50"
-                            }`}
-                          >
-                            {pageNum}
-                          </button>
-                        );
-                      })}
-                      <button
-                        onClick={() => handlePageChange(pagination.page + 1)}
-                        disabled={pagination.page === pagination.totalPages}
-                        className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm"
-                      >
-                        Next
-                      </button>
+              <div className="block md:hidden">
+                {mobileRequestItems.length > 0 ? mobileRequestItems : (
+                  <div className="text-center py-8 text-gray-500">
+                    <div className="flex flex-col items-center">
+                      <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <p className="text-lg font-medium">No requests found</p>
+                      <p className="text-sm text-gray-600 mt-1">
+                        {search ? "No matching requests found" :
+                          statusFilter ? `No ${statusFilter} requests found` : "No requests in the system"}
+                        {(isStaff || isIncharge) && search && (
+                          <span className="block text-xs mt-1">Showing only pending requests for search</span>
+                        )}
+                      </p>
                     </div>
                   </div>
                 )}
+              </div>
+
+              {pagination.totalPages > 1 && (
+                <div className="flex flex-col sm:flex-row justify-between items-center mt-6 gap-3">
+                  <div className="text-sm text-gray-600">
+                    Showing {(pagination.page - 1) * pagination.recordsPerPage + 1} to{" "}
+                    {Math.min(pagination.page * pagination.recordsPerPage, pagination.totalRecords)} of{" "}
+                    {pagination.totalRecords} entries
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={() => handlePageChange(pagination.page - 1)}
+                      disabled={pagination.page === 1}
+                      className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm"
+                    >
+                      Previous
+                    </button>
+                    {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (pagination.totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (pagination.page <= 3) {
+                        pageNum = i + 1;
+                      } else if (pagination.page >= pagination.totalPages - 2) {
+                        pageNum = pagination.totalPages - 4 + i;
+                      } else {
+                        pageNum = pagination.page - 2 + i;
+                      }
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => handlePageChange(pageNum)}
+                          className={`px-3 py-1 border rounded text-sm ${pagination.page === pageNum ? "bg-blue-600 text-white" : "hover:bg-gray-50"
+                            }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                    <button
+                      onClick={() => handlePageChange(pagination.page + 1)}
+                      disabled={pagination.page === pagination.totalPages}
+                      className="px-3 py-1 border rounded disabled:opacity-50 hover:bg-gray-50 text-sm"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              )}
             </>
           </div>
 
@@ -2136,16 +2142,16 @@ export default function FillingRequests() {
                     </div>
                     {(detailsModal.created_date_formatted || detailsModal.created_formatted || detailsModal.created_date || detailsModal.created) && (
                       <div className="text-xs text-gray-500 mt-1">
-                        {detailsModal.created_date_formatted || detailsModal.created_formatted || 
-                         (detailsModal.created_date || detailsModal.created ? 
-                           new Date(detailsModal.created_date || detailsModal.created).toLocaleString("en-IN", {
-                             day: "2-digit",
-                             month: "2-digit",
-                             year: "numeric",
-                             hour: "2-digit",
-                             minute: "2-digit",
-                             hour12: true
-                           }) : '')}
+                        {detailsModal.created_date_formatted || detailsModal.created_formatted ||
+                          (detailsModal.created_date || detailsModal.created ?
+                            new Date(detailsModal.created_date || detailsModal.created).toLocaleString("en-IN", {
+                              day: "2-digit",
+                              month: "2-digit",
+                              year: "numeric",
+                              hour: "2-digit",
+                              minute: "2-digit",
+                              hour12: true
+                            }) : '')}
                       </div>
                     )}
                   </div>

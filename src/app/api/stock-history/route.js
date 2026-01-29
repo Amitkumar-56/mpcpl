@@ -1,16 +1,14 @@
+import { getCurrentUser } from "@/lib/auth";
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(request) {
   try {
-    // ✅ Check authentication silently - don't log warnings for normal unauthenticated requests
-    // Continue with data fetch even if auth check fails
+    // ✅ Silent authentication check
     try {
       const currentUser = await getCurrentUser();
-      // Silent auth check - don't log warnings
     } catch (authError) {
-      // Silent error - continue with data fetch
+      // Continue without authentication
     }
 
     const { searchParams } = new URL(request.url);
@@ -43,11 +41,11 @@ export async function GET(request) {
       console.log('⚠️ Could not check remarks column:', colError.message);
     }
 
-    // ✅ Fetch specific fields from filling_history table
-    // ✅ Ensure created_by name is fetched from employee_profile table properly
-    // ✅ Include "Edited" transactions in stock history
+    // ✅ SIMPLIFIED SQL query with loading_qty > 0 condition
     const stockTypeField = hasStockType ? 'fh.stock_type,' : '';
     const remarksField = hasRemarks ? 'fh.remarks,' : '';
+    
+    // ✅ Modified: Exclude records where filling_qty is 0
     let sql = `
       SELECT 
         fh.id,
@@ -67,27 +65,21 @@ export async function GET(request) {
         COALESCE(fs.station_name, 'Unknown Station') AS station_name,
         ep.name AS created_by_name,
         ep.id AS created_by_employee_id,
-        ep.emp_code AS created_by_emp_code
+        ep.emp_code AS created_by_emp_code,
+        fr.rid AS request_rid
       FROM filling_history AS fh
       LEFT JOIN products AS p ON fh.product_id = p.id
       LEFT JOIN filling_requests AS fr ON fh.rid = fr.rid
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
-      WHERE fh.trans_type IN ('Inward', 'Outward', 'Edited')
-        AND (
-          (fh.trans_type = 'Inward' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
-          OR
-          (fh.trans_type = 'Outward')
-          OR
-          (fh.trans_type = 'Edited' AND fh.available_stock IS NOT NULL AND fh.current_stock IS NOT NULL)
-        )
+      WHERE 1=1
+      AND fh.trans_type IN ('Inward', 'Outward', 'Edited')
+      AND (fh.filling_qty IS NOT NULL AND fh.filling_qty != 0)  -- ✅ Exclude zero loading qty
     `;
     
-    // Add condition to include NB Stock entries
+    // Add NB Stock condition if stock_type exists
     if (hasStockType) {
       sql += ` AND (fh.cl_id IS NULL OR fh.stock_type = 'NB Stock')`;
-    } else {
-      sql += ` AND fh.cl_id IS NULL`;
     }
 
     const params = [];
@@ -126,15 +118,35 @@ export async function GET(request) {
 
     console.log('✅ Stock History Rows Count:', rows?.length || 0);
     
-    // ✅ Debug: Check first few rows for created_by info
+    // ✅ Detailed debug log
     if (rows && rows.length > 0) {
-      console.log('🔍 Sample rows created_by info:', rows.slice(0, 3).map(r => ({
-        id: r.id,
-        created_by: r.created_by,
-        created_by_name: r.created_by_name,
-        created_by_employee_id: r.created_by_employee_id,
-        created_by_emp_code: r.created_by_emp_code
-      })));
+      console.log('🔍 Filtered Transactions (filling_qty > 0):');
+      
+      // Summary
+      const inwardRows = rows.filter(r => r.trans_type === 'Inward');
+      const outwardRows = rows.filter(r => r.trans_type === 'Outward');
+      const editedRows = rows.filter(r => r.trans_type === 'Edited');
+      
+      console.log('📊 Transaction Summary:', {
+        total: rows.length,
+        inward: inwardRows.length,
+        outward: outwardRows.length,
+        edited: editedRows.length,
+        zeroQtyExcluded: inwardRows.filter(r => parseFloat(r.filling_qty || 0) === 0).length
+      });
+      
+      // Show sample data
+      console.log('🔍 Sample rows (first 3):');
+      rows.slice(0, 3).forEach((row, index) => {
+        console.log(`Row ${index + 1}:`, {
+          id: row.id,
+          trans_type: row.trans_type,
+          filling_qty: row.filling_qty,
+          current_stock: row.current_stock,
+          available_stock: row.available_stock,
+          pname: row.pname
+        });
+      });
     }
 
     // ✅ Collect unique employee IDs that need name lookup
@@ -145,7 +157,7 @@ export async function GET(request) {
       }
     });
 
-    // ✅ Fetch all missing employee names in one query (better performance)
+    // ✅ Fetch all missing employee names in one query
     let employeeNameMap = {};
     if (missingEmployeeIds.size > 0) {
       try {
@@ -167,7 +179,7 @@ export async function GET(request) {
       }
     }
 
-    // ✅ Format created_by_name - always show employee name or ID, never "System"
+    // ✅ Format created_by_name and process data
     const formattedRows = rows.map((row) => {
       let displayName = null;
       
@@ -182,39 +194,65 @@ export async function GET(request) {
         } else {
           // Employee ID exists but not found in employee_profile
           if (row.created_by_emp_code) {
-            displayName = `Employee ID: ${row.created_by} (${row.created_by_emp_code})`;
+            displayName = `Emp: ${row.created_by} (${row.created_by_emp_code})`;
           } else {
-            displayName = `Employee ID: ${row.created_by}`;
+            displayName = `Emp: ${row.created_by}`;
           }
         }
       }
-      // If created_by is null or 0, displayName remains null (will be handled in UI)
+      
+      // ✅ Handle Outward transactions - get vehicle number
+      let vehicleNumber = row.vehicle_number || '';
+      if ((row.trans_type === 'Outward' || row.trans_type === 'Edited') && row.rid) {
+        // If vehicle_number is empty, try to extract from request_rid or use rid
+        if (!vehicleNumber && row.request_rid) {
+          vehicleNumber = row.request_rid;
+        }
+      }
+      
+      // ✅ Parse numeric values
+      const currentStock = row.current_stock !== null ? parseFloat(row.current_stock) : 0;
+      const fillingQty = row.filling_qty !== null ? parseFloat(row.filling_qty) : 0;
+      const availableStock = row.available_stock !== null ? parseFloat(row.available_stock) : 0;
       
       return {
         ...row,
+        vehicle_number: vehicleNumber,
+        current_stock: currentStock,
+        filling_qty: fillingQty,
+        available_stock: availableStock,
         created_by_name: displayName || row.created_by_name,
-        user_name: displayName || row.created_by_name // For backward compatibility
+        user_name: displayName || row.created_by_name
       };
     });
+
+    // ✅ Filter out rows where filling_qty is 0 (double check)
+    const filteredRows = formattedRows.filter(row => 
+      row.filling_qty > 0 || 
+      row.trans_type === 'Edited' // Edited transactions might have 0 qty change
+    );
+
+    console.log(`✅ After filtering zero qty rows: ${filteredRows.length} records`);
 
     const filling_stations = {};
     const productsSet = new Set();
 
-    formattedRows.forEach((row) => {
+    filteredRows.forEach((row) => {
       if (row.fs_id && row.station_name) {
         filling_stations[row.fs_id] = row.station_name;
       }
-      if (row.pname) {
+      if (row.pname && row.pname !== 'Unknown Product') {
         productsSet.add(row.pname);
       }
     });
 
     const products = Array.from(productsSet).sort();
 
-    console.log('✅ Stock History Response:', {
-      rowsCount: rows?.length || 0,
+    console.log('✅ Final Stock History Response:', {
+      rowsCount: filteredRows?.length || 0,
       stationsCount: Object.keys(filling_stations).length,
-      productsCount: products.length
+      productsCount: products.length,
+      outwardCount: filteredRows.filter(r => r.trans_type === 'Outward').length
     });
 
     return NextResponse.json({
@@ -222,7 +260,7 @@ export async function GET(request) {
       data: {
         filling_stations,
         products,
-        rows: formattedRows || [],
+        rows: filteredRows || [],
         filters: {
           pname: pname || "",
           from_date: from_date || "",
@@ -239,4 +277,3 @@ export async function GET(request) {
     );
   }
 }
-
