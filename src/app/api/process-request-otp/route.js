@@ -7,7 +7,7 @@ import { NextResponse } from 'next/server';
 export async function POST(request) {
   try {
     console.log('🔄 PROCESS REQUEST WITH OTP API CALLED');
-    
+
     // Get current user (fallback to token if needed)
     let currentUser = await getCurrentUser();
     if (!currentUser) {
@@ -33,24 +33,24 @@ export async function POST(request) {
             }
           }
         }
-      } catch {}
+      } catch { }
     }
     if (!currentUser) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
-    
+
     // Allow any authenticated employee to perform OTP operations
 
     const body = await request.json();
     const { requestId, otp, action } = body;
-    
-    console.log('📋 Process Request Data:', { 
-      requestId, 
+
+    console.log('📋 Process Request Data:', {
+      requestId,
       otp: otp ? '***masked***' : 'empty',
       userId: currentUser.userId,
       action: action || 'verify'
     });
-    
+
     if (!requestId) {
       return NextResponse.json(
         { success: false, error: 'Request ID is required' },
@@ -77,7 +77,7 @@ export async function POST(request) {
             { status: 403 }
           );
         }
-      } catch {}
+      } catch { }
 
       const reqRows = await executeQuery(
         `SELECT id, rid FROM filling_requests WHERE id = ? LIMIT 1`,
@@ -98,7 +98,7 @@ export async function POST(request) {
            VALUES (?, NULL, ?, NOW(), 2)`,
           [requestId, currentUser.userId]
         );
-      } catch {}
+      } catch { }
       return NextResponse.json({
         success: true,
         message: 'OTP generated and sent',
@@ -117,23 +117,23 @@ export async function POST(request) {
 
     // 1. Get request details
     const requestQuery = `
-      SELECT fr.*, c.name as customer_name, c.phone as customer_phone
+      SELECT fr.*, c.name as customer_name, c.client_type, c.phone as customer_phone
       FROM filling_requests fr
       LEFT JOIN customers c ON fr.cid = c.id
       WHERE fr.id = ?
     `;
-    
+
     const requestData = await executeQuery(requestQuery, [requestId]);
-    
+
     if (!requestData || requestData.length === 0) {
       return NextResponse.json(
         { success: false, error: 'Request not found' },
         { status: 404 }
       );
     }
-    
+
     const requestInfo = requestData[0];
-    
+
     // 2. Check if request is already processed
     if (requestInfo.status !== 'Pending') {
       return NextResponse.json({
@@ -144,7 +144,7 @@ export async function POST(request) {
         processed: true
       });
     }
-    
+
     // 3. OTP must match the latest stored on request
     if (String(requestInfo.otp || '') !== String(otp)) {
       return NextResponse.json(
@@ -152,9 +152,9 @@ export async function POST(request) {
         { status: 400 }
       );
     }
-    
+
     console.log('OTP Accepted:', otp);
-    
+
     try {
       await executeQuery(
         `INSERT INTO otp_logs (request_id, otp_entered, verified_by, verified_at, bypassed) 
@@ -164,7 +164,7 @@ export async function POST(request) {
     } catch (logError) {
       console.log('📝 OTP log skipped (table may not exist):', logError.message);
     }
-    
+
     // 4. Reserve amount atomically using amtlimit and hold_balance
     let productId = null;
     try {
@@ -177,7 +177,7 @@ export async function POST(request) {
           productId = prodRows[0].product_id;
         }
       }
-    } catch {}
+    } catch { }
     const qtyToUse = parseFloat(requestInfo.aqty || requestInfo.qty || 0) || 0;
     const price = await getFuelPrice(
       requestInfo.fs_id,
@@ -195,30 +195,46 @@ export async function POST(request) {
       }, { status: 400 });
     }
     const requiredAmount = price * qtyToUse;
-    const holdUpdate = await executeQuery(
-      `UPDATE customer_balances 
-       SET amtlimit = amtlimit - ?, 
-           hold_balance = hold_balance + ? 
-       WHERE com_id = ? 
-         AND (amtlimit - hold_balance) >= ?`,
-      [requiredAmount, requiredAmount, requestInfo.cid, requiredAmount]
-    );
-    if (!holdUpdate || holdUpdate.affectedRows === 0) {
-      const balRows = await executeQuery(
-        `SELECT amtlimit, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
-        [requestInfo.cid]
+
+    const isDayLimit = String(requestInfo.client_type) === '3';
+
+    if (isDayLimit) {
+      // For Day Limit customers (Type 3): DO NOT check or deduct from amtlimit.
+      // Simply update hold_balance to track potential usage.
+      await executeQuery(
+        `UPDATE customer_balances 
+         SET hold_balance = hold_balance + ? 
+         WHERE com_id = ?`,
+        [requiredAmount, requestInfo.cid]
       );
-      const amtlimit = balRows && balRows.length ? parseFloat(balRows[0].amtlimit || 0) : 0;
-      const hold = balRows && balRows.length ? parseFloat(balRows[0].hold_balance || 0) : 0;
-      const available = Math.max(0, amtlimit - hold);
-      return NextResponse.json({
-        success: false,
-        error: `Insufficient balance. Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${available.toFixed(2)}. Please contact Admin to update limit then process.`,
-        limitOverdue: true,
-        limitTitle: 'Credit Limit Overdue',
-        requiredAmount,
-        available
-      }, { status: 400 });
+    } else {
+      // For Credit Limit customers (Type 1 & 2): STRICTLY check amtlimit.
+      const holdUpdate = await executeQuery(
+        `UPDATE customer_balances 
+         SET amtlimit = amtlimit - ?, 
+             hold_balance = hold_balance + ? 
+         WHERE com_id = ? 
+           AND amtlimit >= ?`,
+        [requiredAmount, requiredAmount, requestInfo.cid, requiredAmount]
+      );
+
+      if (!holdUpdate || holdUpdate.affectedRows === 0) {
+        const balRows = await executeQuery(
+          `SELECT amtlimit, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
+          [requestInfo.cid]
+        );
+        const amtlimit = balRows && balRows.length ? parseFloat(balRows[0].amtlimit || 0) : 0;
+        // amtlimit IS the available limit for new requests
+        const available = Math.max(0, amtlimit);
+        return NextResponse.json({
+          success: false,
+          error: `Insufficient balance. Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${available.toFixed(2)}. Please contact Admin to update limit then process.`,
+          limitOverdue: true,
+          limitTitle: 'Credit Limit Overdue',
+          requiredAmount,
+          available
+        }, { status: 400 });
+      }
     }
 
     // 5. Update request status to Processing
@@ -229,11 +245,11 @@ export async function POST(request) {
        WHERE id = ?`,
       [currentUser.userId, requestId]
     );
-    
+
     if (updateResult.affectedRows === 0) {
       throw new Error('Failed to update request status');
     }
-    
+
     // 5. Create processing log
     await executeQuery(
       `INSERT INTO filling_logs 
@@ -241,7 +257,7 @@ export async function POST(request) {
        VALUES (?, ?, NOW())`,
       [requestInfo.rid, currentUser.userId]
     );
-    
+
     // 6. Create audit log
     try {
       const { createAuditLog } = await import('@/lib/auditLog');
@@ -260,9 +276,9 @@ export async function POST(request) {
     } catch (auditError) {
       console.error('Audit log error:', auditError);
     }
-    
+
     console.log('✅ Request processed successfully:', requestInfo.rid);
-    
+
     return NextResponse.json({
       success: true,
       message: 'Request processed successfully',
@@ -271,12 +287,12 @@ export async function POST(request) {
       processed: true,
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     console.error('❌ Process Request OTP API Error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         error: 'Internal server error',
         message: error.message,
         details: error.message

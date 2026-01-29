@@ -577,10 +577,10 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     const clientType = customerData.client_type;
     const rawAvailableBalance = parseFloat(customerData.raw_available_balance) || 0;
     const holdBalance = parseFloat(customerData.hold_balance) || 0;
-    
+
     // ✅ Calculate available balance = raw_available_balance + hold_balance
     const availableBalance = rawAvailableBalance + holdBalance;
-    
+
     const creditLimit = parseFloat(customerData.credit_limit) || 0;
     const dayLimit = parseInt(customerData.day_limit) || 0;
 
@@ -857,29 +857,13 @@ async function handleProcessingStatus(data) {
   });
 
   try {
-    // Check concurrent processing for same customer
-    const [activeProcessingRows] = await Promise.all([
-      executeQuery(
-        `SELECT COUNT(*) as cnt FROM filling_requests WHERE cid = ? AND status = 'Processing' AND rid <> ?`,
-        [cl_id, rid]
-      ),
-      executeQuery(
-        `SELECT amtlimit as raw_available_balance, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
-        [cl_id]
-      )
-    ]);
-    const processingCount = parseInt(activeProcessingRows?.cnt || 0);
-    const balanceInfoRows = Array.isArray(activeProcessingRows) ? [] : [];
+    // Check balance for processing
     const balanceInfo = (await executeQuery(
       `SELECT amtlimit as raw_available_balance, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
       [cl_id]
     ))[0] || { raw_available_balance: 0, hold_balance: 0 };
-    const currentRawBalance = parseFloat(balanceInfo.raw_available_balance) || 0;
-    const currentHold = parseFloat(balanceInfo.hold_balance) || 0;
 
-    if (processingCount > 0 || currentHold > 0) {
-      throw new Error('CONCURRENT_REQUEST_BLOCKED');
-    }
+    const currentRawBalance = parseFloat(balanceInfo.raw_available_balance) || 0;
 
     // Get current request details to compute hold amount
     const reqRows = await executeQuery(
@@ -900,9 +884,9 @@ async function handleProcessingStatus(data) {
       throw new Error('INVALID_HOLD_AMOUNT');
     }
 
-    // Calculate available balance = raw_available_balance + hold_balance
-    const availableBalance = currentRawBalance + currentHold;
-    
+    // Calculate available balance (AmtLimit only)
+    const availableBalance = currentRawBalance;
+
     if (availableBalance < holdAmount) {
       throw new Error('INSUFFICIENT_LIMIT');
     }
@@ -1046,11 +1030,11 @@ async function handleCompletedStatus(data) {
   if (isDayLimitCustomer) {
     // Day limit customer logic
     console.log('📅 Processing Day Limit Customer...');
-    
+
     // For day limit customers, just move from hold_balance to balance
     // Use from hold_balance if available
     const amountFromHold = Math.min(calculatedAmount, initial_hold_balance);
-    
+
     // Update customer balances
     await executeQuery(
       `UPDATE customer_balances 
@@ -1060,19 +1044,19 @@ async function handleCompletedStatus(data) {
        WHERE com_id = ?`,
       [calculatedAmount, amountFromHold, now, cl_id]
     );
-    
+
     // Get updated values for logging
     const updatedBalances = await executeQuery(
       `SELECT amtlimit as raw_available_balance, hold_balance, balance FROM customer_balances WHERE com_id = ?`,
       [cl_id]
     );
-    
+
     if (updatedBalances.length > 0) {
       new_raw_available_balance = parseFloat(updatedBalances[0].raw_available_balance) || 0;
       new_hold_balance = parseFloat(updatedBalances[0].hold_balance) || 0;
       new_used_amount = parseFloat(updatedBalances[0].balance) || 0;
     }
-    
+
     console.log('✅ Day limit customer - Hold balance settled:', {
       amountFromHold,
       calculatedAmount,
@@ -1080,32 +1064,32 @@ async function handleCompletedStatus(data) {
       new_hold_balance,
       new_used_amount
     });
-    
+
   } else {
     // Credit limit customer logic - Your 3 conditions logic
     console.log('💰 Processing Credit Limit Customer...');
-    
+
     // Calculate total available before (raw + hold)
     const total_available_before = initial_raw_available_balance + initial_hold_balance;
-    
+
     // Check if sufficient balance exists
     if (total_available_before < calculatedAmount) {
       throw new Error('INSUFFICIENT_LIMIT_ON_COMPLETE');
     }
-    
+
     // Calculate new raw_available_balance and hold_balance
     // Formula: new_raw_available_balance = total_available_before - calculatedAmount
     // Formula: new_hold_balance = 0 (all hold balance is cleared)
     new_raw_available_balance = total_available_before - calculatedAmount;
     new_hold_balance = 0;
-    
+
     console.log('🧮 CALCULATION FOR CREDIT LIMIT CUSTOMER:', {
       total_available_before,
       calculatedAmount,
       new_raw_available_balance,
       new_hold_balance
     });
-    
+
     // Update customer balances
     await executeQuery(
       `UPDATE customer_balances 
@@ -1116,7 +1100,7 @@ async function handleCompletedStatus(data) {
        WHERE com_id = ?`,
       [new_raw_available_balance, new_hold_balance, calculatedAmount, now, cl_id]
     );
-    
+
     console.log('✅ Credit limit customer - Updated balances:', {
       new_raw_available_balance,
       new_hold_balance,
@@ -1266,7 +1250,7 @@ async function handleCompletedStatus(data) {
 
 async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
   let finalPrice = defaultPrice;
-  
+
   const sId = parseInt(sub_product_id);
   const hasSubProduct = !isNaN(sId) && sId > 0;
 
@@ -1360,7 +1344,7 @@ async function handleCancelStatus(data) {
   const { id, rid, remarks, doc1Path, doc2Path, doc3Path, userId } = data;
 
   const now = getIndianTime();
-  
+
   // First, get the request details including customer ID
   const reqRows = await executeQuery(
     `SELECT cid, status, fs_id, product, aqty, price, totalamt, payment_status 
@@ -1369,14 +1353,14 @@ async function handleCancelStatus(data) {
      LIMIT 1`,
     [id, rid]
   );
-  
+
   if (!reqRows || reqRows.length === 0) {
     throw new Error('Request not found');
   }
-  
+
   const req = reqRows[0];
   const customerId = req.cid;
-  
+
   console.log('🔄 Cancelling request:', {
     rid,
     customerId,
@@ -1387,7 +1371,7 @@ async function handleCancelStatus(data) {
   // ✅ Check if request was in Processing status
   if (req.status === 'Processing') {
     console.log('✅ Request was in Processing status - checking hold_balance...');
-    
+
     // Get current customer balance including hold_balance
     const balanceRows = await executeQuery(
       `SELECT amtlimit as raw_available_balance, hold_balance 
@@ -1396,17 +1380,17 @@ async function handleCancelStatus(data) {
        LIMIT 1`,
       [customerId]
     );
-    
+
     if (balanceRows.length > 0) {
       const currentRawBalance = parseFloat(balanceRows[0].raw_available_balance) || 0;
       const currentHoldBalance = parseFloat(balanceRows[0].hold_balance) || 0;
-      
+
       console.log('💰 Current balances:', {
         customerId,
         raw_available_balance: currentRawBalance,
         hold_balance: currentHoldBalance
       });
-      
+
       if (currentHoldBalance > 0) {
         // ✅ RESTORE hold_balance to raw_available_balance
         const restoreQuery = `
@@ -1416,9 +1400,9 @@ async function handleCancelStatus(data) {
               updated_at = ? 
           WHERE com_id = ?
         `;
-        
+
         await executeQuery(restoreQuery, [currentHoldBalance, now, customerId]);
-        
+
         console.log(`✅ Restored hold_balance: ₹${currentHoldBalance} to raw_available_balance for customer: ${customerId}`);
       } else {
         console.log(`ℹ️ No hold_balance to restore for customer: ${customerId}`);
@@ -1427,35 +1411,35 @@ async function handleCancelStatus(data) {
       console.log(`⚠️ No customer balance record found for customer: ${customerId}`);
     }
   }
-  
+
   // If request was completed, we need to handle stock and balance reversal differently
   if (req.status === 'Completed') {
     const amount = parseFloat(req.totalamt || (req.price * req.aqty)) || 0;
-    
+
     console.log('🔄 Reverting completed request:', { amount });
-    
+
     // Revert stock
     try {
       const stockRows = await executeQuery(
         `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
         [req.fs_id, req.product]
       );
-      
+
       if (stockRows && stockRows.length > 0) {
         const currentStock = parseFloat(stockRows[0].stock) || 0;
         const returnedQty = parseFloat(req.aqty) || 0;
-        
+
         await executeQuery(
           `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
           [currentStock + returnedQty, req.fs_id, req.product]
         );
-        
+
         console.log(`✅ Stock reverted: Added ${returnedQty}L back to station`);
       }
     } catch (stockError) {
       console.error('❌ Error reverting stock:', stockError);
     }
-    
+
     // For credit limit customers (payment_status = 1), revert the deduction
     if (parseInt(req.payment_status) === 1 && amount > 0) {
       await executeQuery(
@@ -1466,11 +1450,11 @@ async function handleCancelStatus(data) {
          WHERE com_id = ?`,
         [amount, amount, now, customerId]
       );
-      
+
       console.log(`✅ Balance reverted for completed request: Added ₹${amount} to raw_available_balance`);
     }
   }
-  
+
   // Now update the request status to Cancel
   const updateRequestQuery = `
     UPDATE filling_requests 
@@ -1485,13 +1469,13 @@ async function handleCancelStatus(data) {
         updated_at = ?
     WHERE id = ? AND rid = ?
   `;
-  
+
   await executeQuery(updateRequestQuery, [
     now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, now, id, rid
   ]);
-  
+
   console.log(`✅ Request ${rid} cancelled successfully`);
-  
+
   return 'Request Cancelled Successfully';
 }
 

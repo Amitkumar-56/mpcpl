@@ -19,7 +19,7 @@ export async function GET(request) {
       'SELECT name, client_type FROM customers WHERE id = ?',
       [cid]
     ).catch(() => []);
-    
+
     if (customerResult.length === 0) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
@@ -47,18 +47,18 @@ export async function GET(request) {
          LIMIT 1`,
         [cid]
       );
-      
+
       const currentDate = new Date();
       currentDate.setHours(0, 0, 0, 0);
-      
+
       if (oldestUnpaidCompleted.length > 0 && oldestUnpaidCompleted[0].completed_date) {
         const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
         oldestUnpaidDate.setHours(0, 0, 0, 0);
-        
+
         // Calculate days elapsed: current_date - oldest_unpaid_date
         const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
         const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
-        
+
         // Remaining days = day_limit - days_elapsed
         customerBalanceInfo[0].days_elapsed = daysElapsed;
         customerBalanceInfo[0].remaining_days = Math.max(0, customerBalanceInfo[0].day_limit - daysElapsed);
@@ -79,7 +79,7 @@ export async function GET(request) {
 
     // Fetch distinct products
     const products = await executeQuery('SELECT DISTINCT pname FROM products').catch(() => []);
-    
+
     // Check if remaining_day_limit column exists
     let hasRemainingDayLimit = false;
     try {
@@ -93,9 +93,9 @@ export async function GET(request) {
       // Continue without the column - will use NULL
       hasRemainingDayLimit = false;
     }
-    
+
     const remainingDayLimitField = hasRemainingDayLimit ? 'fh.remaining_day_limit,' : 'NULL as remaining_day_limit,';
-    
+
     let sql = `
       SELECT 
         fh.id,
@@ -126,16 +126,16 @@ export async function GET(request) {
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE fh.cl_id = ?
     `;
-    
+
     const params = [cid];
-    
+
     if (pname) {
       sql += ' AND p.pname = ?';
       params.push(pname);
     }
-    
+
     sql += ' ORDER BY fh.id DESC';
-    
+
     let transactions = [];
     try {
       transactions = await executeQuery(sql, params);
@@ -158,7 +158,7 @@ export async function GET(request) {
            fr.payment_status,
            fr.payment_date,
            fr.vehicle_number,
-           fr.trans_type,
+           'Outward' as trans_type,
            fr.aqty AS loading_qty,
            fs.station_name,
            p.pname
@@ -208,7 +208,7 @@ export async function GET(request) {
       console.error('Error fetching balance:', error);
       balanceResult = [];
     }
-    
+
     const balance = balanceResult.length > 0 ? Math.round(balanceResult[0].balance) : 0;
     const totalDayAmount = balanceResult.length > 0 ? parseFloat(balanceResult[0].total_day_amount) || 0 : 0;
     const dayLimit = customerBalanceInfo.length > 0 ? parseInt(customerBalanceInfo[0].day_limit) || 0 : 0;
@@ -219,7 +219,7 @@ export async function GET(request) {
     let daysOpen = 0;
     let overdueBalance = 0;
     let overdueDetails = null;
-    
+
     if (isDayLimitCustomer && dayLimit > 0 && pendingTransactions.length > 0) {
       // Get oldest unpaid transaction
       const oldestUnpaid = pendingTransactions[0];
@@ -228,12 +228,12 @@ export async function GET(request) {
         oldestUnpaidDate.setHours(0, 0, 0, 0);
         const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
         daysOpen = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
-        
+
         // Calculate overdue balance (only if days elapsed >= day limit)
         if (daysOpen >= dayLimit) {
           // Get all overdue transactions (completed before day limit exceeded)
           overdueBalance = totalOutstandingAmount;
-          
+
           overdueDetails = {
             days_elapsed: daysOpen,
             day_limit: dayLimit,
@@ -245,7 +245,7 @@ export async function GET(request) {
         }
       }
     }
-    
+
     // Check if customer has exceeded day limit (based on oldest unpaid transaction)
     let isCustomerOverdue = false;
     if (dayLimit > 0 && pendingTransactions.length > 0) {
@@ -258,7 +258,7 @@ export async function GET(request) {
         isCustomerOverdue = daysElapsed >= dayLimit;
       }
     }
-    
+
     // ✅ Calculate total outstanding amount (pending + overdue)
     const totalOutstandingAmount = pendingTransactions.reduce(
       (sum, t) => sum + parseFloat(t.amount || 0),
@@ -267,7 +267,7 @@ export async function GET(request) {
 
     const enrichedPending = (pendingTransactions || []).map((t) => {
       const completed = t.completed_date ? new Date(t.completed_date) : null;
-      
+
       // Calculate remaining days: current date - completed date (days elapsed since completion)
       let remainingDays = 0;
       if (completed) {
@@ -275,20 +275,20 @@ export async function GET(request) {
         const timeDiff = currentDate.getTime() - completed.getTime();
         remainingDays = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
       }
-      
+
       // ✅ Check payment_status from both filling_history and filling_requests
       const isPaid = Number(t.payment_status) === 1 || Number(t.request_payment_status) === 1;
       // Overdue if: not paid AND (this transaction is overdue OR customer limit exceeded)
       const overdue = !isPaid && dayLimit > 0 && (remainingDays >= dayLimit || isCustomerOverdue);
-      
+
       // Calculate recharge amount (amount paid for this transaction)
       const recharge = isPaid ? parseFloat(t.amount || 0) : 0;
-      
+
       // Calculate outstanding for this specific transaction
       const transactionOutstanding = isPaid ? 0 : parseFloat(t.amount || 0);
-      
+
       const outstandingAfterPayment = isPaid ? 0 : transactionOutstanding;
-      
+
       return {
         ...t,
         days_limit: dayLimit,
@@ -343,7 +343,7 @@ export async function GET(request) {
     console.error('API Error in client-history GET:', error);
     console.error('Error stack:', error.stack);
     return NextResponse.json(
-      { 
+      {
         error: 'Internal server error',
         message: error.message || 'Failed to fetch customer history',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -400,7 +400,7 @@ export async function PATCH(request) {
       'SELECT is_active, balance FROM customer_balances WHERE com_id = ?',
       [customerId]
     );
-    
+
     if (customerBalanceInfo.length === 0) {
       // Create default balance record for customer
       await executeQuery(
@@ -415,7 +415,7 @@ export async function PATCH(request) {
         [customerId]
       );
     }
-    
+
     const currentIsActive = customerBalanceInfo.length > 0 ? (parseInt(customerBalanceInfo[0].is_active) || 1) : 1;
     const currentBalance = customerBalanceInfo.length > 0 ? (parseFloat(customerBalanceInfo[0].balance) || 0) : 0;
 
@@ -430,7 +430,7 @@ export async function PATCH(request) {
           AND TABLE_NAME = 'customer_balances' 
           AND COLUMN_NAME = 'day_remaining_amount'
         `);
-        
+
         if (columns.length === 0) {
           await connection.execute(`
             ALTER TABLE customer_balances 
@@ -446,20 +446,20 @@ export async function PATCH(request) {
         'SELECT day_limit, amtlimit, is_active, balance, total_day_amount, COALESCE(day_remaining_amount, 0) as day_remaining_amount, cst_limit FROM customer_balances WHERE com_id = ?',
         [customerId]
       );
-      
+
       // Auto-create balance record if it doesn't exist
       if (customerInfo.length === 0) {
         // Determine default values based on client type
         const defaultAmtLimit = clientType === 2 ? 0 : 0; // Postpaid can have credit limit set later
         const defaultDayLimit = clientType === 3 ? 0 : 0; // Day limit can be set later
-        
+
         await connection.execute(
           `INSERT INTO customer_balances 
            (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [0, 0, defaultAmtLimit, defaultAmtLimit, customerId, defaultDayLimit, 0, 1]
         );
-        
+
         // Fetch again after creation
         [customerInfo] = await connection.execute(
           'SELECT day_limit, amtlimit, is_active, balance, total_day_amount, COALESCE(day_remaining_amount, 0) as day_remaining_amount, cst_limit FROM customer_balances WHERE com_id = ?',
@@ -477,7 +477,7 @@ export async function PATCH(request) {
       const currentCreditLimit = parseFloat(customerInfo[0].cst_limit || customerInfo[0].amtlimit || 0);
 
       const paymentAmount = parseFloat(rechargeAmount);
-      
+
       // ============================================================
       // PREPAID CUSTOMER (client_type = 1): Recharge = Balance se MINUS
       // ============================================================
@@ -485,7 +485,7 @@ export async function PATCH(request) {
         // ✅ Recharge = Payment = Balance se MINUS, amtlimit me ADD
         const newBalance = currentBalance - paymentAmount;
         const newAmtLimit = currentCreditLimit + paymentAmount; // Add to amtlimit
-        
+
         // Update balance and amtlimit
         await connection.execute(
           'UPDATE customer_balances SET balance = ?, amtlimit = ? WHERE com_id = ?',
@@ -506,7 +506,7 @@ export async function PATCH(request) {
             } catch (colError) {
               console.warn('Could not check remarks column:', colError.message);
             }
-            
+
             if (hasRemarksColumn) {
               await connection.execute(
                 `INSERT INTO filling_history (
@@ -514,7 +514,7 @@ export async function PATCH(request) {
                   new_amount, remaining_limit, created_by, payment_status, remarks
                 ) VALUES (?, 'inward', ?, ?, ?, ?, ?, 1, ?)`,
                 [
-                  customerId, 
+                  customerId,
                   paymentAmount, // Credit amount only (no amount field for recharge)
                   paymentDate, // Use payment_date instead of NOW()
                   newBalance, // New balance (after deduction from balance)
@@ -530,7 +530,7 @@ export async function PATCH(request) {
                   new_amount, remaining_limit, created_by, payment_status
                 ) VALUES (?, 'inward', ?, ?, ?, ?, ?, 1)`,
                 [
-                  customerId, 
+                  customerId,
                   paymentAmount, // Credit amount only (no amount field for recharge)
                   paymentDate, // Use payment_date instead of NOW()
                   newBalance, // New balance (after deduction from balance)
@@ -546,7 +546,7 @@ export async function PATCH(request) {
                 new_amount, remaining_limit, created_by, payment_status
               ) VALUES (?, 'inward', ?, NOW(), ?, ?, ?, 1)`,
               [
-                customerId, 
+                customerId,
                 paymentAmount, // Credit amount only (no amount field for recharge)
                 newBalance, // New balance (after deduction from balance)
                 newAmtLimit, // New amtlimit (after adding recharge)
@@ -595,7 +595,7 @@ export async function PATCH(request) {
           if (remainingAmount <= 0) break;
 
           const transactionAmount = parseFloat(transaction.amount || 0);
-          
+
           if (remainingAmount >= transactionAmount) {
             const paymentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
             await connection.execute(
@@ -617,7 +617,7 @@ export async function PATCH(request) {
         // amtlimit = Previous amtlimit + Recharge Amount
         const finalBalance = balanceAfterRecharge;
         const newAmtLimit = currentCreditLimit + paymentAmount; // Add to amtlimit
-        
+
         // Update balance and amtlimit
         await connection.execute(
           'UPDATE customer_balances SET balance = ?, amtlimit = ? WHERE com_id = ?',
@@ -639,7 +639,7 @@ export async function PATCH(request) {
             } catch (colError) {
               console.warn('Could not check remarks column:', colError.message);
             }
-            
+
             if (hasRemarksColumn) {
               await connection.execute(
                 `INSERT INTO filling_history (
@@ -647,7 +647,7 @@ export async function PATCH(request) {
                   new_amount, remaining_limit, created_by, payment_status, remarks
                 ) VALUES (?, 'inward', ?, ?, ?, ?, ?, 1, ?)`,
                 [
-                  customerId, 
+                  customerId,
                   paymentAmount, // Credit amount only (no amount field for recharge)
                   paymentDate, // Use payment_date instead of NOW()
                   finalBalance, // New balance (after deduction from balance)
@@ -663,7 +663,7 @@ export async function PATCH(request) {
                   new_amount, remaining_limit, created_by, payment_status
                 ) VALUES (?, 'inward', ?, ?, ?, ?, ?, 1)`,
                 [
-                  customerId, 
+                  customerId,
                   paymentAmount, // Credit amount only (no amount field for recharge)
                   paymentDate, // Use payment_date instead of NOW()
                   finalBalance, // New balance (after deduction from balance)
@@ -679,7 +679,7 @@ export async function PATCH(request) {
                 new_amount, remaining_limit, created_by, payment_status
               ) VALUES (?, 'inward', ?, NOW(), ?, ?, ?, 1)`,
               [
-                customerId, 
+                customerId,
                 paymentAmount, // Credit amount only (no amount field for recharge)
                 finalBalance, // New balance (after deduction from balance)
                 newAmtLimit, // New amtlimit (after adding recharge)
@@ -728,242 +728,242 @@ export async function PATCH(request) {
           [customerId]
         );
 
-      console.log('Pending transactions:', pendingTransactions);
-      console.log('Payment amount:', paymentAmount);
-      console.log('Current total_day_amount:', currentTotalDayAmount);
-      console.log('New total_day_amount after payment:', tempTotalDayAmount);
+        console.log('Pending transactions:', pendingTransactions);
+        console.log('Payment amount:', paymentAmount);
+        console.log('Current total_day_amount:', currentTotalDayAmount);
+        console.log('New total_day_amount after payment:', tempTotalDayAmount);
 
-      // Group transactions by day manually
-      const transactionsByDay = {};
-      pendingTransactions.forEach(transaction => {
-        const day = transaction.day_date;
-        if (!transactionsByDay[day]) {
-          transactionsByDay[day] = {
-            day_date: day,
-            day_total: 0,
-            transaction_ids: []
-          };
-        }
-        transactionsByDay[day].day_total += parseFloat(transaction.amount || 0);
-        transactionsByDay[day].transaction_ids.push(transaction.id);
-      });
-      
-      // ✅ Track paid request IDs
-      const paidRequestIdsList = [];
+        // Group transactions by day manually
+        const transactionsByDay = {};
+        pendingTransactions.forEach(transaction => {
+          const day = transaction.day_date;
+          if (!transactionsByDay[day]) {
+            transactionsByDay[day] = {
+              day_date: day,
+              day_total: 0,
+              transaction_ids: []
+            };
+          }
+          transactionsByDay[day].day_total += parseFloat(transaction.amount || 0);
+          transactionsByDay[day].transaction_ids.push(transaction.id);
+        });
 
-      // Convert to array and sort by date
-      const pendingTransactionsByDay = Object.values(transactionsByDay).sort((a, b) => 
-        new Date(a.day_date) - new Date(b.day_date)
-      );
+        // ✅ Track paid request IDs
+        const paidRequestIdsList = [];
 
-      console.log('Grouped by day:', pendingTransactionsByDay);
+        // Convert to array and sort by date
+        const pendingTransactionsByDay = Object.values(transactionsByDay).sort((a, b) =>
+          new Date(a.day_date) - new Date(b.day_date)
+        );
 
-      // Clear each day's amount starting from oldest day USING TOTAL_DAY_AMOUNT + day_remaining_amount
-      for (const dayData of pendingTransactionsByDay) {
-        if (availableAmount <= 0) break;
+        console.log('Grouped by day:', pendingTransactionsByDay);
 
-        const dayTotal = parseFloat(dayData.day_total) || 0;
-        const transactionIds = dayData.transaction_ids;
+        // Clear each day's amount starting from oldest day USING TOTAL_DAY_AMOUNT + day_remaining_amount
+        for (const dayData of pendingTransactionsByDay) {
+          if (availableAmount <= 0) break;
 
-        console.log(`Processing day: ${dayData.day_date}, Total: ${dayTotal}, Available: ${availableAmount} (payment: ${paymentAmount}, remaining: ${currentDayRemainingAmount})`);
+          const dayTotal = parseFloat(dayData.day_total) || 0;
+          const transactionIds = dayData.transaction_ids;
 
-        if (availableAmount >= dayTotal) {
-          // Full payment for this day - mark all transactions of this day as paid
-          if (transactionIds.length > 0) {
-            // Create placeholders for IN clause
-            const placeholders = transactionIds.map(() => '?').join(',');
-            const paymentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
-            
-            // ✅ Update filling_requests payment_status
-            await connection.execute(
-              `UPDATE filling_requests 
+          console.log(`Processing day: ${dayData.day_date}, Total: ${dayTotal}, Available: ${availableAmount} (payment: ${paymentAmount}, remaining: ${currentDayRemainingAmount})`);
+
+          if (availableAmount >= dayTotal) {
+            // Full payment for this day - mark all transactions of this day as paid
+            if (transactionIds.length > 0) {
+              // Create placeholders for IN clause
+              const placeholders = transactionIds.map(() => '?').join(',');
+              const paymentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+
+              // ✅ Update filling_requests payment_status
+              await connection.execute(
+                `UPDATE filling_requests 
                SET payment_status = 1, payment_date = ? 
                WHERE id IN (${placeholders})`,
-              [paymentDate, ...transactionIds]
-            );
-            
-            // ✅ Update filling_history payment_status for OUTWARD transactions
-            // Get RIDs from filling_requests
-            const [requestRows] = await connection.execute(
-              `SELECT rid FROM filling_requests WHERE id IN (${placeholders})`,
-              [...transactionIds]
-            );
-            
-            if (requestRows.length > 0) {
-              const rids = requestRows.map(r => r.rid).filter(Boolean);
-              if (rids.length > 0) {
-                const ridPlaceholders = rids.map(() => '?').join(',');
-                const [updateResult] = await connection.execute(
-                  `UPDATE filling_history 
+                [paymentDate, ...transactionIds]
+              );
+
+              // ✅ Update filling_history payment_status for OUTWARD transactions
+              // Get RIDs from filling_requests
+              const [requestRows] = await connection.execute(
+                `SELECT rid FROM filling_requests WHERE id IN (${placeholders})`,
+                [...transactionIds]
+              );
+
+              if (requestRows.length > 0) {
+                const rids = requestRows.map(r => r.rid).filter(Boolean);
+                if (rids.length > 0) {
+                  const ridPlaceholders = rids.map(() => '?').join(',');
+                  const [updateResult] = await connection.execute(
+                    `UPDATE filling_history 
                    SET payment_status = 1 
                    WHERE rid IN (${ridPlaceholders}) AND trans_type = 'Outward' AND payment_status = 0`,
-                  [...rids]
-                );
-                console.log(`✅ Updated ${updateResult.affectedRows || 0} filling_history records to paid status for RIDs:`, rids);
+                    [...rids]
+                  );
+                  console.log(`✅ Updated ${updateResult.affectedRows || 0} filling_history records to paid status for RIDs:`, rids);
+                } else {
+                  console.warn('⚠️ No RIDs found for transaction IDs:', transactionIds);
+                }
               } else {
-                console.warn('⚠️ No RIDs found for transaction IDs:', transactionIds);
+                console.warn('⚠️ No request rows found for transaction IDs:', transactionIds);
               }
-            } else {
-              console.warn('⚠️ No request rows found for transaction IDs:', transactionIds);
+
+              invoicesPaid += transactionIds.length;
+              totalPaidAmount += dayTotal;
+
+              // ✅ Track paid request IDs
+              paidRequestIdsList.push(...transactionIds);
+
+              // ✅ NEW: Use day_remaining_amount first, then payment amount
+              if (currentDayRemainingAmount > 0 && usedRemainingAmount < currentDayRemainingAmount) {
+                const remainingToUse = Math.min(dayTotal, currentDayRemainingAmount - usedRemainingAmount);
+                usedRemainingAmount += remainingToUse;
+                availableAmount -= remainingToUse;
+                tempTotalDayAmount -= (dayTotal - remainingToUse); // Only deduct from total_day_amount what wasn't from remaining
+              } else {
+                tempTotalDayAmount -= dayTotal; // Deduct from total_day_amount
+                availableAmount -= dayTotal;
+              }
+
+              // ✅ Outstanding invoices paid from available amount (outstanding se minus)
+              // Balance already deducted, so no need to subtract again
+              daysCleared++;
+              console.log(`✅ Paid day ${dayData.day_date}: ${transactionIds.length} transactions, Amount: ${dayTotal}, Payment Date: ${paymentDate}`);
             }
-            
-            invoicesPaid += transactionIds.length;
-            totalPaidAmount += dayTotal;
-            
-            // ✅ Track paid request IDs
-            paidRequestIdsList.push(...transactionIds);
-            
-            // ✅ NEW: Use day_remaining_amount first, then payment amount
-            if (currentDayRemainingAmount > 0 && usedRemainingAmount < currentDayRemainingAmount) {
-              const remainingToUse = Math.min(dayTotal, currentDayRemainingAmount - usedRemainingAmount);
-              usedRemainingAmount += remainingToUse;
-              availableAmount -= remainingToUse;
-              tempTotalDayAmount -= (dayTotal - remainingToUse); // Only deduct from total_day_amount what wasn't from remaining
-            } else {
-              tempTotalDayAmount -= dayTotal; // Deduct from total_day_amount
-              availableAmount -= dayTotal;
-            }
-            
-            // ✅ Outstanding invoices paid from available amount (outstanding se minus)
-            // Balance already deducted, so no need to subtract again
-            daysCleared++;
-            console.log(`✅ Paid day ${dayData.day_date}: ${transactionIds.length} transactions, Amount: ${dayTotal}, Payment Date: ${paymentDate}`);
+          } else {
+            // Partial payment - cannot partially pay a day, need full day amount
+            console.log(`❌ Insufficient amount for day ${dayData.day_date}: Need ${dayTotal}, Have ${availableAmount}`);
+            break;
           }
-        } else {
-          // Partial payment - cannot partially pay a day, need full day amount
-          console.log(`❌ Insufficient amount for day ${dayData.day_date}: Need ${dayTotal}, Have ${availableAmount}`);
-          break;
         }
-      }
 
-      // ✅ NEW: Calculate remaining amounts
-      // remainingDayAmount = unused payment in total_day_amount
-      // dayRemainingAmount = unused payment amount (extra payment)
-      const remainingDayAmount = tempTotalDayAmount;
-      const newDayRemainingAmount = Math.max(0, availableAmount); // Extra payment amount
+        // ✅ NEW: Calculate remaining amounts
+        // remainingDayAmount = unused payment in total_day_amount
+        // dayRemainingAmount = unused payment amount (extra payment)
+        const remainingDayAmount = tempTotalDayAmount;
+        const newDayRemainingAmount = Math.max(0, availableAmount); // Extra payment amount
 
-      console.log('Payment summary:', {
-        paymentAmount,
-        totalPaidAmount,
-        invoicesPaid,
-        daysCleared,
-        remainingDayAmount,
-        currentBalance,
-        newBalance: tempBalance
-      });
+        console.log('Payment summary:', {
+          paymentAmount,
+          totalPaidAmount,
+          invoicesPaid,
+          daysCleared,
+          remainingDayAmount,
+          currentBalance,
+          newBalance: tempBalance
+        });
 
-      // ✅ CORRECTED LOGIC:
-      // 1. Balance = currentBalance - paymentAmount (Recharge = Balance se MINUS)
-      // 2. Outstanding invoices paid from payment amount (outstanding se minus)
-      // 3. Total_day_amount = remaining_amount (for future payments)
-      const newBalance = tempBalance; // Already deducted paymentAmount
-      const newTotalDayAmount = remainingDayAmount;
-      
-      // Check if customer is still overdue after payment (for day_limit customers)
-      let newIsActive = currentIsActive;
-      let isOverdue = false;
-      
-      if (isDayLimit && customerInfo.length > 0) {
-        const dayLimit = parseInt(customerInfo[0].day_limit) || 0;
-        
-        // Check remaining unpaid transactions
-        const [remainingUnpaid] = await connection.execute(
-          `SELECT completed_date
+        // ✅ CORRECTED LOGIC:
+        // 1. Balance = currentBalance - paymentAmount (Recharge = Balance se MINUS)
+        // 2. Outstanding invoices paid from payment amount (outstanding se minus)
+        // 3. Total_day_amount = remaining_amount (for future payments)
+        const newBalance = tempBalance; // Already deducted paymentAmount
+        const newTotalDayAmount = remainingDayAmount;
+
+        // Check if customer is still overdue after payment (for day_limit customers)
+        let newIsActive = currentIsActive;
+        let isOverdue = false;
+
+        if (isDayLimit && customerInfo.length > 0) {
+          const dayLimit = parseInt(customerInfo[0].day_limit) || 0;
+
+          // Check remaining unpaid transactions
+          const [remainingUnpaid] = await connection.execute(
+            `SELECT completed_date
            FROM filling_requests 
            WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
            ORDER BY completed_date ASC
            LIMIT 1`,
-          [customerId]
+            [customerId]
+          );
+
+          if (remainingUnpaid.length > 0 && dayLimit > 0) {
+            const oldestUnpaidDate = new Date(remainingUnpaid[0].completed_date);
+            oldestUnpaidDate.setHours(0, 0, 0, 0);
+            const currentDate = new Date();
+            currentDate.setHours(0, 0, 0, 0);
+            const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
+            const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
+
+            isOverdue = daysElapsed >= dayLimit;
+            newIsActive = isOverdue ? 0 : 1;
+            console.log(`Overdue check: Days elapsed: ${daysElapsed}, Limit: ${dayLimit}, Overdue: ${isOverdue}`);
+          } else {
+            // No remaining unpaid transactions - customer is active
+            newIsActive = 1;
+            console.log('✅ No remaining unpaid transactions - customer activated');
+          }
+        }
+
+        // ✅ Update balance, total_day_amount, day_remaining_amount and is_active
+        await connection.execute(
+          'UPDATE customer_balances SET balance = ?, total_day_amount = ?, day_remaining_amount = ?, is_active = ? WHERE com_id = ?',
+          [newBalance, newTotalDayAmount, newDayRemainingAmount, newIsActive, customerId]
         );
 
-        if (remainingUnpaid.length > 0 && dayLimit > 0) {
-          const oldestUnpaidDate = new Date(remainingUnpaid[0].completed_date);
-          oldestUnpaidDate.setHours(0, 0, 0, 0);
-          const currentDate = new Date();
-          currentDate.setHours(0, 0, 0, 0);
-          const timeDiff = currentDate.getTime() - oldestUnpaidDate.getTime();
-          const daysElapsed = Math.max(0, Math.floor(timeDiff / (1000 * 60 * 60 * 24)));
-          
-          isOverdue = daysElapsed >= dayLimit;
-          newIsActive = isOverdue ? 0 : 1;
-          console.log(`Overdue check: Days elapsed: ${daysElapsed}, Limit: ${dayLimit}, Overdue: ${isOverdue}`);
-        } else {
-          // No remaining unpaid transactions - customer is active
-          newIsActive = 1;
-          console.log('✅ No remaining unpaid transactions - customer activated');
-        }
-      }
-      
-      // ✅ Update balance, total_day_amount, day_remaining_amount and is_active
-      await connection.execute(
-        'UPDATE customer_balances SET balance = ?, total_day_amount = ?, day_remaining_amount = ?, is_active = ? WHERE com_id = ?',
-        [newBalance, newTotalDayAmount, newDayRemainingAmount, newIsActive, customerId]
-      );
+        // Record the recharge in filling_history as inward transaction (recharge record)
+        // Balance se MINUS but filling_history me inward type (recharge entry)
+        // Outstanding day-wise invoices paid from this payment
+        if (paymentAmount > 0) {
+          // For non-billing customers, include credit_date and remarks (payment_type column doesn't exist)
+          if (isNonBilling) {
+            // Check if remarks column exists
+            let hasRemarksColumn = false;
+            try {
+              const colsInfo = await connection.execute('SHOW COLUMNS FROM filling_history');
+              const colSet = new Set(colsInfo[0].map(r => r.Field));
+              hasRemarksColumn = colSet.has('remarks');
+            } catch (colError) {
+              console.warn('Could not check remarks column:', colError.message);
+            }
 
-      // Record the recharge in filling_history as inward transaction (recharge record)
-      // Balance se MINUS but filling_history me inward type (recharge entry)
-      // Outstanding day-wise invoices paid from this payment
-      if (paymentAmount > 0) {
-        // For non-billing customers, include credit_date and remarks (payment_type column doesn't exist)
-        if (isNonBilling) {
-          // Check if remarks column exists
-          let hasRemarksColumn = false;
-          try {
-            const colsInfo = await connection.execute('SHOW COLUMNS FROM filling_history');
-            const colSet = new Set(colsInfo[0].map(r => r.Field));
-            hasRemarksColumn = colSet.has('remarks');
-          } catch (colError) {
-            console.warn('Could not check remarks column:', colError.message);
-          }
-          
-          if (hasRemarksColumn) {
-            await connection.execute(
-              `INSERT INTO filling_history (
+            if (hasRemarksColumn) {
+              await connection.execute(
+                `INSERT INTO filling_history (
                 cl_id, trans_type, credit, credit_date, 
                 new_amount, remaining_limit, created_by, payment_status, remarks
               ) VALUES (?, 'inward', ?, ?, ?, ?, ?, 1, ?)`,
-              [
-                customerId, 
-                paymentAmount, // Credit amount only (no amount field for recharge)
-                paymentDate, // Use payment_date instead of NOW()
-                newBalance,    // New balance (after deduction from balance)
-                customerInfo[0].day_limit, // Use day_limit instead of amtlimit
-                currentUser?.userId || 1, // created_by
-                paymentRemarks, // remarks
-              ]
-            );
-          } else {
-            await connection.execute(
-              `INSERT INTO filling_history (
+                [
+                  customerId,
+                  paymentAmount, // Credit amount only (no amount field for recharge)
+                  paymentDate, // Use payment_date instead of NOW()
+                  newBalance,    // New balance (after deduction from balance)
+                  customerInfo[0].day_limit, // Use day_limit instead of amtlimit
+                  currentUser?.userId || 1, // created_by
+                  paymentRemarks, // remarks
+                ]
+              );
+            } else {
+              await connection.execute(
+                `INSERT INTO filling_history (
                 cl_id, trans_type, credit, credit_date, 
                 new_amount, remaining_limit, created_by, payment_status
               ) VALUES (?, 'inward', ?, ?, ?, ?, ?, 1)`,
+                [
+                  customerId,
+                  paymentAmount, // Credit amount only (no amount field for recharge)
+                  paymentDate, // Use payment_date instead of NOW()
+                  newBalance,    // New balance (after deduction from balance)
+                  customerInfo[0].day_limit, // Use day_limit instead of amtlimit
+                  currentUser?.userId || 1, // created_by
+                ]
+              );
+            }
+          } else {
+            await connection.execute(
+              `INSERT INTO filling_history (
+              cl_id, trans_type, credit, credit_date, 
+              new_amount, remaining_limit, created_by, payment_status
+            ) VALUES (?, 'inward', ?, NOW(), ?, ?, ?, 1)`,
               [
-                customerId, 
+                customerId,
                 paymentAmount, // Credit amount only (no amount field for recharge)
-                paymentDate, // Use payment_date instead of NOW()
                 newBalance,    // New balance (after deduction from balance)
                 customerInfo[0].day_limit, // Use day_limit instead of amtlimit
                 currentUser?.userId || 1, // created_by
               ]
             );
           }
-        } else {
-          await connection.execute(
-            `INSERT INTO filling_history (
-              cl_id, trans_type, credit, credit_date, 
-              new_amount, remaining_limit, created_by, payment_status
-            ) VALUES (?, 'inward', ?, NOW(), ?, ?, ?, 1)`,
-            [
-              customerId, 
-              paymentAmount, // Credit amount only (no amount field for recharge)
-              newBalance,    // New balance (after deduction from balance)
-              customerInfo[0].day_limit, // Use day_limit instead of amtlimit
-              currentUser?.userId || 1, // created_by
-            ]
-          );
         }
-      }
 
         // Return result for executeTransaction (Day Limit)
         return {
@@ -990,7 +990,7 @@ export async function PATCH(request) {
     // ✅ Get all requests (paid and unpaid) for day limit customers
     let paidRequests = [];
     let pendingRequests = [];
-    
+
     if (result.customerType === 'day_limit' && result.paidRequestIds) {
       // Get paid requests details
       if (result.paidRequestIds.length > 0) {
@@ -1009,15 +1009,15 @@ export async function PATCH(request) {
           result.paidRequestIds
         );
       }
-      
+
       // Get remaining unpaid requests
-      const unpaidPlaceholders = result.paidRequestIds.length > 0 
-        ? `AND fr.id NOT IN (${result.paidRequestIds.map(() => '?').join(',')})` 
+      const unpaidPlaceholders = result.paidRequestIds.length > 0
+        ? `AND fr.id NOT IN (${result.paidRequestIds.map(() => '?').join(',')})`
         : '';
-      const unpaidParams = result.paidRequestIds.length > 0 
-        ? [customerId, ...result.paidRequestIds] 
+      const unpaidParams = result.paidRequestIds.length > 0
+        ? [customerId, ...result.paidRequestIds]
         : [customerId];
-      
+
       pendingRequests = await executeQuery(
         `SELECT 
           fr.id, fr.rid, fr.vehicle_number, fr.completed_date,
@@ -1048,7 +1048,7 @@ export async function PATCH(request) {
          ORDER BY fr.completed_date ASC`,
         [customerId]
       );
-      
+
       pendingRequests = await executeQuery(
         `SELECT 
           fr.id, fr.rid, fr.vehicle_number, fr.completed_date,
@@ -1067,7 +1067,7 @@ export async function PATCH(request) {
     // Build success message based on customer type
     let message = '';
     let customerTypeName = '';
-    
+
     if (result.customerType === 'prepaid') {
       customerTypeName = 'Prepaid';
       message = `Wallet recharge successful! Amount: ₹${rechargeAmount}. New balance: ₹${result.newBalance.toFixed(2)}.`;
@@ -1083,19 +1083,19 @@ export async function PATCH(request) {
       }
     } else if (result.customerType === 'day_limit') {
       customerTypeName = 'Day Limit';
-      const daysMessage = result.daysCleared === 1 
-        ? '1 day payment made' 
+      const daysMessage = result.daysCleared === 1
+        ? '1 day payment made'
         : `${result.daysCleared} days payment made`;
       message = `Payment processed successfully. ${daysMessage}. ${result.invoicesPaid} unpaid invoice(s) paid. Amount: ₹${result.totalPaidAmount.toFixed(2)}.`;
-      
+
       if (result.remainingDayAmount > 0) {
         message += ` Remaining balance in day account: ₹${result.remainingDayAmount.toFixed(2)}.`;
       }
-      
+
       if (result.dayRemainingAmount > 0) {
         message += ` Extra payment stored: ₹${result.dayRemainingAmount.toFixed(2)} (will be used for future requests).`;
       }
-      
+
       message += result.isOverdue ? ' ⚠️ Status: Overdue' : ' ✅ Status: Active';
     }
 
@@ -1120,42 +1120,42 @@ export async function PATCH(request) {
           INDEX idx_created_at (created_at)
         )
       `);
-      
+
       // Insert into customer_audit_log
-          // ✅ ENSURE: Always fetch employee name if userId exists
-          let finalUserName = userName;
-          if (!finalUserName && userId) {
-            try {
-              const empResult = await executeQuery(
-                `SELECT name FROM employee_profile WHERE id = ?`,
-                [userId]
-              );
-              if (empResult.length > 0 && empResult[0].name) {
-                finalUserName = empResult[0].name;
-              }
-            } catch (empError) {
-              console.error('Error fetching employee name for audit log:', empError);
-            }
-          }
-          
-          // If still no name, use Employee ID format instead of 'System'
-          if (!finalUserName && userId) {
-            finalUserName = `Employee ID: ${userId}`;
-          } else if (!finalUserName) {
-            finalUserName = 'Unknown';
-          }
-          
-          await executeQuery(
-            `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
-            [
-              customerId, 
-              'recharge', 
-              userId, 
-              finalUserName, 
-              `${customerTypeName} Recharge: ₹${rechargeAmount}${result.invoicesPaid > 0 ? ` | ${result.invoicesPaid} invoice(s) paid` : ''}`, 
-              parseFloat(rechargeAmount)
-            ]
+      // ✅ ENSURE: Always fetch employee name if userId exists
+      let finalUserName = userName;
+      if (!finalUserName && userId) {
+        try {
+          const empResult = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
           );
+          if (empResult.length > 0 && empResult[0].name) {
+            finalUserName = empResult[0].name;
+          }
+        } catch (empError) {
+          console.error('Error fetching employee name for audit log:', empError);
+        }
+      }
+
+      // If still no name, use Employee ID format instead of 'System'
+      if (!finalUserName && userId) {
+        finalUserName = `Employee ID: ${userId}`;
+      } else if (!finalUserName) {
+        finalUserName = 'Unknown';
+      }
+
+      await executeQuery(
+        `INSERT INTO customer_audit_log (customer_id, action_type, user_id, user_name, remarks, amount) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+          customerId,
+          'recharge',
+          userId,
+          finalUserName,
+          `${customerTypeName} Recharge: ₹${rechargeAmount}${result.invoicesPaid > 0 ? ` | ${result.invoicesPaid} invoice(s) paid` : ''}`,
+          parseFloat(rechargeAmount)
+        ]
+      );
 
       // ✅ ALSO create comprehensive audit log using createAuditLog
       try {
@@ -1237,9 +1237,9 @@ export async function PATCH(request) {
   } catch (error) {
     console.error('Payment processing error:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
-        error: error.message || 'Failed to process payment' 
+        error: error.message || 'Failed to process payment'
       },
       { status: 500 }
     );
@@ -1305,16 +1305,16 @@ export async function POST(request) {
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE fh.cl_id = ?
     `;
-    
+
     const params = [cid];
-    
+
     if (pname) {
       sql += ' AND p.pname = ?';
       params.push(pname);
     }
-    
+
     sql += ' ORDER BY fh.id DESC';
-    
+
     const rows = await executeQuery(sql, params);
 
     if (rows.length === 0) {
@@ -1326,7 +1326,7 @@ export async function POST(request) {
       'SELECT day_limit, amtlimit FROM customer_balances WHERE com_id = ?',
       [cid]
     );
-    
+
     const isDayLimitCustomer = customerBalanceInfo.length > 0 && customerBalanceInfo[0].day_limit > 0;
     const isAmountLimitCustomer = customerBalanceInfo.length > 0 && customerBalanceInfo[0].amtlimit > 0;
 
@@ -1357,7 +1357,7 @@ export async function POST(request) {
       csvHeaders.push('Decrease Amount');
       csvHeaders.push('Limit Type');
     }
-    
+
     csvHeaders.push('Payment Status');
     csvHeaders.push('Updated By');
 
@@ -1379,7 +1379,7 @@ export async function POST(request) {
 
       // Add columns based on customer type
       let additionalColumns = [];
-      
+
       if (isDayLimitCustomer) {
         // Calculate due days for day limit customers
         const transactionDate = new Date(row.completed_date || row.filling_date || row.created_at);
@@ -1387,7 +1387,7 @@ export async function POST(request) {
         currentDate.setHours(0, 0, 0, 0);
         transactionDate.setHours(0, 0, 0, 0);
         const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
-        
+
         // Determine status for day limit customers
         let status = '';
         if (row.trans_type === "inward") {
@@ -1429,7 +1429,7 @@ export async function POST(request) {
 
     // Create CSV content
     let csvContent = csvHeaders.join(',') + '\n';
-    
+
     csvRows.forEach(row => {
       const escapedRow = row.map(field => {
         if (field === null || field === undefined) return '';
