@@ -1,9 +1,10 @@
 'use client';
 
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useState, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
 
 // Wrap the main component with Suspense
 function EditRemarksPageContent() {
@@ -219,6 +220,7 @@ function EditRemarksPageContent() {
                     min="0"
                   />
                 </div>
+
                 <div className="mb-6">
                   <label htmlFor="image" className="block text-sm font-medium text-gray-700 mb-2">
                     Image (Optional)

@@ -77,12 +77,51 @@ export default function CustomerDashboardPage() {
       
       setUser(parsedUser);
       setLoading(false);
+      
+      // Fetch additional customer data
+      fetchCustomerData();
     } catch (err) {
       console.error("Dashboard: Error parsing user", err);
       alert("Error reading user data. Please login again.");
       router.push("/cst/login");
     }
   }, [router]);
+
+  // Fetch customer data when user is loaded
+  useEffect(() => {
+    if (user?.id && !user?.client_type) {
+      fetchCustomerData();
+    }
+  }, [user?.id]);
+
+  // Fetch complete customer data
+  const fetchCustomerData = async () => {
+    if (!user?.id) return;
+    
+    try {
+      console.log('🔍 Fetching customer data for ID:', user.id);
+      const response = await fetch(`/api/cst/profile?customer_id=${user.id}`);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📦 Customer data response:', data);
+        
+        if (data.success && data.data) {
+          // Update user with additional data
+          const updatedUser = {
+            ...user,
+            client_type: data.data.client_type,
+            day_limit: data.data.day_limit
+          };
+          console.log('✅ Updated user data:', updatedUser);
+          setUser(updatedUser);
+        }
+      } else {
+        console.error('❌ Failed to fetch customer data:', response.status);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching customer data:', error);
+    }
+  };
 
   // Fetch day limit status
   useEffect(() => {
@@ -551,7 +590,30 @@ export default function CustomerDashboardPage() {
               <div className="bg-white rounded-xl shadow p-6">
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                   <div>
-                    <p className="text-gray-600">
+                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
+                      Welcome, {user?.name || 'Customer'}!
+                    </h2>
+                    <div className="flex flex-wrap gap-3">
+                      <span className={`inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm ${
+                        user?.client_type === 2 || user?.client_type === '2'
+                          ? 'bg-blue-500 text-white' 
+                          : user?.client_type === 1 || user?.client_type === '1'
+                          ? 'bg-green-500 text-white'
+                          : user?.client_type === 3 || user?.client_type === '3'
+                          ? 'bg-purple-500 text-white'
+                          : 'bg-gray-400 text-white'
+                      }`}>
+                        {user?.client_type === 2 || user?.client_type === '2' ? '🔵 Postpaid Customer' : 
+                         user?.client_type === 1 || user?.client_type === '1' ? '🟢 Prepaid Customer' :
+                         user?.client_type === 3 || user?.client_type === '3' ? '🟣 Day Limit Customer' : '❓ Unknown (' + (user?.client_type || 'null') + ')'}
+                      </span>
+                      {user?.day_limit && (
+                        <span className="inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm bg-orange-500 text-white">
+                          📅 Limit: {user.day_limit} days
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-gray-600 mt-2">
                       {connectionStatus === 'connected' 
                         ? 'Live support is available' 
                         : `Connection: ${connectionStatus}`

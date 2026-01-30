@@ -303,12 +303,12 @@ function StockHistoryContent() {
                 } else if (transType === 'edited') {
                   typeText = 'Edited';
                   badgeColor = 'bg-purple-100 text-purple-800';
-                } else if (row.stock_type === 'extra') {
+                } else if (transType === 'extra') {
                   typeText = 'Extra';
-                  badgeColor = 'bg-green-100 text-green-800';
-                } else if (row.stock_type === 'stored') {
+                  badgeColor = 'bg-blue-100 text-blue-800 border border-blue-300';
+                } else if (transType === 'stored') {
                   typeText = 'Stored';
-                  badgeColor = 'bg-red-100 text-red-800';
+                  badgeColor = 'bg-orange-100 text-orange-800 border border-orange-300';
                 } else {
                   typeText = row.trans_type || 'N/A';
                   badgeColor = 'bg-gray-100 text-gray-800';
@@ -515,19 +515,17 @@ function StockHistoryContent() {
                 typeText = 'Outward';
                 badgeColor = 'bg-red-100 text-red-800';
               } else if (transType === 'edited') {
-                typeText = 'Edited ✏️';
+                typeText = 'Edited ';
                 badgeColor = 'bg-purple-100 text-purple-800 font-bold border border-purple-300';
+              } else if (transType === 'extra') {
+                typeText = 'Extra';
+                badgeColor = 'bg-blue-100 text-blue-800 border border-blue-300';
+              } else if (transType === 'stored') {
+                typeText = 'Stored';
+                badgeColor = 'bg-orange-100 text-orange-800 border border-orange-300';
               } else {
-                if (row.stock_type === 'extra') {
-                  typeText = 'Extra';
-                  badgeColor = 'bg-green-100 text-green-800';
-                } else if (row.stock_type === 'stored') {
-                  typeText = 'Stored';
-                  badgeColor = 'bg-red-100 text-red-800';
-                } else {
-                  typeText = row.trans_type || 'N/A';
-                  badgeColor = 'bg-gray-100 text-gray-800';
-                }
+                typeText = row.trans_type || 'N/A';
+                badgeColor = 'bg-gray-100 text-gray-800';
               }
               
               return (

@@ -59,6 +59,9 @@ export default function ProfilePage() {
       }
 
       console.log('✅ Profile data received:', result.data);
+      console.log('🔍 Profile Role:', result.data?.role, 'Station:', result.data?.station);
+      console.log('🔍 Profile Station Details:', result.data?.station_details);
+      console.log('🔍 Profile FS_ID:', result.data?.fs_id, 'FL_ID:', result.data?.fl_id);
       setProfile(result.data);
     } catch (err) {
       console.error('❌ Error fetching profile:', err);
@@ -154,10 +157,13 @@ export default function ProfilePage() {
                     <div>
                       <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Role</label>
                       <p className="text-sm sm:text-base text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                        {profile.role === 5 ? 'Admin' : 
+                        {profile.status === 0 ? 'Inactive Staff' : 
+                         profile.role === 5 ? 'Admin' : 
                          profile.role === 4 ? 'Accountant' :
                          profile.role === 3 ? 'Team Leader' :
-                         profile.role === 2 ? 'Incharge' : 'User'}
+                         profile.role === 2 ? 'Incharge' : 
+                         profile.role === 1 ? 'Staff' :
+                         profile.role === 6 ? 'Driver' : 'User'}
                       </p>
                     </div>
 
@@ -174,7 +180,12 @@ export default function ProfilePage() {
 
                     <div>
                       <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Station</label>
-                      <p className="text-sm sm:text-base text-gray-900 bg-gray-50 px-3 py-2 rounded-md">{profile.station || 'N/A'}</p>
+                      <p className="text-sm sm:text-base text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
+                        {profile.station_details && profile.station_details.length > 0 
+                          ? profile.station_details.map(station => station.Station || station.id).join(', ')
+                          : profile.station || profile.fs_id || profile.fl_id || 'N/A'
+                        }
+                      </p>
                     </div>
 
                     <div className="sm:col-span-2">

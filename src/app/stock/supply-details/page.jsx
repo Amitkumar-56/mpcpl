@@ -513,11 +513,10 @@ function SupplyDetailsContent() {
               <input
                 type="number"
                 step="0.01"
-                min="0"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={paymentForm.amount}
                 onChange={(e) => setPaymentForm({ ...paymentForm, amount: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -527,9 +526,9 @@ function SupplyDetailsContent() {
               <input
                 type="date"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                 value={paymentForm.pay_date}
                 onChange={(e) => setPaymentForm({ ...paymentForm, pay_date: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
             <div>
@@ -537,10 +536,10 @@ function SupplyDetailsContent() {
                 Remarks
               </label>
               <textarea
-                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
-                rows="2"
                 value={paymentForm.remarks}
                 onChange={(e) => setPaymentForm({ ...paymentForm, remarks: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                rows="3"
               />
             </div>
           </div>
@@ -548,15 +547,15 @@ function SupplyDetailsContent() {
             <button
               type="button"
               onClick={() => setShowPaymentModal(false)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              Save
+              Update Payment
             </button>
           </div>
         </form>
@@ -573,23 +572,25 @@ function SupplyDetailsContent() {
             <div className="flex items-center">
               <input
                 type="checkbox"
-                className="h-4 w-4 text-blue-600 rounded"
+                id="gstr1"
                 checked={gstForm.gstr1}
                 onChange={(e) => setGstForm({ ...gstForm, gstr1: e.target.checked })}
+                className="mr-2"
               />
-              <label className="ml-2 text-sm text-gray-700">
-                GST-R1 Completed
+              <label htmlFor="gstr1" className="text-sm font-medium text-gray-700">
+                GST-R1 Filed
               </label>
             </div>
             <div className="flex items-center">
               <input
                 type="checkbox"
-                className="h-4 w-4 text-blue-600 rounded"
+                id="gstr3b"
                 checked={gstForm.gstr3b}
                 onChange={(e) => setGstForm({ ...gstForm, gstr3b: e.target.checked })}
+                className="mr-2"
               />
-              <label className="ml-2 text-sm text-gray-700">
-                GST-R3B Completed
+              <label htmlFor="gstr3b" className="text-sm font-medium text-gray-700">
+                GST-R3B Filed
               </label>
             </div>
           </div>
@@ -597,15 +598,15 @@ function SupplyDetailsContent() {
             <button
               type="button"
               onClick={() => setShowGSTModal(false)}
-              className="px-3 py-1.5 text-sm border border-gray-300 rounded hover:bg-gray-50"
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
             >
-              Save
+              Update GST
             </button>
           </div>
         </form>
@@ -614,10 +615,14 @@ function SupplyDetailsContent() {
   );
 }
 
-// Main Page Component with Suspense
+// Main page component with Suspense
 export default function SupplyDetailsPage() {
   return (
-    <Suspense fallback={<LoadingSpinner />}>
+    <Suspense fallback={
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
       <SupplyDetailsContent />
     </Suspense>
   );

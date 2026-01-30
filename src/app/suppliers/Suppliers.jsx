@@ -149,10 +149,6 @@ export default function SuppliersPage() {
   // Stats state
   const [stats, setStats] = useState({
     totalCustomers: 0,
-    totalOutstanding: 0,
-    tomorrowPayment: 0,
-    overdue2to7: 0,
-    overdue8Plus: 0,
     activeSuppliers: 0
   });
 
@@ -184,10 +180,6 @@ export default function SuppliersPage() {
     
     return {
       totalCustomers: suppliersData.length,
-      totalOutstanding,
-      tomorrowPayment: Math.round(totalOutstanding * 0.1), // 10% for demo
-      overdue2to7: Math.round(totalOutstanding * 0.05), // 5% for demo
-      overdue8Plus: Math.round(totalOutstanding * 0.03), // 3% for demo
       activeSuppliers
     };
   };
@@ -581,29 +573,75 @@ export default function SuppliersPage() {
             </div>
           )}
 
-          {/* Dashboard Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 sm:gap-4 mb-4 sm:mb-6 lg:mb-8">
+          {/* Dashboard Cards - Enhanced Modern Design */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5 mb-6 sm:mb-8">
             {[
-              { title: 'Total Suppliers', value: stats.totalCustomers, color: 'bg-gradient-to-r from-blue-500 to-blue-600' },
-              { title: 'Active Suppliers', value: stats.activeSuppliers, color: 'bg-gradient-to-r from-green-500 to-green-600' },
-              { title: 'Total Outstanding', value: `₹${stats.totalOutstanding.toLocaleString()}`, color: 'bg-gradient-to-r from-orange-500 to-orange-600' },
-              { title: 'Tomorrow Payment', value: `₹${stats.tomorrowPayment.toLocaleString()}`, color: 'bg-gradient-to-r from-purple-500 to-purple-600' },
-              { title: 'Overdue 2-7 Days', value: `₹${stats.overdue2to7.toLocaleString()}`, color: 'bg-gradient-to-r from-red-500 to-red-600' },
-              { title: 'Overdue 8+ Days', value: `₹${stats.overdue8Plus.toLocaleString()}`, color: 'bg-gradient-to-r from-pink-500 to-pink-600' },
+              { title: 'Total Suppliers', value: stats.totalCustomers, color: 'from-blue-500 to-blue-600', icon: '👥', bgIcon: 'bg-blue-100' },
+              { title: 'Active Suppliers', value: stats.activeSuppliers, color: 'from-green-500 to-green-600', icon: '✅', bgIcon: 'bg-green-100' },
             ].map((stat, index) => (
-              <div key={index} className={`${stat.color} text-white p-3 sm:p-4 rounded-xl shadow-md transform hover:scale-105 transition-transform duration-200`}>
-                <h3 className="text-xs sm:text-sm font-medium opacity-90">{stat.title}</h3>
-                <p className="text-lg sm:text-xl lg:text-2xl font-bold mt-1 sm:mt-2">{stat.value}</p>
+              <div key={index} className={`group relative bg-gradient-to-br ${stat.color} text-white p-4 sm:p-5 rounded-2xl shadow-lg hover:shadow-2xl transform hover:scale-105 transition-all duration-300 overflow-hidden`}>
+                {/* Background Pattern */}
+                <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -mr-10 -mt-10 group-hover:scale-150 transition-transform duration-500"></div>
+                <div className="absolute bottom-0 left-0 w-16 h-16 bg-white/5 rounded-full -ml-8 -mb-8"></div>
+                
+                {/* Icon */}
+                <div className={`relative z-10 inline-flex items-center justify-center w-10 h-10 ${stat.bgIcon} rounded-xl mb-3 group-hover:scale-110 transition-transform duration-200`}>
+                  <span className="text-xl">{stat.icon}</span>
+                </div>
+                
+                {/* Content */}
+                <div className="relative z-10">
+                  <h3 className="text-xs sm:text-sm font-medium opacity-90 mb-1">{stat.title}</h3>
+                  <p className="text-xl sm:text-2xl lg:text-3xl font-bold">{stat.value}</p>
+                </div>
+                
+                {/* Hover Effect */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </div>
             ))}
           </div>
 
-          {/* Suppliers List */}
-          <div className="bg-white rounded-xl shadow-sm overflow-hidden">
-            <div className="p-3 sm:p-4 lg:p-6 border-b border-gray-200 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 sm:gap-4">
-              <h2 className="text-lg sm:text-xl font-semibold text-gray-900">Suppliers List</h2>
-              <div className="text-xs sm:text-sm text-gray-500">
-                Showing {filteredSuppliers.length} of {suppliers.length} suppliers
+          {/* Suppliers List - Enhanced Modern Design */}
+          <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100">
+            <div className="bg-gradient-to-r from-gray-50 to-gray-100 p-4 sm:p-6 border-b border-gray-200">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold">
+                    📋
+                  </div>
+                  <div>
+                    <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Suppliers List</h2>
+                    <p className="text-sm text-gray-600 mt-1">
+                      Showing {filteredSuppliers.length} of {suppliers.length} suppliers
+                    </p>
+                  </div>
+                </div>
+                
+                {/* Search and Filter */}
+                <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      placeholder="Search suppliers..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full sm:w-64 pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    />
+                    <svg className="absolute left-3 top-2.5 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  
+                  <select
+                    value={statusFilter}
+                    onChange={(e) => setStatusFilter(e.target.value)}
+                    className="px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  >
+                    <option value="">All Status</option>
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
               </div>
             </div>
             
@@ -614,54 +652,76 @@ export default function SuppliersPage() {
               </div>
             ) : (
               <>
-                {/* Desktop Table View */}
+                {/* Desktop Table View - Enhanced Modern Design */}
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full">
-                    <thead className="bg-gray-50">
+                    <thead className="bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
                       <tr>
-                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Supplier Details</th>
-                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact Info</th>
-                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Business</th>
-                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                        <th className="px-4 lg:px-6 py-3 lg:py-4 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Supplier Details</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Contact Info</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Business</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Status</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Actions</th>
+                        <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">Logs</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-100">
                       {filteredSuppliers.map((supplier) => (
                         <React.Fragment key={supplier.id}>
-                        <tr className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 lg:px-6 py-3 lg:py-4">
+                        <tr className="hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 transition-all duration-200 border-b border-gray-50">
+                          <td className="px-6 py-4">
                             <div className="flex items-center">
-                              <div className="flex-shrink-0 h-10 w-10 lg:h-12 lg:w-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-xs lg:text-sm">
+                              <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-lg transform hover:scale-110 transition-transform duration-200">
                                 {supplier.name.split(' ').map(w => w[0]).join('').toUpperCase()}
                               </div>
-                              <div className="ml-3 lg:ml-4">
-                                <div className="text-sm font-medium text-gray-900">{supplier.name}</div>
-                                <div className="text-xs lg:text-sm text-gray-500">PAN: {supplier.pan}</div>
+                              <div className="ml-4">
+                                <div className="text-sm font-semibold text-gray-900">{supplier.name}</div>
+                                <div className="text-xs text-gray-500">PAN: {supplier.pan}</div>
                                 <div className="text-xs text-gray-400">GST: {supplier.gstin}</div>
                               </div>
                             </div>
                           </td>
-                          <td className="px-4 lg:px-6 py-3 lg:py-4">
-                            <div className="text-sm text-gray-900">{supplier.email}</div>
-                            <div className="text-xs lg:text-sm text-gray-500">{supplier.phone}</div>
-                            <div className="text-xs text-gray-400 truncate max-w-xs">{supplier.address}</div>
+                          <td className="px-6 py-4">
+                            <div className="space-y-1">
+                              <div className="flex items-center text-sm text-gray-900">
+                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                                </svg>
+                                {supplier.email}
+                              </div>
+                              <div className="flex items-center text-sm text-gray-600">
+                                <svg className="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                                </svg>
+                                {supplier.phone}
+                              </div>
+                              <div className="flex items-start text-xs text-gray-500">
+                                <svg className="w-4 h-4 mr-2 text-gray-400 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span className="line-clamp-2 max-w-xs">{supplier.address}</span>
+                              </div>
+                            </div>
                           </td>
-                          <td className="px-4 lg:px-6 py-3 lg:py-4">
-                            <div className="text-sm text-gray-900">{supplier.supplier_type}</div>
-                            <div className="text-xs lg:text-sm text-gray-500">Postbox: {supplier.postbox}</div>
+                          <td className="px-6 py-4">
+                            <div className="space-y-1">
+                              <div className="text-sm font-medium text-gray-900">{supplier.supplier_type}</div>
+                              <div className="text-xs text-gray-500">Postbox: {supplier.postbox}</div>
+                            </div>
                           </td>
-                          <td className="px-4 lg:px-6 py-3 lg:py-4">
-                            <span className={`inline-flex px-2 lg:px-3 py-1 text-xs font-semibold rounded-full ${
-                              supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active'
-                                ? statusColors['active']
-                                : statusColors['inactive']
-                            }`}>
-                              {supplier.status === 1 || supplier.status === '1' ? 'active' : supplier.status === 0 || supplier.status === '0' ? 'inactive' : supplier.status}
-                            </span>
-                            <div className="text-xs text-gray-400 mt-1">
-                              Since {new Date(supplier.created_at).toLocaleDateString()}
+                          <td className="px-6 py-4">
+                            <div className="flex flex-col space-y-2">
+                              <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                                supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active'
+                                  ? 'bg-green-100 text-green-800 border border-green-200'
+                                  : 'bg-red-100 text-red-800 border border-red-200'
+                              }`}>
+                                {supplier.status === 1 || supplier.status === '1' ? 'active' : supplier.status === 0 || supplier.status === '0' ? 'inactive' : supplier.status}
+                              </span>
+                              <div className="text-xs text-gray-400">
+                                Since {new Date(supplier.created_at).toLocaleDateString()}
+                              </div>
                             </div>
                           </td>
                           <td className="px-4 lg:px-6 py-3 lg:py-4">
@@ -731,115 +791,118 @@ export default function SuppliersPage() {
                   </table>
                 </div>
 
-                {/* Mobile Card View */}
+                {/* Mobile Card View - Enhanced Modern Design */}
                 <div className="md:hidden space-y-4 p-4">
                   {filteredSuppliers.map((supplier) => (
                     <div
                       key={`${supplier.id}-mobile`}
-                      className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm"
+                      className="bg-white border border-gray-200 rounded-2xl p-4 shadow-sm hover:shadow-lg transition-all duration-300 relative overflow-hidden group"
                     >
-                      <div className="space-y-3">
-                        {/* Supplier Header */}
-                        <div className="flex items-start justify-between border-b pb-3">
-                          <div className="flex items-center flex-1">
-                            <div className="flex-shrink-0 h-12 w-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">
-                              {supplier.name.split(' ').map(w => w[0]).join('').toUpperCase()}
-                            </div>
-                            <div className="ml-3 flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-gray-900 truncate">{supplier.name}</div>
-                              <div className="text-xs text-gray-500 mt-1">{supplier.supplier_type}</div>
-                            </div>
+                      {/* Background Pattern */}
+                      <div className="absolute top-0 right-0 w-24 h-24 bg-gradient-to-br from-blue-50 to-purple-50 rounded-full -mr-12 -mt-12 opacity-60 group-hover:scale-110 transition-transform duration-300"></div>
+                      
+                      {/* Supplier Header */}
+                      <div className="flex items-start justify-between relative z-10">
+                        <div className="flex items-center flex-1">
+                          <div className="flex-shrink-0 h-14 w-14 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center text-white font-bold text-sm shadow-lg group-hover:scale-110 transition-transform duration-200">
+                            {supplier.name.split(' ').map(w => w[0]).join('').toUpperCase()}
                           </div>
-                          <span className={`inline-flex px-2.5 py-1 text-xs font-semibold rounded-full flex-shrink-0 ml-2 ${
-                            supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active'
-                              ? statusColors['active']
-                              : statusColors['inactive']
-                          }`}>
-                            {supplier.status === 1 || supplier.status === '1' ? 'active' : supplier.status === 0 || supplier.status === '0' ? 'inactive' : supplier.status}
-                          </span>
-                        </div>
-
-                        {/* Contact Info */}
-                        <div className="grid grid-cols-1 gap-2">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Email</p>
-                            <p className="text-sm text-gray-900 truncate">{supplier.email}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Phone</p>
-                            <p className="text-sm text-gray-900">{supplier.phone}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">Address</p>
-                            <p className="text-xs text-gray-600 line-clamp-2">{supplier.address}</p>
+                          <div className="ml-3 flex-1 min-w-0">
+                            <div className="text-base font-semibold text-gray-900 truncate">{supplier.name}</div>
+                            <div className="text-xs text-gray-500 mt-1">{supplier.supplier_type}</div>
                           </div>
                         </div>
+                        <span className={`inline-flex px-3 py-1.5 text-xs font-semibold rounded-full flex-shrink-0 ml-2 shadow-sm ${
+                          supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active'
+                            ? 'bg-green-100 text-green-800 border border-green-200'
+                            : 'bg-red-100 text-red-800 border border-red-200'
+                        }`}>
+                          {supplier.status === 1 || supplier.status === '1' ? 'active' : supplier.status === 0 || supplier.status === '0' ? 'inactive' : supplier.status}
+                        </span>
+                      </div>
 
-                        {/* Business Details */}
-                        <div className="grid grid-cols-2 gap-3 pt-2 border-t">
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">PAN</p>
-                            <p className="text-xs text-gray-900">{supplier.pan}</p>
+                      {/* Contact Info */}
+                      <div className="grid grid-cols-1 gap-3 mt-4 relative z-10">
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <div className="flex items-center text-xs font-medium text-gray-500 mb-1">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            Email
                           </div>
-                          <div>
-                            <p className="text-xs font-medium text-gray-500">GSTIN</p>
-                            <p className="text-xs text-gray-900">{supplier.gstin}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <p className="text-xs font-medium text-gray-500">Postbox</p>
-                            <p className="text-xs text-gray-900">{supplier.postbox}</p>
-                          </div>
+                          <p className="text-sm text-gray-900 truncate">{supplier.email}</p>
                         </div>
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <div className="flex items-center text-xs font-medium text-gray-500 mb-1">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                            </svg>
+                            Phone
+                          </div>
+                          <p className="text-sm text-gray-900">{supplier.phone}</p>
+                        </div>
+                        <div className="bg-gray-50 rounded-xl p-3">
+                          <div className="flex items-center text-xs font-medium text-gray-500 mb-1">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Address
+                          </div>
+                          <p className="text-xs text-gray-600 line-clamp-2">{supplier.address}</p>
+                        </div>
+                      </div>
 
-                        {/* Actions */}
-                        <div className="flex flex-wrap gap-2 pt-2 border-t">
-                          {permissions.can_view && (
-                            <Link
-                              href={`/supplierinvoice?id=${supplier.id}`}
-                              className="flex-1 text-blue-600 hover:text-blue-900 text-sm font-medium px-3 py-2 bg-blue-50 rounded-lg transition-colors text-center"
-                            >
-                              View
-                            </Link>
-                          )}
+                      {/* Business Details */}
+                      <div className="grid grid-cols-2 gap-3 mt-4 relative z-10">
+                        <div className="bg-blue-50 rounded-xl p-3">
+                          <p className="text-xs font-medium text-blue-600 mb-1">PAN</p>
+                          <p className="text-xs text-blue-900 font-medium">{supplier.pan}</p>
+                        </div>
+                        <div className="bg-purple-50 rounded-xl p-3">
+                          <p className="text-xs font-medium text-purple-600 mb-1">GSTIN</p>
+                          <p className="text-xs text-purple-900 font-medium">{supplier.gstin}</p>
+                        </div>
+                        <div className="col-span-2 bg-green-50 rounded-xl p-3">
+                          <p className="text-xs font-medium text-green-600 mb-1">📮 Postbox</p>
+                          <p className="text-xs text-green-900 font-medium">{supplier.postbox}</p>
+                        </div>
+                      </div>
+
+                      {/* Actions */}
+                      <div className="flex flex-wrap gap-2 mt-4 pt-4 border-t border-gray-100 relative z-10">
+                        {permissions.can_view && (
+                          <Link
+                            href={`/supplierinvoice?id=${supplier.id}`}
+                            className="flex-1 bg-blue-100 text-blue-700 hover:bg-blue-200 text-sm font-medium px-3 py-2.5 rounded-xl transition-colors text-center shadow-sm"
+                          >
+                            👁️ View
+                          </Link>
+                        )}
+                        <button 
+                          onClick={() => loadPurchaseHistory(supplier)}
+                          className="flex-1 bg-green-100 text-green-700 hover:bg-green-200 text-sm font-medium px-3 py-2.5 rounded-xl transition-colors text-center shadow-sm"
+                        >
+                          📊 History
+                        </button>
+                        {permissions.can_edit && (
                           <button 
-                            onClick={() => loadPurchaseHistory(supplier)}
-                            className="flex-1 text-green-600 hover:text-green-900 text-sm font-medium px-3 py-2 bg-green-50 rounded-lg transition-colors"
+                            onClick={() => toggleSupplierStatus(supplier.id)}
+                            className={`flex-1 text-sm font-medium px-3 py-2.5 rounded-xl transition-colors text-center shadow-sm ${
+                              (supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active')
+                                ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200' 
+                                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            }`}
                           >
-                            History
+                            {(supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active') ? '⏸️ Deactivate' : '▶️ Activate'}
                           </button>
-                            {permissions.can_edit && (
-                              <button 
-                                onClick={() => toggleSupplierStatus(supplier.id)}
-                                className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg transition-colors ${
-                                  (supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active')
-                                    ? 'text-yellow-600 hover:text-yellow-900 bg-yellow-50' 
-                                    : 'text-green-600 hover:text-green-900 bg-green-50'
-                                }`}
-                              >
-                                {(supplier.status === 1 || supplier.status === '1' || supplier.status === 'active' || supplier.status === 'Active') ? 'Deactivate' : 'Activate'}
-                              </button>
-                            )}
-                        </div>
-                        
-                        {/* Mobile Logs Section */}
-                        <div className="mt-3 pt-3 border-t border-gray-200">
-                          <button
-                            onClick={() => toggleSupplierLogs(supplier.id)}
-                            className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
-                          >
-                            <span className="text-sm font-medium">Activity Logs</span>
-                            {expandedSuppliers[supplier.id] ? (
-                              <BiChevronUp size={20} />
-                            ) : (
-                              <BiChevronDown size={20} />
-                            )}
-                          </button>
-                          {expandedSuppliers[supplier.id] && (
-                            <div className="mt-3 pt-3 border-t border-gray-200">
-                              <EntityLogs entityType="supplier" entityId={supplier.id} />
-                            </div>
-                          )}
-                        </div>
+                        )}
+                        <button
+                          onClick={() => toggleSupplierLogs(supplier.id)}
+                          className="flex-1 bg-purple-100 text-purple-700 hover:bg-purple-200 text-sm font-medium px-3 py-2.5 rounded-xl transition-colors text-center shadow-sm"
+                        >
+                          📋 Logs
+                        </button>
                       </div>
                     </div>
                   ))}

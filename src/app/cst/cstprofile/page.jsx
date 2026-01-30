@@ -98,12 +98,24 @@ export default function CstProfilePage() {
                 <div className="font-medium text-gray-900">{profile?.com_id || "-"}</div>
               </div>
               <div>
+                <label className="text-sm text-gray-500">Client Type</label>
+                <div className="font-medium text-gray-900">
+                  {profile?.client_type === 2 || profile?.client_type === '2' ? 'Postpaid' :
+                    profile?.client_type === 1 || profile?.client_type === '1' ? 'Prepaid' :
+                      profile?.client_type === 3 || profile?.client_type === '3' ? 'Day Limit' : '-'}
+                </div>
+              </div>
+              <div>
+                <label className="text-sm text-gray-500">Day Limit</label>
+                <div className="font-medium text-gray-900">{profile?.day_limit || "-"}</div>
+              </div>
+              <div>
                 <label className="text-sm text-gray-500">Role</label>
-                <div className="font-medium text-gray-900">{profile?.roleid || "-"}</div>
+                <div className="font-medium text-gray-900">{profile?.role_name || profile?.roleid || "-"}</div>
               </div>
               <div className="md:col-span-2">
                 <label className="text-sm text-gray-500">Allowed Stations</label>
-                <div className="font-medium text-gray-900 break-all">{profile?.blocklocation || "-"}</div>
+                <div className="font-medium text-gray-900 break-all">{profile?.allowed_stations || profile?.blocklocation || "-"}</div>
               </div>
             </div>
           </div>

@@ -22,10 +22,8 @@ function SchedulePriceContent() {
   const [historyLoading, setHistoryLoading] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [customersWithPendingUpdates, setCustomersWithPendingUpdates] = useState(new Set());
-  const [bulkPrices, setBulkPrices] = useState({}); // Store bulk prices for each product-station combination
   const [requireApproval, setRequireApproval] = useState(true);
   const [viewMode, setViewMode] = useState("all"); // "all", "pending", "approved"
-  const [bulkUpdateSamePrice, setBulkUpdateSamePrice] = useState(true); // Enable bulk update by default
   const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split("T")[0]);
   const [scheduleTime, setScheduleTime] = useState(new Date().toTimeString().slice(0, 5));
   const [hasPermission, setHasPermission] = useState(false);
@@ -353,22 +351,6 @@ function SchedulePriceContent() {
     }));
   };
 
-  // Group products by main product
-  const groupedProducts = (products || []).reduce((acc, product) => {
-    if (product && product.product_id) {
-      if (!acc[product.product_id]) {
-        acc[product.product_id] = {
-          product_name: product.product_name || "Unknown Product",
-          sub_products: []
-        };
-      }
-      if (product.code_id) {
-        acc[product.product_id].sub_products.push(product);
-      }
-    }
-    return acc;
-  }, {});
-
   // Submit scheduled prices
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -386,25 +368,23 @@ function SchedulePriceContent() {
       // Collect all updates for all selected customers
       selectedCustomers.forEach(customerId => {
         stations.forEach(station => {
-          Object.values(groupedProducts).forEach(group => {
-            group.sub_products.forEach(subProduct => {
-              // Use scheduleDate and scheduleTime from state
-              const key = `${customerId}_${station.id}_${subProduct.code_id}_${scheduleDate}_${scheduleTime}`;
-              const data = scheduleData[key];
-              
-              // Only update if price is entered and greater than 0 (zero will never update)
-              if (data && data.price && parseFloat(data.price) > 0) {
-                updates.push({
-                  customer_id: customerId,
-                  station_id: station.id,
-                  product_id: subProduct.product_id,
-                  sub_product_id: subProduct.code_id,
-                  price: parseFloat(data.price),
-                  schedule_date: scheduleDate,
-                  schedule_time: scheduleTime
-                });
-              }
-            });
+          (products || []).forEach(subProduct => {
+            // Use scheduleDate and scheduleTime from state
+            const key = `${customerId}_${station.id}_${subProduct.code_id}_${scheduleDate}_${scheduleTime}`;
+            const data = scheduleData[key];
+            
+            // Only update if price is entered and greater than 0 (zero will never update)
+            if (data && data.price && parseFloat(data.price) > 0) {
+              updates.push({
+                customer_id: customerId,
+                station_id: station.id,
+                product_id: subProduct.product_id,
+                sub_product_id: subProduct.code_id,
+                price: parseFloat(data.price),
+                schedule_date: scheduleDate,
+                schedule_time: scheduleTime
+              });
+            }
           });
         });
       });
@@ -421,8 +401,7 @@ function SchedulePriceContent() {
         body: JSON.stringify({ 
           customerIds: selectedCustomers,
           updates,
-          requireApproval,
-          bulkUpdateSamePrice // Enable bulk update for customers with same price
+          requireApproval
         }),
       });
 
@@ -714,25 +693,6 @@ function SchedulePriceContent() {
               )}
             </div>
 
-            {/* Bulk Update Setting */}
-            <div className="mb-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-              <div className="flex items-center">
-                <input
-                  type="checkbox"
-                  id="bulk-update"
-                  checked={bulkUpdateSamePrice}
-                  onChange={(e) => setBulkUpdateSamePrice(e.target.checked)}
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                />
-                <label htmlFor="bulk-update" className="ml-2 text-sm font-medium text-gray-700">
-                  Bulk Update Same Price (Within Selected Customers Only)
-                </label>
-              </div>
-              <p className="text-xs text-gray-600 mt-1 ml-6">
-                If enabled, when you set the same price for multiple selected customers, updating one will update all selected customers with that same price. Only selected customers will be affected, not all customers in the system.
-              </p>
-            </div>
-
             {/* Approval Settings */}
             <div className="flex gap-4 mb-4">
               <div className="flex items-center">
@@ -843,155 +803,130 @@ function SchedulePriceContent() {
 
               <form onSubmit={handleSubmit}>
                 {(stations || []).map((station) => (
-                  <div key={station.id} className="mb-6 border-b border-gray-200 pb-6 last:border-b-0">
-                    <h2 className="font-semibold text-lg mb-3 flex items-center">
-                      <span className="mr-2">📍</span>
-                      {station.station_name}
-                    </h2>
+                  <div key={station.id} className="mb-8 bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 shadow-sm">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="font-bold text-xl text-gray-900 flex items-center">
+                        <span className="mr-3 text-2xl">📍</span>
+                        {station.station_name}
+                      </h2>
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                          {products?.length || 0} Products
+                        </span>
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                          ID: {station.id}
+                        </span>
+                      </div>
+                    </div>
                     
-                    {Object.entries(groupedProducts || {}).map(([productId, group]) => {
-                      if (!group || !group.sub_products || group.sub_products.length === 0) {
-                        return null;
-                      }
-                      
-                      const bulkKey = `${station.id}_${productId}`;
-                      const bulkPrice = bulkPrices?.[bulkKey] || "";
-                      
-                      const applyBulkPrice = (price) => {
-                        if (!price || parseFloat(price) <= 0) {
-                          alert("Please enter a valid price greater than 0");
-                          return;
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                      {(products || []).map((subProduct) => {
+                        if (!subProduct || !subProduct.code_id) {
+                          return null;
                         }
                         
-                        if (!selectedCustomers || selectedCustomers.length === 0) {
-                          alert("Please select at least one customer first");
-                          return;
-                        }
+                        // Get current price value for this sub-product
+                        const firstCustomerKey = selectedCustomers && selectedCustomers.length > 0 
+                          ? `${selectedCustomers[0]}_${station.id}_${subProduct.code_id}_${scheduleDate}_${scheduleTime}`
+                          : null;
+                        const currentValue = firstCustomerKey && scheduleData && scheduleData[firstCustomerKey] 
+                          ? scheduleData[firstCustomerKey].price || ""
+                          : "";
                         
-                        if (!group || !group.sub_products || group.sub_products.length === 0) {
-                          return;
-                        }
-                        
-                        // Apply price to all sub-products for all selected customers
-                        selectedCustomers.forEach(customerId => {
-                          group.sub_products.forEach(subProduct => {
-                            if (subProduct && subProduct.code_id && subProduct.product_id) {
-                              handleChange(
-                                customerId,
-                                station.id,
-                                subProduct.code_id,
-                                subProduct.product_id,
-                                scheduleDate,
-                                scheduleTime,
-                                "price",
-                                price
-                              );
-                            }
-                          });
-                        });
-                        
-                        // Clear bulk price input
-                        setBulkPrices(prev => ({
-                          ...prev,
-                          [bulkKey]: ""
-                        }));
-                        
-                        alert(`✅ Price ₹${price} applied to all ${group.sub_products.length} sub-products of ${group.product_name} for ${selectedCustomers.length} customer(s)`);
-                      };
-                      
-                      return (
-                        <div key={productId} className="mb-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-2 gap-2">
-                            <h3 className="font-medium text-gray-800">{group.product_name}</h3>
-                            <div className="flex items-center gap-2">
+                        return (
+                          <div 
+                            key={subProduct.code_id} 
+                            className="bg-gradient-to-br from-white to-gray-50 rounded-xl p-5 border border-gray-200 hover:shadow-xl transition-all duration-300 transform hover:scale-105 hover:border-blue-300"
+                          >
+                            <div className="mb-3">
+                              <h3 className="font-bold text-gray-900 text-sm mb-1 leading-tight">
+                                {subProduct.product_name || "Unknown Product"}
+                              </h3>
+                              <div className="flex items-center space-x-2">
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                  {subProduct.pcode || "N/A"}
+                                </span>
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600">
+                                  ID: {subProduct.code_id}
+                                </span>
+                              </div>
+                            </div>
+                            
+                            <div className="relative">
+                              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <span className="text-gray-500 text-sm">₹</span>
+                              </div>
                               <input
                                 type="number"
-                                placeholder="Set same price for all"
+                                placeholder="0.00"
                                 min="0"
                                 step="0.01"
-                                value={bulkPrice}
+                                value={currentValue}
                                 onChange={(e) => {
-                                  setBulkPrices(prev => ({
-                                    ...prev,
-                                    [bulkKey]: e.target.value
-                                  }));
+                                  if (selectedCustomers && selectedCustomers.length > 0) {
+                                    selectedCustomers.forEach(customerId => {
+                                      handleChange(
+                                        customerId,
+                                        station.id,
+                                        subProduct.code_id,
+                                        subProduct.product_id,
+                                        scheduleDate,
+                                        scheduleTime,
+                                        "price",
+                                        e.target.value
+                                      );
+                                    });
+                                  } else {
+                                    alert("Please select at least one customer first");
+                                  }
                                 }}
-                                className="px-3 py-1 border border-gray-300 rounded-lg text-sm w-40 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                className="w-full pl-8 pr-3 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium transition-all duration-200 hover:border-gray-400"
                               />
-                              <button
-                                type="button"
-                                onClick={() => applyBulkPrice(bulkPrice)}
-                                className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 transition-colors font-medium whitespace-nowrap"
-                              >
-                                Apply All
-                              </button>
                             </div>
+                            
+                            {currentValue && (
+                              <div className="mt-2 text-xs text-green-600 font-medium">
+                                ✓ Price set for {selectedCustomers.length} customer(s)
+                              </div>
+                            )}
                           </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                            {group.sub_products.map((subProduct) => {
-                              if (!subProduct || !subProduct.code_id) {
-                                return null;
-                              }
-                              
-                              // Get current price value for this sub-product
-                              const firstCustomerKey = selectedCustomers && selectedCustomers.length > 0 
-                                ? `${selectedCustomers[0]}_${station.id}_${subProduct.code_id}_${scheduleDate}_${scheduleTime}`
-                                : null;
-                              const currentValue = firstCustomerKey && scheduleData && scheduleData[firstCustomerKey] 
-                                ? scheduleData[firstCustomerKey].price || ""
-                                : "";
-                              
-                              return (
-                                <div 
-                                  key={subProduct.code_id} 
-                                  className="bg-gray-50 rounded-lg p-3 border border-gray-200"
-                                >
-                                  <label className="block font-medium text-gray-700 mb-1">
-                                    {subProduct.pcode || "N/A"}
-                                  </label>
-                                  
-                                  {/* Price Input */}
-                                  <input
-                                    type="number"
-                                    placeholder="Price"
-                                    min="0"
-                                    step="0.01"
-                                    value={currentValue}
-                                    onChange={(e) => {
-                                      if (selectedCustomers && selectedCustomers.length > 0) {
-                                        selectedCustomers.forEach(customerId => {
-                                          handleChange(
-                                            customerId,
-                                            station.id, 
-                                            subProduct.code_id, 
-                                            subProduct.product_id,
-                                            scheduleDate,
-                                            scheduleTime,
-                                            "price", 
-                                            e.target.value
-                                          );
-                                        });
-                                      }
-                                    }}
-                                    className="w-full px-2 py-1 border rounded-lg mb-2 text-sm"
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
 
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="mt-4 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {loading ? "Saving..." : `💾 Save Schedule for ${selectedCustomers.length} Customers`}
-                </button>
+                <div className="flex flex-col sm:flex-row items-center justify-center mt-10 gap-4">
+                  <button
+                    type="submit"
+                    disabled={loading || selectedCustomers.length === 0}
+                    className="px-12 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 w-full sm:w-auto transform"
+                  >
+                    {loading ? (
+                      <span className="flex items-center justify-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Saving Schedule...
+                      </span>
+                    ) : (
+                      <span className="flex items-center justify-center">
+                        <span className="mr-2">💾</span>
+                        Save Schedule for {selectedCustomers.length} Customer{selectedCustomers.length !== 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </button>
+                  
+                  {selectedCustomers.length === 0 && (
+                    <div className="text-center sm:text-left">
+                      <p className="text-sm text-gray-500 flex items-center">
+                        <span className="mr-2">ℹ️</span>
+                        Please select at least one customer to continue
+                      </p>
+                    </div>
+                  )}
+                </div>
               </form>
             </div>
           )}

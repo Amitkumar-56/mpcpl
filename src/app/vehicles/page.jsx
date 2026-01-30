@@ -297,13 +297,13 @@ export default function VehiclesPage() {
                           <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                             <div className="flex space-x-2">
                               <Link 
-                                href={`/vehicles/edit/${v.id}`} 
+                                href={`/vehicles/edit?id=${v.id}`} 
                                 className="bg-blue-600 text-white px-3 py-1 rounded hover:bg-blue-700 transition-colors text-xs font-medium"
                               >
                                 Edit
                               </Link>
                               <Link 
-                                href={`/vehicles/view/${v.id}`} 
+                                href={`/vehicles/view?id=${v.id}`} 
                                 className="bg-green-600 text-white px-3 py-1 rounded hover:bg-green-700 transition-colors text-xs font-medium"
                               >
                                 View

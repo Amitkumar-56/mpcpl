@@ -95,7 +95,7 @@ export default function CstHeader({ user: propUser }) {
             <FaBars className="text-gray-700 text-xl" />
           </button>
           
-          <h1 className="text-2xl font-bold text-blue-800">MPCL</h1>
+          <h1 className="text-2xl font-bold text-blue-800">MPCPL</h1>
         </div>
 
         {/* Center Section: Search - Only show on dashboard */}
@@ -134,12 +134,7 @@ export default function CstHeader({ user: propUser }) {
 
             {showProfileMenu && (
               <div className="absolute right-0 mt-2 w-56 bg-white border rounded-lg shadow-lg z-50">
-                <button
-                  onClick={() => { router.push('/roles'); setShowProfileMenu(false); }}
-                  className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
-                >
-                  <FaCog /> Role Setting
-                </button>
+               
                 <button
                   onClick={() => { router.push('/cst/cstprofile'); setShowProfileMenu(false); }}
                   className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"

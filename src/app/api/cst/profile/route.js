@@ -22,7 +22,7 @@ export async function GET(req) {
     }
 
     const rows = await executeQuery(
-      `SELECT id, name, email, phone, status, product, blocklocation, roleid, com_id 
+      `SELECT id, name, email, phone, status, product, blocklocation, roleid, com_id, client_type, day_limit
        FROM customers 
        WHERE id = ? 
        LIMIT 1`,
