@@ -135,35 +135,38 @@ export async function POST(request) {
       console.log('stock_history table might not exist, skipping...');
     }
     
-    // ✅ Always insert into filling_history (insert only) - ONLY when called from all-stock page
-    // Add (+): trans_type 'Inward', stock_type 'extra'
-    // Minus (-): trans_type 'Outward', stock_type 'stored'
+    // Always insert into filling_history (insert only) - ONLY when called from all-stock page
+    // Add (+): trans_type = 'extra'
+    // Minus (-): trans_type = 'stored'
     try {
       // Check if stock_type column exists
       const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
       const colSet = new Set(colsInfo.map(r => r.Field));
       const hasStockType = colSet.has('stock_type');
       
-      // ✅ Determine trans_type and stock_type based on operation
-      // Add (+): trans_type = 'Inward', stock_type = 'extra'
-      // Minus (-): trans_type = 'Outward', stock_type = 'stored'
-      const transType = isMinus ? 'Outward' : 'Inward';
+      // Determine trans_type based on operation
+      // Add (+): trans_type = 'extra'
+      // Minus (-): trans_type = 'stored'
+      // Determine trans_type and stock_type based on operation
+      // Add (+): trans_type = 'extra', stock_type = 'extra'
+      // Minus (-): trans_type = 'stored', stock_type = 'stored'
+      const transType = isMinus ? 'stored' : 'extra';
       const stockType = isMinus ? 'stored' : 'extra';
       
-      // ✅ filling_qty: positive for add, negative for minus
+      // filling_qty: positive for add, negative for minus
       const fillingQty = isMinus ? -absQuantity : absQuantity;
       
       if (hasStockType) {
-        // ✅ Insert with both trans_type and stock_type
+        // Insert with trans_type only (remove stock_type)
         const fillingHistoryQuery = `
           INSERT INTO filling_history 
-          (fs_id, product_id, trans_type, stock_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at) 
-          VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), ?, NOW())
+          (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_at, updated_at) 
+          VALUES (?, ?, ?, ?, ?, ?, NOW(), NOW(), NOW())
         `;
-        // ✅ Ensure userId is valid before inserting
+        // Ensure userId is valid before inserting
         let createdByUserId = (userId && userId > 0) ? userId : null;
         
-        // ✅ Verify userId exists in employee_profile if provided
+        // Verify userId exists in employee_profile if provided
         if (createdByUserId) {
           try {
             const verifyUser = await executeQuery(
@@ -177,7 +180,7 @@ export async function POST(request) {
               console.log(`✅ Verified user for stock history: ${verifyUser[0].name} (ID: ${createdByUserId})`);
             }
           } catch (verifyError) {
-            console.error('⚠️ Error verifying user ID:', verifyError);
+            console.error(' Error verifying user ID:', verifyError);
             // Continue with userId even if verification fails
           }
         }
@@ -185,18 +188,16 @@ export async function POST(request) {
         const insertResult = await executeQuery(fillingHistoryQuery, [
           station_id,
           product_id,
-          transType, // ✅ 'Inward' for add (+), 'Outward' for minus (-)
-          stockType, // ✅ 'extra' for add (+), 'stored' for minus (-)
+          transType, // 'Inward' for add (+), 'Outward' for minus (-)
           currentStock, // Current stock before change
           fillingQty, // Positive for add, negative for minus
           availableStock, // Available stock after change
-          createdByUserId // ✅ Use verified userId or null
+          createdByUserId // Use verified userId or null
         ]);
-        console.log('✅ Filling history entry created (with stock_type):', {
+        console.log(' Filling history entry created (with stock_type):', {
           fs_id: station_id,
           product_id,
           trans_type: transType,
-          stock_type: stockType,
           current_stock: currentStock,
           filling_qty: fillingQty,
           available_stock: availableStock,

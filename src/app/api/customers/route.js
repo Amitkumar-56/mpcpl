@@ -166,6 +166,15 @@ export async function PATCH(req) {
         return NextResponse.json({ error: 'Invalid credit limit amount' }, { status: 400 });
       }
 
+      // Fetch current customer balance from customer_balance table
+      const balanceRows = await executeQuery(
+        'SELECT balance FROM customer_balances WHERE com_id = ?',
+        [customerId]
+      );
+      
+      const currentBalance = balanceRows.length > 0 ? (balanceRows[0].balance || 0) : 0;
+      const calculatedAmtlimit = Math.max(0, limitValue - currentBalance); // Ensure non-negative
+
       // Update customers table - set to postpaid
       await executeQuery(
         'UPDATE customers SET client_type = ? WHERE id = ?', 
@@ -181,14 +190,14 @@ export async function PATCH(req) {
            SET cst_limit = ?, amtlimit = ?, 
                day_limit = 0, total_day_amount = 0
            WHERE com_id = ?`,
-          [limitValue, limitValue, customerId]
+          [limitValue, calculatedAmtlimit, customerId]
         );
       } else {
         await executeQuery(
           `INSERT INTO customer_balances 
            (balance, hold_balance, amtlimit, cst_limit, com_id, day_limit, total_day_amount, is_active) 
            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [0, 0, limitValue, limitValue, customerId, 0, 0, 0, null, 1]
+          [currentBalance, 0, calculatedAmtlimit, limitValue, customerId, 0, 0, 0, null, 1]
         );
       }
 

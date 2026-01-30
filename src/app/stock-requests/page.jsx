@@ -127,13 +127,13 @@ function StockRequestsContent() {
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
               <div>
                 <div className="flex items-center space-x-2">
-                  <button
-                    onClick={() => router.back()}
-                    className="text-gray-600 hover:text-gray-900 text-xl sm:text-2xl"
-                    title="Go Back"
+                  <Link 
+                    href="/dashboard"
+                    className="text-gray-600 hover:text-gray-900 text-xl sm:text-2xl transition-colors duration-200 inline-flex items-center justify-center"
+                    title="Go Back to Dashboard"
                   >
                     ←
-                  </button>
+                  </Link>
                   <h1 className="text-2xl font-semibold text-gray-900">Stock Requests</h1>
                 </div>
                 <nav className="flex space-x-2 text-sm text-gray-600 mt-2">
@@ -289,7 +289,7 @@ function StockRequestsContent() {
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2 sm:space-x-3">
                             <Link
-                              href={`/stock/supply-details/${request.id}`}
+                              href={`/stock/supply-details?id=${request.id}`}
                               className="text-blue-600 hover:text-blue-900"
                             >
                               <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 20 20">
@@ -297,11 +297,6 @@ function StockRequestsContent() {
                                 <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                               </svg>
                             </Link>
-                            <button className="text-green-600 hover:text-green-900">
-                              <svg className="w-5 h-5 inline" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                              </svg>
-                            </button>
                             <Link
                               href={`/stock/dncn?id=${request.id}`}
                               target="_blank"
@@ -372,7 +367,7 @@ function StockRequestsContent() {
                         <div className="pt-3 border-t border-gray-200 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <Link
-                              href={`/stock/supply-details/${request.id}`}
+                              href={`/stock/supply-details?id=${request.id}`}
                               className="text-blue-600 hover:text-blue-800"
                               title="View"
                             >
@@ -381,11 +376,6 @@ function StockRequestsContent() {
                                 <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                               </svg>
                             </Link>
-                            <button className="text-green-600 hover:text-green-900">
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M18 10c0 3.866-3.582 7-8 7a8.841 8.841 0 01-4.083-.98L2 17l1.338-3.123C2.493 12.767 2 11.434 2 10c0-3.866 3.582-7 8-7s8 3.134 8 7zM7 9H5v2h2V9zm8 0h-2v2h2V9zM9 9h2v2H9V9z" clipRule="evenodd" />
-                              </svg>
-                            </button>
                             <Link
                               href={`/stock/dncn?id=${request.id}`}
                               target="_blank"

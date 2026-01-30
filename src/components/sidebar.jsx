@@ -137,7 +137,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
-    { name: "Users", icon: <FaUsers />, module: "users", path: "/users" },
+   
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
     { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-list" },
     { name: "Loading History", icon: <FaHistory />, module: "history", path: "/loading-unloading-history" },
@@ -177,8 +177,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     items: "Items",
     tanker_history: "Tanker History",
     deepo_history: "Deepo History",
-    agent_management: "Agent Management",
-      users: "Users",
+    agent_management: "Agent Management"
+    
   }), []);
 
   // ✅ Role-based menu filtering
@@ -214,7 +214,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     if (userRole === 3) {
       return menuItems.filter((item) => {
         // Hide: NB modules, Users, Agent Management (admin only)
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management'];
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock',  'agent_management'];
         if (hiddenModules.includes(item.module)) {
           return false;
         }
@@ -244,7 +244,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         }
         
         // Hide: NB modules, Users, Agent Management, Reports, etc.
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management', 'reports'];
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock',  'agent_management', 'reports'];
         if (hiddenModules.includes(item.module)) {
           return false;
         }
@@ -277,7 +277,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           return false;
         }
         
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'users', 'agent_management', 'reports', 'customers', 'employees', 'suppliers', 'transporters', 'attendance'];
+        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'agent_management', 'reports', 'customers', 'employees', 'suppliers', 'transporters', 'attendance'];
         if (hiddenModules.includes(item.module)) {
           return false;
         }

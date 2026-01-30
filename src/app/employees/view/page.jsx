@@ -68,6 +68,11 @@ function ViewEmployeeContent() {
         const employeeData = result.data.employee || result.data;
         setEmployee(employeeData);
         
+        // Fetch audit logs for this employee
+        if (employeeData?.id || employeeData?.emp_code) {
+          fetchAuditLogs(employeeData.id || id, employeeData.emp_code);
+        }
+        
         // Only set permissions if user is admin (role 5) - admin can see all employee permissions
         // Employees can only see their own permissions when viewing their own profile
         if (user?.role === 5) {
@@ -93,14 +98,8 @@ function ViewEmployeeContent() {
             setPermissions(permsArray);
           }
         }
-        // If employee is viewing another employee's profile (not admin), don't show permissions
       } else {
         setError(result.error || 'Failed to load employee data');
-      }
-      
-      // Fetch audit logs for this employee
-      if (employeeData?.id || employeeData?.emp_code) {
-        fetchAuditLogs(employeeData.id || id, employeeData.emp_code);
       }
     } catch (err) {
       console.error(err);
@@ -263,109 +262,103 @@ function ViewEmployeeContent() {
             </div>
 
             {employee && (
-              <div className="bg-white rounded-lg shadow p-4 md:p-6">
-                {/* Profile Image */}
-                <div className="flex flex-col items-center mb-6 md:mb-8">
-                  <div className="relative mb-4">
-                    {employee.picture ? (
-                      <img 
-                        src={`/uploads/${employee.picture}`} 
-                        alt={employee.name} 
-                        className="h-24 w-24 md:h-32 md:w-32 object-cover rounded-full border-4 border-gray-200"
-                      />
-                    ) : (
-                      <div className="h-24 w-24 md:h-32 md:w-32 bg-gray-200 rounded-full flex items-center justify-center">
-                        <span className="text-gray-400 text-3xl md:text-4xl font-semibold">
-                          {employee.name?.charAt(0)?.toUpperCase() || 'E'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                  <h2 className="text-xl md:text-2xl font-bold text-gray-800">{employee.name || 'N/A'}</h2>
-                  <p className="text-gray-600 mt-1">{employee.emp_code || 'N/A'}</p>
-                </div>
-
-                {/* Employee Details Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Email</label>
-                    <p className="text-gray-900 text-sm md:text-base break-words font-medium">{employee.email || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Phone</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{employee.phone || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Alternate Phone</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{employee.phonealt || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Role</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{getRoleName(employee.role)}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Salary</label>
-                    <p className="text-gray-900 text-sm md:text-base font-semibold text-green-600">
-                      ₹{employee.salary ? parseFloat(employee.salary).toLocaleString('en-IN') : '0'}
-                    </p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Status</label>
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                {/* Modern Header - No Photo */}
+                <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-6 py-8">
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                     <div>
-                      <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
-                        employee.status === 1 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                      <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">{employee.name || 'N/A'}</h2>
+                      <p className="text-blue-100 text-sm md:text-base">Employee Code: {employee.emp_code || 'N/A'}</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className={`inline-flex px-4 py-2 text-sm font-semibold rounded-full ${
+                        employee.status === 1 || employee.status === '1' || employee.status === 'active'
+                          ? 'bg-green-100 text-green-800 border border-green-200'
+                          : 'bg-red-100 text-red-800 border border-red-200'
                       }`}>
-                        {employee.status === 1 ? 'Active' : 'Inactive'}
+                        {employee.status === 1 || employee.status === '1' || employee.status === 'active' ? '🟢 Active' : '🔴 Inactive'}
                       </span>
                     </div>
                   </div>
+                </div>
 
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">City</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{employee.city || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Region</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{employee.region || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg sm:col-span-2">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Address</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium break-words">{employee.address || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Country</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{employee.country || 'N/A'}</p>
-                  </div>
-
-                  <div className="bg-gray-50 p-3 md:p-4 rounded-lg">
-                    <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Postbox</label>
-                    <p className="text-gray-900 text-sm md:text-base font-medium">{employee.postbox || 'N/A'}</p>
-                  </div>
-
-                  {employee.account_details && (
-                    <div className="bg-gray-50 p-3 md:p-4 rounded-lg sm:col-span-2">
-                      <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Account Details</label>
-                      <p className="text-gray-900 text-sm md:text-base font-medium break-words">{employee.account_details}</p>
+                {/* Employee Details Grid */}
+                <div className="p-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6">
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">📧 Email</label>
+                      <p className="text-gray-900 font-medium break-words">{employee.email || 'N/A'}</p>
                     </div>
-                  )}
 
-                  {employee.created_at && (
-                    <div className="bg-gray-50 p-3 md:p-4 rounded-lg sm:col-span-2">
-                      <label className="block text-xs md:text-sm font-medium text-gray-500 mb-1">Created At</label>
-                      <p className="text-gray-900 text-sm md:text-base font-medium">
-                        {new Date(employee.created_at).toLocaleString('en-IN')}
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">📱 Phone</label>
+                      <p className="text-gray-900 font-medium">{employee.phone || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">📞 Alternate Phone</label>
+                      <p className="text-gray-900 font-medium">{employee.phonealt || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">👔 Role</label>
+                      <p className="text-gray-900 font-medium">{getRoleName(employee.role)}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">💰 Salary</label>
+                      <p className="text-gray-900 font-bold text-lg text-green-600">
+                        ₹{employee.salary ? parseFloat(employee.salary).toLocaleString('en-IN') : '0'}
                       </p>
                     </div>
-                  )}
-                </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">🏙️ City</label>
+                      <p className="text-gray-900 font-medium">{employee.city || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">📍 Region</label>
+                      <p className="text-gray-900 font-medium">{employee.region || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 sm:col-span-2">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">🏠 Address</label>
+                      <p className="text-gray-900 font-medium break-words">{employee.address || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">🌍 Country</label>
+                      <p className="text-gray-900 font-medium">{employee.country || 'N/A'}</p>
+                    </div>
+
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <label className="block text-sm font-medium text-gray-600 mb-2">📮 Postbox</label>
+                      <p className="text-gray-900 font-medium">{employee.postbox || 'N/A'}</p>
+                    </div>
+
+                    {employee.account_details && (
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-2">🏦 Account Details</label>
+                        <p className="text-gray-900 font-medium break-words">{employee.account_details}</p>
+                      </div>
+                    )}
+
+                    {employee.created_at && (
+                      <div className="bg-gray-50 p-4 rounded-lg border border-gray-200 sm:col-span-2">
+                        <label className="block text-sm font-medium text-gray-600 mb-2">📅 Created At</label>
+                        <p className="text-gray-900 font-medium">
+                          {new Date(employee.created_at).toLocaleString('en-IN', {
+                            day: 'numeric',
+                            month: 'short', 
+                            year: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
 
                 {/* Permissions Section - Only show to admin OR if employee is viewing their own profile */}
                 {permissions.length > 0 && (user?.role === 5 || (user?.id && parseInt(id) === user.id)) && (
@@ -408,6 +401,7 @@ function ViewEmployeeContent() {
                     </div>
                   </div>
                 )}
+                </div>
 
                 {/* Employee Audit Logs Section */}
                 {auditLogs.length > 0 && (

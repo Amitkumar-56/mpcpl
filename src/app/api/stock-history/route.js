@@ -73,7 +73,7 @@ export async function GET(request) {
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE 1=1
-      AND fh.trans_type IN ('Inward', 'Outward', 'Edited')
+      AND fh.trans_type IN ('Inward', 'Outward', 'Edited', 'extra', 'stored')
       AND (fh.filling_qty IS NOT NULL AND fh.filling_qty != 0)  -- ✅ Exclude zero loading qty
     `;
     
@@ -126,12 +126,16 @@ export async function GET(request) {
       const inwardRows = rows.filter(r => r.trans_type === 'Inward');
       const outwardRows = rows.filter(r => r.trans_type === 'Outward');
       const editedRows = rows.filter(r => r.trans_type === 'Edited');
+      const extraRows = rows.filter(r => r.trans_type === 'extra');
+      const storedRows = rows.filter(r => r.trans_type === 'stored');
       
       console.log('📊 Transaction Summary:', {
         total: rows.length,
         inward: inwardRows.length,
         outward: outwardRows.length,
         edited: editedRows.length,
+        extra: extraRows.length,
+        stored: storedRows.length,
         zeroQtyExcluded: inwardRows.filter(r => parseFloat(r.filling_qty || 0) === 0).length
       });
       
@@ -221,14 +225,13 @@ export async function GET(request) {
         current_stock: currentStock,
         filling_qty: fillingQty,
         available_stock: availableStock,
-        created_by_name: displayName || row.created_by_name,
-        user_name: displayName || row.created_by_name
       };
     });
 
     // ✅ Filter out rows where filling_qty is 0 (double check)
     const filteredRows = formattedRows.filter(row => 
       row.filling_qty > 0 || 
+      row.filling_qty < 0 || // Include negative quantities for 'stored' transactions
       row.trans_type === 'Edited' // Edited transactions might have 0 qty change
     );
 
