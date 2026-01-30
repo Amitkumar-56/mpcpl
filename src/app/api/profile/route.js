@@ -51,14 +51,19 @@ export async function GET(request) {
       }, { status: 401 });
     }
 
-    // Fetch user profile with station info
+    // Fetch user profile with station info using JOIN
     console.log('📋 Fetching profile from database for user ID:', userId);
     const users = await executeQuery(
       `SELECT e.id, e.emp_code, e.name, e.email, e.role, e.status, e.fs_id, e.fl_id, e.station, e.client,
               e.address, e.city, e.region, e.country, e.postbox, e.phone, e.phonealt, 
-              e.picture, e.salary, e.account_details, e.created_at
-       FROM employee_profile e
-       WHERE e.id = ?`,
+              e.picture, e.salary, e.account_details, e.created_at,
+              GROUP_CONCAT(DISTINCT fs.station_name ORDER BY fs.station_name SEPARATOR ', ') as station_names
+       FROM employee_profile e 
+       LEFT JOIN filling_stations fs ON FIND_IN_SET(fs.id, e.fs_id) > 0
+       WHERE e.id = ?
+       GROUP BY e.id, e.emp_code, e.name, e.email, e.role, e.status, e.fs_id, e.fl_id, e.station, e.client,
+               e.address, e.city, e.region, e.country, e.postbox, e.phone, e.phonealt, 
+               e.picture, e.salary, e.account_details, e.created_at`,
       [userId]
     );
 
@@ -79,24 +84,8 @@ export async function GET(request) {
       user.role = Number(user.role);
     }
 
-    // Fetch station details if user has stations assigned
-    let stationDetails = [];
-    if (user.fs_id) {
-      try {
-        const stations = await executeQuery(
-          `SELECT id, Station, address, city, region 
-           FROM filling_stations 
-           WHERE id = ?`,
-          [user.fs_id]
-        );
-        stationDetails = stations;
-      } catch (err) {
-        console.log('Could not fetch station details:', err.message);
-      }
-    }
-
-    // Add station details to user object
-    user.station_details = stationDetails;
+    // Add station details to user object (from JOIN)
+    user.station_details = user.station_names;
 
     console.log('✅ Profile fetched successfully:', {
       id: user.id,
@@ -105,13 +94,14 @@ export async function GET(request) {
       role: user.role,
       status: user.status,
       fs_id: user.fs_id,
+      station_names: user.station_names,
       station: user.station
     });
 
     console.log('🔍 Station info:', {
       fs_id: user.fs_id,
       station: user.station,
-      station_details: stationDetails
+      station_names: user.station_names
     });
 
     return NextResponse.json({ 

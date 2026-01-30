@@ -115,7 +115,9 @@ export default function CstProfilePage() {
               </div>
               <div className="md:col-span-2">
                 <label className="text-sm text-gray-500">Allowed Stations</label>
-                <div className="font-medium text-gray-900 break-all">{profile?.allowed_stations || profile?.blocklocation || "-"}</div>
+                <div className="font-medium text-gray-900">
+                  {profile?.allowed_stations || profile?.blocklocation || "-"}
+                </div>
               </div>
             </div>
           </div>

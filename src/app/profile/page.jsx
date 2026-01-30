@@ -181,9 +181,10 @@ export default function ProfilePage() {
                     <div>
                       <label className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">Station</label>
                       <p className="text-sm sm:text-base text-gray-900 bg-gray-50 px-3 py-2 rounded-md">
-                        {profile.station_details && profile.station_details.length > 0 
-                          ? profile.station_details.map(station => station.Station || station.id).join(', ')
-                          : profile.station || profile.fs_id || profile.fl_id || 'N/A'
+                        {profile.station_names || 
+                         (profile.station_details && profile.station_details.length > 0 
+                          ? profile.station_details.map(station => station.station_name || `Station ${station.id}`).join(', ')
+                          : profile.station || profile.fs_id || profile.fl_id || 'N/A')
                         }
                       </p>
                     </div>

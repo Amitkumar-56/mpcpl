@@ -563,6 +563,16 @@ export default function DashboardPage() {
               {!(sessionUser?.role === 1 || sessionUser?.role === 2) && (
                 <div className="flex items-center space-x-2 mt-3 lg:mt-0">
                   <button
+                    onClick={() => window.open('https://masafipetro.com/new/login.php', '_blank')}
+                    className="flex items-center space-x-1 px-3 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-all text-sm"
+                    title="Open Old Website"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                    </svg>
+                    <span className="hidden sm:inline">Old Website</span>
+                  </button>
+                  <button
                     onClick={handleRefresh}
                     disabled={refreshing}
                     className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"

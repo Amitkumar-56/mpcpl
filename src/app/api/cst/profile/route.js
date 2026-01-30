@@ -22,9 +22,12 @@ export async function GET(req) {
     }
 
     const rows = await executeQuery(
-      `SELECT id, name, email, phone, status, product, blocklocation, roleid, com_id, client_type, day_limit
-       FROM customers 
-       WHERE id = ? 
+      `SELECT c.id, c.name, c.email, c.phone, c.status, c.product, c.blocklocation, c.roleid, c.com_id, c.client_type, c.day_limit,
+              GROUP_CONCAT(DISTINCT fs.station_name ORDER BY fs.station_name SEPARATOR ', ') as allowed_stations
+       FROM customers c 
+       LEFT JOIN filling_stations fs ON FIND_IN_SET(fs.id, c.blocklocation) > 0
+       WHERE c.id = ? 
+       GROUP BY c.id, c.name, c.email, c.phone, c.status, c.product, c.blocklocation, c.roleid, c.com_id, c.client_type, c.day_limit
        LIMIT 1`,
       [idNum]
     );
