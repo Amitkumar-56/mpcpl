@@ -2,13 +2,10 @@
 "use client";
 
 import { useSession } from '@/context/SessionContext';
-import DayLimitManager from "components/DayLimitManager";
-import Footer from "components/Footer";
-import Header from "components/Header";
-import Sidebar from "components/sidebar";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import dynamic from 'next/dynamic';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import React, { useCallback, useEffect, useMemo, useState, Suspense } from "react";
 import {
   BiCoin,
   BiEdit,
@@ -20,6 +17,25 @@ import {
   BiHistory
 } from "react-icons/bi";
 import { FaToggleOff, FaToggleOn } from "react-icons/fa";
+
+// Lazy load heavy components
+const DayLimitManager = dynamic(() => import("components/DayLimitManager"), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-8 rounded"></div>
+});
+const Footer = dynamic(() => import("components/Footer"), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-16 rounded"></div>
+});
+const Header = dynamic(() => import("components/Header"), {
+  loading: () => <div className="animate-pulse bg-gray-200 h-16 rounded"></div>
+});
+const Sidebar = dynamic(() => import("components/sidebar"), {
+  loading: () => <div className="animate-pulse bg-gray-200 w-64 h-screen"></div>
+});
+
+// Utility function to format numbers with commas
+const formatNumber = (num) => {
+  return num ? num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") : '0';
+};
 
 function CustomersPage() {
   const [customers, setCustomers] = useState([]);
@@ -1264,6 +1280,11 @@ function CustomersPage() {
                      switchCustomer?.client_type === '2' ? 'Postpaid' : 'Day Limit'}
                   </strong>
                 </p>
+                {switchCustomer?.client_type === '3' && (
+                  <p className="text-sm text-blue-600 mt-1">
+                    Current Balance: <strong>₹{formatNumber(switchCustomer?.balance || 0)}</strong>
+                  </p>
+                )}
               </div>
 
               <div className="space-y-4">
@@ -1338,5 +1359,23 @@ function CustomersPage() {
 }
 
 export default function Page() {
-  return <CustomersPage />;
+  return (
+    <Suspense fallback={
+      <div className="flex h-screen bg-gray-50">
+        <div className="animate-pulse bg-gray-200 w-64 h-screen"></div>
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="animate-pulse bg-gray-200 h-16"></div>
+          <div className="flex-1 overflow-y-auto p-8">
+            <div className="animate-pulse bg-gray-200 h-8 w-64 mb-6 rounded"></div>
+            <div className="animate-pulse bg-gray-200 h-4 w-full mb-4 rounded"></div>
+            <div className="animate-pulse bg-gray-200 h-4 w-full mb-4 rounded"></div>
+            <div className="animate-pulse bg-gray-200 h-4 w-3/4 rounded"></div>
+          </div>
+          <div className="animate-pulse bg-gray-200 h-16"></div>
+        </div>
+      </div>
+    }>
+      <CustomersPage />
+    </Suspense>
+  );
 }

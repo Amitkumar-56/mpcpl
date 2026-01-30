@@ -112,7 +112,7 @@ export default function Sidebar({ user: propUser }) {
 
   return (
     <>
-      {/* Mobile toggle button - Left side for right sidebar */}
+      {/* Mobile toggle button - Left side for left sidebar */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="md:hidden fixed top-4 left-4 z-50 p-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
@@ -129,11 +129,11 @@ export default function Sidebar({ user: propUser }) {
         />
       )}
 
-      {/* Sidebar - Right-side on mobile */}
+      {/* Sidebar - Left-side on mobile */}
       <aside
         className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
-          isOpen ? "translate-x-0" : "translate-x-full"
-        } md:translate-x-0 transition-transform duration-300 right-0`}
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        } md:translate-x-0 transition-transform duration-300 left-0`}
       >
         <div className="p-4 border-b border-gray-300 flex justify-between items-center">
           <div>
@@ -151,7 +151,8 @@ export default function Sidebar({ user: propUser }) {
         
         <nav className="flex-1 overflow-y-auto py-2 px-2">
           {filteredMenuItems.map(item => {
-            const isActive = pathname.startsWith(item.path);
+            const isActive = pathname === item.path || 
+                           (item.path === "/cst/filling-requests" && pathname.startsWith("/cst/filling-request"));
             return (
               <button
                 key={item.name}

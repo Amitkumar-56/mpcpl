@@ -51,14 +51,19 @@ export async function GET(request) {
       }, { status: 401 });
     }
 
-    // Fetch user profile
+    // Fetch user profile with station info using JOIN
     console.log('📋 Fetching profile from database for user ID:', userId);
     const users = await executeQuery(
-      `SELECT id, emp_code, name, email, role, status, fs_id, fl_id, station, client,
-              address, city, region, country, postbox, phone, phonealt, 
-              picture, salary, account_details, created_at
-       FROM employee_profile 
-       WHERE id = ?`,
+      `SELECT e.id, e.emp_code, e.name, e.email, e.role, e.status, e.fs_id, e.fl_id, e.station, e.client,
+              e.address, e.city, e.region, e.country, e.postbox, e.phone, e.phonealt, 
+              e.picture, e.salary, e.account_details, e.created_at,
+              GROUP_CONCAT(DISTINCT fs.station_name ORDER BY fs.station_name SEPARATOR ', ') as station_names
+       FROM employee_profile e 
+       LEFT JOIN filling_stations fs ON FIND_IN_SET(fs.id, e.fs_id) > 0
+       WHERE e.id = ?
+       GROUP BY e.id, e.emp_code, e.name, e.email, e.role, e.status, e.fs_id, e.fl_id, e.station, e.client,
+               e.address, e.city, e.region, e.country, e.postbox, e.phone, e.phonealt, 
+               e.picture, e.salary, e.account_details, e.created_at`,
       [userId]
     );
 
@@ -74,25 +79,29 @@ export async function GET(request) {
 
     const user = users[0];
     
-    // Check if employee is active (status = 1)
-    if (user.status === 0 || user.status === null || user.status === undefined) {
-      console.log('❌ Employee account is disabled');
-      return NextResponse.json({ 
-        success: false,
-        error: 'Your account has been deactivated by admin. Please contact administrator.' 
-      }, { status: 403 });
-    }
-    
     // Ensure role is a number
     if (user.role !== undefined && user.role !== null) {
       user.role = Number(user.role);
     }
 
+    // Add station details to user object (from JOIN)
+    user.station_details = user.station_names;
+
     console.log('✅ Profile fetched successfully:', {
       id: user.id,
       name: user.name,
       email: user.email,
-      role: user.role
+      role: user.role,
+      status: user.status,
+      fs_id: user.fs_id,
+      station_names: user.station_names,
+      station: user.station
+    });
+
+    console.log('🔍 Station info:', {
+      fs_id: user.fs_id,
+      station: user.station,
+      station_names: user.station_names
     });
 
     return NextResponse.json({ 
