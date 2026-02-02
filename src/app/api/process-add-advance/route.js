@@ -29,6 +29,18 @@ export async function POST(request) {
     `;
     await executeQuery(historySql, [voucher_id, user_id ? parseInt(user_id) : null, advance_amount]);
 
+    // Insert into advance_history
+    const advanceHistorySql = `
+      INSERT INTO advance_history 
+      (voucher_id, amount, given_date, given_by, created_at) 
+      VALUES (?, ?, NOW(), ?, NOW())
+    `;
+    await executeQuery(advanceHistorySql, [
+      voucher_id,
+      advance_amount,
+      user_id ? parseInt(user_id) : 0
+    ]);
+
     // Get current user for audit log
     let userId = user_id ? parseInt(user_id) : null;
     let userName = null;
@@ -36,7 +48,7 @@ export async function POST(request) {
       const currentUser = await getCurrentUser();
       userId = currentUser?.userId || userId;
       userName = currentUser?.userName || null;
-      
+
       if (!userName && userId) {
         const users = await executeQuery(
           `SELECT name FROM employee_profile WHERE id = ?`,

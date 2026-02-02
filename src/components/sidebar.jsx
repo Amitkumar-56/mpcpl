@@ -27,7 +27,7 @@ import {
 
 const Sidebar = memo(function Sidebar({ onClose }) {
   const { user, logout } = useSession();
-  
+
   // SSR के लिए default state
   const [isCollapsed, setIsCollapsed] = useState(true); // SSR के लिए हमेशा collapsed
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -36,13 +36,13 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   const router = useRouter();
   const pathname = usePathname();
   const sidebarRef = useRef(null);
-  
+
   // ✅ Client-side initialization only
   useEffect(() => {
     const initializeSidebar = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      
+
       if (mobile) {
         // Mobile पर हमेशा collapsed से start करें
         setIsCollapsed(true);
@@ -50,16 +50,16 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         // Desktop पर हमेशा full expanded रखें
         setIsCollapsed(false);
       }
-      
+
       setIsInitialized(true);
     };
-    
+
     initializeSidebar();
-    
+
     const handleResize = () => {
       const mobile = window.innerWidth < 768;
       setIsMobile(mobile);
-      
+
       if (mobile) {
         // Mobile पर collapsed रखें
         setIsCollapsed(true);
@@ -68,7 +68,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         setIsCollapsed(false);
       }
     };
-    
+
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
@@ -86,10 +86,10 @@ const Sidebar = memo(function Sidebar({ onClose }) {
   // ✅ साइडबार के बाहर क्लिक करने पर बंद करें (मोबाइल के लिए)
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (isMobile && 
-          sidebarRef.current && 
-          !sidebarRef.current.contains(event.target) &&
-          !isCollapsed) {
+      if (isMobile &&
+        sidebarRef.current &&
+        !sidebarRef.current.contains(event.target) &&
+        !isCollapsed) {
         setIsCollapsed(true);
       }
     };
@@ -100,7 +100,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
   const handleLogout = async () => {
     if (isLoggingOut) return;
-    
+
     try {
       setIsLoggingOut(true);
       await logout();
@@ -137,7 +137,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
-   
+
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
     { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-list" },
     { name: "Loading History", icon: <FaHistory />, module: "history", path: "/loading-unloading-history" },
@@ -152,179 +152,90 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     dashboard: "Dashboard",
     reports: "Reports",
     filling_requests: "Filling Requests",
-     customers: "Customer",
+    customers: "Customers",
     stock: "Stock",
     stock_history: "Stock History",
-     stock_requests: "Stock Requests",
+    stock_requests: "Stock Requests",
     stock_transfers: "Stock Transfer",
     stock_transfer_logs: "Transfer Logs",
     loading_stations: "Loading Station",
-    products: "Items & Products",
+    products: "Products",
     employees: "Employees",
     attendance: "Attendance",
-    vehicles: "Vehicle",
+    vehicles: "Vehicles",
     schedule_price: "Schedule Prices",
     lr_management: "LR Management",
     history: "Loading History",
     suppliers: "Suppliers",
-      outstanding_history: "Outstanding History",
+    outstanding_history: "Outstanding History",
     transporters: "Transporters",
     nb_balance: "NB Accounts",
     nb_stock: "NB Stock",
     nb_expenses: "NB Expenses",
-    vouchers: "Voucher",
+    vouchers: "Vouchers",
     remarks: "Remarks",
     items: "Items",
     tanker_history: "Tanker History",
     deepo_history: "Deepo History",
     agent_management: "Agent Management"
-    
+
   }), []);
 
   // ✅ Role-based menu filtering
   const allowedMenu = useMemo(() => {
     if (!user) return [];
-    
+
     const userRole = Number(user.role);
-    
+
     // ✅ Head Operation (role 5) - All Accountant modules + everything
     if (userRole === 5) {
       return menuItems;
     }
-    
-    // ✅ Accountant (role 4) - Multi branch, Create request, Tanker movement (stock), Stock update, NB modules
-    if (userRole === 4) {
+
+    // ✅ Roles 1 (Staff), 2 (Incharge), 3 (Team Leader), 4 (Accountant), 7 (Hard Operation) - Strictly Follow Permissions
+    if ([1, 2, 3, 4, 7].includes(userRole)) {
       return menuItems.filter((item) => {
-        // Hide most history items, but keep Tanker History for movement tracking
-        const historyItems = ['history', 'stock_history', 'outstanding_history', 'deepo_history'];
-        if (historyItems.includes(item.module)) {
-          return false;
-        }
-        
-        // Show: Dashboard, Purchase Request, Stock, NB modules, Tanker History (for movement), Stock Transfer, Transfer Logs, Attendance
-        const allowedModules = [
-          'dashboard', 'filling_requests','stock_transfers', 'stock','products' ,'nb_balance', 'nb_expenses', 'nb_stock',
-          'tanker_history', 'loading_stations',  'attendance'
-        ];
-        return allowedModules.includes(item.module);
-      });
-    }
-    
-    // ✅ Team Leader (role 3) - Multi branch, Purchase request (full), Tanker movement, Attendance (branch team), Customer recharge, Stock update
-    if (userRole === 3) {
-      return menuItems.filter((item) => {
-        // Hide: NB modules, Users, Agent Management (admin only)
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock',  'agent_management'];
-        if (hiddenModules.includes(item.module)) {
-          return false;
-        }
-        
-        // Show: Dashboard, Purchase Request (full), Stock, Tanker History, Customers (for recharge), etc.
-        // Filter by permissions if available
-        if (user.permissions && typeof user.permissions === 'object') {
-          const backendModuleName = moduleMapping[item.module];
-          if (backendModuleName) {
-            const modulePermission = user.permissions[backendModuleName];
-            if (modulePermission && typeof modulePermission === 'object') {
-              return modulePermission.can_view === true;
-            }
+        const backendModuleName = moduleMapping[item.module];
+
+        // If we have a mapping and permissions object
+        if (backendModuleName && user.permissions && typeof user.permissions === 'object') {
+          // Check if specific permission module exists
+          if (user.permissions[backendModuleName]) {
+            // STRICTLY Return the can_view status
+            // "Check role + permissions table... show what is accessed, hide what is not"
+            return user.permissions[backendModuleName].can_view === true;
           }
         }
-        return true; // Default show if no permission check
-      });
-    }
-    
-    // ✅ Incharge (role 2) - Single branch, Purchase request (search only), NO history, Attendance (all)
-    if (userRole === 2) {
-      return menuItems.filter((item) => {
-        // Hide ALL history items
-        const historyItems = ['history', 'stock_history', 'outstanding_history', 'tanker_history', 'deepo_history'];
-        if (historyItems.includes(item.module)) {
-          return false;
-        }
-        
-        // Hide: NB modules, Users, Agent Management, Reports, etc.
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock',  'agent_management', 'reports'];
-        if (hiddenModules.includes(item.module)) {
-          return false;
-        }
-        
-        // Show: Dashboard, Purchase Request, Stock (optional), Loading Stations, Attendance
-        const allowedModules = ['dashboard', 'filling_requests', 'stock', 'loading_stations', 'attendance'];
-        if (allowedModules.includes(item.module)) {
-          // Check permissions if available
-          if (user.permissions && typeof user.permissions === 'object') {
-            const backendModuleName = moduleMapping[item.module];
-            if (backendModuleName) {
-              const modulePermission = user.permissions[backendModuleName];
-              if (modulePermission && typeof modulePermission === 'object') {
-                return modulePermission.can_view === true;
-              }
-            }
-          }
-          return true;
-        }
+
+        // If no permission entry found (or no permissions object), strictly HIDE
         return false;
       });
     }
-    
-    // ✅ Staff (role 1) - Single branch, Purchase request (search only), Stock (optional), NO Attendance access
-    if (userRole === 1) {
-      return menuItems.filter((item) => {
-        // Hide: History items (except if needed for attendance), NB modules, Users, etc.
-        const historyItems = ['history', 'stock_history', 'outstanding_history', 'tanker_history', 'deepo_history'];
-        if (historyItems.includes(item.module)) {
-          return false;
-        }
-        
-        const hiddenModules = ['nb_balance', 'nb_expenses', 'nb_stock', 'agent_management', 'reports', 'customers', 'employees', 'suppliers', 'transporters', 'attendance'];
-        if (hiddenModules.includes(item.module)) {
-          return false;
-        }
-        
-        // Show: Dashboard, Purchase Request, Stock (optional), Loading Stations
-        const allowedModules = ['dashboard', 'filling_requests', 'stock', 'loading_stations'];
-        if (allowedModules.includes(item.module)) {
-          // Check permissions if available
-          if (user.permissions && typeof user.permissions === 'object') {
-            const backendModuleName = moduleMapping[item.module];
-            if (backendModuleName) {
-              const modulePermission = user.permissions[backendModuleName];
-              if (modulePermission && typeof modulePermission === 'object') {
-                return modulePermission.can_view === true;
-              }
-            }
-          }
-          return true;
-        }
-        return false;
-      });
-    }
-    
+
     // ✅ Default: Check permissions for other roles
     if (!user.permissions || typeof user.permissions !== 'object' || Object.keys(user.permissions).length === 0) {
       return [];
     }
-    
+
     // ✅ Filter menu items based on can_view permission
     const filtered = menuItems.filter((item) => {
       if (item.adminOnly && userRole !== 5) {
         return false;
       }
-      
+
       const backendModuleName = moduleMapping[item.module];
       if (!backendModuleName) {
         return false;
       }
-      
+
       const modulePermission = user.permissions[backendModuleName];
       if (!modulePermission || typeof modulePermission !== 'object') {
         return false;
       }
-      
+
       return modulePermission.can_view === true;
     });
-    
+
     return filtered;
   }, [user, menuItems, moduleMapping]);
 
@@ -356,7 +267,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
       {/* Overlay for mobile when sidebar is open */}
       {isInitialized && isMobile && !isCollapsed && (
-        <div 
+        <div
           style={{
             position: 'fixed',
             top: 0,
@@ -385,8 +296,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           // Desktop पर हमेशा full width (16rem), mobile पर collapse/expand
           width: isInitialized
             ? (isMobile
-                ? (isCollapsed ? '0' : '16rem')
-                : '16rem')
+              ? (isCollapsed ? '0' : '16rem')
+              : '16rem')
             : '4rem',
           overflow: 'hidden',
           left: 0,
@@ -418,13 +329,13 @@ const Sidebar = memo(function Sidebar({ onClose }) {
           }}>
             {user?.name?.charAt(0).toUpperCase() || 'U'}
           </div>
-          
+
           {/* User details - desktop पर हमेशा दिखाएं, mobile पर सिर्फ expanded में */}
           {isInitialized && (!isMobile || !isCollapsed) && (
             <div style={{ marginLeft: '0.75rem', flex: 1, minWidth: 0 }}>
-              <p style={{ 
-                fontSize: '0.875rem', 
-                fontWeight: 500, 
+              <p style={{
+                fontSize: '0.875rem',
+                fontWeight: 500,
                 color: '#111827',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -432,20 +343,20 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               }}>
                 {user?.name || 'User'}
               </p>
-              <p style={{ 
-                fontSize: '0.75rem', 
+              <p style={{
+                fontSize: '0.75rem',
                 color: '#4b5563',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
                 whiteSpace: 'nowrap',
               }}>
-                {Number(user?.role) === 5 
-                  ? 'Admin' 
+                {Number(user?.role) === 5
+                  ? 'Admin'
                   : (user?.role_name || 'Employee')}
               </p>
               {Number(user?.role) === 5 && (
-                <p style={{ 
-                  fontSize: '0.75rem', 
+                <p style={{
+                  fontSize: '0.75rem',
                   color: '#2563eb',
                   fontWeight: 600,
                   marginTop: '2px',
@@ -471,21 +382,27 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               const handleNavClick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 if (item.path === pathname) {
                   return;
                 }
-                
+
                 // Mobile पर navigation के बाद sidebar बंद करें
                 if (isInitialized && isMobile) {
                   setIsCollapsed(true);
                 }
-                
+
                 startTransition(() => {
-                  router.push(item.path);
+                  try {
+                    router.push(item.path);
+                  } catch (err) {
+                    console.error('Navigation error:', err);
+                    // Fallback to window.location if router fails heavily
+                    window.location.href = item.path;
+                  }
                 });
               };
-              
+
               return (
                 <button
                   key={item.name}
@@ -522,18 +439,18 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                   }}
                   title={isInitialized && isCollapsed ? item.name : ''}
                 >
-                  <span style={{ 
-                    fontSize: '1.125rem', 
+                  <span style={{
+                    fontSize: '1.125rem',
                     display: 'flex',
                     flexShrink: 0,
                   }}>
                     {item.icon}
                   </span>
-                  
+
                   {/* Menu item name - only show when not collapsed AND initialized */}
                   {isInitialized && !isCollapsed && (
-                    <span style={{ 
-                      fontSize: '0.875rem', 
+                    <span style={{
+                      fontSize: '0.875rem',
                       fontWeight: 500,
                       marginLeft: '0.75rem',
                       overflow: 'hidden',
@@ -547,15 +464,15 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               );
             })
           ) : user ? (
-            <div style={{ 
-              padding: '0.75rem', 
-              textAlign: 'center', 
+            <div style={{
+              padding: '0.75rem',
+              textAlign: 'center',
               color: '#4b5563',
               fontSize: '0.875rem',
             }}>
               <p style={{ fontWeight: 600 }}>No modules available</p>
-              <p style={{ 
-                fontSize: '0.75rem', 
+              <p style={{
+                fontSize: '0.75rem',
                 color: '#6b7280',
                 marginTop: '0.25rem',
               }}>
@@ -614,9 +531,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
                   flexShrink: 0,
                 }} />
                 {isInitialized && !isCollapsed && (
-                  <span style={{ 
-                    fontWeight: 500, 
-                    marginLeft: '0.75rem' 
+                  <span style={{
+                    fontWeight: 500,
+                    marginLeft: '0.75rem'
                   }}>
                     Logging out...
                   </span>
@@ -624,10 +541,10 @@ const Sidebar = memo(function Sidebar({ onClose }) {
               </>
             ) : (
               <>
-                <FaSignOutAlt style={{ 
+                <FaSignOutAlt style={{
                   flexShrink: 0,
-                  marginRight: isInitialized && !isCollapsed ? '0.75rem' : 0 
-                }} /> 
+                  marginRight: isInitialized && !isCollapsed ? '0.75rem' : 0
+                }} />
                 {isInitialized && !isCollapsed && (
                   <span style={{ fontWeight: 500 }}>Logout</span>
                 )}

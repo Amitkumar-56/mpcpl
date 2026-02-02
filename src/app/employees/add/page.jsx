@@ -49,6 +49,11 @@ export default function CreateUserPage() {
     "NB Expenses": { can_view: false, can_edit: false, can_create: false },
     "NB Stock": { can_view: false, can_edit: false, can_create: false },
     "Stock Transfer": { can_view: false, can_edit: false, can_create: false },
+    "Stock Requests": { can_view: false, can_edit: false, can_create: false },
+    "Transfer Logs": { can_view: false, can_edit: false, can_create: false },
+    "Stock History": { can_view: false, can_edit: false, can_create: false },
+    Attendance: { can_view: false, can_edit: false, can_create: false },
+    "Outstanding History": { can_view: false, can_edit: false, can_create: false },
     Reports: { can_view: false, can_edit: false, can_create: false },
     Retailers: { can_view: false, can_edit: false, can_create: false },
     "Agent Management": { can_view: false, can_edit: false, can_create: false },
@@ -185,15 +190,15 @@ export default function CreateUserPage() {
       if (!isAdmin) {
         payloadData.status = "1";
       }
-      
+
       // Add all form data except emp_code
       Object.keys(payloadData).forEach(key => {
         if (key !== "emp_code") form.append(key, payloadData[key]);
       });
-      
+
       if (image) form.append('picture', image);
       if (qrCode) form.append('qr_code', qrCode);
-      
+
       // Add station assignments (admin only)
       if (isAdmin) {
         console.log('🔍 CREATE - Sending stations to backend:', selectedStations);
@@ -203,7 +208,7 @@ export default function CreateUserPage() {
         });
         console.log('🔍 CREATE - Total stations being sent:', selectedStations.length);
       }
-      
+
       // Format permissions for backend (admin only)
       if (isAdmin) {
         const formattedPermissions = {};
@@ -217,11 +222,11 @@ export default function CreateUserPage() {
         form.append('permissions', JSON.stringify(formattedPermissions));
       }
 
-      const res = await fetch('/api/employee', { 
-        method: 'POST', 
-        body: form 
+      const res = await fetch('/api/employee', {
+        method: 'POST',
+        body: form
       });
-      
+
       const data = await res.json();
 
       if (res.ok) {
@@ -300,8 +305,8 @@ export default function CreateUserPage() {
 
         <main className="flex-1 overflow-auto p-6">
           <div className="flex items-center mb-6">
-            <button 
-              onClick={() => router.back()} 
+            <button
+              onClick={() => router.back()}
               className="mr-4 p-2 rounded-full hover:bg-gray-100 transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -320,12 +325,12 @@ export default function CreateUserPage() {
 
             <div className="md:w-2/3 w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <input 
-                  type="text" 
-                  name="emp_code" 
-                  value="Auto-generated" 
-                  readOnly 
-                  className="border rounded p-2 bg-gray-100 cursor-not-allowed" 
+                <input
+                  type="text"
+                  name="emp_code"
+                  value="Auto-generated"
+                  readOnly
+                  className="border rounded p-2 bg-gray-100 cursor-not-allowed"
                 />
                 <input type="text" name="name" placeholder="Full Name" value={formData.name} onChange={handleChange} className="border rounded p-2" />
                 <input type="email" name="email" placeholder="Email" value={formData.email} onChange={handleChange} className="border rounded p-2" />
@@ -353,7 +358,7 @@ export default function CreateUserPage() {
                 <input type="text" name="city" placeholder="City" value={formData.city} onChange={handleChange} className="border rounded p-2" />
                 <select name="region" value={formData.region} onChange={handleChange} className="border rounded p-2">
                   <option value="">Select Region</option>
-                  {['andhra_pradesh','arunachal_pradesh','assam','bihar','chhattisgarh','goa','gujarat','haryana','himachal_pradesh','jharkhand','karnataka','kerala','madhya_pradesh','maharashtra','manipur','meghalaya','mizoram','nagaland','odisha','punjab','rajasthan','sikkim','tamil_nadu','telangana','tripura','uttar_pradesh','uttarakhand','west_bengal'].map(state => (
+                  {['andhra_pradesh', 'arunachal_pradesh', 'assam', 'bihar', 'chhattisgarh', 'goa', 'gujarat', 'haryana', 'himachal_pradesh', 'jharkhand', 'karnataka', 'kerala', 'madhya_pradesh', 'maharashtra', 'manipur', 'meghalaya', 'mizoram', 'nagaland', 'odisha', 'punjab', 'rajasthan', 'sikkim', 'tamil_nadu', 'telangana', 'tripura', 'uttar_pradesh', 'uttarakhand', 'west_bengal'].map(state => (
                     <option key={state} value={state}>
                       {state.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                     </option>
@@ -364,11 +369,11 @@ export default function CreateUserPage() {
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Account Details</label>
-                <textarea 
-                  name="account_details" 
-                  placeholder="Bank Account Number / IFSC / Account Holder Name" 
-                  value={formData.account_details} 
-                  onChange={handleChange} 
+                <textarea
+                  name="account_details"
+                  placeholder="Bank Account Number / IFSC / Account Holder Name"
+                  value={formData.account_details}
+                  onChange={handleChange}
                   className="w-full border rounded p-2 min-h-20 resize-vertical"
                 />
               </div>
@@ -378,10 +383,10 @@ export default function CreateUserPage() {
           {/* QR Code Upload */}
           <div className="mt-6 bg-white rounded-lg p-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">QR Code Upload (Image or PDF)</label>
-            <input 
-              type="file" 
-              accept="image/*,.pdf" 
-              onChange={handleQrCodeChange} 
+            <input
+              type="file"
+              accept="image/*,.pdf"
+              onChange={handleQrCodeChange}
               className="border rounded p-2 w-full"
             />
             {qrCode && (
@@ -399,11 +404,10 @@ export default function CreateUserPage() {
                 {stations.map((station) => (
                   <label
                     key={station.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                      selectedStations.includes(station.id)
+                    className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedStations.includes(station.id)
                         ? "bg-orange-50 border border-orange-200 shadow-sm"
                         : "hover:bg-gray-50 border border-gray-200"
-                    }`}
+                      }`}
                   >
                     <div className="relative">
                       <input
@@ -412,11 +416,10 @@ export default function CreateUserPage() {
                         onChange={() => handleStationToggle(station.id)}
                         className="sr-only"
                       />
-                      <div className={`w-5 h-5 border rounded flex items-center justify-center transition-all ${
-                        selectedStations.includes(station.id)
+                      <div className={`w-5 h-5 border rounded flex items-center justify-center transition-all ${selectedStations.includes(station.id)
                           ? "bg-orange-600 border-orange-600"
                           : "border-gray-300"
-                      }`}>
+                        }`}>
                         {selectedStations.includes(station.id) && (
                           <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -454,26 +457,26 @@ export default function CreateUserPage() {
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-gray-50' : 'bg-white'}>
                       <td className="p-2 border font-medium">{mod}</td>
                       <td className="p-2 border text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={permissions[mod].can_view} 
-                          onChange={() => handlePermissionChange(mod, "can_view")} 
+                        <input
+                          type="checkbox"
+                          checked={permissions[mod].can_view}
+                          onChange={() => handlePermissionChange(mod, "can_view")}
                           className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                         />
                       </td>
                       <td className="p-2 border text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={permissions[mod].can_edit} 
-                          onChange={() => handlePermissionChange(mod, "can_edit")} 
+                        <input
+                          type="checkbox"
+                          checked={permissions[mod].can_edit}
+                          onChange={() => handlePermissionChange(mod, "can_edit")}
                           className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                         />
                       </td>
                       <td className="p-2 border text-center">
-                        <input 
-                          type="checkbox" 
-                          checked={permissions[mod].can_create} 
-                          onChange={() => handlePermissionChange(mod, "can_create")} 
+                        <input
+                          type="checkbox"
+                          checked={permissions[mod].can_create}
+                          onChange={() => handlePermissionChange(mod, "can_create")}
                           className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
                         />
                       </td>
@@ -488,7 +491,7 @@ export default function CreateUserPage() {
             <button className="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-2 rounded" onClick={handleSubmit}>
               Save User
             </button>
-            <button 
+            <button
               className="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded"
               onClick={() => router.push('/employees')}
             >

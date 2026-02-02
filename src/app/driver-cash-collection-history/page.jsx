@@ -6,6 +6,8 @@ import Sidebar from "@/components/sidebar";
 import { useRouter } from "next/navigation";
 import { Fragment, Suspense, useEffect, useState } from "react";
 
+
+
 function HistoryContent() {
   const router = useRouter();
   const [rows, setRows] = useState([]);
@@ -60,6 +62,35 @@ function HistoryContent() {
     }
   };
 
+  const handleExport = async () => {
+    if (!rows || rows.length === 0) {
+      alert("No data to export");
+      return;
+    }
+
+    try {
+      const XLSX = await import('xlsx');
+
+      const dataToExport = rows.map(r => ({
+        "Date": r.collected_date ? new Date(r.collected_date).toLocaleString("en-IN") : "",
+        "Driver Name": r.driver_name || "",
+        "Driver Phone": r.driver_phone || "",
+        "Vehicle Number": r.vehicle_number || "",
+        "Customer Name": r.customer_name || "",
+        "Amount": parseFloat(r.amount || 0),
+        "Remarks": r.remarks || ""
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Driver Cash Collection");
+      XLSX.writeFile(wb, "driver_cash_collection_history.xlsx");
+    } catch (err) {
+      console.error("Export failed:", err);
+      alert("Failed to export Excel file");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8">
@@ -90,29 +121,33 @@ function HistoryContent() {
 
           <div className="bg-white rounded-lg shadow-sm border">
             <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="Search driver, customer, vehicle"
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="date"
-                  value={dateFrom}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <input
-                  type="date"
-                  value={dateTo}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="flex items-center gap-2">
+              <div className="flex flex-col lg:flex-row gap-4">
+                <div className="flex-1 min-w-[200px]">
+                  <input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="Search driver, customer, vehicle"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => setDateFrom(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => setDateTo(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
                   <button
                     onClick={fetchData}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg whitespace-nowrap"
                   >
                     Apply
                   </button>
@@ -123,9 +158,19 @@ function HistoryContent() {
                       setDateTo("");
                       setTimeout(fetchData, 0);
                     }}
-                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg"
+                    className="bg-gray-200 hover:bg-gray-300 text-gray-800 px-4 py-2 rounded-lg whitespace-nowrap"
                   >
                     Reset
+                  </button>
+                  <button
+                    onClick={handleExport}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 whitespace-nowrap"
+                    title="Download as Excel"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Excel
                   </button>
                 </div>
               </div>

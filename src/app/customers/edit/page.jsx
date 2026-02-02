@@ -17,6 +17,31 @@ function EditCustomerContent() {
   const [saving, setSaving] = useState(false);
   const [updatingDayLimit, setUpdatingDayLimit] = useState(false);
 
+  // Permissions State - Keys must match those checked in cstsidebar.jsx
+  const [permissions, setPermissions] = useState({
+    dashboard: { can_view: true, can_edit: false },
+    filling_requests: { can_view: false, can_edit: false },
+    loading_stations: { can_view: false, can_edit: false },
+    customer_history: { can_view: false, can_edit: false },
+  });
+
+  // Mapping for UI display
+  const moduleDisplayNames = {
+    dashboard: "Dashboard",
+    filling_requests: "Filling Requests",
+    loading_stations: "Loading Stations",
+    customer_history: "Loading History"
+  };
+
+  const modules = Object.keys(permissions);
+
+  const handlePermissionChange = (module, perm) => {
+    setPermissions((prev) => ({
+      ...prev,
+      [module]: { ...prev[module], [perm]: !prev[module][perm] },
+    }));
+  };
+
   const [form, setForm] = useState({
     id: "",
     name: "",
@@ -85,9 +110,9 @@ function EditCustomerContent() {
     const fetchData = async () => {
       try {
         setLoading(true);
-        
+
         // Add timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) => 
+        const timeoutPromise = new Promise((_, reject) =>
           setTimeout(() => reject(new Error('Request timeout')), 30000)
         );
 
@@ -126,7 +151,7 @@ function EditCustomerContent() {
         }
 
         console.log('Customer Data:', customer);
-        
+
         // Convert billing_type to string if it's a number
         let billingType = customer.billing_type;
         if (typeof billingType === 'number') {
@@ -134,7 +159,7 @@ function EditCustomerContent() {
         } else if (!billingType) {
           billingType = "1"; // Default to "Billing"
         }
-        
+
         // Get payment_type (gid) from customer data
         let paymentType = customer.gid || customer.payment_type || "1";
         if (typeof paymentType === 'string') {
@@ -155,7 +180,7 @@ function EditCustomerContent() {
           // Only set to '0' if explicitly 0, otherwise default to '1' (Enable)
           statusValue = (statusValue === 0) ? '0' : '1';
         }
-        
+
         // Ensure customer_type also defaults to '1' (Enable) if not explicitly set to '0' (Disable)
         let customerTypeValue = customer.customer_type;
         if (customerTypeValue === null || customerTypeValue === undefined || customerTypeValue === '' || customerTypeValue === 'undefined') {
@@ -167,12 +192,12 @@ function EditCustomerContent() {
           // Only set to '0' if explicitly 0, otherwise default to '1' (Enable)
           customerTypeValue = (customerTypeValue === 0) ? '0' : '1';
         }
-        
+
         // If customer_type is not set, use statusValue, but ensure it defaults to '1' (Enable)
         if (!customer.customer_type) {
           customerTypeValue = statusValue;
         }
-        
+
         // Get client_type from customer (1=Prepaid, 2=Postpaid, 3=Day Limit)
         let clientType = customer.client_type || paymentType;
         if (typeof clientType === 'number') {
@@ -216,21 +241,44 @@ function EditCustomerContent() {
           gst_number: customer.gst_number || "",
         });
 
+        // Populate permissions if available
+        if (customer.permissions) {
+          setPermissions(prev => {
+            const merged = { ...prev };
+            Object.keys(customer.permissions).forEach(mod => {
+              // Only update matches or add new ones if structure matches expectations
+              // Use loose matching for safety
+              if (merged[mod]) {
+                merged[mod] = {
+                  ...merged[mod],
+                  can_view: customer.permissions[mod].can_view,
+                  can_edit: customer.permissions[mod].can_edit
+                };
+              } else {
+                // Or just add it (though usually we stick to predefined modules)
+                merged[mod] = {
+                  can_view: customer.permissions[mod].can_view,
+                  can_edit: customer.permissions[mod].can_edit
+                };
+              }
+            });
+            return merged;
+          });
+        }
         setLoading(false);
       } catch (err) {
         console.error('Error fetching data:', err);
         const errorDetails = err?.response?.data;
         const errorMessage = err?.message;
         console.error('Error details:', errorDetails);
-        console.error('Error message:', errorMessage);
-        
+
         // Set loading to false regardless of error
         setLoading(false);
-        
+
         // Show error message
         const errorMsg = errorDetails?.message || errorMessage || 'Failed to load customer data';
         alert('Error loading customer data: ' + errorMsg);
-        
+
         // Redirect back if customer not found
         if (err?.response?.status === 404) {
           router.push('/customers');
@@ -273,13 +321,13 @@ function EditCustomerContent() {
   const handleStatusChange = async (newStatus) => {
     try {
       updateForm("status", newStatus);
-      
+
       // Immediately update status via API (like PHP update_customer_status.php)
       const response = await axios.put(`/api/customers/edit`, {
         id: customerId,
         status: newStatus
       });
-      
+
       if (response.data.success) {
         console.log('Status updated successfully');
       } else {
@@ -299,7 +347,7 @@ function EditCustomerContent() {
   const submitForm = async () => {
     try {
       setSaving(true);
-      
+
       // Prepare the data to send
       const updateData = {
         id: customerId,
@@ -320,13 +368,14 @@ function EditCustomerContent() {
         gst_number: form.gst_number,
         products: form.products,
         blocklocation: form.blocklocation,
+        permissions: permissions, // Include permissions in the update data
       };
-      
+
       console.log('Sending update data:', updateData);
-      
+
       const response = await axios.put(`/api/customers/edit`, updateData);
       console.log('Update response:', response.data);
-      
+
       if (response.data.success) {
         alert("Customer Updated Successfully!");
         // Redirect to customers page
@@ -400,582 +449,566 @@ function EditCustomerContent() {
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 z-50 relative">
         <Sidebar />
       </div>
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <div className="flex-shrink-0">
+      <div className="flex flex-col flex-1 h-full w-full overflow-hidden relative">
+        <div className="flex-shrink-0 z-40 shadow-sm sticky top-0">
           <Header />
         </div>
-        <main className="flex-1 overflow-y-auto min-h-0 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => router.back()}
-                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
-                title="Go Back"
-              >
-                ←
-              </button>
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <FiEdit className="text-2xl text-blue-600" />
-              </div>
-              <div>
-                <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
-                  Edit Customer
-                </h1>
-                <p className="text-gray-600 mt-1">Customer ID: <span className="font-semibold">{form.id}</span></p>
-              </div>
-            </div>
-            <button
-              onClick={submitForm}
-              disabled={saving}
-              className="bg-gradient-to-r from-blue-600 to-blue-700 text-white px-6 py-3 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium disabled:opacity-70 hover:scale-105 active:scale-95"
-            >
-              {saving ? (
-                <>
-                  <FiLoader className="animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <FiSave />
-                  Update Customer
-                </>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* Main Form Container - Left & Right Sections Side by Side */}
-        <div className="flex flex-col lg:flex-row gap-6">
-          
-          {/* LEFT COLUMN - Basic Information */}
-          <div className="lg:w-2/3">
-            {/* Basic Information Card */}
-            <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                <FiUser className="text-xl text-blue-600" />
-                <h2 className="text-xl font-bold text-gray-800">Basic Information</h2>
-              </div>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Name */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.name}
-                    onChange={(e) => updateForm("name", e.target.value)}
-                    placeholder="Enter customer name"
-                  />
-                </div>
-
-                {/* Email */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Email</label>
-                  <input
-                    type="email"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.email}
-                    onChange={(e) => updateForm("email", e.target.value)}
-                    placeholder="customer@example.com"
-                  />
-                </div>
-
-                {/* Phone */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Phone <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.phone}
-                    onChange={(e) => updateForm("phone", e.target.value)}
-                    placeholder="+1 (555) 123-4567"
-                  />
-                </div>
-
-                {/* Password */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Password</label>
-                  <input
-                    type="password"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.password}
-                    onChange={(e) => updateForm("password", e.target.value)}
-                    placeholder="Leave blank to keep current"
-                  />
-                </div>
-
-                {/* Region */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Region</label>
-                  <select
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.region}
-                    onChange={(e) => updateForm("region", e.target.value)}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-gray-50 scroll-smooth">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <div className="bg-white rounded-xl shadow-sm p-4 md:p-6 mb-6 border border-gray-100">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => router.back()}
+                    className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors p-2 hover:bg-blue-50 rounded-full"
+                    title="Go Back"
                   >
-                    <option value="">Select Region</option>
-                    {Object.entries(regions).map(([key, value]) => (
-                      <option key={key} value={key}>
-                        {value}
-                      </option>
-                    ))}
-                  </select>
+                    ←
+                  </button>
+                  <div className="bg-blue-100 p-3 rounded-xl">
+                    <FiEdit className="text-2xl text-blue-600" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl md:text-3xl font-bold text-gray-800">
+                      Edit Customer
+                    </h1>
+                    <p className="text-gray-500 mt-1 text-sm">Customer ID: <span className="font-mono font-medium text-gray-700 bg-gray-100 px-2 py-0.5 rounded">{form.id}</span></p>
+                  </div>
                 </div>
-
-                {/* Postbox */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Postbox</label>
-                  <input
-                    type="text"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.postbox}
-                    onChange={(e) => updateForm("postbox", e.target.value)}
-                    placeholder="Postbox number"
-                  />
-                </div>
-
-                {/* Address - Full Width */}
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Address</label>
-                  <input
-                    type="text"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition"
-                    value={form.address}
-                    onChange={(e) => updateForm("address", e.target.value)}
-                    placeholder="Full address"
-                  />
-                </div>
+                <button
+                  onClick={submitForm}
+                  disabled={saving}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 flex items-center justify-center gap-2 font-medium disabled:opacity-70 disabled:cursor-not-allowed transform active:scale-95"
+                >
+                  {saving ? (
+                    <>
+                      <FiLoader className="animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <FiSave className="text-lg" />
+                      <span>Update Changes</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
-            {/* Products Section */}
-            <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                <FiPackage className="text-xl text-green-600" />
-                <h2 className="text-xl font-bold text-gray-800">Products & Services</h2>
+            {/* Main Form Container - Left & Right Sections Side by Side */}
+            <div className="flex flex-col lg:flex-row gap-6">
+
+              {/* LEFT COLUMN - Basic Information */}
+              <div className="lg:w-2/3 space-y-6">
+                {/* Basic Information Card */}
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="bg-blue-50 p-2 rounded-lg">
+                      <FiUser className="text-xl text-blue-600" />
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">Basic Information</h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Name */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Name <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none"
+                        value={form.name}
+                        onChange={(e) => updateForm("name", e.target.value)}
+                        placeholder="Enter customer name"
+                      />
+                    </div>
+
+                    {/* Email */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Email</label>
+                      <input
+                        type="email"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none"
+                        value={form.email}
+                        onChange={(e) => updateForm("email", e.target.value)}
+                        placeholder="customer@example.com"
+                      />
+                    </div>
+
+                    {/* Phone */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">
+                        Phone <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none"
+                        value={form.phone}
+                        onChange={(e) => updateForm("phone", e.target.value)}
+                        placeholder="+1 (555) 123-4567"
+                      />
+                    </div>
+
+                    {/* Password */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Password</label>
+                      <input
+                        type="password"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none"
+                        value={form.password}
+                        onChange={(e) => updateForm("password", e.target.value)}
+                        placeholder="Leave blank to keep current"
+                      />
+                    </div>
+
+                    {/* Region */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Region</label>
+                      <select
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none bg-white"
+                        value={form.region}
+                        onChange={(e) => updateForm("region", e.target.value)}
+                      >
+                        <option value="">Select Region</option>
+                        {Object.entries(regions).map(([key, value]) => (
+                          <option key={key} value={key}>
+                            {value}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Postbox */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Postbox</label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none"
+                        value={form.postbox}
+                        onChange={(e) => updateForm("postbox", e.target.value)}
+                        placeholder="Postbox number"
+                      />
+                    </div>
+
+                    {/* Address - Full Width */}
+                    <div className="md:col-span-2 space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Address</label>
+                      <input
+                        type="text"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition outline-none"
+                        value={form.address}
+                        onChange={(e) => updateForm("address", e.target.value)}
+                        placeholder="Full address"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Products Section */}
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="bg-green-50 p-2 rounded-lg">
+                      <FiPackage className="text-xl text-green-600" />
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">Products & Services</h2>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-3">Select Products</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2 bg-gray-50 rounded-lg border border-gray-200">
+                      {productList.map((p) => (
+                        <label
+                          key={p.id}
+                          className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all border ${form.products.includes(p.id)
+                            ? "bg-white border-green-500 shadow-sm ring-1 ring-green-500"
+                            : "bg-white border-gray-200 hover:border-blue-300"
+                            }`}
+                        >
+                          <div className="relative flex items-center">
+                            <input
+                              type="checkbox"
+                              checked={form.products.includes(p.id)}
+                              onChange={() => handleProductChange(p.id)}
+                              className="w-4 h-4 text-green-600 rounded focus:ring-green-500 border-gray-300"
+                            />
+                          </div>
+                          <span className="flex-1 text-gray-700 font-medium text-sm">
+                            {p.pname || p.product_name || `Product ${p.id}`}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Module Permissions */}
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="bg-indigo-50 p-2 rounded-lg">
+                      <span className="text-xl">🛡️</span>
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">Module Permissions</h2>
+                  </div>
+
+                  <div className="overflow-x-auto border border-gray-200 rounded-lg">
+                    <table className="w-full border-collapse">
+                      <thead className="bg-gray-50 border-b border-gray-200">
+                        <tr>
+                          <th className="p-3 text-left font-semibold text-gray-700 text-sm">Module Name</th>
+                          <th className="p-3 text-center font-semibold text-gray-700 text-sm w-24">View</th>
+                          <th className="p-3 text-center font-semibold text-gray-700 text-sm w-24">Edit</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {modules.map((mod, idx) => (
+                          <tr key={idx} className={`hover:bg-indigo-50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/50"}`}>
+                            <td className="p-3 font-medium text-gray-700 text-sm">
+                              {moduleDisplayNames[mod] || mod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                            </td>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={permissions[mod]?.can_view || false}
+                                onChange={() => handlePermissionChange(mod, "can_view")}
+                                className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer transition"
+                              />
+                            </td>
+                            <td className="p-3 text-center">
+                              <input
+                                type="checkbox"
+                                checked={permissions[mod]?.can_edit || false}
+                                onChange={() => handlePermissionChange(mod, "can_edit")}
+                                className="w-5 h-5 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500 cursor-pointer transition"
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
               </div>
-              
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-700 mb-3">Select Products</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-60 overflow-y-auto p-2">
-                  {productList.map((p) => (
-                    <label
-                      key={p.id}
-                      className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                        form.products.includes(p.id)
-                          ? "bg-green-50 border border-green-200 shadow-sm"
-                          : "hover:bg-gray-50 border border-gray-200"
-                      }`}
-                    >
-                      <div className="relative">
-                        <input
-                          type="checkbox"
-                          checked={form.products.includes(p.id)}
-                          onChange={() => handleProductChange(p.id)}
-                          className="sr-only"
-                        />
-                        <div className={`w-5 h-5 border rounded flex items-center justify-center transition-all ${
-                          form.products.includes(p.id)
-                            ? "bg-green-600 border-green-600"
-                            : "border-gray-300"
-                        }`}>
-                          {form.products.includes(p.id) && (
-                            <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                            </svg>
-                          )}
+
+              {/* RIGHT COLUMN - Settings & Stations */}
+              <div className="lg:w-1/3 space-y-6">
+                {/* Settings Card */}
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="bg-purple-50 p-2 rounded-lg">
+                      <FiSettings className="text-xl text-purple-600" />
+                    </div>
+                    <h2 className="text-lg font-bold text-gray-800">Customer Settings</h2>
+                  </div>
+
+                  <div className="space-y-5">
+                    {/* Billing Type */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Billing Type</label>
+                      <select
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition outline-none bg-white"
+                        value={form.billing_type}
+                        onChange={(e) => updateForm("billing_type", e.target.value)}
+                      >
+                        <option value="1">Billing</option>
+                        <option value="2">Non Billing</option>
+                      </select>
+                    </div>
+
+                    {/* Client Type (Payment Type) */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Client Type</label>
+                      <select
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition outline-none bg-white"
+                        value={form.client_type || form.payment_type}
+                        onChange={(e) => {
+                          const newClientType = e.target.value;
+                          updateForm("client_type", newClientType);
+                          updateForm("payment_type", newClientType); // Keep for backward compatibility
+                        }}
+                      >
+                        <option value="1">Cash (Prepaid)</option>
+                        <option value="2">Credit (Postpaid)</option>
+                        <option value="3">Day Limit</option>
+                      </select>
+                      <p className="text-xs text-gray-500">
+                        Cash = Prepaid, Credit = Postpaid, Day Limit = Day Limit Customer
+                      </p>
+                    </div>
+
+                    {/* Credit Limit - For Prepaid/Postpaid */}
+                    {(form.client_type === "1" || form.client_type === "2") && (
+                      <div className="pt-4 border-t border-gray-100">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Credit Limit</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">₹</span>
+                          <input
+                            type="number"
+                            className={`w-full pl-8 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition outline-none ${form.client_type === "1" ? "bg-gray-100 cursor-not-allowed text-gray-500" : ""
+                              }`}
+                            value={form.cst_limit || 0}
+                            onChange={(e) => updateForm("cst_limit", e.target.value)}
+                            disabled={form.client_type === "1"}
+                            placeholder="Enter credit limit"
+                          />
+                        </div>
+                        {form.client_type === "1" && (
+                          <p className="text-xs text-gray-500 mt-1">Credit limit is disabled for Prepaid customers.</p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Day Limit - For Day Limit Customers */}
+                    {(form.client_type === "3") && (
+                      <div className="pt-4 border-t border-gray-100">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit (Days)</label>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold">📅</span>
+                          <input
+                            type="number"
+                            className="w-full pl-9 p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition outline-none"
+                            value={form.day_limit || 0}
+                            onChange={(e) => updateForm("day_limit", e.target.value)}
+                            placeholder="Enter day limit"
+                          />
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1">Set the number of days for the limit.</p>
+                      </div>
+                    )}
+
+                    {/* Day Limit Controls - Only for Day Limit customers */}
+                    {form.client_type === "3" && (
+                      <div className="pt-4 border-t border-gray-100 animate-fade-in">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit Management</label>
+                        <div className="flex gap-2 items-center">
+                          <button
+                            type="button"
+                            disabled={updatingDayLimit || (parseInt(form.day_limit) || 0) <= 0}
+                            onClick={async () => {
+                              if (updatingDayLimit) return;
+
+                              const currentLimit = parseInt(form.day_limit) || 0;
+                              const newDayLimit = Math.max(0, currentLimit - 1);
+
+                              if (newDayLimit === currentLimit) {
+                                return;
+                              }
+
+                              setUpdatingDayLimit(true);
+                              try {
+                                const response = await axios.put(`/api/customers/edit`, {
+                                  id: customerId,
+                                  day_limit: newDayLimit,
+                                  client_type: 3
+                                });
+
+                                if (response.data.success) {
+                                  updateForm("day_limit", newDayLimit.toString());
+                                  // Refresh data
+                                  const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
+                                  if (balanceRes.data.success && balanceRes.data.customer) {
+                                    updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
+                                  }
+                                } else {
+                                  alert('❌ Error: ' + (response.data.message || 'Update failed'));
+                                }
+                              } catch (err) {
+                                console.error('Error updating day limit:', err);
+                                alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
+                                // Revert on error
+                                updateForm("day_limit", currentLimit.toString());
+                              } finally {
+                                setUpdatingDayLimit(false);
+                              }
+                            }}
+                            className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition disabled:bg-gray-100 disabled:text-gray-400"
+                            title="Decrease"
+                          >
+                            {updatingDayLimit ? (
+                              <FiLoader className="animate-spin w-5 h-5" />
+                            ) : (
+                              <span className="text-xl font-bold px-2">−</span>
+                            )}
+                          </button>
+
+                          <div className="flex-1 text-center font-mono text-lg font-bold bg-gray-50 py-2 rounded border border-gray-200">
+                            {form.day_limit}
+                          </div>
+
+                          <button
+                            type="button"
+                            disabled={updatingDayLimit}
+                            onClick={async () => {
+                              if (updatingDayLimit) return;
+
+                              const currentLimit = parseInt(form.day_limit) || 0;
+                              const newDayLimit = currentLimit + 1;
+
+                              setUpdatingDayLimit(true);
+                              try {
+                                const response = await axios.put(`/api/customers/edit`, {
+                                  id: customerId,
+                                  day_limit: newDayLimit,
+                                  client_type: 3
+                                });
+
+                                if (response.data.success) {
+                                  updateForm("day_limit", newDayLimit.toString());
+                                  // Refresh data
+                                  const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
+                                  if (balanceRes.data.success && balanceRes.data.customer) {
+                                    updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
+                                  }
+                                } else {
+                                  alert('❌ Error: ' + (response.data.message || 'Update failed'));
+                                }
+                              } catch (err) {
+                                console.error('Error updating day limit:', err);
+                                alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
+                                // Revert on error
+                                updateForm("day_limit", currentLimit.toString());
+                              } finally {
+                                setUpdatingDayLimit(false);
+                              }
+                            }}
+                            className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 transition disabled:bg-gray-100 disabled:text-gray-400"
+                            title="Increase"
+                          >
+                            {updatingDayLimit ? (
+                              <FiLoader className="animate-spin w-5 h-5" />
+                            ) : (
+                              <span className="text-xl font-bold px-2">+</span>
+                            )}
+                          </button>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          Updating this value saves immediately.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Status */}
+                    <div className="space-y-1">
+                      <label className="block text-sm font-medium text-gray-700">Status</label>
+                      <select
+                        id="statusDropdown"
+                        className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white text-gray-900 cursor-pointer outline-none"
+                        value={form.status && form.status === '0' ? '0' : '1'}
+                        onChange={(e) => {
+                          const newStatus = e.target.value;
+                          updateForm("status", newStatus);
+                          handleStatusChange(newStatus);
+                        }}
+                      >
+                        <option value="1">Enable</option>
+                        <option value="0">Disable</option>
+                      </select>
+                      <p className="text-xs text-gray-500">
+                        Immediate update.
+                      </p>
+                    </div>
+
+                    {/* GST Details */}
+                    <div className="pt-4 border-t border-gray-100">
+                      <h3 className="text-md font-bold text-gray-800 mb-3 ml-1">GST Information</h3>
+                      <div className="space-y-3">
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">GST Name</label>
+                          <input
+                            className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition outline-none"
+                            value={form.gst_name}
+                            onChange={(e) => updateForm("gst_name", e.target.value)}
+                            placeholder="GST registered name"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <label className="block text-sm font-medium text-gray-700">GST Number</label>
+                          <input
+                            className="w-full p-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition outline-none"
+                            value={form.gst_number}
+                            onChange={(e) => updateForm("gst_number", e.target.value)}
+                            placeholder="GSTIN number"
+                          />
                         </div>
                       </div>
-                      <span className="flex-1 text-gray-700 font-medium">
-                        {p.pname || p.product_name || `Product ${p.id}`}
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-            </div>
-          </div>
-
-          {/* RIGHT COLUMN - Settings & Stations */}
-          <div className="lg:w-1/3">
-            {/* Settings Card */}
-            <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                <FiSettings className="text-xl text-purple-600" />
-                <h2 className="text-xl font-bold text-gray-800">Customer Settings</h2>
-              </div>
-              
-              <div className="space-y-5">
-                {/* Billing Type */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Billing Type</label>
-                  <select
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                    value={form.billing_type}
-                    onChange={(e) => updateForm("billing_type", e.target.value)}
-                  >
-                    <option value="1">Billing</option>
-                    <option value="2">Non Billing</option>
-                  </select>
-                </div>
-
-                {/* Client Type (Payment Type) */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Client Type</label>
-                  <select
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                    value={form.client_type || form.payment_type}
-                    onChange={(e) => {
-                      const newClientType = e.target.value;
-                      updateForm("client_type", newClientType);
-                      updateForm("payment_type", newClientType); // Keep for backward compatibility
-                    }}
-                  >
-                    <option value="1">Cash (Prepaid)</option>
-                    <option value="2">Credit (Postpaid)</option>
-                    <option value="3">Day Limit</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Cash = Prepaid, Credit = Postpaid, Day Limit = Day Limit Customer
-                  </p>
-                </div>
-
-                {/* Credit Limit - For Prepaid/Postpaid */}
-                {(form.client_type === "1" || form.client_type === "2") && (
-                  <div className="pt-4 border-t">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Credit Limit</label>
-                    <div className="flex items-center gap-2">
-                      <span className="text-gray-500 font-bold">₹</span>
-                      <input
-                        type="number"
-                        className={`w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition ${
-                          form.client_type === "1" ? "bg-gray-100 cursor-not-allowed text-gray-500" : ""
-                        }`}
-                        value={form.cst_limit || 0}
-                        onChange={(e) => updateForm("cst_limit", e.target.value)}
-                        disabled={form.client_type === "1"}
-                        placeholder="Enter credit limit"
-                      />
                     </div>
-                    {form.client_type === "1" && (
-              <p className="text-xs text-gray-500 mt-1">Credit limit is disabled for Prepaid customers.</p>
-            )}
-          </div>
-        )}
+                  </div>
+                </div>
 
-        {/* Day Limit - For Day Limit Customers */}
-        {(form.client_type === "3") && (
-          <div className="pt-4 border-t">
-            <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit (Days)</label>
-            <div className="flex items-center gap-2">
-              <span className="text-gray-500 font-bold">📅</span>
-              <input
-                type="number"
-                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                value={form.day_limit || 0}
-                onChange={(e) => updateForm("day_limit", e.target.value)}
-                placeholder="Enter day limit"
-              />
-            </div>
-            <p className="text-xs text-gray-500 mt-1">Set the number of days for the limit.</p>
-          </div>
-        )}
-
-                {/* Day Limit Controls - Only for Day Limit customers */}
-                {form.client_type === "3" && (
-                  <div className="pt-4 border-t">
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Day Limit Management</label>
-                    <div className="flex gap-1 sm:gap-2 items-center">
-                      <button
-                        type="button"
-                        disabled={updatingDayLimit || (parseInt(form.day_limit) || 0) <= 0}
-                        onClick={async () => {
-                          if (updatingDayLimit) return;
-                          
-                          const currentLimit = parseInt(form.day_limit) || 0;
-                          const newDayLimit = Math.max(0, currentLimit - 1);
-                          
-                          if (newDayLimit === currentLimit) {
-                            return;
-                          }
-
-                          setUpdatingDayLimit(true);
-                          try {
-                            const response = await axios.put(`/api/customers/edit`, {
-                              id: customerId,
-                              day_limit: newDayLimit,
-                              client_type: 3
-                            });
-
-                            if (response.data.success) {
-                              updateForm("day_limit", newDayLimit.toString());
-                              // Refresh data
-                              const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
-                              if (balanceRes.data.success && balanceRes.data.customer) {
-                                updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
-                              }
-                            } else {
-                              alert('❌ Error: ' + (response.data.message || 'Update failed'));
-                            }
-                          } catch (err) {
-                            console.error('Error updating day limit:', err);
-                            alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
-                            // Revert on error
-                            updateForm("day_limit", currentLimit.toString());
-                          } finally {
-                            setUpdatingDayLimit(false);
-                          }
-                        }}
-                        className="px-2 sm:px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center min-w-[40px] sm:min-w-[50px] flex-shrink-0"
-                        title="Decrease"
-                      >
-                        {updatingDayLimit ? (
-                          <FiLoader className="animate-spin w-4 h-4" />
-                        ) : (
-                          <span className="text-lg sm:text-xl font-bold">−</span>
-                        )}
-                      </button>
-                      <input
-                        type="number"
-                        className="flex-1 min-w-0 px-2 sm:px-3 py-2 border border-gray-300 rounded-lg text-center text-base sm:text-lg font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-                        value={form.day_limit || 0}
-                        onChange={(e) => {
-                          const value = parseInt(e.target.value) || 0;
-                          if (value >= 0) {
-                            updateForm("day_limit", value.toString());
-                          }
-                        }}
-                        onBlur={async (e) => {
-                          const newValue = parseInt(e.target.value) || 0;
-                          const currentValue = parseInt(form.day_limit) || 0;
-                          
-                          if (newValue !== currentValue && newValue >= 0) {
-                            setUpdatingDayLimit(true);
-                            try {
-                              const response = await axios.put(`/api/customers/edit`, {
-                                id: customerId,
-                                day_limit: newValue,
-                                client_type: 3
-                              });
-
-                              if (response.data.success) {
-                                updateForm("day_limit", newValue.toString());
-                                // Refresh data
-                                const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
-                                if (balanceRes.data.success && balanceRes.data.customer) {
-                                  updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
-                                }
-                              } else {
-                                alert('❌ Error: ' + (response.data.message || 'Update failed'));
-                                updateForm("day_limit", currentValue.toString());
-                              }
-                            } catch (err) {
-                              console.error('Error updating day limit:', err);
-                              alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
-                              updateForm("day_limit", currentValue.toString());
-                            } finally {
-                              setUpdatingDayLimit(false);
-                            }
-                          }
-                        }}
-                        min="0"
-                        placeholder="Days"
-                        disabled={updatingDayLimit}
-                      />
-                      <button
-                        type="button"
-                        disabled={updatingDayLimit}
-                        onClick={async () => {
-                          if (updatingDayLimit) return;
-                          
-                          const currentLimit = parseInt(form.day_limit) || 0;
-                          const newDayLimit = currentLimit + 1;
-
-                          setUpdatingDayLimit(true);
-                          try {
-                            const response = await axios.put(`/api/customers/edit`, {
-                              id: customerId,
-                              day_limit: newDayLimit,
-                              client_type: 3
-                            });
-
-                            if (response.data.success) {
-                              updateForm("day_limit", newDayLimit.toString());
-                              // Refresh data
-                              const balanceRes = await axios.get(`/api/customers/recharge-request?id=${customerId}`);
-                              if (balanceRes.data.success && balanceRes.data.customer) {
-                                updateForm("day_limit", (balanceRes.data.customer.day_limit || 0).toString());
-                              }
-                            } else {
-                              alert('❌ Error: ' + (response.data.message || 'Update failed'));
-                            }
-                          } catch (err) {
-                            console.error('Error updating day limit:', err);
-                            alert('❌ Error updating day limit: ' + (err.response?.data?.message || err.message));
-                            // Revert on error
-                            updateForm("day_limit", currentLimit.toString());
-                          } finally {
-                            setUpdatingDayLimit(false);
-                          }
-                        }}
-                        className="px-2 sm:px-3 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition disabled:bg-gray-400 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center min-w-[40px] sm:min-w-[50px] flex-shrink-0"
-                        title="Increase"
-                      >
-                        {updatingDayLimit ? (
-                          <FiLoader className="animate-spin w-4 h-4" />
-                        ) : (
-                          <span className="text-lg sm:text-xl font-bold">+</span>
-                        )}
-                      </button>
+                {/* Stations Card */}
+                <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                  <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                    <div className="bg-orange-50 p-2 rounded-lg">
+                      <FiMapPin className="text-xl text-orange-600" />
                     </div>
-                    <p className="text-xs sm:text-sm text-gray-500 mt-2">
-                      Admin can increase/decrease day limit for day_limit customers. Changes are saved automatically.
+                    <h2 className="text-lg font-bold text-gray-800">Assigned Stations</h2>
+                  </div>
+                  <div className="space-y-3 max-h-80 overflow-y-auto pr-1 customize-scrollbar">
+                    {stations.map((station) => (
+                      <div
+                        key={station.id}
+                        onClick={() => handleToggleStation(station.id)}
+                        className={`flex items-center justify-between p-3 rounded-lg transition-all cursor-pointer border ${form.blocklocation.includes(station.id)
+                          ? "bg-orange-50 border-orange-200 shadow-sm"
+                          : "bg-white border-gray-200 hover:border-orange-300 hover:bg-gray-50"
+                          }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`w-2.5 h-2.5 rounded-full ${form.blocklocation.includes(station.id) ? "bg-orange-500" : "bg-gray-300"
+                            }`} />
+                          <div>
+                            <span className="font-medium text-gray-700 block text-sm">{station.station_name}</span>
+                            <span className="text-[10px] text-gray-400">ID: {station.id}</span>
+                          </div>
+                        </div>
+
+                        <div className={`w-5 h-5 rounded flex items-center justify-center border ${form.blocklocation.includes(station.id) ? 'bg-orange-500 border-orange-500' : 'border-gray-300 bg-white'}`}>
+                          {form.blocklocation.includes(station.id) && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg text-center">
+                    <p className="text-sm text-blue-800">
+                      <span className="font-bold">{form.blocklocation.length}</span> assigned
                     </p>
                   </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Update Button */}
+            <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] z-50">
+              <button
+                onClick={submitForm}
+                disabled={saving}
+                className="w-full bg-blue-600 text-white py-3.5 rounded-lg shadow-lg hover:bg-blue-700 transition-all font-medium flex items-center justify-center gap-2 active:scale-95"
+              >
+                {saving ? (
+                  <>
+                    <FiLoader className="animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <FiSave />
+                    Update Customer
+                  </>
                 )}
-
-                {/* Status */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
-                  <select
-                    id="statusDropdown"
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition bg-white text-gray-900 cursor-pointer hover:border-purple-400"
-                    value={form.status && form.status === '0' ? '0' : '1'}
-                    onChange={(e) => {
-                      // Only update when user explicitly changes
-                      const newStatus = e.target.value;
-                      updateForm("status", newStatus);
-                      handleStatusChange(newStatus);
-                    }}
-                    style={{ opacity: 1, cursor: 'pointer' }}
-                  >
-                    <option value="1">Enable</option>
-                    <option value="0">Disable</option>
-                  </select>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Default is Enable. Click dropdown to change to Disable if needed.
-                  </p>
-                </div>
-
-                {/* GST Details */}
-                <div className="pt-4 border-t">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-3">GST Information</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">GST Name</label>
-                      <input
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                        value={form.gst_name}
-                        onChange={(e) => updateForm("gst_name", e.target.value)}
-                        placeholder="GST registered name"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">GST Number</label>
-                      <input
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition"
-                        value={form.gst_number}
-                        onChange={(e) => updateForm("gst_number", e.target.value)}
-                        placeholder="GSTIN number"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
+              </button>
             </div>
 
-            {/* Stations Card */}
-            <div className="bg-white rounded-xl shadow-sm p-5 mb-6">
-              <div className="flex items-center gap-3 mb-6 pb-4 border-b">
-                <FiMapPin className="text-xl text-orange-600" />
-                <h2 className="text-xl font-bold text-gray-800">Assigned Stations</h2>
-              </div>
-              <div className="space-y-3 max-h-96 overflow-y-auto pr-2">
-                {stations.map((station) => (
-                  <div
-                    key={station.id}
-                    className={`flex items-center justify-between p-3 rounded-lg transition-all ${
-                      form.blocklocation.includes(station.id)
-                        ? "bg-orange-50 border border-orange-200 shadow-sm"
-                        : "hover:bg-gray-50 border border-gray-200"
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        form.blocklocation.includes(station.id) ? "bg-orange-500" : "bg-gray-300"
-                      }`} />
-                      <div>
-                        <span className="font-medium text-gray-700 block">{station.station_name}</span>
-                        <span className="text-xs text-gray-500">ID: {station.id}</span>
-                      </div>
-                    </div>
-                    
-                    <label className="relative inline-flex items-center cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={form.blocklocation.includes(station.id)}
-                        onChange={() => handleToggleStation(station.id)}
-                        className="sr-only"
-                      />
-                      <div className={`w-10 h-5 rounded-full transition-colors ${
-                        form.blocklocation.includes(station.id)
-                          ? "bg-orange-500"
-                          : "bg-gray-300"
-                      }`}>
-                        <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                          form.blocklocation.includes(station.id)
-                            ? "transform translate-x-6"
-                            : "transform translate-x-0.5"
-                        }`} />
-                      </div>
-                    </label>
-                  </div>
-                ))}
-              </div>
-              
-              <div className="mt-4 p-3 bg-blue-50 rounded-lg">
-                <p className="text-sm text-blue-800">
-                  <span className="font-semibold">{form.blocklocation.length}</span> of <span className="font-semibold">{stations.length}</span> stations assigned
-                </p>
-              </div>
-            </div>
+            {/* Bottom spacer for mobile button */}
+            <div className="h-24 lg:hidden"></div>
           </div>
-        </div>
-
-        {/* Mobile Update Button */}
-        <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t p-4 shadow-lg z-10">
-          <button
-            onClick={submitForm}
-            disabled={saving}
-            className="w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white py-3.5 rounded-lg shadow-md hover:shadow-lg transition-all font-medium flex items-center justify-center gap-2"
-          >
-            {saving ? (
-              <>
-                <FiLoader className="animate-spin" />
-                Saving Changes...
-              </>
-            ) : (
-              <>
-                <FiSave />
-                Update Customer
-              </>
-            )}
-          </button>
-        </div>
-      </div>
         </main>
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 z-40 bg-white border-t border-gray-200">
           <Footer />
         </div>
       </div>

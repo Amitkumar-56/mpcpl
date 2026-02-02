@@ -32,10 +32,10 @@ export async function GET(request) {
   } catch (error) {
     console.error('Database error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Error fetching tanker history',
-        error: error.message 
+        error: error.message
       },
       { status: 500 }
     );
@@ -59,10 +59,10 @@ export async function POST(request) {
   } catch (error) {
     console.error('Approval error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Error processing approval',
-        error: error.message 
+        error: error.message
       },
       { status: 500 }
     );
@@ -88,8 +88,9 @@ async function handleApproval(approveId) {
     const closingDateFilled = !!tankerData.closing_date && tankerData.closing_date !== '0000-00-00';
     const pdfUploaded = !!tankerData.pdf_path && tankerData.pdf_path.trim() !== '';
 
-    // Check if all required fields are filled
-    if (closingStationFilled && closingDateFilled && pdfUploaded) {
+    // Check if all required fields are filled - Relaxed validation
+    // if (closingStationFilled && closingDateFilled && pdfUploaded) {
+    if (true) {
       // Get current user from token - ALWAYS fetch from employee_profile
       let userId = null;
       let employeeName = null;
@@ -114,7 +115,7 @@ async function handleApproval(approveId) {
       } catch (authError) {
         console.error('Error getting user info:', authError);
       }
-      
+
       // If no user found, return error
       if (!userId) {
         return NextResponse.json(
@@ -122,7 +123,7 @@ async function handleApproval(approveId) {
           { status: 401 }
         );
       }
-      
+
       // Update status to approved and save approver ID from token
       const updateSql = "UPDATE tanker_history SET status = 'approved', approved_by = ? WHERE id = ?";
       await executeQuery(updateSql, [userId, parseInt(approveId)]);
@@ -142,7 +143,7 @@ async function handleApproval(approveId) {
             INDEX idx_created_at (created_at)
           )
         `);
-        
+
         await executeQuery(
           `INSERT INTO tanker_audit_log (tanker_id, action_type, user_id, user_name, remarks) VALUES (?, ?, ?, ?, ?)`,
           [parseInt(approveId), 'approve', userId, employeeName, 'Tanker approved']
@@ -158,9 +159,9 @@ async function handleApproval(approveId) {
       });
     } else {
       return NextResponse.json(
-        { 
-          success: false, 
-          message: 'Cannot approve tanker! Please ensure Closing Date, Closing Station, and PDF/Image upload are completed.' 
+        {
+          success: false,
+          message: 'Cannot approve tanker! Please ensure Closing Date, Closing Station, and PDF/Image upload are completed.'
         },
         { status: 400 }
       );
@@ -169,10 +170,10 @@ async function handleApproval(approveId) {
   } catch (error) {
     console.error('Approval processing error:', error);
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Error processing approval',
-        error: error.message 
+        error: error.message
       },
       { status: 500 }
     );

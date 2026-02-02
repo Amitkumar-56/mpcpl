@@ -33,6 +33,11 @@ function EditEmployeeContent() {
     "NB Expenses": { can_view: false, can_edit: false, can_create: false },
     "NB Stock": { can_view: false, can_edit: false, can_create: false },
     "Stock Transfer": { can_view: false, can_edit: false, can_create: false },
+    "Stock Requests": { can_view: false, can_edit: false, can_create: false },
+    "Transfer Logs": { can_view: false, can_edit: false, can_create: false },
+    "Stock History": { can_view: false, can_edit: false, can_create: false },
+    Attendance: { can_view: false, can_edit: false, can_create: false },
+    "Outstanding History": { can_view: false, can_edit: false, can_create: false },
     Reports: { can_view: false, can_edit: false, can_create: false },
     Retailers: { can_view: false, can_edit: false, can_create: false },
     "Agent Management": { can_view: false, can_edit: false, can_create: false },
@@ -128,12 +133,12 @@ function EditEmployeeContent() {
     try {
       setLoading(true);
       setError(null);
-      
+
       // Get token from localStorage for Authorization header
       const authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-      
+
       console.log('🔍 Fetching employee data for ID:', id);
-      
+
       const res = await fetch(`/api/employee/edit?id=${id}`, {
         method: 'GET',
         credentials: 'include',
@@ -143,9 +148,9 @@ function EditEmployeeContent() {
           ...(authToken ? { Authorization: `Bearer ${authToken}` } : {})
         }
       });
-      
+
       console.log('🔍 Response status:', res.status, res.statusText);
-      
+
       if (!res.ok) {
         let errorData;
         try {
@@ -154,7 +159,7 @@ function EditEmployeeContent() {
           errorData = { error: `HTTP ${res.status}: ${res.statusText}` };
         }
         console.error('❌ API Error:', errorData);
-        
+
         // If token is invalid, redirect to login
         if (res.status === 401) {
           if (typeof window !== 'undefined') {
@@ -170,18 +175,18 @@ function EditEmployeeContent() {
         setLoading(false);
         return;
       }
-      
+
       const result = await res.json();
-      
+
       if (result.success && result.data) {
         const employeeData = result.data.employee || result.data;
         const stationsData = result.data.stations || [];
         const permissionsData = result.data.permissions || {};
-        
+
         if (employeeData && employeeData.id) {
           setFormData(employeeData);
           setStations(stationsData);
-          
+
           // Initialize selected stations from fs_id
           let fsIdArray = [];
           if (employeeData.fs_id) {
@@ -200,14 +205,14 @@ function EditEmployeeContent() {
               fsIdArray = [parseInt(employeeData.fs_id)];
             }
           }
-          console.log('🔍 Loading employee stations:', { 
-            fs_id: employeeData.fs_id, 
+          console.log('🔍 Loading employee stations:', {
+            fs_id: employeeData.fs_id,
             type: typeof employeeData.fs_id,
             parsed: fsIdArray,
-            count: fsIdArray.length 
+            count: fsIdArray.length
           });
           setSelectedStations(fsIdArray);
-          
+
           // Set permissions if returned - merge with existing modules list
           console.log('🔍 Loading employee permissions:', permissionsData);
           if (permissionsData && Object.keys(permissionsData).length > 0) {
@@ -278,7 +283,7 @@ function EditEmployeeContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     // Basic validation
     if (!formData || !id) {
       alert('Employee data not loaded');
@@ -286,22 +291,22 @@ function EditEmployeeContent() {
     }
 
     const fd = new FormData(e.currentTarget);
-    
+
     // Add employee ID to form data
     fd.append('id', id);
-    
+
     // Add current employee data for comparison
     fd.append('current_data', JSON.stringify(formData));
-    
+
     // Add station assignments (admin only) - send as array like in create page
     if (isAdmin) {
       // Remove any existing fs_id from form data
       fd.delete('fs_id');
       fd.delete('fs_id[]');
-      
+
       // Always send fs_id[] array, even if empty (to allow removing all stations)
       console.log('🔍 EDIT - Sending stations to backend:', selectedStations, 'Count:', selectedStations.length);
-      
+
       if (selectedStations.length > 0) {
         // Add selected stations as array
         selectedStations.forEach(stationId => {
@@ -314,7 +319,7 @@ function EditEmployeeContent() {
         console.log('⚠️ EDIT - No stations selected, sending empty marker to clear fs_id');
       }
     }
-    
+
     // Add permissions if admin (all modules)
     if (isAdmin) {
       const formattedPermissions = {};
@@ -327,13 +332,13 @@ function EditEmployeeContent() {
       });
       fd.append('permissions', JSON.stringify(formattedPermissions));
     }
-    
+
     // Get token from localStorage for Authorization header
     const authToken = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
-    
+
     try {
       const res = await fetch(`/api/employee/edit`, {
-        method: 'POST', 
+        method: 'POST',
         body: fd,
         credentials: 'include',
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {}
@@ -416,8 +421,8 @@ function EditEmployeeContent() {
           <main className="pt-16 lg:pt-20 min-h-screen flex items-center justify-center">
             <div className="text-center max-w-md mx-auto p-4">
               <p className="text-red-500 mb-4">{error || 'Employee not found.'}</p>
-              <button 
-                onClick={() => router.push('/employees')} 
+              <button
+                onClick={() => router.push('/employees')}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Back to Employees
@@ -448,14 +453,14 @@ function EditEmployeeContent() {
             <div className="max-w-4xl mx-auto bg-white shadow-xl rounded-xl p-6 md:p-8">
               <div className="flex items-center justify-between mb-6 md:mb-8">
                 <h1 className="text-xl md:text-2xl font-bold text-gray-800">Edit Employee Profile</h1>
-                <button 
-                  onClick={() => router.back()} 
+                <button
+                  onClick={() => router.back()}
                   className="text-blue-600 hover:text-blue-800 flex items-center gap-2 text-sm md:text-base"
                 >
                   <span>←</span> Back
                 </button>
               </div>
-        
+
               <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Name */}
                 <div className="flex flex-col">
@@ -536,7 +541,7 @@ function EditEmployeeContent() {
                 {isAdmin && stations.length > 0 && (
                   <div className="md:col-span-2">
                     <label className="text-sm font-semibold text-gray-600 block mb-3">
-                      Assigned Filling Stations 
+                      Assigned Filling Stations
                       <span className="ml-2 text-xs text-gray-500 font-normal">
                         ({selectedStations.length} of {stations.length} selected)
                       </span>
@@ -545,28 +550,26 @@ function EditEmployeeContent() {
                       {stations.map(station => {
                         const stationId = parseInt(station.id);
                         const isChecked = selectedStations.includes(stationId);
-                        
+
                         return (
-                          <label 
-                            key={station.id} 
-                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${
-                              isChecked
+                          <label
+                            key={station.id}
+                            className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${isChecked
                                 ? "bg-orange-50 border-2 border-orange-400 shadow-md"
                                 : "hover:bg-gray-50 border border-gray-200 bg-white"
-                            }`}
+                              }`}
                           >
                             <div className="relative">
-                              <input 
-                                type="checkbox" 
+                              <input
+                                type="checkbox"
                                 checked={isChecked}
                                 onChange={() => handleStationToggle(stationId)}
                                 className="sr-only"
                               />
-                              <div className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${
-                                isChecked
+                              <div className={`w-5 h-5 border-2 rounded flex items-center justify-center transition-all ${isChecked
                                   ? "bg-orange-600 border-orange-600"
                                   : "border-gray-300 bg-white"
-                              }`}>
+                                }`}>
                                 {isChecked && (
                                   <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
@@ -574,9 +577,8 @@ function EditEmployeeContent() {
                                 )}
                               </div>
                             </div>
-                            <span className={`flex-1 font-medium ${
-                              isChecked ? "text-orange-700" : "text-gray-700"
-                            }`}>
+                            <span className={`flex-1 font-medium ${isChecked ? "text-orange-700" : "text-gray-700"
+                              }`}>
                               {station.station_name}
                               {isChecked && <span className="ml-2 text-xs text-orange-600">✓ Active</span>}
                             </span>
@@ -620,25 +622,25 @@ function EditEmployeeContent() {
                             <tr key={module} className={`${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50 transition-colors`}>
                               <td className="p-3 border font-medium text-gray-700">{module}</td>
                               <td className="p-3 border text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={permissions[module]?.can_view || false} 
-                                  onChange={() => handlePermissionChange(module, "can_view")} 
+                                <input
+                                  type="checkbox"
+                                  checked={permissions[module]?.can_view || false}
+                                  onChange={() => handlePermissionChange(module, "can_view")}
                                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
                                 />
                               </td>
                               <td className="p-3 border text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={permissions[module]?.can_edit || false} 
-                                  onChange={() => handlePermissionChange(module, "can_edit")} 
+                                <input
+                                  type="checkbox"
+                                  checked={permissions[module]?.can_edit || false}
+                                  onChange={() => handlePermissionChange(module, "can_edit")}
                                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
                                 />
                               </td>
                               <td className="p-3 border text-center">
-                                <input 
-                                  type="checkbox" 
-                                  checked={permissions[module]?.can_create || false} 
+                                <input
+                                  type="checkbox"
+                                  checked={permissions[module]?.can_create || false}
                                   onChange={() => handlePermissionChange(module, "can_create")}
                                   className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded cursor-pointer"
                                 />

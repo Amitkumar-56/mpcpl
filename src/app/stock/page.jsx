@@ -24,7 +24,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
   const getStatusBadge = (status) => {
     // ✅ FIX: Handle both numeric and string status values
     const statusValue = status?.toString().toLowerCase();
-    
+
     // Map numeric values
     const numericMap = {
       '1': { text: "Dispatched", color: "bg-blue-100 text-blue-800 border border-blue-200" },
@@ -32,7 +32,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
       '3': { text: "Delivered", color: "bg-green-100 text-green-800 border border-green-200" },
       '4': { text: "Cancelled", color: "bg-red-100 text-red-800 border border-red-200" }
     };
-    
+
     // Map string values
     const stringMap = {
       'on_the_way': { text: "On The Way", color: "bg-blue-100 text-blue-800 border border-blue-200" },
@@ -43,13 +43,13 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
       'cancelled': { text: "Cancelled", color: "bg-red-100 text-red-800 border border-red-200" },
       'pending': { text: "Pending", color: "bg-gray-100 text-gray-800 border border-gray-200" }
     };
-    
+
     // Check numeric first, then string, then default
     const statusInfo = numericMap[statusValue] || stringMap[statusValue] || {
       text: statusValue || "Pending",
       color: "bg-gray-100 text-gray-800 border border-gray-200"
     };
-    
+
     return (
       <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
         {statusInfo.text}
@@ -149,7 +149,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
         item.tanker_no?.toLowerCase().includes(filterText.toLowerCase());
 
       const matchesStatus =
-        statusFilter === "all" || 
+        statusFilter === "all" ||
         getStatusValue(item.status) === statusFilter ||
         item.status?.toString() === statusFilter;
 
@@ -160,25 +160,25 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
       data.sort((a, b) => {
         let aVal = a[sortConfig.key];
         let bVal = b[sortConfig.key];
-        
+
         // Handle date sorting
         if (sortConfig.key === "invoice_date" || sortConfig.key === "created_at") {
           aVal = new Date(aVal);
           bVal = new Date(bVal);
         }
-        
+
         // Handle numeric sorting
         if (sortConfig.key === "ltr" || sortConfig.key === "payable" || sortConfig.key === "v_invoice_value") {
           aVal = parseFloat(aVal) || 0;
           bVal = parseFloat(bVal) || 0;
         }
-        
+
         // Handle string sorting
         if (typeof aVal === 'string' && typeof bVal === 'string') {
           aVal = aVal.toLowerCase();
           bVal = bVal.toLowerCase();
         }
-        
+
         if (aVal < bVal) return sortConfig.direction === "asc" ? -1 : 1;
         if (aVal > bVal) return sortConfig.direction === "asc" ? 1 : -1;
         return 0;
@@ -239,7 +239,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                 {[
                   "id",
                   "product_name",
-                  "supplier_name", 
+                  "supplier_name",
                   "invoice_date",
                   "invoice_number",
                   "station_name",
@@ -258,14 +258,14 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                     <div className="flex items-center space-x-1">
                       <span>
                         {col === "product_name" ? "Product" :
-                         col === "supplier_name" ? "Supplier" :
-                         col === "invoice_date" ? "Invoice Date" :
-                         col === "invoice_number" ? "Invoice#" :
-                         col === "station_name" ? "Filling Station" :
-                         col === "tanker_no" ? "Tanker No." :
-                         col === "v_invoice_value" ? "Invoice Value" :
-                         col === "ltr" ? "Quantity (Ltr)" :
-                         col.toUpperCase().replace(/_/g, " ")}
+                          col === "supplier_name" ? "Supplier" :
+                            col === "invoice_date" ? "Invoice Date" :
+                              col === "invoice_number" ? "Invoice#" :
+                                col === "station_name" ? "Filling Station" :
+                                  col === "tanker_no" ? "Tanker No." :
+                                    col === "v_invoice_value" ? "Invoice Value" :
+                                      col === "ltr" ? "Quantity (Ltr)" :
+                                        col.toUpperCase().replace(/_/g, " ")}
                       </span>
                       <span className="text-xs text-gray-400">{getSortIcon(col)}</span>
                     </div>
@@ -284,11 +284,11 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                       {request.id}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                         {request.product_name || "N/A"}
+                      {request.product_name || "N/A"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {request.supplier_name || "N/A"}
-                     
+                      {request.supplier_name || "N/A"}
+
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       {formatDate(request.invoice_date)}
@@ -297,8 +297,8 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                       {request.invoice_number || "N/A"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {request.station_name || "N/A"}
-                     
+                      {request.station_name || "N/A"}
+
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 font-mono">
                       {request.tanker_no || "N/A"}
@@ -307,7 +307,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                       {request.ltr ? `${parseFloat(request.ltr).toLocaleString()} ` : "-"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 text-right">
-                    
+
                       {request.v_invoice_value || "-"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
@@ -404,8 +404,8 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                         No stock requests found
                       </div>
                       <div className="text-sm text-gray-500">
-                        {filterText || statusFilter !== "all" 
-                          ? "Try adjusting your search or filters" 
+                        {filterText || statusFilter !== "all"
+                          ? "Try adjusting your search or filters"
                           : "No stock requests available"
                         }
                       </div>
@@ -444,16 +444,15 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                   } else {
                     pageNum = currentPage - 2 + i;
                   }
-                  
+
                   return (
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 border text-sm font-medium rounded-md transition-colors ${
-                        currentPage === pageNum
-                          ? "bg-blue-600 text-white border-blue-600"
-                          : "border-gray-300 text-gray-700 hover:bg-gray-50"
-                      }`}
+                      className={`px-3 py-1 border text-sm font-medium rounded-md transition-colors ${currentPage === pageNum
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "border-gray-300 text-gray-700 hover:bg-gray-50"
+                        }`}
                     >
                       {pageNum}
                     </button>
@@ -598,8 +597,8 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
             <div className="text-gray-500">
               <p className="text-base font-medium mb-2">No stock requests found</p>
               <p className="text-sm">
-                {filterText || statusFilter !== "all" 
-                  ? "Try adjusting your search or filters" 
+                {filterText || statusFilter !== "all"
+                  ? "Try adjusting your search or filters"
                   : "No stock requests available"
                 }
               </p>
@@ -685,7 +684,7 @@ export default function StockRequest() {
     if (Number(user.role) === 5) {
       setHasPermission(true);
       setPermissions({ can_view: true, can_edit: true, can_delete: true, can_create: true });
-      fetchStockStats();
+
       fetchStockRequests();
       return;
     }
@@ -701,7 +700,7 @@ export default function StockRequest() {
           can_delete: stockPerms.can_delete,
           can_create: stockPerms.can_create || false
         });
-        fetchStockStats();
+
         fetchStockRequests();
         return;
       }
@@ -715,7 +714,7 @@ export default function StockRequest() {
       if (cachedPerms.can_view) {
         setHasPermission(true);
         setPermissions(cachedPerms);
-        fetchStockStats();
+
         fetchStockRequests();
         return;
       }
@@ -723,11 +722,11 @@ export default function StockRequest() {
 
     try {
       const moduleName = 'Stock';
-      
+
       // Add timeout to permission checks
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-      
+
       const [viewRes, editRes, deleteRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`, {
           signal: controller.signal
@@ -742,7 +741,7 @@ export default function StockRequest() {
           signal: controller.signal
         })
       ]);
-      
+
       clearTimeout(timeoutId);
 
       const [viewData, editData, deleteData, createData] = await Promise.all([
@@ -766,7 +765,7 @@ export default function StockRequest() {
       if (perms.can_view) {
         setHasPermission(true);
         setPermissions(perms);
-        fetchStockStats();
+
         fetchStockRequests();
       } else {
         setHasPermission(false);
@@ -785,7 +784,7 @@ export default function StockRequest() {
             if (cachedPerms.can_view) {
               setHasPermission(true);
               setPermissions(cachedPerms);
-              fetchStockStats();
+
               fetchStockRequests();
               return;
             }
@@ -799,77 +798,20 @@ export default function StockRequest() {
     }
   };
 
-  // Fetch stock statistics
-  const fetchStockStats = async () => {
-    try {
-      setStatsLoading(true);
-      
-      // Add timeout to prevent infinite loading
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
-      // Fetch from dashboard API which has stock history count
-      const dashboardResponse = await fetch('/api/dashboard', {
-        signal: controller.signal,
-        cache: 'no-store'
-      });
-      const dashboardResult = await dashboardResponse.json();
-      
-      // Fetch stock counts
-      const stockResponse = await fetch('/api/stock', {
-        signal: controller.signal,
-        cache: 'no-store'
-      });
-      const stockData = await stockResponse.json();
-      
-      clearTimeout(timeoutId);
-      
-      if (dashboardResult.success && stockData) {
-        const stockArray = Array.isArray(stockData) ? stockData : [];
-        const totalStock = stockArray.length;
-        const pendingStock = stockArray.filter(s => 
-          s.status === 'pending' || s.status === '1' || 
-          s.status === 'on_the_way' || s.status === '2'
-        ).length;
-        const deliveredStock = stockArray.filter(s => 
-          s.status === 'delivered' || s.status === '3'
-        ).length;
-        
-        setStats({
-          totalStock: totalStock,
-          totalStockHistory: dashboardResult.data?.totalStockHistory || 0,
-          pendingStock: pendingStock,
-          deliveredStock: deliveredStock
-        });
-      }
-    } catch (err) {
-      console.error('Error fetching stock stats:', err);
-      if (err.name === 'AbortError') {
-        console.warn('Stock stats fetch timeout');
-      }
-      // Set default values on error
-      setStats({
-        totalStock: 0,
-        totalStockHistory: 0,
-        pendingStock: 0,
-        deliveredStock: 0
-      });
-    } finally {
-      setStatsLoading(false);
-    }
-  };
+
 
   const fetchStockRequests = async () => {
     try {
       setError(null);
       setDataLoading(true);
-      
+      setStatsLoading(true);
+
       console.log("Fetching stock data...");
-      
+
       // Add timeout to prevent infinite loading
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
-      
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
+
       const res = await fetch("/api/stock", {
         signal: controller.signal,
         headers: {
@@ -877,42 +819,35 @@ export default function StockRequest() {
         },
         cache: 'no-store'
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!res.ok) {
-        const errorText = await res.text();
-        console.error("API response not OK:", res.status, errorText);
         throw new Error(`HTTP error! status: ${res.status}`);
       }
-      
+
       const result = await res.json();
-      console.log("API response:", result);
-      
+
       if (result.success) {
         const stockData = result.data || [];
         setStockRequests(stockData);
-        
-        // Update stats after fetching stock data
+
+        // Update stats
         const totalStock = stockData.length;
-        const pendingStock = stockData.filter(s => 
-          s.status === 'pending' || s.status === '1' || 
+        const pendingStock = stockData.filter(s =>
+          s.status === 'pending' || s.status === '1' ||
           s.status === 'on_the_way' || s.status === '2'
         ).length;
-        const deliveredStock = stockData.filter(s => 
+        const deliveredStock = stockData.filter(s =>
           s.status === 'delivered' || s.status === '3'
         ).length;
-        
-        setStats(prev => ({
-          ...prev,
+
+        setStats({
           totalStock: totalStock,
+          totalStockHistory: result.total_stock_history || 0,
           pendingStock: pendingStock,
           deliveredStock: deliveredStock
-        }));
-        
-        if (result.message) {
-          console.info("API message:", result.message);
-        }
+        });
       } else {
         setError(result.error || "Failed to fetch stock requests");
         setStockRequests([]);
@@ -920,13 +855,14 @@ export default function StockRequest() {
     } catch (err) {
       console.error("Fetch error details:", err);
       if (err.name === 'AbortError') {
-        setError("Request timeout. Please try again.");
+        setError("Request timeout. Please check your connection.");
       } else {
         setError("Error fetching stock requests: " + err.message);
       }
       setStockRequests([]);
     } finally {
       setDataLoading(false);
+      setStatsLoading(false);
     }
   };
 
@@ -1038,7 +974,7 @@ export default function StockRequest() {
                         {error}
                       </div>
                     </div>
-                    <button 
+                    <button
                       onClick={fetchStockRequests}
                       className="bg-red-600 text-white px-3 py-1 rounded text-sm hover:bg-red-700 transition-colors"
                     >
@@ -1074,7 +1010,7 @@ export default function StockRequest() {
                         <BsBox className="text-2xl opacity-70" />
                       </div>
                     </div>
-                    
+
                     <Link href="/stock-history" className="block">
                       <div className="border rounded-lg p-4 bg-indigo-100 text-indigo-800 border-indigo-200 shadow-sm hover:bg-indigo-200 transition-colors cursor-pointer">
                         <div className="flex items-center justify-between">
@@ -1088,7 +1024,7 @@ export default function StockRequest() {
                         </div>
                       </div>
                     </Link>
-                    
+
                     <div className="border rounded-lg p-4 bg-yellow-100 text-yellow-800 border-yellow-200 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1100,7 +1036,7 @@ export default function StockRequest() {
                         <BsClockHistory className="text-2xl opacity-70" />
                       </div>
                     </div>
-                    
+
                     <div className="border rounded-lg p-4 bg-green-100 text-green-800 border-green-200 shadow-sm">
                       <div className="flex items-center justify-between">
                         <div>
@@ -1117,11 +1053,11 @@ export default function StockRequest() {
               )}
 
               <StockTable
-                stockRequests={stockRequests} 
+                stockRequests={stockRequests}
                 permissions={permissions}
                 onStatusUpdate={(stockId, newStatus) => {
-                  setStockRequests(prev => 
-                    prev.map(item => 
+                  setStockRequests(prev =>
+                    prev.map(item =>
                       item.id === stockId ? { ...item, status: newStatus } : item
                     )
                   );

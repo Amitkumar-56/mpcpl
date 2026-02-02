@@ -18,11 +18,18 @@ export default function AddCustomer() {
   const [clientType, setClientType] = useState("1"); // 1: Prepaid, 2: Postpaid, 3: Day Limit
   const [loading, setLoading] = useState(false);
   const [permissions, setPermissions] = useState({
-    Dashboard: { can_view: false, can_edit: false },
-    "Filling Requests": { can_view: false, can_edit: false},
-    "Loading Station": { can_view: false, can_edit: false },
-    "Loading History": { can_view: false, can_edit: false},
+    dashboard: { can_view: true, can_edit: false },
+    filling_requests: { can_view: false, can_edit: false },
+    loading_stations: { can_view: false, can_edit: false },
+    customer_history: { can_view: false, can_edit: false },
   });
+
+  const moduleDisplayNames = {
+    dashboard: "Dashboard",
+    filling_requests: "Filling Requests",
+    loading_stations: "Loading Stations",
+    customer_history: "Loading History"
+  };
 
   const modules = Object.keys(permissions);
 
@@ -88,7 +95,7 @@ export default function AddCustomer() {
         `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
       );
       const createData = await createRes.json();
-      
+
       if (createData.allowed) {
         setHasPermission(true);
         fetchData();
@@ -167,16 +174,16 @@ export default function AddCustomer() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
     try {
       const form = new FormData(e.target);
-      
+
       // Append permissions and client_type
       form.append("permissions", JSON.stringify(permissions));
       form.append("client_type", clientType); // This is crucial for server-side logic
-      
+
       console.log("🟡 Sending request to API...");
-      
+
       const res = await fetch("/api/customers/add", {
         method: "POST",
         body: form,
@@ -200,93 +207,100 @@ export default function AddCustomer() {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
       {/* Sidebar */}
-      <div className="flex-shrink-0">
+      <div className="flex-shrink-0 z-50 relative">
         <Sidebar />
       </div>
 
       {/* Main Content Area */}
-      <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+      <div className="flex flex-col flex-1 h-full w-full overflow-hidden relative">
         {/* Header */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 z-40 shadow-sm sticky top-0">
           <Header />
         </div>
 
         {/* Scrollable Main Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-6">
-          <div className="max-w-5xl mx-auto bg-white shadow-lg rounded-lg p-4 sm:p-6">
-            <h1 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Add New Customer</h1>
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-gray-50 scroll-smooth">
+          <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl p-4 sm:p-8 border border-gray-100">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+              <span className="bg-blue-100 text-blue-600 p-2 rounded-lg text-xl">👤</span>
+              Add New Customer
+            </h1>
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Basic Information */}
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Client Name *</label>
-                <input 
-                  type="text" 
-                  name="client_name" 
-                  required 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Client Name <span className="text-red-500">*</span></label>
+                <input
+                  type="text"
+                  name="client_name"
+                  required
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Enter client name"
                 />
               </div>
-              
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Role *</label>
-                <select 
-                  name="role" 
-                  required 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Role <span className="text-red-500">*</span></label>
+                <select
+                  name="role"
+                  required
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                 >
                   <option value="1">Client</option>
                 </select>
               </div>
-              
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Phone *</label>
-                <input 
-                  type="tel" 
-                  name="phone" 
-                  required 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
-                />
-              </div>
-              
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Email</label>
-                <input 
-                  type="email" 
-                  name="email" 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Phone <span className="text-red-500">*</span></label>
+                <input
+                  type="tel"
+                  name="phone"
+                  required
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Contact number"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Customer Image (Optional)</label>
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Email</label>
+                <input
+                  type="email"
+                  name="email"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Email address"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Customer Image (Optional)</label>
                 <input
                   type="file"
                   name="customer_image"
                   accept="image/*"
-                  className="w-full border p-2 sm:p-2.5 rounded text-sm sm:text-base"
+                  className="w-full border border-gray-300 p-2 rounded-lg text-sm file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Password *</label>
-                <input 
-                  type="password" 
-                  name="password" 
-                  required 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Password <span className="text-red-500">*</span></label>
+                <input
+                  type="password"
+                  name="password"
+                  required
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  placeholder="Secure password"
                 />
               </div>
 
               {/* Customer Type */}
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Customer Type *</label>
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Customer Type <span className="text-red-500">*</span></label>
                 <select
                   value={clientType}
                   onChange={(e) => setClientType(e.target.value)}
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                 >
                   <option value="1">Prepaid Client</option>
                   <option value="2">Postpaid Client</option>
@@ -294,11 +308,11 @@ export default function AddCustomer() {
                 </select>
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Billing Type</label>
-                <select 
-                  name="billing_type" 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Billing Type</label>
+                <select
+                  name="billing_type"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
                 >
                   <option value="1">Billing</option>
                   <option value="2">Non Billing</option>
@@ -307,71 +321,73 @@ export default function AddCustomer() {
 
               {/* Conditional Fields */}
               {clientType === "2" && (
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">
-                    Credit Limit (₹) *
+                <div className="space-y-1 bg-yellow-50 p-3 rounded-lg border border-yellow-200 animate-fade-in">
+                  <label className="block font-semibold text-gray-800 text-sm">
+                    Credit Limit (₹) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
-                    name="amtlimit" // ⬅️ Field name for Postpaid Credit Limit
+                    name="amtlimit"
                     step="0.01"
                     required
-                    className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
-                    placeholder="Enter credit amount"
+                    className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none"
+                    placeholder="Enter credit limit amount"
                   />
                 </div>
               )}
 
               {clientType === "3" && (
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">
-                    Day Limit (Days) *
+                <div className="space-y-1 bg-yellow-50 p-3 rounded-lg border border-yellow-200 animate-fade-in">
+                  <label className="block font-semibold text-gray-800 text-sm">
+                    Day Limit (Days) <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="number"
-                    name="day_limit" // ⬅️ Field name for Day Limit
+                    name="day_limit"
                     required
-                    className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base"
+                    className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none"
                     placeholder="Enter number of days"
                   />
                 </div>
               )}
 
               {/* Products */}
-              <div className="col-span-2">
-                <label className="block font-semibold text-gray-700 mb-2 text-sm sm:text-base">Select Products</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+              <div className="col-span-2 space-y-2">
+                <label className="block font-semibold text-gray-700 text-sm">Select Products</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50">
                   {products.map((p) => (
-                    <label key={p.id} className="flex items-center gap-2 text-sm sm:text-base cursor-pointer hover:bg-gray-50 p-1 rounded">
-                      <input type="checkbox" name="products[]" value={p.id} className="cursor-pointer" />
-                      <span>{p.pname}</span>
+                    <label key={p.id} className="flex items-center gap-3 p-2 bg-white rounded-md border border-gray-200 hover:border-blue-400 cursor-pointer transition-colors shadow-sm">
+                      <input type="checkbox" name="products[]" value={p.id} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
+                      <span className="text-sm text-gray-700 font-medium">{p.pname}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               {/* Address */}
-              <div className="col-span-2">
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Address</label>
-                <textarea 
-                  name="address" 
+              <div className="col-span-2 space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Address</label>
+                <textarea
+                  name="address"
                   rows="3"
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base resize-y"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
+                  placeholder="Full address"
                 ></textarea>
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">City</label>
-                <input 
-                  type="text" 
-                  name="city" 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">City</label>
+                <input
+                  type="text"
+                  name="city"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="City"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">State</label>
-                   <select name="region" className="w-full border p-2 sm:p-2.5 rounded text-sm sm:text-base" required>
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">State</label>
+                <select name="region" className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white" required>
                   <option value="">Select State</option>
                   <option value="andhra_pradesh">Andhra Pradesh</option>
                   <option value="arunachal_pradesh">Arunachal Pradesh</option>
@@ -411,102 +427,109 @@ export default function AddCustomer() {
                 </select>
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Country</label>
-                <input 
-                  type="text" 
-                  name="country" 
-                  defaultValue="India" 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Country</label>
+                <input
+                  type="text"
+                  name="country"
+                  defaultValue="India"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Zip Code</label>
-                <input 
-                  type="text" 
-                  name="postbox" // ⬅️ CORRECTED: Changed from "zip" to "postbox" to match DB column
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">Postbox / Zip Code</label>
+                <input
+                  type="text"
+                  name="postbox"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="Zip Code"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">GST Name</label>
-                <input 
-                  type="text" 
-                  name="gst_name" 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">GST Name</label>
+                <input
+                  type="text"
+                  name="gst_name"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="GST Registered Name"
                 />
               </div>
 
-              <div>
-                <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">GSTIN</label>
-                <input 
-                  type="text" 
-                  name="gst_number" 
-                  className="w-full border p-2 sm:p-2.5 rounded focus:ring-2 focus:ring-blue-500 text-sm sm:text-base" 
+              <div className="space-y-1">
+                <label className="block font-semibold text-gray-700 text-sm">GSTIN</label>
+                <input
+                  type="text"
+                  name="gst_number"
+                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  placeholder="GST Number"
                 />
               </div>
 
               {/* Assign Location */}
-              <div className="col-span-2">
-                <label className="block font-semibold text-gray-700 mb-2 text-sm sm:text-base">Assign Locations</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2 max-h-48 overflow-y-auto border border-gray-200 rounded-lg p-3">
+              <div className="col-span-2 space-y-2">
+                <label className="block font-semibold text-gray-700 text-sm">Assign Locations</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50">
                   {stations.map((s) => (
-                    <label key={s.id} className="flex items-center gap-2 text-sm sm:text-base cursor-pointer hover:bg-gray-50 p-1 rounded">
-                      <input type="checkbox" name="block_location[]" value={s.id} className="cursor-pointer" />
-                      <span>{s.station_name}</span>
+                    <label key={s.id} className="flex items-center gap-3 p-2 bg-white rounded-md border border-gray-200 hover:border-blue-400 cursor-pointer transition-colors shadow-sm">
+                      <input type="checkbox" name="block_location[]" value={s.id} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
+                      <span className="text-sm text-gray-700 font-medium">{s.station_name}</span>
                     </label>
                   ))}
                 </div>
               </div>
 
               {/* File Upload */}
-              <div className="col-span-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Document 1</label>
-                  <input type="file" name="doc1" className="w-full border p-2 sm:p-2.5 rounded text-xs sm:text-sm" />
+              <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="space-y-1">
+                  <label className="block font-semibold text-gray-700 text-sm">Document 1</label>
+                  <input type="file" name="doc1" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700" />
                 </div>
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Document 2</label>
-                  <input type="file" name="doc2" className="w-full border p-2 sm:p-2.5 rounded text-xs sm:text-sm" />
+                <div className="space-y-1">
+                  <label className="block font-semibold text-gray-700 text-sm">Document 2</label>
+                  <input type="file" name="doc2" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700" />
                 </div>
-                <div>
-                  <label className="block font-semibold text-gray-700 mb-1 text-sm sm:text-base">Document 3</label>
-                  <input type="file" name="doc3" className="w-full border p-2 sm:p-2.5 rounded text-xs sm:text-sm" />
+                <div className="space-y-1">
+                  <label className="block font-semibold text-gray-700 text-sm">Document 3</label>
+                  <input type="file" name="doc3" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700" />
                 </div>
               </div>
 
               {/* Permissions */}
-              <div className="col-span-2 mt-4 sm:mt-6">
-                <h3 className="text-base sm:text-lg font-semibold mb-3">Module Permissions</h3>
-                <div className="overflow-x-auto border rounded">
-                  <table className="w-full border-collapse text-sm sm:text-base">
-                    <thead className="bg-gray-100">
+              <div className="col-span-2 mt-2 border-t pt-4">
+                <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+                  <span className="text-xl">🛡️</span> Module Permissions
+                </h3>
+                <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
+                  <table className="w-full border-collapse">
+                    <thead className="bg-gray-100 border-b border-gray-300">
                       <tr>
-                        <th className="p-2 border text-left">Module</th>
-                        <th className="p-2 border text-center">View</th>
-                        <th className="p-2 border text-center">Edit</th>
+                        <th className="p-3 text-left font-semibold text-gray-700 text-sm">Module Name</th>
+                        <th className="p-3 text-center font-semibold text-gray-700 text-sm w-24">View</th>
+                        <th className="p-3 text-center font-semibold text-gray-700 text-sm w-24">Edit</th>
                       </tr>
                     </thead>
-                    <tbody>
+                    <tbody className="divide-y divide-gray-200">
                       {modules.map((mod, idx) => (
-                        <tr key={idx} className={idx % 2 === 0 ? "bg-gray-50" : "bg-white"}>
-                          <td className="p-2 border font-medium text-xs sm:text-sm">{mod}</td>
-                          <td className="p-2 border text-center">
+                        <tr key={idx} className={`hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
+                          <td className="p-3 font-medium text-gray-700 text-sm">
+                            {moduleDisplayNames[mod] || mod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+                          </td>
+                          <td className="p-3 text-center">
                             <input
                               type="checkbox"
                               checked={permissions[mod].can_view}
                               onChange={() => handlePermissionChange(mod, "can_view")}
-                              className="cursor-pointer w-4 h-4 sm:w-5 sm:h-5"
+                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
                             />
                           </td>
-                          <td className="p-2 border text-center">
+                          <td className="p-3 text-center">
                             <input
                               type="checkbox"
                               checked={permissions[mod].can_edit}
                               onChange={() => handlePermissionChange(mod, "can_edit")}
-                              className="cursor-pointer w-4 h-4 sm:w-5 sm:h-5"
+                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
                             />
                           </td>
                         </tr>
@@ -517,20 +540,30 @@ export default function AddCustomer() {
               </div>
 
               {/* Submit Buttons */}
-              <div className="col-span-2 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4 mt-4 sm:mt-6">
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-colors text-sm sm:text-base font-medium"
-                >
-                  {loading ? "Saving..." : "Submit"}
-                </button>
+              <div className="col-span-2 flex flex-col sm:flex-row justify-end gap-4 mt-6 border-t pt-6">
                 <button
                   type="button"
                   onClick={() => router.back()}
-                  className="w-full sm:w-auto px-6 py-2.5 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition-colors text-sm sm:text-base font-medium"
+                  className="px-6 py-2.5 bg-white text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors font-medium shadow-sm"
                 >
                   Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="px-8 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-400 transition-all font-medium shadow-md hover:shadow-lg flex items-center gap-2 justify-center"
+                >
+                  {loading ? (
+                    <>
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <span>Save Customer</span>
+                      <span>→</span>
+                    </>
+                  )}
                 </button>
               </div>
             </form>
@@ -538,7 +571,7 @@ export default function AddCustomer() {
         </main>
 
         {/* Footer */}
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 z-40 bg-white border-t border-gray-200">
           <Footer />
         </div>
       </div>

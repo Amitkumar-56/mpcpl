@@ -10,7 +10,7 @@ import { Suspense, useEffect, useState } from 'react';
 function PdfLoadingUnloadingContent() {
   const searchParams = useSearchParams();
   const shipmentId = searchParams.get('shipment_id');
-  
+
   const [shipment, setShipment] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -42,125 +42,246 @@ function PdfLoadingUnloadingContent() {
 
   const generatePDF = async () => {
     if (typeof window === 'undefined') {
-      console.error('html2pdf is not available on server');
+      alert('PDF generation is only available in the browser');
       return;
     }
-    
+
     const element = document.getElementById('pdf-content');
     if (!element) {
-      console.error('PDF content element not found');
+      alert('PDF content not found. Please refresh the page.');
       return;
     }
-    
-    // Dynamically import PDF libs and render single-page image
+
+    setLoading(true);
+    let tempContainer = null;
+
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
-        import('html2canvas'),
-        import('jspdf')
-      ]);
-      const tempContainer = document.createElement('div');
-      tempContainer.style.position = 'fixed';
-      tempContainer.style.left = '-10000px';
+      const html2canvas = (await import('html2canvas')).default;
+      const jsPDFModule = await import('jspdf');
+      const jsPDF = jsPDFModule.default || jsPDFModule.jsPDF;
+      const { PDFDocument } = await import('pdf-lib');
+
+      if (!html2canvas || !jsPDF || !PDFDocument) {
+        throw new Error('Failed to load PDF libraries');
+      }
+
+      // 1. Setup container
+      tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
       tempContainer.style.top = '0';
-      tempContainer.style.width = '793px';
-      tempContainer.style.minHeight = '1123px';
-      tempContainer.style.padding = '57px';
+      tempContainer.style.left = '0';
+      tempContainer.style.width = '794px';
+      tempContainer.style.margin = '0';
+      tempContainer.style.padding = '0';
       tempContainer.style.backgroundColor = '#ffffff';
-      tempContainer.style.boxSizing = 'border-box';
-      tempContainer.style.zIndex = '9999';
-      tempContainer.style.opacity = '1';
-      tempContainer.className = 'pdf-safe';
-      const safeStyle = document.createElement('style');
-      safeStyle.textContent = `
-        .pdf-safe, .pdf-safe * { color: #1f2937 !important; background: #ffffff !important; }
-        .pdf-safe .border, .pdf-safe table, .pdf-safe td, .pdf-safe th { border-color: #d1d5db !important; }
-      `;
-      tempContainer.appendChild(safeStyle);
-      const contentToCopy = element.cloneNode(true);
-      const buttons = contentToCopy.querySelector('.print\\:hidden');
-      if (buttons) { buttons.remove(); }
-      contentToCopy.querySelectorAll('iframe, embed, object').forEach(el => el.remove());
-      const allImgs = Array.from(contentToCopy.querySelectorAll('img'));
-      allImgs.forEach(img => {
-        try {
-          const url = new URL(img.src, window.location.origin);
-          if (url.origin !== window.location.origin) {
-            img.style.display = 'none';
-          } else {
-            img.crossOrigin = img.crossOrigin || 'anonymous';
+      tempContainer.style.zIndex = '10000';
+      document.body.appendChild(tempContainer);
+
+      // Pre-load COMPULSORY stamp image
+      let stampBase64 = null;
+      try {
+        const resp = await fetch('/mpcl_stamp.jpg');
+        const blob = await resp.blob();
+        stampBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        console.warn('Stamp load failed', e);
+      }
+
+      // 2. Clone content
+      const clone = element.cloneNode(true);
+
+
+
+      // Apply Base64 stamp to clone
+      if (stampBase64) {
+        const imgs = clone.querySelectorAll('img');
+        imgs.forEach(img => {
+          if (img.src.includes('mpcl_stamp.jpg') || img.alt === 'Company Stamp') {
+            img.src = stampBase64;
           }
-        } catch {
-          img.crossOrigin = img.crossOrigin || 'anonymous';
+        });
+      }
+
+      // Clean buttons/iframes
+      const buttons = clone.querySelector('.print\\:hidden');
+      if (buttons) buttons.remove();
+      const pdAtt = clone.querySelector('.pdf-attachment-container');
+      if (pdAtt && shipment.pdf_path && shipment.pdf_path.toLowerCase().endsWith('.pdf')) {
+        pdAtt.style.display = 'none';
+      }
+      clone.querySelectorAll('iframe').forEach(el => el.remove());
+
+      // FORCE STYLES
+      clone.style.width = '100% !important';
+      clone.style.height = 'auto !important';
+      clone.style.overflow = 'visible !important';
+
+      // Handle other images
+      const images = clone.querySelectorAll('img');
+      const imgPromises = [];
+      images.forEach(img => {
+        if (!img.src.startsWith('data:')) {
+          img.crossOrigin = 'anonymous';
+          if (!img.complete) {
+            imgPromises.push(new Promise(resolve => {
+              img.onload = resolve;
+              img.onerror = resolve;
+            }));
+          }
         }
       });
-      tempContainer.appendChild(contentToCopy);
-      document.body.appendChild(tempContainer);
-      const imgs = Array.from(tempContainer.querySelectorAll('img'));
-      await Promise.all(imgs.map(img => {
-        return new Promise(resolve => {
-          if (img.complete) return resolve();
-          img.crossOrigin = img.crossOrigin || 'anonymous';
-          img.onload = resolve;
-          img.onerror = resolve;
-        });
-      }));
-      if (document.fonts && document.fonts.ready) {
-        try { await document.fonts.ready; } catch {}
-      }
-      await new Promise(r => setTimeout(r, 50));
-      const canvas = await html2canvas(tempContainer, {
-        scale: 2,
-        useCORS: true,
-        backgroundColor: '#ffffff',
-        scrollY: 0,
-        logging: false
+
+      tempContainer.appendChild(clone);
+
+      // SANITIZE CSS AFTER APPENDING (So getComputedStyle works)
+      // HTML2Canvas doesn't support oklch colors (common in new Tailwind)
+      const elementsToSanitize = tempContainer.querySelectorAll('*');
+      elementsToSanitize.forEach(el => {
+        const style = window.getComputedStyle(el);
+
+        // Helper to check and replace property
+        const replaceIfOklch = (prop, fallback) => {
+          const val = style.getPropertyValue(prop);
+          if (val && val.includes('oklch')) {
+            el.style.setProperty(prop, fallback, 'important');
+          }
+        };
+
+        replaceIfOklch('background-color', '#ffffff');
+        replaceIfOklch('color', '#000000');
+        replaceIfOklch('border-color', '#d1d5db');
+        replaceIfOklch('outline-color', '#d1d5db');
+
+        // Also explicitly fix text-gray-X classes which might be oklch
+        if (style.color && style.color.includes('oklch')) {
+          el.style.color = '#1f2937'; // gray-800 safe
+        }
       });
 
-      const pdf = new jsPDF('portrait', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      const margin = 5;
-
-      let imgWidth = pageWidth - margin * 2;
-      let imgHeight = (canvas.height * imgWidth) / canvas.width;
-
-      if (imgHeight > pageHeight - margin * 2) {
-        const scale = (pageHeight - margin * 2) / imgHeight;
-        imgHeight = pageHeight - margin * 2;
-        imgWidth = imgWidth * scale;
+      // Update stamp on the LIVE container to ensure it sticks
+      // Update stamp on the LIVE container to ensure it sticks
+      if (stampBase64) {
+        const stampEl = tempContainer.querySelector('#stamp-image-el');
+        if (stampEl) {
+          stampEl.removeAttribute('crossOrigin');
+          stampEl.src = stampBase64;
+          stampEl.style.display = 'block'; // Force visible
+        }
       }
 
-      const x = (pageWidth - imgWidth) / 2;
-      const y = (pageHeight - imgHeight) / 2;
+      // Ensure stamp is visible and content fits
+      window.scrollTo(0, 0);
+      await Promise.all(imgPromises);
+      await new Promise(r => setTimeout(r, 1500)); // Increased wait for stamp/layout
 
-      const imgData = canvas.toDataURL('image/jpeg', 0.98);
-      pdf.addImage(imgData, 'JPEG', x, y, imgWidth, imgHeight);
-      pdf.save(`shipment-details-${shipmentId}.pdf`);
-      document.body.removeChild(tempContainer);
-    } catch (error) {
-      console.error('Error generating PDF (single-page):', error);
+      // 3. Capture with slight scale down to fit
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2, // Retain quality
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff',
+        width: 794,
+        windowWidth: 794,
+        allowTaint: true,
+        scrollY: 0,
+        onclone: (doc) => {
+          // Force fit content if needed
+          const el = doc.body.firstChild;
+          if (el) {
+            el.style.transform = 'scale(0.98)';
+            el.style.transformOrigin = 'top left';
+          }
+        }
+      });
+
+      // 4. Generate PDF - FORCE SINGLE PAGE
+      const pageWidth = 210;
+      const pageHeight = 297;
+
+      // Calculate content dimensions
+      const contentRatio = canvas.height / canvas.width;
+      let finalPdfHeight = pageWidth * contentRatio;
+      let finalPdfWidth = pageWidth;
+
+      // If taller than A4, scale down to fit height
+      if (finalPdfHeight > pageHeight) {
+        finalPdfHeight = pageHeight;
+        finalPdfWidth = pageHeight / contentRatio;
+      }
+
+      // Center horizontally
+      const xPos = (pageWidth - finalPdfWidth) / 2;
+
+      const reportPdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
       try {
-        const html2pdf = (await import('html2pdf.js')).default;
-        const opt = {
-          margin: 5,
-          filename: `shipment-details-${shipmentId}.pdf`,
-          image: { type: 'jpeg', quality: 0.98 },
-          html2canvas: { 
-            scale: 2,
-            useCORS: true,
-            backgroundColor: '#ffffff',
-            scrollY: 0,
-            logging: false
-          },
-          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-          pagebreak: { mode: 'avoid-all' }
-        };
-        await html2pdf().set(opt).from(element).save();
-      } catch (fallbackError) {
-        console.error('Fallback PDF generation failed:', fallbackError);
-        alert('Failed to generate PDF. Please try again.');
+        reportPdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', xPos, 0, finalPdfWidth, finalPdfHeight);
+
+        // MANUALLY OVERLAY STAMP (Fail-safe)
+        if (stampBase64) {
+          const stampSize = 25; // mm
+          const stampX = xPos + finalPdfWidth - stampSize - 10; // Right aligned
+          const stampY = finalPdfHeight - stampSize - 5; // Bottom aligned (approx)
+          reportPdf.addImage(stampBase64, 'JPEG', stampX, stampY, stampSize, stampSize);
+        }
+
+      } catch (e) {
+        console.error('AddImage failed', e);
+        throw new Error('Image security policy blocked PDF generation. Please contact support.');
       }
+
+      // 5. Merge Attachment
+      if (shipment.pdf_path && shipment.pdf_path.toLowerCase().endsWith('.pdf')) {
+        try {
+          const reportBytes = reportPdf.output('arraybuffer');
+          const finalDoc = await PDFDocument.load(reportBytes);
+
+          const attResp = await fetch(shipment.pdf_path);
+          if (attResp.ok) {
+            const attBytes = await attResp.arrayBuffer();
+            const attDoc = await PDFDocument.load(attBytes);
+            const copied = await finalDoc.copyPages(attDoc, attDoc.getPageIndices());
+            copied.forEach(p => finalDoc.addPage(p));
+          }
+
+          const finalBytes = await finalDoc.save();
+          triggerDownload(finalBytes, `shipment-${shipmentId}.pdf`);
+        } catch (mergeErr) {
+          console.warn('Merge failed, downloading report only', mergeErr);
+          reportPdf.save(`shipment-${shipmentId}.pdf`);
+        }
+      } else {
+        reportPdf.save(`shipment-${shipmentId}.pdf`);
+      }
+
+    } catch (error) {
+      console.error('PDF Gen Error:', error);
+      alert(`PDF Error: ${error.message}`);
+    } finally {
+      // Robust cleanup
+      if (tempContainer && document.body.contains(tempContainer)) {
+        document.body.removeChild(tempContainer);
+      }
+      setLoading(false);
     }
+  };
+
+  const triggerDownload = (bytes, filename) => {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const getFileExtension = (filename) => {
@@ -184,7 +305,7 @@ function PdfLoadingUnloadingContent() {
         <div className="text-center">
           <div className="text-red-600 text-xl mb-4">❌</div>
           <p className="text-red-600 text-lg">{error}</p>
-          <button 
+          <button
             onClick={() => window.history.back()}
             className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
@@ -206,7 +327,7 @@ function PdfLoadingUnloadingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gray-50 py-8 print:p-0 print:m-0 print:min-h-0 print:bg-white print:overflow-hidden">
       {/* Action Buttons */}
       <div className="flex justify-center gap-4 mb-6 print:hidden">
         <button
@@ -225,13 +346,13 @@ function PdfLoadingUnloadingContent() {
 
       {/* PDF Content */}
       <div id="pdf-content" className="bg-white rounded-lg shadow-lg p-6 mx-auto max-w-4xl print:shadow-none print:p-0">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between mb-4 print:flex print:justify-between">
           <div className="w-16 h-16 flex items-center justify-center">
-            <img 
-              src="/LOGO_NEW.jpg" 
-              alt="Company Logo" 
+            <img
+              src="/LOGO_NEW.jpg"
+              alt="Company Logo"
               className="h-12 w-auto max-w-full"
               onError={(e) => {
                 e.target.style.display = 'none';
@@ -244,18 +365,18 @@ function PdfLoadingUnloadingContent() {
               LOGO
             </div>
           </div>
-          
+
           <div className="text-center flex-1 mx-4">
             <h2 className="text-xl font-bold text-gray-800 leading-tight">
               GYANTI MULTISERVICES PVT. LTD.
             </h2>
             <p className="text-gray-600 text-sm mt-1">Tanker Loading & Unloading Checklist</p>
           </div>
-          
+
           <div className="w-16 h-16 flex items-center justify-center">
-            <img 
-              src="/LOGO_NEW.jpg" 
-              alt="Company Logo" 
+            <img
+              src="/LOGO_NEW.jpg"
+              alt="Company Logo"
               className="h-12 w-auto max-w-full"
               onError={(e) => {
                 e.target.style.display = 'none';
@@ -484,7 +605,7 @@ function PdfLoadingUnloadingContent() {
         {/* Footer with Stamp */}
         <div className="border-t border-gray-300 pt-4 flex flex-row items-end justify-between">
           <div className="w-1/4"></div> {/* Spacer for balance */}
-          
+
           <div className="text-center flex-1">
             <p className="font-semibold text-gray-800 text-sm">GYANTI MULTISERVICES PVT. LTD.</p>
             <p className="text-gray-600 text-xs mt-1">
@@ -495,9 +616,10 @@ function PdfLoadingUnloadingContent() {
 
           <div className="w-1/4 text-right">
             <div className="inline-block border-2 border-gray-400 p-2 rounded bg-white">
-              <img 
-                src="/mpcl_stamp.jpg" 
-                alt="Company Stamp" 
+              <img
+                id="stamp-image-el"
+                src="/mpcl_stamp.jpg"
+                alt="Company Stamp"
                 className="h-20 w-auto"
                 onError={(e) => {
                   e.target.style.display = 'none';
@@ -515,11 +637,11 @@ function PdfLoadingUnloadingContent() {
 
         {/* Attached PDF/Image */}
         {shipment.pdf_path && (
-          <div className="mt-8 pt-6 border-t border-gray-300">
+          <div className="mt-8 pt-6 border-t border-gray-300 pdf-attachment-container">
             <h4 className="text-sm font-semibold mb-4">Attached Document</h4>
             {['jpg', 'jpeg', 'png', 'gif'].includes(getFileExtension(shipment.pdf_path)) ? (
-              <img 
-                src={shipment.pdf_path} 
+              <img
+                src={shipment.pdf_path}
                 alt="Attached document"
                 className="w-full max-h-96 object-contain border border-gray-400 rounded"
                 onError={(e) => {
@@ -530,17 +652,17 @@ function PdfLoadingUnloadingContent() {
                 }}
               />
             ) : getFileExtension(shipment.pdf_path) === 'pdf' ? (
-              <iframe 
-                src={shipment.pdf_path} 
+              <iframe
+                src={shipment.pdf_path}
                 className="w-full h-96 border border-gray-400 rounded"
                 title="Attached PDF"
               />
             ) : (
               <div className="text-center py-8 border border-gray-300 rounded bg-gray-50">
                 <p className="text-gray-600">Unsupported file type: {getFileExtension(shipment.pdf_path)}</p>
-                <a 
-                  href={shipment.pdf_path} 
-                  target="_blank" 
+                <a
+                  href={shipment.pdf_path}
+                  target="_blank"
                   rel="noopener noreferrer"
                   className="text-blue-600 hover:text-blue-800 underline mt-2 inline-block"
                 >
@@ -555,37 +677,77 @@ function PdfLoadingUnloadingContent() {
       {/* Print Styles */}
       <style jsx global>{`
         @media print {
-          body {
-            margin: 0;
-            padding: 0;
-            background: white;
+          @page {
+            size: A4;
+            margin: 0mm;
           }
-          .print\\:shadow-none {
-            box-shadow: none !important;
+          
+          /* Hide everything by default */
+          body * {
+            visibility: hidden;
           }
-          .print\\:p-0 {
+          
+          /* Unhide the PDF content and its children */
+          #pdf-content, #pdf-content * {
+            visibility: visible;
+          }
+
+          /* Reset body/html */
+          html, body {
+            height: 100%;
+            margin: 0 !important;
             padding: 0 !important;
+            overflow: hidden !important;
           }
-          .print\\:flex {
-            display: flex !important;
+          
+          /* Position the content to top-left */
+          #pdf-content {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            margin: 0 !important;
+            padding: 10mm !important; /* modest padding for readability */
+            
+            /* Use zoom for layout-aware scaling (Chrome/Edge) */
+            zoom: 75%; 
           }
-          .print\\:justify-between {
-            justify-content: space-between !important;
+          
+          /* Hide buttons specifically (redundant but safe) */
+          .print\\:hidden {
+            display: none !important;
           }
-          .print\\:bg-white {
-            background-color: white !important;
+
+          /* Compact spacing */
+          h2, h3, h4, p, td, th {
+              padding-top: 1px !important;
+              padding-bottom: 1px !important;
+              margin-bottom: 2px !important;
           }
-          .print\\:border {
-            border: 1px solid #d1d5db !important;
+          hr {
+              margin: 4px 0 !important;
           }
-          .print\\:border-gray-300 {
-            border-color: #d1d5db !important;
+          .mb-4, .mb-6 {
+              margin-bottom: 8px !important;
           }
-          .print\\:text-gray-800 {
-            color: #1f2937 !important;
+          .mt-8 {
+              margin-top: 8px !important;
           }
-          .print\\:text-gray-700 {
-            color: #374151 !important;
+          .pt-4, .pt-6 {
+              padding-top: 8px !important;
+          }
+          .h-16, .w-16 {
+              height: 40px !important;
+              width: 40px !important;
+          }
+          .h-20 {
+              height: 60px !important;
+          }
+          
+          /* Hide external wrapper background */
+          .min-h-screen {
+              min-height: 0 !important;
+              background-color: white !important;
           }
         }
       `}</style>

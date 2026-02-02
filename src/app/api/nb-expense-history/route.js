@@ -6,7 +6,7 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const stationId = searchParams.get('station_id');
-    
+
     console.log('Station ID received:', stationId);
 
     if (!stationId) {
@@ -22,7 +22,7 @@ export async function GET(request) {
       FROM non_billing_stocks 
       WHERE station_id = ?
     `;
-    
+
     console.log('Executing initial stock query...');
     const initialStockRows = await executeQuery(initialStockQuery, [stationId]);
     console.log('Initial stock rows:', initialStockRows);
@@ -49,7 +49,7 @@ export async function GET(request) {
       WHERE n.station_id = ?
       ORDER BY n.id ASC
     `;
-    
+
     console.log('Executing expense query...');
     const expenseRows = await executeQuery(expenseQuery, [stationId]);
     console.log('Expense rows found:', expenseRows.length);
@@ -60,7 +60,7 @@ export async function GET(request) {
       const productId = row.product_id;
       const currentStock = stockTracker[productId] || 0;
       const remainingStock = currentStock - parseFloat(row.amount);
-      
+
       // Store result
       const result = {
         id: row.id,
@@ -78,14 +78,17 @@ export async function GET(request) {
         created_by_id: row.created_by_id || null,
         created_by_name: row.created_by_name || 'Unknown'
       };
-      
+
       // Update tracker for next iteration
       stockTracker[productId] = remainingStock;
-      
+
       return result;
     });
 
     console.log('Final result count:', resultWithStock.length);
+
+    // Calculate total current stock
+    const totalCurrentStock = initialStockRows.reduce((sum, row) => sum + (parseFloat(row.stock) || 0), 0);
 
     return NextResponse.json({
       success: true,
@@ -95,17 +98,18 @@ export async function GET(request) {
         totalExpenses: resultWithStock.reduce((sum, row) => sum + row.amount, 0),
         totalRecords: resultWithStock.length,
         uniqueProducts: [...new Set(resultWithStock.map(row => row.product_name))].length,
-        uniqueUsers: [...new Set(resultWithStock.filter(row => row.created_by_name).map(row => row.created_by_name))].length
+        uniqueUsers: [...new Set(resultWithStock.filter(row => row.created_by_name).map(row => row.created_by_name))].length,
+        currentStock: totalCurrentStock
       }
     });
 
   } catch (error) {
     console.error('Error in NB expense history API:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch NB expense history',
         details: error.message,
-        success: false 
+        success: false
       },
       { status: 500 }
     );

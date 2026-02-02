@@ -43,10 +43,10 @@ export async function GET(request) {
     let productsRows = [];
     let productTableExists = false;
     let actualProductTable = '';
-    
+
     // Try to find the correct products table
     const possibleTableNames = ['products', 'product', 'Product', 'PRODUCTS', 'stock_products'];
-    
+
     for (const tableName of possibleTableNames) {
       try {
         productsRows = await executeQuery(
@@ -60,7 +60,7 @@ export async function GET(request) {
         console.log(`❌ Table ${tableName} not found`);
       }
     }
-    
+
     // If no products table found, use empty array
     if (!productTableExists) {
       productsRows = [];
@@ -143,7 +143,7 @@ async function saveFile(file, fileName) {
 
 // Helper function to get status text
 function getStatusText(status) {
-  switch(status) {
+  switch (status) {
     case '1': return 'Dispatch';
     case '2': return 'Pending';
     case '3': return 'Completed';
@@ -164,7 +164,7 @@ export async function POST(request) {
     }
 
     const formData = await request.formData();
-    
+
     const station_from = formData.get('station_from');
     const station_to = formData.get('station_to');
     const driver_id = formData.get('driver_id');
@@ -176,8 +176,8 @@ export async function POST(request) {
     const user_id = formData.get('user_id') || '1'; // Default to admin user
 
     // Validation
-    if (!station_from || !station_to || !driver_id || !vehicle_id || 
-        !transfer_quantity || !status || !product) {
+    if (!station_from || !station_to || !driver_id || !vehicle_id ||
+      !transfer_quantity || !status || !product) {
       return NextResponse.json(
         { error: 'All required fields must be filled' },
         { status: 400 }
@@ -211,15 +211,15 @@ export async function POST(request) {
     }
 
     const oldData = currentTransfer[0];
-    
+
     let slip = oldData.slip || '';
-    
+
     // Handle file upload if new file is provided
     if (slipFile && slipFile.size > 0) {
       // Validate file type
       const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/jpg'];
       const fileType = slipFile.type;
-      
+
       if (!validTypes.includes(fileType)) {
         return NextResponse.json(
           { error: 'Only JPG, JPEG, PNG & GIF files are allowed' },
@@ -238,14 +238,14 @@ export async function POST(request) {
       // Generate unique file name
       const fileExtension = path.extname(slipFile.name);
       const fileName = `slip_${id}_${Date.now()}${fileExtension}`;
-      
+
       // Save file
       slip = await saveFile(slipFile, fileName);
     }
 
     // Prepare changes log
     const changes = [];
-    
+
     // Compare old and new values
     if (parseInt(oldData.station_from) !== parseInt(station_from)) {
       // Get station names for better log
@@ -256,7 +256,7 @@ export async function POST(request) {
       const newFromName = fromStation?.[0]?.station_name || station_from;
       changes.push(`Station From: ${oldData.from_station_name} → ${newFromName}`);
     }
-    
+
     if (parseInt(oldData.station_to) !== parseInt(station_to)) {
       const [toStation] = await executeQuery(
         'SELECT station_name FROM filling_stations WHERE id = ?',
@@ -265,28 +265,28 @@ export async function POST(request) {
       const newToName = toStation?.[0]?.station_name || station_to;
       changes.push(`Station To: ${oldData.to_station_name} → ${newToName}`);
     }
-    
+
     if (oldData.driver_id !== driver_id) {
       changes.push(`Driver ID: ${oldData.driver_id} → ${driver_id}`);
     }
-    
+
     if (oldData.vehicle_id !== vehicle_id) {
       changes.push(`Vehicle ID: ${oldData.vehicle_id} → ${vehicle_id}`);
     }
-    
+
     if (parseFloat(oldData.transfer_quantity) !== transfer_quantity) {
       changes.push(`Quantity: ${oldData.transfer_quantity} → ${transfer_quantity}`);
     }
-    
+
     if (oldData.status !== status) {
       changes.push(`Status: ${getStatusText(oldData.status)} → ${getStatusText(status)}`);
     }
-    
+
     if (parseInt(oldData.product) !== parseInt(product)) {
       // Try to get product names
       let oldProductName = oldData.product;
       let newProductName = product;
-      
+
       try {
         // Check if products table exists
         const tableCheck = await executeQuery("SHOW TABLES LIKE 'products'");
@@ -298,7 +298,7 @@ export async function POST(request) {
           if (oldProduct?.[0]?.pname) {
             oldProductName = oldProduct[0].pname;
           }
-          
+
           const [newProduct] = await executeQuery(
             'SELECT pname FROM products WHERE id = ?',
             [product]
@@ -310,10 +310,10 @@ export async function POST(request) {
       } catch (error) {
         console.log('Could not fetch product names');
       }
-      
+
       changes.push(`Product: ${oldProductName} → ${newProductName}`);
     }
-    
+
     if (slip !== oldData.slip && slipFile && slipFile.size > 0) {
       changes.push(`Slip: Updated with new file`);
     }
@@ -392,6 +392,22 @@ export async function POST(request) {
         }
 
         try {
+          // Fetch employee name for stock transfer log
+          let employeeName = null;
+          if (user_id) {
+            try {
+              const [empResult] = await connection.execute(
+                `SELECT name FROM employee_profile WHERE id = ?`,
+                [user_id]
+              );
+              if (empResult && empResult.length > 0 && empResult[0].name) {
+                employeeName = empResult[0].name;
+              }
+            } catch (empError) {
+              console.error('Error fetching employee name for transfer log:', empError);
+            }
+          }
+
           const [colsInfoRows] = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
           for (const action of actionsToLog) {
             let insertQuery = '';
@@ -406,7 +422,7 @@ export async function POST(request) {
                 id,
                 action,
                 user_id,
-                null,
+                employeeName || (user_id ? `Employee ID: ${user_id}` : 'Unknown'),
                 station_from,
                 station_to,
                 transfer_quantity,
@@ -430,7 +446,7 @@ export async function POST(request) {
             }
             await connection.execute(insertQuery, insertParams);
           }
-        } catch {}
+        } catch { }
       }
 
       const oldQty = parseFloat(oldData.transfer_quantity) || 0;
@@ -480,7 +496,7 @@ export async function POST(request) {
       // Check if status is "Completed" (3) to update stock
       if (status === '3' && oldData.status !== '3') {
         let productName = product;
-        
+
         // Try to get product name if products table exists
         try {
           const [productInfo] = await connection.execute(
@@ -501,7 +517,7 @@ export async function POST(request) {
         );
 
         let stockAction = '';
-        
+
         if (stockRows.length > 0) {
           const stock_to = parseFloat(stockRows[0].stock) || 0;
           const new_stock_to = stock_to + transfer_quantity;
@@ -559,6 +575,23 @@ export async function POST(request) {
             const [colsInfoRows2] = await connection.execute(`SHOW COLUMNS FROM stock_transfer_logs LIKE 'performed_by_name'`);
             let insertQuery2 = '';
             let insertParams2 = [];
+
+            // Reuse employeeName from above
+            let employeeNameForLog = null;
+            if (user_id) {
+              try {
+                const [empResult] = await connection.execute(
+                  `SELECT name FROM employee_profile WHERE id = ?`,
+                  [user_id]
+                );
+                if (empResult && empResult.length > 0 && empResult[0].name) {
+                  employeeNameForLog = empResult[0].name;
+                }
+              } catch (empError) {
+                console.error('Error fetching employee name for stock update log:', empError);
+              }
+            }
+
             if (colsInfoRows2 && colsInfoRows2.length > 0) {
               insertQuery2 = `
                 INSERT INTO stock_transfer_logs 
@@ -569,7 +602,7 @@ export async function POST(request) {
                 id,
                 'Stock updated',
                 user_id,
-                null,
+                employeeNameForLog || (user_id ? `Employee ID: ${user_id}` : 'Unknown'),
                 station_from,
                 station_to,
                 transfer_quantity,
@@ -592,108 +625,108 @@ export async function POST(request) {
               ];
             }
             await connection.execute(insertQuery2, insertParams2);
-          } catch {}
+          } catch { }
         }
       }
 
       if (oldData.status === '3' && status === '3' && sameDest && qtyDelta !== 0) {
-        const [destRows] = await connection.execute(
-          'SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?',
-          [station_to, product]
-        );
-        if (!destRows || destRows.length === 0) {
-          throw new Error('DEST_STOCK_NOT_FOUND');
-        }
-        const destStock = parseFloat(destRows[0].stock) || 0;
-        const newDestStock = destStock + qtyDelta;
-        await connection.execute(
-          'UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?',
-          [newDestStock, station_to, product]
-        );
-        try {
-          await connection.execute("SHOW TABLES LIKE 'filling_history'");
-          const [destHist] = await connection.execute(
-            `SELECT id 
+      const [destRows] = await connection.execute(
+        'SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?',
+        [station_to, product]
+      );
+      if (!destRows || destRows.length === 0) {
+        throw new Error('DEST_STOCK_NOT_FOUND');
+      }
+      const destStock = parseFloat(destRows[0].stock) || 0;
+      const newDestStock = destStock + qtyDelta;
+      await connection.execute(
+        'UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?',
+        [newDestStock, station_to, product]
+      );
+      try {
+        await connection.execute("SHOW TABLES LIKE 'filling_history'");
+        const [destHist] = await connection.execute(
+          `SELECT id 
              FROM filling_history 
              WHERE fs_id = ? AND product_id = ? 
              ORDER BY filling_date DESC, id DESC 
              LIMIT 1`,
-            [station_to, product]
-          );
-          if (!destHist || destHist.length === 0) {
-            throw new Error('DEST_HISTORY_NOT_FOUND');
-          }
-          await connection.execute(
-            `UPDATE filling_history 
+          [station_to, product]
+        );
+        if (!destHist || destHist.length === 0) {
+          throw new Error('DEST_HISTORY_NOT_FOUND');
+        }
+        await connection.execute(
+          `UPDATE filling_history 
                SET trans_type = 'edited', current_stock = ?, filling_qty = ?, available_stock = ? 
              WHERE id = ?`,
-            [newDestStock - newQty, newQty, newDestStock, destHist[0].id]
-          );
-        } catch (e) {
-          if (e && (e.message === 'DEST_HISTORY_NOT_FOUND')) throw e;
-        }
+          [newDestStock - newQty, newQty, newDestStock, destHist[0].id]
+        );
+      } catch (e) {
+        if (e && (e.message === 'DEST_HISTORY_NOT_FOUND')) throw e;
       }
-
-      return { 
-        success: true, 
-        changes: changes,
-        statusChanged: oldData.status !== status,
-        stockUpdated: status === '3' && oldData.status !== '3'
-      };
-    });
-
-    // Prepare response message based on changes
-    let message = 'Record updated successfully!';
-    
-    if (result.statusChanged) {
-      message = `Status changed to ${getStatusText(status)} successfully!`;
-    }
-    
-    if (result.stockUpdated) {
-      message += ' Stock has been added to destination station.';
-    }
-    
-    if (result.changes.length > 0) {
-      message += ` Changes: ${result.changes.join(', ')}`;
     }
 
-    return NextResponse.json({
+    return {
       success: true,
-      message: message,
-      changes: result.changes,
-      statusChanged: result.statusChanged,
-      stockUpdated: result.stockUpdated
-    });
+      changes: changes,
+      statusChanged: oldData.status !== status,
+      stockUpdated: status === '3' && oldData.status !== '3'
+    };
+  });
 
-  } catch (error) {
-    console.error('Error updating transfer:', error);
-    if (error && error.message === 'DEST_STOCK_NOT_FOUND') {
-      return NextResponse.json(
-        { error: 'Destination station stock record not found. Only update allowed, no new stock will be created.' },
-        { status: 400 }
-      );
-    }
-    if (error && error.message === 'SRC_STOCK_NOT_FOUND') {
-      return NextResponse.json(
-        { error: 'Source station stock record not found. Only update allowed, no new stock will be created.' },
-        { status: 400 }
-      );
-    }
-    if (error && error.message === 'SRC_HISTORY_NOT_FOUND') {
-      return NextResponse.json(
-        { error: 'Source filling history entry not found for update-only policy.' },
-        { status: 400 }
-      );
-    }
-    if (error && error.message === 'DEST_HISTORY_NOT_FOUND') {
-      return NextResponse.json(
-        { error: 'Destination filling history entry not found for update-only policy.' },
-        { status: 400 }
-      );
-    }
+  // Prepare response message based on changes
+  let message = 'Record updated successfully!';
+
+  if (result.statusChanged) {
+    message = `Status changed to ${getStatusText(status)} successfully!`;
+  }
+
+  if (result.stockUpdated) {
+    message += ' Stock has been added to destination station.';
+  }
+
+  if (result.changes.length > 0) {
+    message += ` Changes: ${result.changes.join(', ')}`;
+  }
+
+  return NextResponse.json({
+    success: true,
+    message: message,
+    changes: result.changes,
+    statusChanged: result.statusChanged,
+    stockUpdated: result.stockUpdated
+  });
+
+} catch (error) {
+  console.error('Error updating transfer:', error);
+  if (error && error.message === 'DEST_STOCK_NOT_FOUND') {
     return NextResponse.json(
-      { error: 'Error updating record: ' + error.message },
-      { status: 500 }
+      { error: 'Destination station stock record not found. Only update allowed, no new stock will be created.' },
+      { status: 400 }
     );
   }
+  if (error && error.message === 'SRC_STOCK_NOT_FOUND') {
+    return NextResponse.json(
+      { error: 'Source station stock record not found. Only update allowed, no new stock will be created.' },
+      { status: 400 }
+    );
+  }
+  if (error && error.message === 'SRC_HISTORY_NOT_FOUND') {
+    return NextResponse.json(
+      { error: 'Source filling history entry not found for update-only policy.' },
+      { status: 400 }
+    );
+  }
+  if (error && error.message === 'DEST_HISTORY_NOT_FOUND') {
+    return NextResponse.json(
+      { error: 'Destination filling history entry not found for update-only policy.' },
+      { status: 400 }
+    );
+  }
+  return NextResponse.json(
+    { error: 'Error updating record: ' + error.message },
+    { status: 500 }
+  );
+}
 }

@@ -47,14 +47,23 @@ function ShipmentLogs({ shipmentId }) {
     );
   }
 
+  // Helper to format action text
+  const formatActionType = (action) => {
+    if (!action) return 'Action';
+    const lowerAction = action.toLowerCase();
+    if (lowerAction === 'add' || lowerAction === 'create') return 'Created By';
+    if (lowerAction === 'edit' || lowerAction === 'update') return 'Edited By';
+    return action.charAt(0).toUpperCase() + action.slice(1);
+  };
+
   return (
     <div className="space-y-2">
       {logs.map((log, idx) => (
         <div key={idx} className="bg-white rounded border p-3 text-sm">
           <div className="flex justify-between items-start">
             <div>
-              <span className="font-medium text-gray-700">{log.action || 'Action'}:</span>
-              <span className="ml-2 text-gray-900">{log.user_name || log.userName || 'Unknown User'}</span>
+              <span className="font-medium text-gray-700">{formatActionType(log.action)}:</span>
+              <span className="ml-2 text-gray-900 font-semibold">{log.user_name || log.userName || 'Unknown User'}</span>
             </div>
             <span className="text-xs text-gray-500">
               {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
@@ -84,7 +93,7 @@ function LoadingFallback() {
 // Error Component
 function ErrorFallback({ error, onRetry }) {
   const isAuthError = error && (error.includes('Unauthorized') || error.includes('login') || error.includes('Please login'));
-  
+
   const handleLogin = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('user');
@@ -105,14 +114,14 @@ function ErrorFallback({ error, onRetry }) {
           </h3>
           <p className="text-gray-600 mb-4">{error}</p>
           {isAuthError ? (
-            <button 
+            <button
               onClick={handleLogin}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
             >
               Go to Login
             </button>
           ) : (
-            <button 
+            <button
               onClick={onRetry}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition duration-200"
             >
@@ -135,7 +144,7 @@ function LRManagementContent() {
   const [error, setError] = useState('');
   const [expandedShipments, setExpandedShipments] = useState({});
   const searchParams = useSearchParams();
-  
+
   const toggleShipmentLogs = (shipmentId) => {
     setExpandedShipments(prev => ({
       ...prev,
@@ -165,21 +174,21 @@ function LRManagementContent() {
     try {
       setLoading(true);
       setError('');
-      
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
-      
+
       const response = await fetch('/api/lr-list', {
         signal: controller.signal,
         credentials: 'include',
         cache: 'no-store'
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: 'Network error' }));
-        
+
         if (response.status === 401) {
           if (typeof window !== 'undefined') {
             localStorage.removeItem('user');
@@ -188,26 +197,26 @@ function LRManagementContent() {
           router.push('/login');
           return;
         }
-        
+
         throw new Error(errorData.error || `Failed to fetch shipments (${response.status})`);
       }
-      
+
       const data = await response.json();
-      
+
       if (!data || typeof data !== 'object') {
         throw new Error('Invalid response format from server');
       }
-      
+
       if (user) {
         setShipments(data.shipments || []);
         const loadedPermissions = data.permissions || { can_view: 0, can_edit: 0, can_create: 0 };
         setPermissions(loadedPermissions);
-        
+
         console.log('✅ [LR List] Permissions loaded:', loadedPermissions);
         console.log('✅ [LR List] can_create value:', loadedPermissions.can_create, 'Type:', typeof loadedPermissions.can_create);
         console.log('✅ [LR List] Button should show:', loadedPermissions.can_create === 1 || loadedPermissions.can_create === true);
       }
-      
+
     } catch (err) {
       if (err.name === 'AbortError') {
         setError('Request timeout. Please try again.');
@@ -261,7 +270,7 @@ function LRManagementContent() {
                 </Link>
               </div>
             </div>
-            
+
             {/* 🔥 CREATE LR BUTTON - Show if user has create permission */}
             {(permissions?.can_create === 1 || permissions?.can_create === true || permissions?.can_create === '1') && (
               <Link
@@ -275,7 +284,7 @@ function LRManagementContent() {
               </Link>
             )}
           </div>
-          
+
           {error && (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center justify-between">
@@ -285,7 +294,7 @@ function LRManagementContent() {
                   </svg>
                   <span className="text-red-800">{error}</span>
                 </div>
-                <button 
+                <button
                   onClick={() => setError('')}
                   className="text-red-500 hover:text-red-700"
                 >
@@ -303,7 +312,7 @@ function LRManagementContent() {
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">Shipment List</h2>
-              <button 
+              <button
                 onClick={fetchShipments}
                 className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
                 disabled={loading}
@@ -315,7 +324,7 @@ function LRManagementContent() {
               </button>
             </div>
           </div>
-          
+
           <div className="hidden lg:block overflow-x-auto">
             <table className="w-full min-w-full">
               <thead className="bg-gray-50">
@@ -335,70 +344,70 @@ function LRManagementContent() {
                 {shipments.length > 0 ? (
                   shipments.map((shipment) => (
                     <React.Fragment key={shipment.id}>
-                    <tr className="hover:bg-gray-50 transition duration-150">
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{shipment.lr_id}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consigner}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consignee}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.from_location}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-3">
-                          <Link 
-                            href={`/transport-receipt?id=${shipment.id}`}
-                            target="_blank"
-                            className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm"
-                          >
-                            View
-                          </Link>
-                          
-                          {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
-                            <>
-                              <span className="text-gray-300">|</span>
-                              <Link 
-                                href={`/create-lr?id=${shipment.id}`}
-                                className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
-                              >
-                                Edit
-                              </Link>
-                            </>
-                          )}
-                          
-                          {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <button
-                          onClick={() => toggleShipmentLogs(shipment.id)}
-                          className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                          title="View Activity Logs"
-                        >
-                          {expandedShipments[shipment.id] ? (
-                            <>
-                              <BiChevronUp size={18} />
-                              <span className="ml-1 text-xs">Hide</span>
-                            </>
-                          ) : (
-                            <>
-                              <BiChevronDown size={18} />
-                              <span className="ml-1 text-xs">Logs</span>
-                            </>
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                    {/* Expandable Logs Row */}
-                    {expandedShipments[shipment.id] && (
-                      <tr className="bg-gray-50">
-                        <td colSpan="9" className="px-6 py-4">
-                          <div className="max-w-4xl">
-                            <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for LR #{shipment.lr_id}</h3>
-                            <ShipmentLogs shipmentId={shipment.id} />
+                      <tr className="hover:bg-gray-50 transition duration-150">
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{shipment.lr_id}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consigner}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consignee}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.from_location}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center space-x-3">
+                            <Link
+                              href={`/transport-receipt?id=${shipment.id}`}
+                              target="_blank"
+                              className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm"
+                            >
+                              View
+                            </Link>
+
+                            {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
+                              <>
+                                <span className="text-gray-300">|</span>
+                                <Link
+                                  href={`/create-lr?id=${shipment.id}`}
+                                  className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
+                                >
+                                  Edit
+                                </Link>
+                              </>
+                            )}
+
+                            {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
                           </div>
                         </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <button
+                            onClick={() => toggleShipmentLogs(shipment.id)}
+                            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                            title="View Activity Logs"
+                          >
+                            {expandedShipments[shipment.id] ? (
+                              <>
+                                <BiChevronUp size={18} />
+                                <span className="ml-1 text-xs">Hide</span>
+                              </>
+                            ) : (
+                              <>
+                                <BiChevronDown size={18} />
+                                <span className="ml-1 text-xs">Logs</span>
+                              </>
+                            )}
+                          </button>
+                        </td>
                       </tr>
-                    )}
+                      {/* Expandable Logs Row */}
+                      {expandedShipments[shipment.id] && (
+                        <tr className="bg-gray-50">
+                          <td colSpan="9" className="px-6 py-4">
+                            <div className="max-w-4xl">
+                              <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for LR #{shipment.lr_id}</h3>
+                              <ShipmentLogs shipmentId={shipment.id} />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
                     </React.Fragment>
                   ))
                 ) : (
@@ -440,7 +449,7 @@ function LRManagementContent() {
                       <p className="text-sm text-gray-500">ID: {shipment.id}</p>
                     </div>
                     <div className="flex space-x-2">
-                      <Link 
+                      <Link
                         href={`/transport-receipt?id=${shipment.id}`}
                         target="_blank"
                         className="text-blue-600 text-sm"
@@ -448,7 +457,7 @@ function LRManagementContent() {
                         View
                       </Link>
                       {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
-                        <Link 
+                        <Link
                           href={`/create-lr?id=${shipment.id}`}
                           className="text-orange-600 text-sm"
                         >
@@ -480,7 +489,7 @@ function LRManagementContent() {
                       <p>{shipment.tanker_no}</p>
                     </div>
                   </div>
-                  
+
                   {/* Mobile Logs Section */}
                   <div className="mt-3 pt-3 border-t border-gray-200">
                     <button

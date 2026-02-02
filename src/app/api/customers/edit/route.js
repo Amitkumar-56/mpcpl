@@ -36,8 +36,8 @@ export async function PUT(request) {
   let connection;
   try {
     const body = await request.json();
-    const { 
-      id, 
+    const {
+      id,
       name,
       email,
       phone,
@@ -60,8 +60,8 @@ export async function PUT(request) {
     // Validate required fields
     if (!id) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Customer ID is required',
           error: 'MISSING_ID'
         },
@@ -80,8 +80,8 @@ export async function PUT(request) {
 
     if (existingCustomers.length === 0) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Customer not found',
           error: 'CUSTOMER_NOT_FOUND'
         },
@@ -109,8 +109,8 @@ export async function PUT(request) {
 
         if (emailExists.length > 0) {
           return NextResponse.json(
-            { 
-              success: false, 
+            {
+              success: false,
               message: 'Email already exists',
               error: 'DUPLICATE_EMAIL'
             },
@@ -164,7 +164,7 @@ export async function PUT(request) {
       const clientTypeValue = typeof client_type === 'string' ? parseInt(client_type) : client_type;
       updateFields.push('client_type = ?');
       updateValues.push(clientTypeValue);
-      
+
       // Also update gid based on client_type for backward compatibility
       // 1=Prepaid (Cash), 2=Postpaid (Credit), 3=Day Limit (Credit)
       const gidValue = clientTypeValue === 1 ? 1 : 2;
@@ -185,13 +185,13 @@ export async function PUT(request) {
     // Handle day_limit update for day_limit customers
     if (day_limit !== undefined && day_limit !== null) {
       const dayLimitValue = typeof day_limit === 'string' ? parseInt(day_limit) : day_limit;
-      
+
       // Update customer_balances table
       const [balanceCheck] = await connection.execute(
         'SELECT id FROM customer_balances WHERE com_id = ?',
         [id]
       );
-      
+
       if (balanceCheck.length > 0) {
         // Update existing balance record
         await connection.execute(
@@ -231,7 +231,7 @@ export async function PUT(request) {
       } else {
         statusValue = 0;
       }
-      
+
       console.log('Status conversion:', { original: status, converted: statusValue });
       updateFields.push('status = ?');
       updateValues.push(statusValue);
@@ -261,10 +261,48 @@ export async function PUT(request) {
       updateValues.push(blocklocationString || null);
     }
 
-    if (updateFields.length === 0) {
+    // Handle permissions update
+    let permissionsUpdated = false;
+    if (body.permissions !== undefined) {
+      const permissions = body.permissions;
+
+      // Delete existing permissions
+      await connection.execute(
+        'DELETE FROM customer_permissions WHERE customer_id = ?',
+        [id]
+      );
+
+      // Insert new permissions
+      if (permissions && typeof permissions === 'object') {
+        const insertPermQuery = `
+          INSERT INTO customer_permissions 
+          (customer_id, module_name, can_view, can_edit, can_create)
+          VALUES (?, ?, ?, ?, ?)
+        `;
+
+        for (const [moduleName, perm] of Object.entries(permissions)) {
+          const can_view = perm.can_view === true || perm.can_view === 1 || perm.can_view === '1' ? 1 : 0;
+          const can_edit = perm.can_edit === true || perm.can_edit === 1 || perm.can_edit === '1' ? 1 : 0;
+          const can_create = perm.can_create === true || perm.can_create === 1 || perm.can_create === '1' ? 1 : 0;
+
+          if (can_view || can_edit || can_create) {
+            await connection.execute(insertPermQuery, [
+              id,
+              moduleName,
+              can_view,
+              can_edit,
+              can_create
+            ]);
+          }
+        }
+        permissionsUpdated = true;
+      }
+    }
+
+    if (updateFields.length === 0 && !permissionsUpdated) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'No fields to update',
           error: 'NO_FIELDS_TO_UPDATE'
         },
@@ -294,8 +332,8 @@ export async function PUT(request) {
     // Check if update was successful
     if (result.affectedRows === 0) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Failed to update customer',
           error: 'UPDATE_FAILED'
         },
@@ -338,9 +376,9 @@ export async function PUT(request) {
       }
 
       const { createAuditLog } = await import('@/lib/auditLog');
-      
+
       // Check if password was changed (already tracked above)
-      const remarks = passwordChanged 
+      const remarks = passwordChanged
         ? `Customer password changed: ${customer.name || `ID ${id}`}`
         : 'Customer details updated';
 
@@ -416,7 +454,7 @@ export async function PUT(request) {
     } catch (logError) {
       console.error('⚠️ Error creating customer log:', logError);
     }
-    
+
     // Fetch product names for the product IDs
     let productNames = {};
     if (customer.product) {
@@ -459,23 +497,23 @@ export async function PUT(request) {
     console.error('Error message:', error.message);
     console.error('Error code:', error.code);
     console.error('Error stack:', error.stack);
-    
+
     // Handle specific MySQL errors
     if (error.code === 'ER_DUP_ENTRY') {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Email already exists',
           error: 'DUPLICATE_EMAIL'
         },
         { status: 409 }
       );
     }
-    
+
     if (error.code === 'ER_NO_REFERENCED_ROW') {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Referenced data not found',
           error: 'REFERENCE_ERROR'
         },
@@ -485,8 +523,8 @@ export async function PUT(request) {
 
     if (error.code === 'ER_BAD_FIELD_ERROR') {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Invalid field name: ' + error.message,
           error: 'BAD_FIELD_ERROR'
         },
@@ -495,8 +533,8 @@ export async function PUT(request) {
     }
 
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Internal server error: ' + error.message,
         error: 'INTERNAL_SERVER_ERROR',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined
@@ -517,8 +555,8 @@ export async function GET(request) {
 
     if (!id) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Customer ID is required',
           error: 'MISSING_ID'
         },
@@ -535,8 +573,8 @@ export async function GET(request) {
 
     if (customers.length === 0) {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Customer not found',
           error: 'CUSTOMER_NOT_FOUND'
         },
@@ -545,7 +583,7 @@ export async function GET(request) {
     }
 
     const customer = customers[0];
-    
+
     // Fetch product names for the product IDs
     let productNames = {};
     try {
@@ -569,6 +607,30 @@ export async function GET(request) {
       // Continue without product names if there's an error
     }
 
+    // ✅ Fetch Permissions
+    let formattedPermissions = {};
+    try {
+      // Check if table exists first (safeguard)
+      const [permRows] = await connection.execute(
+        `SELECT module_name, can_view, can_edit, can_create 
+         FROM customer_permissions 
+         WHERE customer_id = ?`,
+        [id]
+      );
+
+      if (permRows && permRows.length > 0) {
+        permRows.forEach(row => {
+          formattedPermissions[row.module_name] = {
+            can_view: row.can_view === 1,
+            can_edit: row.can_edit === 1,
+            can_create: row.can_create === 1
+          };
+        });
+      }
+    } catch (permErr) {
+      console.warn('Could not fetch permissions (table might not exist yet):', permErr.message);
+    }
+
     // Format response to match what the frontend expects
     const formattedCustomer = {
       ...customer,
@@ -579,6 +641,7 @@ export async function GET(request) {
       blocklocation: customer.blocklocation ? customer.blocklocation.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       products: customer.product ? customer.product.split(',').map(id => parseInt(id)).filter(id => !isNaN(id)) : [],
       productNames: productNames, // Add product names mapping
+      permissions: formattedPermissions, // ✅ Include permissions
       status: customer.status === 1 ? '1' : '0', // Return as string "1" or "0"
     };
 
@@ -594,11 +657,11 @@ export async function GET(request) {
     console.error('Error fetching customer:', error);
     console.error('Error stack:', error.stack);
     console.error('Error message:', error.message);
-    
+
     if (error.code === 'ER_TRUNCATED_WRONG_VALUE') {
       return NextResponse.json(
-        { 
-          success: false, 
+        {
+          success: false,
           message: 'Invalid customer ID format',
           error: 'INVALID_ID_FORMAT'
         },
@@ -607,8 +670,8 @@ export async function GET(request) {
     }
 
     return NextResponse.json(
-      { 
-        success: false, 
+      {
+        success: false,
         message: 'Internal server error: ' + error.message,
         error: 'INTERNAL_SERVER_ERROR',
         details: process.env.NODE_ENV === 'development' ? error.stack : undefined

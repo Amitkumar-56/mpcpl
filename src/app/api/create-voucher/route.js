@@ -15,7 +15,7 @@ export async function GET(request) {
       WHERE status = 1 
       ORDER BY station_name
     `;
-    
+
     // Fetch employees
     const employeesQuery = `
       SELECT id, name, emp_code, phone
@@ -23,15 +23,15 @@ export async function GET(request) {
       WHERE status = 1 
       ORDER BY name ASC
     `;
-    
+
     // Execute queries
     const stationsResult = await executeQuery(stationsQuery);
     const employeesResult = await executeQuery(employeesQuery);
-    
+
     // Process results
     const stations = Array.isArray(stationsResult) ? stationsResult : [];
     const employees = Array.isArray(employeesResult) ? employeesResult : [];
-    
+
     // Format employees for dropdown
     const formattedEmployees = employees.map(emp => ({
       id: emp.id.toString(),
@@ -39,7 +39,7 @@ export async function GET(request) {
       emp_code: emp.emp_code || '',
       phone: emp.phone || ''
     }));
-    
+
     return NextResponse.json({
       success: true,
       stations: stations,
@@ -49,7 +49,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('API Error:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
         error: 'Failed to fetch form data',
         stations: [],
@@ -64,7 +64,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const formData = await request.formData();
-    
+
     // Parse form data
     const exp_date = formData.get('exp_date');
     const employee_id = formData.get('employee_id');
@@ -84,9 +84,9 @@ export async function POST(request) {
     if (missingFields.length > 0) {
       console.log('Missing required fields:', missingFields);
       return NextResponse.json(
-        { 
+        {
           error: 'Missing required fields',
-          missingFields: missingFields 
+          missingFields: missingFields
         },
         { status: 400 }
       );
@@ -128,7 +128,7 @@ export async function POST(request) {
        total_expense, remaining_amount, paid_amount, exp_date, status, prepared_by, updated_at) 
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
-    
+
     // Build display voucher code using the computed sequence and vehicle last-4
     const seqStrForInsert = String(nextSeq).padStart(2, '0');
     const digitsOnlyForInsert = (vehicle_no || '').toString().replace(/\D/g, '');
@@ -140,7 +140,7 @@ export async function POST(request) {
     const voucherCodeToStore = `V${seqStrForInsert}${last4ForInsert}`;
 
     const voucherResult = await executeQuery(voucherQuery, [
-      parseInt(station_id) || 0, 
+      parseInt(station_id) || 0,
       parseInt(employee_id) || 0,
       voucherCodeToStore,
       vehicle_no,
@@ -167,7 +167,7 @@ export async function POST(request) {
       const itemDetail = item_details[i];
       const amount = parseFloat(amounts[i]) || 0;
       const image = images[i];
-      
+
       let imageData = null;
       if (image && image.size > 0) {
         imageData = image.name;
@@ -182,8 +182,23 @@ export async function POST(request) {
       (row_id, user_id, amount, type, created_at) 
       VALUES (?, ?, ?, 'voucher', NOW())
     `;
-    
+
     await executeQuery(historyQuery, [voucherId, parseInt(user_id), total_expense]);
+
+    // Insert into advance_history if advance > 0
+    if (advance > 0) {
+      const advanceQuery = `
+        INSERT INTO advance_history 
+        (voucher_id, amount, given_date, given_by, created_at) 
+        VALUES (?, ?, ?, ?, NOW())
+      `;
+      await executeQuery(advanceQuery, [
+        voucherId,
+        advance,
+        exp_date,
+        parseInt(user_id) || 0
+      ]);
+    }
 
     // Build display voucher code: V{sequence 2-digit}{last-4-digits-of-vehicle}
     // Extract digits from vehicle_no (e.g., MH12AB1234 -> 1234)
@@ -217,7 +232,7 @@ export async function POST(request) {
       } catch (authError) {
         console.error('Error getting user for audit log:', authError);
       }
-      
+
       // If still no name, try to get from user_id in formData
       if (!userName && user_id) {
         try {
@@ -293,7 +308,7 @@ export async function POST(request) {
   } catch (error) {
     console.error('❌ Error creating voucher:', error);
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to create voucher',
         details: error.message
       },

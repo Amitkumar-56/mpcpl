@@ -8,7 +8,7 @@ export async function GET(request) {
     // ✅ FIX: Get actual logged-in user
     let userId = null;
     let userRole = null;
-    
+
     try {
       const currentUser = await getCurrentUser();
       if (currentUser && currentUser.userId) {
@@ -19,20 +19,20 @@ export async function GET(request) {
     } catch (getUserError) {
       console.warn('⚠️ [LR List] getCurrentUser failed, trying token fallback:', getUserError.message);
     }
-    
+
     // Fallback: Try token-based authentication if getCurrentUser failed
     if (!userId) {
       try {
         const cookieStore = await cookies();
         const token = cookieStore.get('token')?.value;
-        
+
         if (token) {
           const { verifyToken } = await import('@/lib/auth');
           const decoded = verifyToken(token);
           if (decoded) {
             userId = decoded.userId || decoded.id;
             console.log('✅ [LR List] User authenticated via token:', userId);
-            
+
             // Get role from database
             if (userId) {
               try {
@@ -54,14 +54,14 @@ export async function GET(request) {
     }
 
     if (!userId) {
-      return NextResponse.json({ 
-        error: 'Unauthorized. Please login again.' 
+      return NextResponse.json({
+        error: 'Unauthorized. Please login again.'
       }, { status: 401 });
     }
 
     // ✅ FIX: Check permissions - try employee-specific first, then role-based
     const module_name = 'lr_management';
-    
+
     // First try employee-specific permissions
     let permissionQuery = `
       SELECT module_name, can_view, can_edit, can_create 
@@ -120,16 +120,21 @@ export async function GET(request) {
 
     // Check if user has view permission (only if permissions exist and user is not admin)
     if (!(userRole && Number(userRole) === 5) && permissions.length > 0 && permissionData.can_view !== 1 && permissionData.can_view !== true) {
-      return NextResponse.json({ 
-        error: 'You are not allowed to access this page.' 
+      return NextResponse.json({
+        error: 'You are not allowed to access this page.'
       }, { status: 403 });
     }
 
-    // Fetch shipments data
+    // Fetch shipments data with Creator and Editor names from Audit Logs
     const shipmentQuery = `
-      SELECT id, lr_id, consigner, consignee, from_location, to_location, tanker_no 
-      FROM shipment 
-      ORDER BY id DESC
+      SELECT 
+        s.id, s.lr_id, s.consigner, s.consignee, s.from_location, s.to_location, s.tanker_no,
+        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_by_name,
+        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_at,
+        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_by_name,
+        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_at
+      FROM shipment s
+      ORDER BY s.id DESC
     `;
     const shipments = await executeQuery(shipmentQuery);
 
@@ -140,7 +145,7 @@ export async function GET(request) {
       can_create: permissionData.can_create === 1 || permissionData.can_create === true ? 1 : 0
     };
 
-    return NextResponse.json({ 
+    return NextResponse.json({
       success: true,
       shipments: shipments || [],
       permissions: formattedPermissions

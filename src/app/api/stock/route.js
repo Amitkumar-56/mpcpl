@@ -13,7 +13,7 @@ export async function GET(request) {
     } catch (err) {
       console.log('Could not get user role, showing all items');
     }
-    
+
     // Build query with optional filter for staff/incharge (role 1 or 2)
     let query = `
       SELECT 
@@ -60,16 +60,25 @@ export async function GET(request) {
       LEFT JOIN transporters t ON s.transporter_id = t.id
       WHERE 1=1
     `;
-    
+
     // Filter out 'delivered' items for Staff (role 1) or Incharge (role 2)
     // Only show delivered items to higher roles (Admin, Accountant, Team Leader)
     if (userRole === 1 || userRole === 2) {
       query += ` AND (s.status != 'delivered' AND s.status != '3')`;
     }
-    
+
     query += ` ORDER BY s.id DESC`;
 
     const stockData = await executeQuery(query);
+
+    // Get total stock history count (count of filling_history)
+    let totalStockHistory = 0;
+    try {
+      const historyResult = await executeQuery('SELECT COUNT(*) as count FROM filling_history');
+      totalStockHistory = historyResult[0]?.count || 0;
+    } catch (e) {
+      console.warn('Failed to count stock history', e);
+    }
 
     // ✅ Handle empty result safely
     if (!stockData || stockData.length === 0) {
@@ -77,6 +86,7 @@ export async function GET(request) {
         success: true,
         data: [],
         count: 0,
+        total_stock_history: totalStockHistory,
         message: "No stock data found",
       });
     }
@@ -86,6 +96,7 @@ export async function GET(request) {
       success: true,
       data: stockData,
       count: stockData.length,
+      total_stock_history: totalStockHistory,
     });
   } catch (error) {
     console.error("Error fetching stock data:", error.message, error.stack);
