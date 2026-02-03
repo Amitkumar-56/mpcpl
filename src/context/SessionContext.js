@@ -15,7 +15,7 @@ export function SessionProvider({ children }) {
   const lastPathnameRef = useRef(pathname); // Track pathname changes
   const redirectTimeoutRef = useRef(null); // Track redirect timeout
 
-  // ✅ Optimized auth check with useCallback
+  // ✅ Simplified auth check - only check cache, no background verification
   const checkAuth = useCallback(async () => {
     try {
       setLoading(true);
@@ -29,7 +29,7 @@ export function SessionProvider({ children }) {
         }
       }
 
-      // ✅ For login pages, check if user is already logged in and set loading to false quickly
+      // ✅ For login pages, check if user is already logged in
       if (pathname === '/login' || pathname === '/cst/login' || pathname === '/agent/login' || pathname === '/supplier/login') {
         // Check cache first for quick loading
         if (pathname === '/cst/login') {
@@ -87,13 +87,11 @@ export function SessionProvider({ children }) {
       
       // ✅ Agent routes के लिए अलग handling
       if (pathname.startsWith('/agent/')) {
-        // Check both localStorage and sessionStorage for agent data
         const savedAgent = localStorage.getItem("agent") || sessionStorage.getItem("agent");
         if (savedAgent) {
           try {
             const agentData = JSON.parse(savedAgent);
             setUser(agentData);
-            // Sync to both storages for consistency
             localStorage.setItem("agent", savedAgent);
             sessionStorage.setItem("agent", savedAgent);
           } catch (e) {
@@ -111,19 +109,15 @@ export function SessionProvider({ children }) {
 
       // ✅ CST routes के लिए अलग handling
       if (pathname.startsWith('/cst/')) {
-        // Check both localStorage and sessionStorage for customer data
         const savedCustomer = localStorage.getItem("customer") || sessionStorage.getItem("customer");
         if (savedCustomer) {
           try {
             const customerData = JSON.parse(savedCustomer);
-            // Verify customer has valid roleid (allow customer=1 and sub-user=2)
             if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
               setUser(customerData);
-              // Sync to both storages for consistency
               localStorage.setItem("customer", savedCustomer);
               sessionStorage.setItem("customer", savedCustomer);
             } else {
-              // Invalid role, set user to null (don't clear storages aggressively)
               setUser(null);
             }
           } catch (e) {
@@ -139,13 +133,11 @@ export function SessionProvider({ children }) {
 
       // ✅ Supplier routes के लिए अलग handling
       if (pathname.startsWith('/supplier/')) {
-        // Check both localStorage and sessionStorage for supplier data
         const savedSupplier = localStorage.getItem("supplier") || sessionStorage.getItem("supplier");
         if (savedSupplier) {
           try {
             const supplierData = JSON.parse(savedSupplier);
             setUser(supplierData);
-            // Sync to both storages for consistency
             localStorage.setItem("supplier", savedSupplier);
             sessionStorage.setItem("supplier", savedSupplier);
           } catch (e) {
@@ -161,218 +153,127 @@ export function SessionProvider({ children }) {
         return;
       }
 
-      // ✅ Employee routes के लिए conditional check
-      // Check both sessionStorage and localStorage for mobile compatibility
+      // ✅ Employee routes के लिए cache-based check only
       const sessionUser = sessionStorage.getItem('user');
       const localUser = localStorage.getItem('user');
       
-      // Prefer sessionStorage, fallback to localStorage
       const cachedUser = sessionUser || localUser;
       if (cachedUser) {
         try {
           const userData = JSON.parse(cachedUser);
-          // ✅ Verify token exists before using cached user
           const token = localStorage.getItem('token') || sessionStorage.getItem('token');
-          if (!token) {
+          if (token) {
+            setUser(userData);
+            // Sync to both storages for consistency
+            if (!sessionUser && localUser) {
+              sessionStorage.setItem('user', localUser);
+            }
+            if (!localUser && sessionUser) {
+              localStorage.setItem('user', sessionUser);
+            }
+          } else {
             // No token means logged out, clear cache
             sessionStorage.removeItem('user');
             localStorage.removeItem('user');
-            setLoading(false);
-            return;
+            setUser(null);
           }
-          
-          // ✅ Set user immediately from cache (prevents logout on page load)
-          setUser(userData);
-          // Sync to both storages for consistency
-          if (!sessionUser && localUser) {
-            sessionStorage.setItem('user', localUser);
-          }
-          if (!localUser && sessionUser) {
-            localStorage.setItem('user', sessionUser);
-          }
-          // ✅ Set loading to false immediately after setting user from cache
-          setLoading(false);
-          
-          // ✅ Continue to background verification (but don't block UI)
-          // Background verification will update user if needed, but won't logout on network errors
         } catch (e) {
           console.error('Error parsing cached user:', e);
-          // Clear invalid data
           sessionStorage.removeItem('user');
           localStorage.removeItem('user');
+          setUser(null);
         }
-      }
-
-      // ✅ Background verification - optional, don't block UI if it fails
-      // ✅ User stays logged in using cached data even if verification fails
-      // ✅ Only logout when user explicitly clicks logout button
-      try {
-        const res = await fetch('/api/auth/verify', {
-          credentials: 'include',
-          cache: 'no-store'
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          if (data.authenticated && data.id) {
-            // ✅ Update user data if verification succeeds
-            const userData = {
-              id: data.id,
-              emp_code: data.emp_code,
-              name: data.name,
-              email: data.email,
-              role: data.role,
-              fs_id: data.fs_id,
-              fl_id: data.fl_id,
-              station: data.station,
-              client: data.client,
-              permissions: data.permissions || {}
-            };
-            setUser(userData);
-            // ✅ Cache complete user data
-            const cacheData = JSON.stringify(userData);
-            sessionStorage.setItem('user', cacheData);
-            localStorage.setItem('user', cacheData);
-          }
-          // ✅ NEVER logout automatically - keep cached user even if verification fails
-          // User stays logged in until they explicitly click logout button
-        }
-        // ✅ NEVER logout on any error (401, network, etc.) - keep cached user
-        // User stays logged in until they explicitly click logout button
-      } catch (networkError) {
-        // ✅ Don't logout on network errors - keep cached user
-        // User stays logged in until they explicitly click logout button
-        console.log('⚠️ Background auth verification failed - keeping user logged in (cached)');
+      } else {
+        setUser(null);
       }
     } catch (error) {
       console.error('Auth check failed:', error);
-      // ✅ NEVER logout automatically on errors - keep cached user
-      // Only logout when user explicitly clicks logout button
-      // Don't clear user or storage
+      setUser(null);
     } finally {
       setLoading(false);
     }
   }, [pathname]);
 
-  // ✅ Optimized useEffect - only run on mount, NOT on pathname change
-  // Skip auth check if user is already set to prevent blank screen during navigation
+  // ✅ Simplified useEffect - only run on mount
   useEffect(() => {
-    // Only check auth on initial load (when user is null)
-    // Don't check on pathname change to prevent blank screen during navigation
-    if (!user) {
-      // User not set yet - initial load or logout
+    // Only check auth on initial load
+    if (!user && loading) {
       checkAuth();
     }
-    // If user is set, don't do anything - keep loading false for smooth navigation
-  }, [user, checkAuth]); // Removed pathname from deps to prevent re-check on navigation
+  }, []); // Empty dependency array - only run once on mount
 
-  // ✅ Separate useEffect for redirection logic with loop prevention
+  // ✅ Simplified redirection logic
   useEffect(() => {
     if (loading) return;
 
-    // ✅ Reset redirect flag when pathname actually changes
-    if (lastPathnameRef.current !== pathname) {
-      redirectingRef.current = false;
-      lastPathnameRef.current = pathname;
-      // Clear any pending redirect timeout
-      if (redirectTimeoutRef.current) {
-        clearTimeout(redirectTimeoutRef.current);
-        redirectTimeoutRef.current = null;
-      }
-    }
-
-    // ✅ Check for bypassAuth flag (for public pages like transport-receipt)
+    // ✅ Check for bypassAuth flag
     if (typeof window !== 'undefined') {
       const bypassAuth = sessionStorage.getItem('bypassAuth');
       if (bypassAuth === 'true') {
-        // Skip auth redirect for pages with bypassAuth
         return;
       }
     }
 
-    // ✅ Agent routes के लिए अलग logic
+    // ✅ Agent routes
     if (pathname.startsWith('/agent/')) {
-      // For agent routes, check localStorage directly if user is null
       if (!user && pathname !== '/agent/login') {
-        const savedAgent = localStorage.getItem("agent") || sessionStorage.getItem("agent");
-        if (savedAgent) {
-          try {
-            const agentData = JSON.parse(savedAgent);
-            // Agent exists and is valid, set user and don't redirect
-            setUser(agentData);
-            return;
-          } catch (e) {
-            // Invalid data, continue to redirect
-          }
-        }
-        // No valid agent found, redirect to login (only once)
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        if (!redirectingRef.current) {
           redirectingRef.current = true;
-          lastPathnameRef.current = '/agent/login';
           router.push('/agent/login');
         }
       }
-      // If user is logged in and on login page, redirect to dashboard (only once)
       if (user && pathname === '/agent/login') {
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        if (!redirectingRef.current) {
           redirectingRef.current = true;
-          lastPathnameRef.current = '/agent/dashboard';
           router.push('/agent/dashboard');
         }
       }
       return;
     }
 
-    // ✅ CST routes के लिए अलग logic
+    // ✅ CST routes
     if (pathname.startsWith('/cst/')) {
-      // For CST routes, check localStorage directly if user is null
-      // This handles the case where login just happened but checkAuth hasn't run yet
       if (!user && pathname !== '/cst/login') {
-        const savedCustomer = localStorage.getItem("customer") || sessionStorage.getItem("customer");
-        if (savedCustomer) {
-          try {
-            const customerData = JSON.parse(savedCustomer);
-            if (Number(customerData.roleid) === 1 || Number(customerData.roleid) === 2) {
-              // Customer exists and is valid, set user and don't redirect
-              setUser(customerData);
-              return;
-            }
-          } catch (e) {
-            // Invalid data, continue to redirect
-          }
-        }
-        // No valid customer found, redirect to login (only once)
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        if (!redirectingRef.current) {
           redirectingRef.current = true;
-          lastPathnameRef.current = '/cst/login';
           router.push('/cst/login');
         }
       }
-      // If user is logged in and on login page, redirect to dashboard (only once)
       if (user && pathname === '/cst/login') {
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        if (!redirectingRef.current) {
           redirectingRef.current = true;
-          lastPathnameRef.current = '/cst/cstdashboard';
           router.push('/cst/cstdashboard');
         }
       }
       return;
     }
 
-    // ✅ Employee routes के लिए normal logic
-    if (user) {
-      // Only redirect from login page to dashboard if user is logged in
-      if (pathname === '/login') {
-        // If user is logged in and on login page, redirect to dashboard (only once)
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+    // ✅ Supplier routes
+    if (pathname.startsWith('/supplier/')) {
+      if (!user && pathname !== '/supplier/login') {
+        if (!redirectingRef.current) {
           redirectingRef.current = true;
-          lastPathnameRef.current = '/dashboard';
+          router.push('/supplier/login');
+        }
+      }
+      if (user && pathname === '/supplier/login') {
+        if (!redirectingRef.current) {
+          redirectingRef.current = true;
+          router.push('/supplier/dashboard');
+        }
+      }
+      return;
+    }
+
+    // ✅ Employee routes
+    if (user) {
+      if (pathname === '/login') {
+        if (!redirectingRef.current) {
+          redirectingRef.current = true;
           router.push('/dashboard');
         }
       }
-      // Don't redirect if user is logged in and on any other valid page
     } else {
-      // Only redirect to login if no user AND not on public pages
       const publicPages = ['/login', '/', '/register'];
       const isPublicPage = publicPages.includes(pathname) || 
                           pathname.startsWith('/cst/') || 
@@ -380,10 +281,8 @@ export function SessionProvider({ children }) {
                           pathname.startsWith('/supplier/');
       
       if (!isPublicPage) {
-        // No user and not on public page, redirect to login (only once)
-        if (!redirectingRef.current && lastPathnameRef.current === pathname) {
+        if (!redirectingRef.current) {
           redirectingRef.current = true;
-          lastPathnameRef.current = '/login';
           router.push('/login');
         }
       }
@@ -403,6 +302,7 @@ export function SessionProvider({ children }) {
       if (token) {
         sessionStorage.setItem('token', token);
       }
+      // Password storage removed - no longer needed for SSO
     }
   }, []);
 
@@ -460,6 +360,7 @@ export function SessionProvider({ children }) {
       if (typeof window !== 'undefined') {
         // Clear session storage
         sessionStorage.removeItem('user');
+        // Password clearing removed - no longer needed for SSO
         sessionStorage.removeItem('customer');
         sessionStorage.removeItem('cst_token');
         sessionStorage.removeItem('agent');

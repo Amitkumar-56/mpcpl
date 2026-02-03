@@ -9,25 +9,26 @@ import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-    BiCheckDouble,
-    BiMessageRounded,
-    BiMinus,
-    BiReceipt,
-    BiSend,
-    BiTime,
-    BiUser,
-    BiWifi,
-    BiWifiOff,
-    BiX
+  BiCheckDouble,
+  BiMessageRounded,
+  BiMinus,
+  BiReceipt,
+  BiSend,
+  BiTime,
+  BiUser,
+  BiWifi,
+  BiWifiOff,
+  BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
+// SSOSync component removed - no longer needed
 
 export default function CustomerDashboardPage() {
   const router = useRouter();
   const [activePage, setActivePage] = useState("Dashboard");
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
-  
+
   // Socket and Chat States
   const [socket, setSocket] = useState(null);
   const [showChat, setShowChat] = useState(false);
@@ -54,30 +55,30 @@ export default function CustomerDashboardPage() {
     try {
       const savedUser = localStorage.getItem("customer");
       console.log("Dashboard: Checking user", savedUser);
-      
+
       if (!savedUser) {
         console.log("Dashboard: No user found, redirecting to login");
         router.push("/cst/login");
         return;
       }
-      
+
       const parsedUser = JSON.parse(savedUser);
       console.log("Dashboard: Parsed user", parsedUser);
-      
+
       // Allow roleid 1 (Main Customer) and 2 (Sub-User)
       const roleId = Number(parsedUser.roleid);
       console.log("Dashboard: Validating role", roleId);
-      
+
       if (roleId !== 1 && roleId !== 2) {
         console.error("Dashboard: Invalid role detected", parsedUser.roleid);
         alert(`Access Error: Invalid User Role (${parsedUser.roleid}). Please login again.`);
         router.push("/cst/login");
         return;
       }
-      
+
       setUser(parsedUser);
       setLoading(false);
-      
+
       // Fetch additional customer data
       fetchCustomerData();
     } catch (err) {
@@ -97,14 +98,14 @@ export default function CustomerDashboardPage() {
   // Fetch complete customer data
   const fetchCustomerData = async () => {
     if (!user?.id) return;
-    
+
     try {
       console.log('🔍 Fetching customer data for ID:', user.id);
       const response = await fetch(`/api/cst/profile?customer_id=${user.id}`);
       if (response.ok) {
         const data = await response.json();
         console.log('📦 Customer data response:', data);
-        
+
         if (data.success && data.data) {
           // Update user with additional data
           const updatedUser = {
@@ -126,9 +127,9 @@ export default function CustomerDashboardPage() {
   // Fetch day limit status
   useEffect(() => {
     if (!user?.id) return;
-    
+
     const customerId = user.com_id || user.id;
-    
+
     const fetchDayLimitStatus = async () => {
       try {
         const response = await fetch(`/api/customers/recharge-request?id=${customerId}`);
@@ -139,11 +140,11 @@ export default function CustomerDashboardPage() {
             const amtLimit = data.customer.amtlimit || 0;
             const paymentDaysPending = data.pending?.payment_days_pending || 0;
             const totalUnpaid = data.pending?.total_amount || 0;
-            
+
             if (dayLimit > 0) {
               const isOverdue = paymentDaysPending >= dayLimit;
               const remainingDays = Math.max(0, dayLimit - paymentDaysPending);
-              
+
               setDayLimitStatus({
                 dayLimit,
                 daysElapsed: paymentDaysPending,
@@ -156,7 +157,7 @@ export default function CustomerDashboardPage() {
             if (amtLimit > 0) {
               const isAmtOverdue = totalUnpaid >= amtLimit;
               const remainingAmt = Math.max(0, amtLimit - totalUnpaid);
-              
+
               setAmtLimitStatus({
                 amtLimit,
                 totalUnpaid,
@@ -170,7 +171,7 @@ export default function CustomerDashboardPage() {
         console.error('Error fetching day limit status:', error);
       }
     };
-    
+
     fetchDayLimitStatus();
   }, [user?.id]);
 
@@ -199,10 +200,10 @@ export default function CustomerDashboardPage() {
   // Socket connection
   useEffect(() => {
     if (!user?.id) return;
-    
+
     setConnectionStatus('connecting');
     let newSocket = null;
-    
+
     const initAndConnect = async () => {
       try {
         await fetch('/api/socket');
@@ -213,10 +214,10 @@ export default function CustomerDashboardPage() {
 
         newSocket.on('connect', () => {
           setConnectionStatus('connected');
-          
+
           // Use com_id for sub-users so they join the main customer's room
           const roomId = user.com_id || user.id;
-          
+
           console.log('Socket connected, joining room:', roomId);
           newSocket.emit('customer_join', {
             customerId: roomId.toString(),
@@ -227,30 +228,30 @@ export default function CustomerDashboardPage() {
         newSocket.on('disconnect', () => {
           setConnectionStatus('disconnected');
         });
-        
+
         newSocket.on('connect_error', (err) => {
           console.error('Socket connection error:', err);
           setConnectionStatus('error');
         });
-        
+
         newSocket.on('reconnect_attempt', () => {
           setConnectionStatus('reconnecting');
         });
-        
+
         newSocket.on('reconnect', () => {
           setConnectionStatus('connected');
-          
+
           const roomId = user.com_id || user.id;
           newSocket.emit('customer_join', {
             customerId: roomId.toString(),
             customerName: user.name || 'Customer'
           });
         });
-        
+
         newSocket.on('joined_success', (data) => {
           console.log('Joined customer room:', data);
         });
-        
+
         // Message handlers
         const mergeMessages = (prev, incoming) => {
           const byId = incoming.id;
@@ -286,7 +287,7 @@ export default function CustomerDashboardPage() {
           }
           scrollToBottom();
         });
-        
+
         newSocket.on('message_sent', (data) => {
           setMessages(prev => {
             const updated = prev.map(msg =>
@@ -303,21 +304,21 @@ export default function CustomerDashboardPage() {
             });
           });
         });
-        
+
         newSocket.on('employee_typing', (data) => {
           setIsTyping(data.typing);
           setTypingEmployee(data.typing ? data.employeeName : "");
         });
-        
+
         setSocket(newSocket);
       } catch (error) {
         console.error('Error initializing socket:', error);
         setConnectionStatus('error');
       }
     };
-    
+
     initAndConnect();
-    
+
     return () => {
       if (newSocket) {
         newSocket.removeAllListeners();
@@ -337,10 +338,10 @@ export default function CustomerDashboardPage() {
   const fetchCustomerMessages = async () => {
     try {
       if (!user?.id) return;
-      
+
       const chatCustomerId = user.com_id || user.id;
       const response = await fetch(`/api/chat/messages?customerId=${chatCustomerId}`);
-      
+
       if (response.ok) {
         const data = await response.json();
         if (data.success) {
@@ -363,7 +364,7 @@ export default function CustomerDashboardPage() {
 
   const sendMessage = async () => {
     const messageText = newMessage.trim();
-    
+
     if (!messageText || !user || !socket || !socket.connected) {
       return;
     }
@@ -393,8 +394,8 @@ export default function CustomerDashboardPage() {
       });
     } catch (error) {
       console.error("Error sending message:", error);
-      setMessages(prev => 
-        prev.map(msg => 
+      setMessages(prev =>
+        prev.map(msg =>
           msg.tempId === tempId
             ? { ...msg, status: 'failed' }
             : msg
@@ -451,7 +452,7 @@ export default function CustomerDashboardPage() {
 
   const getStatusIcon = (message) => {
     if (message.sender !== 'customer') return null;
-    
+
     switch (message.status) {
       case 'sending':
         return <BiTime className="w-3 h-3 text-gray-400" />;
@@ -469,9 +470,9 @@ export default function CustomerDashboardPage() {
   };
 
   const getConnectionStatusColor = () => {
-    switch(connectionStatus) {
+    switch (connectionStatus) {
       case 'connected': return 'bg-green-500';
-      case 'connecting': 
+      case 'connecting':
       case 'reconnecting': return 'bg-yellow-500';
       case 'disconnected': return 'bg-gray-500';
       case 'error': return 'bg-red-500';
@@ -480,7 +481,7 @@ export default function CustomerDashboardPage() {
   };
 
   const getConnectionStatusIcon = () => {
-    switch(connectionStatus) {
+    switch (connectionStatus) {
       case 'connected': return <BiWifi className="w-4 h-4" />;
       case 'connecting':
       case 'reconnecting': return <BiWifi className="w-4 h-4" />;
@@ -536,12 +537,12 @@ export default function CustomerDashboardPage() {
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar user={user} activePage={activePage} setActivePage={setActivePage} />
-      
+
       <div className="flex flex-col flex-1 overflow-hidden">
         <CstHeader user={user} />
-        
+
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          
+
           {activePage === "Dashboard" && (
             <div className="space-y-6">
               {/* Alerts Section */}
@@ -555,12 +556,12 @@ export default function CustomerDashboardPage() {
                         <div>
                           <p className="font-medium text-red-800">Day Limit Exceeded</p>
                           <p className="text-sm text-red-600">
-                            Days elapsed: {dayLimitStatus.daysElapsed}/{dayLimitStatus.dayLimit}. 
+                            Days elapsed: {dayLimitStatus.daysElapsed}/{dayLimitStatus.dayLimit}.
                             Due: ₹{dayLimitStatus.totalUnpaid.toFixed(2)}
                           </p>
                         </div>
                       </div>
-                     
+
                     </div>
                   </div>
                 )}
@@ -594,18 +595,17 @@ export default function CustomerDashboardPage() {
                       Welcome, {user?.name || 'Customer'}!
                     </h2>
                     <div className="flex flex-wrap gap-3">
-                      <span className={`inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm ${
-                        user?.client_type === 2 || user?.client_type === '2'
-                          ? 'bg-blue-500 text-white' 
-                          : user?.client_type === 1 || user?.client_type === '1'
+                      <span className={`inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm ${user?.client_type === 2 || user?.client_type === '2'
+                        ? 'bg-blue-500 text-white'
+                        : user?.client_type === 1 || user?.client_type === '1'
                           ? 'bg-green-500 text-white'
                           : user?.client_type === 3 || user?.client_type === '3'
-                          ? 'bg-purple-500 text-white'
-                          : 'bg-gray-400 text-white'
-                      }`}>
-                        {user?.client_type === 2 || user?.client_type === '2' ? '🔵 Postpaid Customer' : 
-                         user?.client_type === 1 || user?.client_type === '1' ? '🟢 Prepaid Customer' :
-                         user?.client_type === 3 || user?.client_type === '3' ? '🟣 Day Limit Customer' : '❓ Unknown (' + (user?.client_type || 'null') + ')'}
+                            ? 'bg-purple-500 text-white'
+                            : 'bg-gray-400 text-white'
+                        }`}>
+                        {user?.client_type === 2 || user?.client_type === '2' ? '🔵 Postpaid Customer' :
+                          user?.client_type === 1 || user?.client_type === '1' ? '🟢 Prepaid Customer' :
+                            user?.client_type === 3 || user?.client_type === '3' ? '🟣 Day Limit Customer' : '❓ Unknown (' + (user?.client_type || 'null') + ')'}
                       </span>
                       {user?.day_limit && (
                         <span className="inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm bg-orange-500 text-white">
@@ -614,27 +614,15 @@ export default function CustomerDashboardPage() {
                       )}
                     </div>
                     <p className="text-gray-600 mt-2">
-                      {connectionStatus === 'connected' 
-                        ? 'Live support is available' 
+                      {connectionStatus === 'connected'
+                        ? 'Live support is available'
                         : `Connection: ${connectionStatus}`
                       }
                     </p>
                   </div>
-                  
-                  {/* Old Website Link Button */}
-                  <div className="flex items-center">
-                    <button
-                      onClick={() => window.open('https://masafipetro.com/new/cst/login.php', '_blank')}
-                      className="flex items-center space-x-1 px-3 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-all text-sm"
-                      title="Open Old Website"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                      <span className="hidden sm:inline">Old Website</span>
-                    </button>
-                  </div>
-                 
+
+
+
                 </div>
               </div>
 
@@ -659,7 +647,7 @@ export default function CustomerDashboardPage() {
                     </div>
                     <div className="ml-3">
                       <h4 className="text-sm text-gray-500">Live Support</h4>
-                      <button 
+                      <button
                         onClick={toggleChat}
                         className="text-sm text-green-600 hover:text-green-700"
                       >
@@ -676,7 +664,7 @@ export default function CustomerDashboardPage() {
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {user?.roleid === 1 && (
-                    <button 
+                    <button
                       onClick={redirectToMyUsers}
                       className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
                     >
@@ -690,7 +678,7 @@ export default function CustomerDashboardPage() {
                     </button>
                   )}
 
-                  <button 
+                  <button
                     onClick={redirectToCustomerHistory}
                     className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"
                   >
@@ -703,8 +691,8 @@ export default function CustomerDashboardPage() {
                     </div>
                   </button>
 
-                 
-                 
+
+
                 </div>
               </div>
 
@@ -739,7 +727,7 @@ export default function CustomerDashboardPage() {
           <div className="bg-white rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
               <h3 className="text-lg font-bold text-gray-800 mb-4">Recharge Wallet</h3>
-              
+
               <div className="mb-4">
                 <label className="block text-sm text-gray-700 mb-2">Amount (₹)</label>
                 <input
@@ -794,13 +782,13 @@ export default function CustomerDashboardPage() {
               <h2 className="font-medium">Support</h2>
             </div>
             <div className="flex items-center gap-2">
-              <button 
+              <button
                 onClick={(e) => { e.stopPropagation(); minimizeChat(); }}
                 className="hover:bg-blue-700 p-1 rounded"
               >
                 <BiMinus className="w-4 h-4" />
               </button>
-              <button 
+              <button
                 onClick={(e) => { e.stopPropagation(); setShowChat(false); }}
                 className="hover:bg-blue-700 p-1 rounded"
               >
@@ -817,16 +805,15 @@ export default function CustomerDashboardPage() {
                   <p className="text-center text-gray-500 py-4">No messages yet</p>
                 ) : (
                   messages.map((msg) => (
-                    <div 
-                      key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`} 
+                    <div
+                      key={msg.id ? `id-${msg.id}` : `temp-${msg.tempId}`}
                       className={`flex ${msg.sender === 'customer' ? 'justify-end' : 'justify-start'}`}
                     >
-                      <div 
-                        className={`max-w-[80%] px-3 py-2 rounded-lg ${
-                          msg.sender === 'customer' 
-                            ? 'bg-blue-100 text-gray-800' 
-                            : 'bg-white text-gray-800 border'
-                        }`}
+                      <div
+                        className={`max-w-[80%] px-3 py-2 rounded-lg ${msg.sender === 'customer'
+                          ? 'bg-blue-100 text-gray-800'
+                          : 'bg-white text-gray-800 border'
+                          }`}
                       >
                         <p className="text-sm">{msg.text}</p>
                         <div className="flex items-center justify-end gap-1 mt-1 text-xs text-gray-500">
@@ -837,19 +824,19 @@ export default function CustomerDashboardPage() {
                     </div>
                   ))
                 )}
-                
+
                 {isTyping && (
                   <div className="flex justify-start">
                     <div className="bg-white border rounded-lg px-3 py-2">
                       <div className="flex space-x-1">
                         <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"></div>
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
-                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></div>
+                        <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></div>
                       </div>
                     </div>
                   </div>
                 )}
-                
+
                 <div ref={messagesEndRef} />
               </div>
 
@@ -860,8 +847,8 @@ export default function CustomerDashboardPage() {
                     type="text"
                     className="flex-1 p-2 border rounded"
                     placeholder={
-                      connectionStatus === 'connected' 
-                        ? "Type message..." 
+                      connectionStatus === 'connected'
+                        ? "Type message..."
                         : "Connecting..."
                     }
                     value={newMessage}
@@ -885,7 +872,7 @@ export default function CustomerDashboardPage() {
 
       {/* Chat Toggle Button */}
       {!showChat && (
-        <button 
+        <button
           onClick={toggleChat}
           className="fixed bottom-4 right-4 bg-blue-600 text-white rounded-full p-3 shadow z-40"
         >
@@ -900,9 +887,9 @@ export default function CustomerDashboardPage() {
 
       {/* ChatBox Component */}
       {user && (
-        <ChatBox 
-          customerId={user.id} 
-          customerName={user.name} 
+        <ChatBox
+          customerId={user.id}
+          customerName={user.name}
           userRole="customer"
         />
       )}

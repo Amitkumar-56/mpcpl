@@ -49,7 +49,7 @@ export default function Sidebar({ user: propUser }) {
     } else {
       document.body.style.overflow = '';
     }
-    
+
     return () => {
       document.body.style.overflow = '';
     };
@@ -63,7 +63,7 @@ export default function Sidebar({ user: propUser }) {
     sessionStorage.removeItem("customer");
     sessionStorage.removeItem("user");
     sessionStorage.removeItem("isLoggingOut");
-    
+
     if (typeof window !== 'undefined') {
       window.location.replace("/cst/login");
     } else {
@@ -88,7 +88,7 @@ export default function Sidebar({ user: propUser }) {
   const filteredMenuItems = menuItems.filter(item => {
     // Dashboard is always visible
     if (item.path === "/cst/cstdashboard") return true;
-    
+
     // Map paths to module names (matching DB snake_case)
     let moduleName = "";
     if (item.path === "/cst/filling-requests") moduleName = "filling_requests";
@@ -104,10 +104,10 @@ export default function Sidebar({ user: propUser }) {
       // console.log(`Sidebar: Permission check for ${moduleName}:`, permissions[moduleName]);
       return permissions[moduleName].can_view;
     }
-    
+
     // Fallback: If no specific permission found (or permission not loaded yet), allow it
     // console.log(`Sidebar: No permission found for ${moduleName}, defaulting to visible`);
-    return true; 
+    return true;
   });
 
   return (
@@ -131,9 +131,8 @@ export default function Sidebar({ user: propUser }) {
 
       {/* Sidebar - Left-side on mobile */}
       <aside
-        className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${
-          isOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0 transition-transform duration-300 left-0`}
+        className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${isOpen ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0 transition-transform duration-300 left-0`}
       >
         <div className="p-4 border-b border-gray-300 flex justify-between items-center">
           <div>
@@ -148,11 +147,11 @@ export default function Sidebar({ user: propUser }) {
             <FaTimes className="text-gray-700" />
           </button>
         </div>
-        
+
         <nav className="flex-1 overflow-y-auto py-2 px-2">
           {filteredMenuItems.map(item => {
-            const isActive = pathname === item.path || 
-                           (item.path === "/cst/filling-requests" && pathname.startsWith("/cst/filling-request"));
+            const isActive = pathname === item.path ||
+              (item.path === "/cst/filling-requests" && pathname.startsWith("/cst/filling-request"));
             return (
               <button
                 key={item.name}
@@ -160,9 +159,8 @@ export default function Sidebar({ user: propUser }) {
                   router.push(item.path);
                   setIsOpen(false);
                 }}
-                className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${
-                  isActive ? "bg-blue-500 text-white" : "text-black hover:bg-blue-300"
-                }`}
+                className={`flex items-center w-full p-3 mb-2 rounded transition-colors ${isActive ? "bg-blue-500 text-white" : "text-black hover:bg-blue-300"
+                  }`}
               >
                 <span className="mr-3 text-lg">{item.icon}</span>
                 <span className="text-sm">{item.name}</span>
@@ -170,6 +168,17 @@ export default function Sidebar({ user: propUser }) {
             );
           })}
         </nav>
+
+        {/* Old Website Link */}
+        <div className="px-2 pb-2">
+          <button
+            onClick={() => window.open('https://masafipetro.com/new/cst/login.php', '_blank')}
+            className="flex items-center w-full p-3 mb-2 rounded border border-dashed border-orange-500 text-orange-700 hover:bg-orange-50 transition-colors"
+          >
+            <span className="mr-3 text-lg">↩️</span>
+            <span className="text-sm font-medium">Old Website</span>
+          </button>
+        </div>
 
         <button
           onClick={logout}

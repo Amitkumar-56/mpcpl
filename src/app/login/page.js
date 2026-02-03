@@ -58,7 +58,7 @@ export default function LoginPage() {
           permissions: data.permissions,
           station: data.station,
           client: data.client,
-        }, data.token);
+        }, data.token); // Password parameter removed - no longer needed for SSO
 
         // ✅ Use window.location.href for reliable redirect (prevents race conditions)
         // Small delay to ensure localStorage is set
@@ -121,7 +121,7 @@ export default function LoginPage() {
           permissions: data.permissions,
           station: data.station,
           client: data.client,
-        }, data.token);
+        }, data.token); // Password parameter removed - no longer needed for SSO
 
         // ✅ Use window.location.href for reliable redirect (prevents race conditions)
         // Small delay to ensure localStorage is set

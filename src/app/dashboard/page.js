@@ -25,6 +25,8 @@ import {
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
+// SSOSync component removed - no longer needed
+
 // Indian Rupee formatting function
 const formatIndianRupees = (amount) => {
   if (amount === 0 || !amount) return "₹0";
@@ -48,7 +50,7 @@ const calculatePercentageChange = (current, previous) => {
 };
 
 export default function DashboardPage() {
-  const { user: sessionUser, logout, checkAuth } = useSession();
+  const { user: sessionUser, logout, checkAuth, loading } = useSession();
   const router = useRouter();
   const [activePage, setActivePage] = useState("Dashboard");
   const [stockPermissions, setStockPermissions] = useState({ can_view: false, can_edit: false, can_delete: false });
@@ -89,12 +91,12 @@ export default function DashboardPage() {
     if (!Array.isArray(chats)) return [];
     const seen = new Map();
     const result = [];
-    
+
     // Process in reverse to keep the most recent one
     for (let i = chats.length - 1; i >= 0; i--) {
       const chat = chats[i];
       if (!chat || !chat.customerId) continue;
-      
+
       if (!seen.has(chat.customerId)) {
         seen.set(chat.customerId, chat);
         result.unshift(chat); // Add to beginning to maintain order
@@ -113,7 +115,7 @@ export default function DashboardPage() {
         }
       }
     }
-    
+
     return result;
   }, []);
 
@@ -151,12 +153,12 @@ export default function DashboardPage() {
   const fetchDashboardData = useCallback(async () => {
     try {
       const userRole = sessionUser?.role ? Number(sessionUser.role) : null;
-      
+
       // ✅ For staff/incharge: Don't fetch anything (blank dashboard)
       if (userRole === 1 || userRole === 2) {
         return;
       }
-      
+
       // For other roles: Fetch full dashboard data
       const result = await apiRequest("/api/dashboard");
       if (result.success) {
@@ -178,7 +180,7 @@ export default function DashboardPage() {
     await fetchDashboardData();
     setRefreshing(false);
   };
-  
+
   useEffect(() => {
     if (!sessionUser) return;
     const checkPermissions = async () => {
@@ -278,13 +280,13 @@ export default function DashboardPage() {
     }
 
     console.log('Dashboard: Setting up socket connection for employee:', sessionUser.id);
-    
+
     let socketInstance;
 
     const initializeSocket = async () => {
       try {
         await fetch('/api/socket');
-        
+
         socketInstance = io({
           path: '/api/socket',
           transports: ['websocket', 'polling'],
@@ -297,7 +299,7 @@ export default function DashboardPage() {
           console.log('Dashboard: Socket connected successfully!');
           setSocket(socketInstance);
           setSocketConnected(true);
-          
+
           socketInstance.emit('employee_join', {
             employeeId: String(sessionUser.id),
             employeeName: sessionUser.name || 'Employee',
@@ -323,7 +325,7 @@ export default function DashboardPage() {
         // Handle new messages from customers
         socketInstance.on('customer_message', (data) => {
           console.log('Dashboard: Received customer message:', data);
-          
+
           // Only increment notification if chat is not currently selected
           const isCurrentChat = selectedCustomer && selectedCustomer.customerId === data.customerId;
           if (!isCurrentChat) {
@@ -343,10 +345,10 @@ export default function DashboardPage() {
                 gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
                 oscillator.start();
                 oscillator.stop(audioContext.currentTime + 0.2);
-              } catch {}
+              } catch { }
             }, 2000);
           }
-          
+
           // Update active chats
           setActiveChats(prev => {
             const existingChatIndex = prev.findIndex(chat => chat.customerId === data.customerId);
@@ -360,7 +362,7 @@ export default function DashboardPage() {
               },
               unread: !isCurrentChat // Only mark as unread if not current chat
             };
-            
+
             if (existingChatIndex >= 0) {
               const updatedChats = [...prev];
               updatedChats[existingChatIndex] = newChatItem;
@@ -388,14 +390,14 @@ export default function DashboardPage() {
                 ]
               };
             });
-            
+
             // Mark as read automatically when viewing
             markMessagesAsRead(data.customerId);
             // Don't increment notification count if viewing the chat
             setNotifCount(prev => Math.max(0, prev - 1));
           }
         });
-        
+
         // Also handle server broadcast for employees
         socketInstance.on('customer_message_notification', (data) => {
           console.log('Dashboard: Received customer_message_notification:', data);
@@ -428,13 +430,13 @@ export default function DashboardPage() {
         // Handle message sent confirmation
         socketInstance.on('message_sent', (data) => {
           console.log('Dashboard: Message sent confirmation:', data);
-          
+
           if (selectedCustomer && data.message) {
             setEmployeeMessages(prev => {
               const customerMessages = prev[selectedCustomer.customerId] || [];
               return {
                 ...prev,
-                [selectedCustomer.customerId]: customerMessages.map(msg => 
+                [selectedCustomer.customerId]: customerMessages.map(msg =>
                   msg.id && msg.id.startsWith('temp-') && msg.status === 'sending'
                     ? { ...msg, id: data.message.id, status: 'sent' }
                     : msg
@@ -473,14 +475,18 @@ export default function DashboardPage() {
 
   // Load dashboard data
   useEffect(() => {
+    // ✅ Wait for loading to finish before making decisions
+    if (loading) return;
+
     if (!sessionUser) {
-      router.push("/login");
+      // ✅ Allow SessionContext to handle the redirect
+      // router.push("/login"); 
       return;
     }
 
     // Load data immediately - no loading state
     fetchDashboardData();
-  }, [sessionUser, router, fetchDashboardData]);
+  }, [sessionUser, router, fetchDashboardData, loading]);
 
   // Load active chats when chat is opened
   useEffect(() => {
@@ -546,8 +552,8 @@ export default function DashboardPage() {
                   Welcome, {sessionUser?.name}!
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm">
-                  {((sessionUser?.role === 1 || sessionUser?.role === 2)) 
-                    ? "Dashboard" 
+                  {((sessionUser?.role === 1 || sessionUser?.role === 2))
+                    ? "Dashboard"
                     : "Real-time outstanding balances overview"}
                 </p>
                 {lastUpdated && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
@@ -562,16 +568,6 @@ export default function DashboardPage() {
 
               {!(sessionUser?.role === 1 || sessionUser?.role === 2) && (
                 <div className="flex items-center space-x-2 mt-3 lg:mt-0">
-                  <button
-                    onClick={() => window.open('https://masafipetro.com/new/login.php', '_blank')}
-                    className="flex items-center space-x-1 px-3 py-2 bg-orange-500 text-white rounded-lg shadow hover:bg-orange-600 transition-all text-sm"
-                    title="Open Old Website"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                    <span className="hidden sm:inline">Old Website</span>
-                  </button>
                   <button
                     onClick={handleRefresh}
                     disabled={refreshing}
@@ -603,7 +599,7 @@ export default function DashboardPage() {
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Outstandings</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <a 
+                  <a
                     href="/customers/client-history"
                     className="block"
                   >
@@ -616,7 +612,7 @@ export default function DashboardPage() {
                     />
                   </a>
 
-                  <a 
+                  <a
                     href="/customers/client-history"
                     className="block"
                   >
@@ -745,30 +741,32 @@ export default function DashboardPage() {
 
         <Footer />
         <PWAInstallBanner />
-      </div>
+      </div >
 
       {/* Chat Widget (Hidden for Staff/Incharge) */}
-      {showChat && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
-        <ChatWidget
-          activeChats={activeChats}
-          selectedCustomer={selectedCustomer}
-          setSelectedCustomer={setSelectedCustomer}
-          employeeMessages={employeeMessages}
-          setEmployeeMessages={setEmployeeMessages}
-          newMessage={newMessage}
-          setNewMessage={setNewMessage}
-          setShowChat={setShowChat}
-          sessionUser={sessionUser}
-          socket={socket}
-          socketConnected={socketConnected}
-          setNotifCount={setNotifCount}
-          messagesEndRef={messagesEndRef}
-          markMessagesAsRead={markMessagesAsRead}
-          deduplicateChats={deduplicateChats}
-          setActiveChats={setActiveChats}
-        />
-      )}
-    </div>
+      {
+        showChat && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+          <ChatWidget
+            activeChats={activeChats}
+            selectedCustomer={selectedCustomer}
+            setSelectedCustomer={setSelectedCustomer}
+            employeeMessages={employeeMessages}
+            setEmployeeMessages={setEmployeeMessages}
+            newMessage={newMessage}
+            setNewMessage={setNewMessage}
+            setShowChat={setShowChat}
+            sessionUser={sessionUser}
+            socket={socket}
+            socketConnected={socketConnected}
+            setNotifCount={setNotifCount}
+            messagesEndRef={messagesEndRef}
+            markMessagesAsRead={markMessagesAsRead}
+            deduplicateChats={deduplicateChats}
+            setActiveChats={setActiveChats}
+          />
+        )
+      }
+    </div >
   );
 }
 
@@ -844,15 +842,15 @@ const ChatWidget = ({
                 ...prev,
                 [selectedCustomer.customerId]: data.messages || []
               }));
-              
+
               // Mark messages as read
               markMessagesAsRead(selectedCustomer.customerId);
-              
+
               setNotifCount(prev => Math.max(0, prev - 1));
-              setActiveChats(prev => 
+              setActiveChats(prev =>
                 deduplicateChats(
-                  prev.map(chat => 
-                    chat.customerId === selectedCustomer.customerId 
+                  prev.map(chat =>
+                    chat.customerId === selectedCustomer.customerId
                       ? { ...chat, unread: false }
                       : chat
                   )
@@ -877,10 +875,10 @@ const ChatWidget = ({
       console.log('Cannot send message - missing requirements');
       return;
     }
-    
+
     const messageText = newMessage.trim();
     const tempMessageId = `temp-${Date.now()}`;
-    
+
     // Create temporary message for immediate UI update
     const tempMessage = {
       id: tempMessageId,
@@ -891,7 +889,7 @@ const ChatWidget = ({
       timestamp: new Date().toISOString(),
       status: 'sending',
     };
-    
+
     // Update UI immediately
     setEmployeeMessages(prev => {
       const customerMessages = prev[selectedCustomer.customerId] || [];
@@ -900,9 +898,9 @@ const ChatWidget = ({
         [selectedCustomer.customerId]: [...customerMessages, tempMessage]
       };
     });
-    
+
     setNewMessage("");
-    
+
     try {
       // Save message using your send-message API
       const saveResponse = await fetch('/api/chat/send-message', {
@@ -917,27 +915,27 @@ const ChatWidget = ({
           text: messageText
         })
       });
-      
+
       const saveResult = await saveResponse.json();
-      
+
       if (saveResult.success) {
         // Update temporary message with real ID
         setEmployeeMessages(prev => {
           const customerMessages = prev[selectedCustomer.customerId] || [];
           return {
             ...prev,
-            [selectedCustomer.customerId]: customerMessages.map(msg => 
-              msg.id === tempMessageId 
-                ? { 
-                    ...msg, 
-                    id: saveResult.messageId,
-                    status: 'delivered' 
-                  }
+            [selectedCustomer.customerId]: customerMessages.map(msg =>
+              msg.id === tempMessageId
+                ? {
+                  ...msg,
+                  id: saveResult.messageId,
+                  status: 'delivered'
+                }
                 : msg
             )
           };
         });
-        
+
         // Send via socket
         socket.emit('employee_message', {
           customerId: selectedCustomer.customerId,
@@ -946,22 +944,22 @@ const ChatWidget = ({
           employeeName: sessionUser.name || 'Employee',
           messageId: saveResult.messageId
         });
-        
+
         console.log('Message sent successfully via socket');
-        
+
         // Update active chats with new last message
-        setActiveChats(prev => 
+        setActiveChats(prev =>
           deduplicateChats(
-            prev.map(chat => 
-              chat.customerId === selectedCustomer.customerId 
+            prev.map(chat =>
+              chat.customerId === selectedCustomer.customerId
                 ? {
-                    ...chat,
-                    lastMessage: {
-                      text: messageText,
-                      sender: 'employee',
-                      timestamp: new Date().toISOString()
-                    }
+                  ...chat,
+                  lastMessage: {
+                    text: messageText,
+                    sender: 'employee',
+                    timestamp: new Date().toISOString()
                   }
+                }
                 : chat
             )
           )
@@ -976,8 +974,8 @@ const ChatWidget = ({
         const customerMessages = prev[selectedCustomer.customerId] || [];
         return {
           ...prev,
-          [selectedCustomer.customerId]: customerMessages.map(msg => 
-            msg.id === tempMessageId 
+          [selectedCustomer.customerId]: customerMessages.map(msg =>
+            msg.id === tempMessageId
               ? { ...msg, status: 'failed' }
               : msg
           )
@@ -991,10 +989,10 @@ const ChatWidget = ({
     // Mark as read when selected
     markMessagesAsRead(chat.customerId);
     setNotifCount(prev => Math.max(0, prev - 1));
-    setActiveChats(prev => 
+    setActiveChats(prev =>
       deduplicateChats(
-        prev.map(c => 
-          c.customerId === chat.customerId 
+        prev.map(c =>
+          c.customerId === chat.customerId
             ? { ...c, unread: false }
             : c
         )
@@ -1014,9 +1012,9 @@ const ChatWidget = ({
           employeeId: sessionUser.id
         })
       });
-      
+
       const result = await response.json();
-      
+
       if (result.success) {
         console.log('Chat accepted successfully');
         // Reload chat sessions
@@ -1046,7 +1044,7 @@ const ChatWidget = ({
           ) : (
             <span className="w-2 h-2 bg-red-400 rounded-full" title="Disconnected"></span>
           )}
-          <button 
+          <button
             onClick={() => setShowChat(false)}
             className="hover:bg-purple-700 rounded p-1"
           >
@@ -1054,7 +1052,7 @@ const ChatWidget = ({
           </button>
         </div>
       </div>
-      
+
       <div className="h-[calc(100vh-12rem)] sm:h-96 overflow-hidden flex flex-col">
         {/* Chat list */}
         <div className="flex-1 flex flex-col sm:flex-row">
@@ -1067,11 +1065,10 @@ const ChatWidget = ({
                 activeChats.map((chat, index) => (
                   <div
                     key={`${chat.customerId}-${chat.lastMessage?.timestamp || index}-${index}`}
-                    className={`p-2 border-b cursor-pointer text-xs ${
-                      selectedCustomer?.customerId === chat.customerId 
-                        ? 'bg-blue-50 border-blue-200' 
-                        : 'hover:bg-gray-50'
-                    } ${chat.unread ? 'bg-yellow-50' : ''}`}
+                    className={`p-2 border-b cursor-pointer text-xs ${selectedCustomer?.customerId === chat.customerId
+                      ? 'bg-blue-50 border-blue-200'
+                      : 'hover:bg-gray-50'
+                      } ${chat.unread ? 'bg-yellow-50' : ''}`}
                     onClick={() => handleCustomerSelect(chat)}
                   >
                     <div className="flex justify-between items-start">
@@ -1085,9 +1082,9 @@ const ChatWidget = ({
                     </p>
                     {chat.lastMessage?.timestamp && (
                       <p className="text-gray-400 text-xs mt-1">
-                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString('en-IN', { 
-                          hour: '2-digit', 
-                          minute: '2-digit' 
+                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString('en-IN', {
+                          hour: '2-digit',
+                          minute: '2-digit'
                         })}
                       </p>
                     )}
@@ -1134,26 +1131,25 @@ const ChatWidget = ({
                     <div className="flex items-center justify-center h-full text-gray-500 text-xs">
                       Loading messages...
                     </div>
-                  ) : employeeMessages[selectedCustomer.customerId] && 
-                     employeeMessages[selectedCustomer.customerId].length > 0 ? (
+                  ) : employeeMessages[selectedCustomer.customerId] &&
+                    employeeMessages[selectedCustomer.customerId].length > 0 ? (
                     <>
                       {employeeMessages[selectedCustomer.customerId].map((msg, idx) => (
                         <div
                           key={msg.id || idx}
-                          className={`mb-2 p-2 rounded text-sm ${
-                            msg.sender === 'employee' 
-                              ? 'bg-purple-100 ml-auto text-right max-w-[80%]' 
-                              : 'bg-gray-100 mr-auto max-w-[80%]'
-                          }`}
+                          className={`mb-2 p-2 rounded text-sm ${msg.sender === 'employee'
+                            ? 'bg-purple-100 ml-auto text-right max-w-[80%]'
+                            : 'bg-gray-100 mr-auto max-w-[80%]'
+                            }`}
                         >
                           <p className="text-xs text-gray-600 mb-1">
                             {msg.sender === 'employee' ? 'You' : selectedCustomer.customerName || 'Customer'}
                           </p>
                           <p className="text-gray-800 break-words">{msg.text}</p>
                           <p className="text-xs text-gray-500 mt-1">
-                            {new Date(msg.timestamp).toLocaleTimeString('en-IN', { 
-                              hour: '2-digit', 
-                              minute: '2-digit' 
+                            {new Date(msg.timestamp).toLocaleTimeString('en-IN', {
+                              hour: '2-digit',
+                              minute: '2-digit'
                             })}
                             {msg.status === 'sending' && ' • Sending...'}
                             {msg.status === 'failed' && ' • Failed'}
@@ -1184,8 +1180,8 @@ const ChatWidget = ({
                       className="flex-1 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-0"
                       disabled={!socketConnected || !selectedCustomer.employeeId}
                     />
-                    <button 
-                      onClick={sendMessage} 
+                    <button
+                      onClick={sendMessage}
                       disabled={!newMessage.trim() || !socketConnected || !selectedCustomer.employeeId}
                       className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0 min-w-[50px] gap-2"
                       title={!socketConnected ? 'Socket not connected' : !selectedCustomer.employeeId ? 'Accept chat first' : 'Send message'}
