@@ -43,10 +43,10 @@ function CustomersPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [loading, setLoading] = useState(false);
-  const [permissions, setPermissions] = useState({ 
-    can_edit: false, 
-    can_view: false, 
-    can_create: false 
+  const [permissions, setPermissions] = useState({
+    can_edit: false,
+    can_view: false,
+    can_create: false
   });
   const [hasPermission, setHasPermission] = useState(false);
   const [error, setError] = useState(null);
@@ -72,8 +72,8 @@ function CustomersPage() {
       return;
     }
 
-    if (user.permissions && user.permissions['Customer']) {
-      const customerPerms = user.permissions['Customer'];
+    if (user.permissions && user.permissions['Customers']) {
+      const customerPerms = user.permissions['Customers'];
       if (customerPerms.can_view) {
         setHasPermission(true);
         setPermissions({
@@ -86,7 +86,7 @@ function CustomersPage() {
       }
     }
 
-    const cacheKey = `perms_${user.id}_Customer`;
+    const cacheKey = `perms_${user.id}_Customers`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
       const cachedPerms = JSON.parse(cached);
@@ -99,7 +99,7 @@ function CustomersPage() {
     }
 
     try {
-      const moduleName = 'Customer';
+      const moduleName = 'Customers';
       const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
@@ -183,7 +183,7 @@ function CustomersPage() {
     const indexOfFirst = indexOfLast - itemsPerPage;
     const currentCustomers = filteredCustomers.slice(indexOfFirst, indexOfLast);
     const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage);
-    
+
     return { indexOfFirst, indexOfLast, currentCustomers, totalPages };
   }, [currentPage, itemsPerPage, filteredCustomers]);
 
@@ -204,9 +204,9 @@ function CustomersPage() {
 
   const submitSwitch = async () => {
     if (!switchCustomer) return;
-    
+
     const valNum = Number(switchValue);
-    
+
     if (switchTarget === 'day') {
       if (isNaN(valNum) || valNum < 1) {
         alert('Enter a valid day limit (minimum 1 day)');
@@ -218,22 +218,22 @@ function CustomersPage() {
         return;
       }
     }
-    
+
     try {
       setSwitchLoading(true);
       const res = await fetch('/api/customers', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          customerId: switchCustomer.id, 
-          targetType: switchTarget, 
-          limitValue: valNum 
+        body: JSON.stringify({
+          customerId: switchCustomer.id,
+          targetType: switchTarget,
+          limitValue: valNum
         })
       });
-      
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to switch customer type');
-      
+
       alert(data.message || 'Customer type updated successfully');
       setShowSwitchModal(false);
       setSwitchCustomer(null);
@@ -254,14 +254,14 @@ function CustomersPage() {
 
     const newStatus = currentStatus === 1 ? 0 : 1;
     const action = newStatus === 1 ? 'activate' : 'deactivate';
-    
+
     if (!confirm(`Are you sure you want to ${action} this customer?`)) {
       return;
     }
 
     try {
       setUpdatingStatus(prev => ({ ...prev, [customerId]: true }));
-      
+
       const res = await fetch('/api/customers/update-status', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -330,7 +330,7 @@ function CustomersPage() {
   // Get status color based on remaining limit
   const getRemainingLimitStatus = useCallback((balance, limit) => {
     const remaining = calculateRemainingLimit(balance, limit);
-    
+
     if (remaining < 0) {
       return {
         color: "text-red-600 font-bold",
@@ -338,7 +338,7 @@ function CustomersPage() {
         extraInfo: `Exceeded by ₹${Math.abs(remaining).toLocaleString('en-IN')}`
       };
     }
-    
+
     if (remaining === 0) {
       return {
         color: "text-red-600 font-bold",
@@ -346,7 +346,7 @@ function CustomersPage() {
         extraInfo: "Limit fully utilized"
       };
     }
-    
+
     if (remaining < (limit * 0.3)) {
       return {
         color: "text-yellow-600 font-bold",
@@ -354,7 +354,7 @@ function CustomersPage() {
         extraInfo: "Low limit"
       };
     }
-    
+
     return {
       color: "text-green-600 font-bold",
       text: `₹${remaining.toLocaleString('en-IN')}`,
@@ -441,30 +441,30 @@ function CustomersPage() {
   }, [search, activeFilter]);
 
   const stats = useMemo(() => [
-    { 
-      title: 'Total Customers', 
-      value: customers.length, 
+    {
+      title: 'Total Customers',
+      value: customers.length,
       color: 'from-blue-500 to-blue-600',
       filter: 'all',
       count: customers.length
     },
-    { 
-      title: 'Prepaid Customers', 
-      value: customers.filter(c => c.client_type === "1").length, 
+    {
+      title: 'Prepaid Customers',
+      value: customers.filter(c => c.client_type === "1").length,
       color: 'from-purple-500 to-purple-600',
       filter: 'prepaid',
       count: customers.filter(c => c.client_type === "1").length
     },
-    { 
-      title: 'Postpaid Customers', 
-      value: customers.filter(c => c.client_type === "2").length, 
+    {
+      title: 'Postpaid Customers',
+      value: customers.filter(c => c.client_type === "2").length,
       color: 'from-orange-500 to-orange-600',
       filter: 'postpaid',
       count: customers.filter(c => c.client_type === "2").length
     },
-    { 
-      title: 'Day Limit Customers', 
-      value: customers.filter(c => c.client_type === "3").length, 
+    {
+      title: 'Day Limit Customers',
+      value: customers.filter(c => c.client_type === "3").length,
       color: 'from-indigo-500 to-indigo-600',
       filter: 'daylimit',
       count: customers.filter(c => c.client_type === "3").length
@@ -550,8 +550,8 @@ function CustomersPage() {
                   {getActiveFilterName()}
                 </h1>
                 <p className="text-purple-500 font-medium text-sm lg:text-base">
-                  {activeFilter === "all" 
-                    ? "Manage all your customers efficiently with real-time data" 
+                  {activeFilter === "all"
+                    ? "Manage all your customers efficiently with real-time data"
                     : `Showing ${activeFilter} customers only`}
                 </p>
                 <p className="text-gray-600 text-sm mt-1">
@@ -616,11 +616,10 @@ function CustomersPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
               {stats.map((stat, index) => (
-                <div 
-                  key={index} 
-                  className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200 cursor-pointer ${
-                    activeFilter === stat.filter ? 'ring-4 ring-white ring-opacity-50' : ''
-                  }`}
+                <div
+                  key={index}
+                  className={`bg-gradient-to-r ${stat.color} text-white p-4 rounded-2xl shadow-lg transform hover:scale-105 transition-transform duration-200 cursor-pointer ${activeFilter === stat.filter ? 'ring-4 ring-white ring-opacity-50' : ''
+                    }`}
                   onClick={() => handleStatClick(stat.filter)}
                 >
                   <div className="text-2xl font-bold">{stat.value}</div>
@@ -642,7 +641,7 @@ function CustomersPage() {
                   <span className="font-bold">Error: </span>
                   <span className="ml-2">{error}</span>
                 </div>
-                <button 
+                <button
                   onClick={fetchData}
                   className="mt-2 bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg text-sm transition-colors"
                 >
@@ -655,7 +654,7 @@ function CustomersPage() {
               <div className="bg-white/80 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
                 <div className="bg-gradient-to-r from-purple-500 to-pink-500 p-1"></div>
                 <div className="p-4 lg:p-6">
-                  
+
                   <div className="mb-4 flex justify-between items-center">
                     <div className="text-sm text-gray-600">
                       Found {filteredCustomers.length} customer{filteredCustomers.length !== 1 ? 's' : ''}
@@ -696,12 +695,11 @@ function CustomersPage() {
                             const isDayLimit = c.client_type === "3";
                             const remainingLimitInfo = !isDayLimit ? getRemainingLimitStatus(c.balance, c.cst_limit) : null;
                             const dayLimitBalance = isDayLimit ? getDayLimitBalance(c.balance) : null;
-                            
+
                             return (
                               <React.Fragment key={c.id}>
-                                <tr className={`border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200 ${
-                                c.status === 0 ? 'bg-red-50/30 opacity-90' : ''
-                              }`}>
+                                <tr className={`border-b border-purple-100 hover:bg-purple-50 transition-colors duration-200 ${c.status === 0 ? 'bg-red-50/30 opacity-90' : ''
+                                  }`}>
                                   <td className="p-4 font-mono text-purple-600 font-bold">#{c.id}</td>
                                   <td className="p-4">
                                     <div className="flex items-center space-x-3">
@@ -709,7 +707,7 @@ function CustomersPage() {
                                         <span className="text-white font-bold text-sm">{(c.name?.charAt(0) || 'C').toUpperCase()}</span>
                                       </div>
                                       <div>
-                                        <Link 
+                                        <Link
                                           href={`/customers/client-history?id=${c.id}`}
                                           className="font-bold text-gray-900 hover:text-purple-700 transition-colors block"
                                         >
@@ -862,7 +860,7 @@ function CustomersPage() {
                                                 .filter(action => action.show)
                                                 .map((action) => {
                                                   const commonClasses = `p-2 ${action.color} text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200`;
-                                                  
+
                                                   return (
                                                     <Link
                                                       key={action.key}
@@ -878,11 +876,10 @@ function CustomersPage() {
                                                 <button
                                                   onClick={() => handleStatusToggle(c.id, c.status)}
                                                   disabled={updatingStatus[c.id]}
-                                                  className={`p-2 rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200 ${
-                                                    c.status === 1
+                                                  className={`p-2 rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200 ${c.status === 1
                                                       ? 'bg-yellow-500 text-white hover:bg-yellow-600'
                                                       : 'bg-gray-500 text-white hover:bg-gray-600'
-                                                  }`}
+                                                    }`}
                                                   title={c.status === 1 ? 'Deactivate' : 'Activate'}
                                                 >
                                                   {updatingStatus[c.id] ? (
@@ -907,8 +904,8 @@ function CustomersPage() {
                                                 onClick={() => openSwitchModal(c, isDayLimit ? 'post' : 'day')}
                                                 className="p-2 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-600 hover:to-orange-600 text-white rounded text-xs flex items-center justify-center shadow-sm hover:shadow-md transition-all duration-200"
                                                 title={
-                                                  isDayLimit 
-                                                    ? 'Switch to Postpaid' 
+                                                  isDayLimit
+                                                    ? 'Switch to Postpaid'
                                                     : `Switch to Day Limit`
                                                 }
                                               >
@@ -943,7 +940,7 @@ function CustomersPage() {
                         const isDayLimit = c.client_type === "3";
                         const remainingLimitInfo = !isDayLimit ? getRemainingLimitStatus(c.balance, c.cst_limit) : null;
                         const dayLimitBalance = isDayLimit ? getDayLimitBalance(c.balance) : null;
-                        
+
                         return (
                           <div key={c.id} className="bg-white rounded-xl shadow-lg border border-purple-100 p-4 hover:shadow-xl transition-all duration-200">
                             <div className="flex justify-between items-start mb-3">
@@ -1124,22 +1121,20 @@ function CustomersPage() {
                                   <div className="bg-white rounded-lg p-3 border border-gray-200">
                                     <div className="text-xs font-medium text-gray-500 mb-2">Status</div>
                                     <div className="flex items-center justify-between">
-                                      <span className={`px-2 py-1 rounded text-xs font-medium ${
-                                        c.status === 1 
-                                          ? 'bg-green-100 text-green-800' 
+                                      <span className={`px-2 py-1 rounded text-xs font-medium ${c.status === 1
+                                          ? 'bg-green-100 text-green-800'
                                           : 'bg-red-100 text-red-800'
-                                      }`}>
+                                        }`}>
                                         {c.status === 1 ? 'Active' : 'Inactive'}
                                       </span>
                                       {isAdmin && (
                                         <button
                                           onClick={() => handleStatusToggle(c.id, c.status)}
                                           disabled={updatingStatus[c.id]}
-                                          className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1 ${
-                                            c.status === 1
+                                          className={`px-3 py-1 rounded text-xs font-medium flex items-center gap-1 ${c.status === 1
                                               ? 'bg-yellow-500 text-white hover:bg-yellow-600'
                                               : 'bg-gray-500 text-white hover:bg-gray-600'
-                                          }`}
+                                            }`}
                                         >
                                           {updatingStatus[c.id] ? (
                                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
@@ -1167,7 +1162,7 @@ function CustomersPage() {
                                         .filter(action => action.show)
                                         .map((action) => {
                                           const commonClasses = `p-2 ${action.color} text-white rounded-lg text-xs font-medium flex items-center justify-center gap-1 shadow-sm hover:shadow-md transition-all`;
-                                          
+
                                           return (
                                             <Link
                                               key={action.key}
@@ -1225,11 +1220,10 @@ function CustomersPage() {
                                 <button
                                   key={pageNum}
                                   onClick={() => setCurrentPage(pageNum)}
-                                  className={`px-4 py-2 rounded-lg text-sm min-w-[44px] font-medium transition-all ${
-                                    currentPage === pageNum 
-                                      ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md" 
+                                  className={`px-4 py-2 rounded-lg text-sm min-w-[44px] font-medium transition-all ${currentPage === pageNum
+                                      ? "bg-gradient-to-r from-purple-600 to-pink-600 text-white shadow-md"
                                       : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                                  }`}
+                                    }`}
                                 >
                                   {pageNum}
                                 </button>
@@ -1265,19 +1259,19 @@ function CustomersPage() {
           <div className="bg-white rounded-xl shadow-lg w-full max-w-md">
             <div className="p-6">
               <h3 className="text-lg font-semibold mb-4">
-                {switchCustomer?.client_type === '3' 
-                  ? 'Switch to Postpaid' 
+                {switchCustomer?.client_type === '3'
+                  ? 'Switch to Postpaid'
                   : `Switch ${switchCustomer?.client_type === '1' ? 'Prepaid' : 'Postpaid'} to Day Limit`}
               </h3>
-              
+
               <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
                 <p className="text-sm text-blue-700">
                   Customer: <strong>{switchCustomer?.name}</strong>
                 </p>
                 <p className="text-sm text-blue-600 mt-1">
                   Current: <strong>
-                    {switchCustomer?.client_type === '1' ? 'Prepaid' : 
-                     switchCustomer?.client_type === '2' ? 'Postpaid' : 'Day Limit'}
+                    {switchCustomer?.client_type === '1' ? 'Prepaid' :
+                      switchCustomer?.client_type === '2' ? 'Postpaid' : 'Day Limit'}
                   </strong>
                 </p>
                 {switchCustomer?.client_type === '3' && (
@@ -1290,8 +1284,8 @@ function CustomersPage() {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
-                    {switchCustomer?.client_type === '3' 
-                      ? 'Set Credit Limit (₹)' 
+                    {switchCustomer?.client_type === '3'
+                      ? 'Set Credit Limit (₹)'
                       : 'Set Day Limit (Days)'}
                   </label>
                   <input
@@ -1301,25 +1295,25 @@ function CustomersPage() {
                     value={switchValue}
                     onChange={(e) => setSwitchValue(e.target.value)}
                     placeholder={
-                      switchCustomer?.client_type === '3' 
-                        ? 'Enter credit limit amount' 
+                      switchCustomer?.client_type === '3'
+                        ? 'Enter credit limit amount'
                         : 'Enter day limit duration'
                     }
                     className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                   />
                   <p className="text-xs text-gray-500 mt-1">
-                    {switchCustomer?.client_type === '3' 
+                    {switchCustomer?.client_type === '3'
                       ? 'Credit limit will be activated for postpaid billing'
                       : 'Day limit will be activated, credit limit will be disabled'}
                   </p>
                 </div>
-                
+
                 <div className="flex justify-end space-x-3 pt-2">
                   <button
-                    onClick={() => { 
-                      setShowSwitchModal(false); 
-                      setSwitchCustomer(null); 
-                      setSwitchValue(''); 
+                    onClick={() => {
+                      setShowSwitchModal(false);
+                      setSwitchCustomer(null);
+                      setSwitchValue('');
                     }}
                     disabled={switchLoading}
                     className="px-4 py-2 rounded-lg bg-gray-300 text-gray-700 hover:bg-gray-400 disabled:opacity-50 transition-colors"
