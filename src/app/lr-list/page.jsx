@@ -161,8 +161,17 @@ function LRManagementContent() {
       return;
     }
 
+    // Admin (role 5) and Accountant (role 4) have direct access
+    if (Number(user.role) === 5 || Number(user.role) === 4) {
+      console.log(`✅ [LR List] ${Number(user.role) === 5 ? 'Admin' : 'Accountant'} role detected, fetching data directly`);
+      setPermissions({ can_view: 1, can_edit: 1, can_create: 1 });
+      fetchShipments();
+      return;
+    }
+
+    // For other roles, check permissions
     fetchShipments();
-  }, [user, authLoading, router]);
+  }, [authLoading, user]);
 
   const fetchShipments = async () => {
     if (!user) {

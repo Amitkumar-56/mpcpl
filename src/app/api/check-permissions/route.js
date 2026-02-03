@@ -70,6 +70,21 @@ export async function GET(req) {
       });
     }
 
+    // 3. Accountant (role 4) has full access to LR management
+    if (Number(userRole) === 4 && (module_name.toLowerCase().includes('lr') || module_name.toLowerCase().includes('shipment'))) {
+      console.log(`✅ Accountant (role 4) has full access to LR management - automatically allowed`);
+      return NextResponse.json({ 
+        allowed: true,
+        userRole,
+        userName,
+        checkType: 'accountant_lr_access',
+        employee_id,
+        module_name,
+        action,
+        message: "Accountant has full access to LR management"
+      });
+    }
+
     // Check if employee is active
     if (!toBool(userStatus)) {
       console.log(`❌ Employee ${employee_id} is inactive`);

@@ -83,6 +83,14 @@ function CreateLRContent() {
       return;
     }
 
+    // Accountant (role 4) has full access to LR management
+    if (Number(user.role) === 4) {
+      setHasPermission(true);
+      setCheckingPermission(false);
+      fetchLRData();
+      return;
+    }
+
     // Check cached permissions
     if (user.permissions && user.permissions['LR Management']) {
       const lrPerms = user.permissions['LR Management'];

@@ -114,12 +114,20 @@ export async function GET(request) {
         can_edit: 1,
         can_create: 1
       };
+    } else if (userRole && Number(userRole) === 4) {
+      // Accountant (role 4) gets create and edit permissions by default
+      permissionData = {
+        can_view: 1,
+        can_edit: 1,
+        can_create: 1
+      };
+      console.log('✅ [LR List] Accountant role detected, granting full permissions');
     } else if (permissions.length > 0) {
       permissionData = permissions[0];
     }
 
-    // Check if user has view permission (only if permissions exist and user is not admin)
-    if (!(userRole && Number(userRole) === 5) && permissions.length > 0 && permissionData.can_view !== 1 && permissionData.can_view !== true) {
+    // Check if user has view permission (only if permissions exist and user is not admin or accountant)
+    if (!(userRole && (Number(userRole) === 5 || Number(userRole) === 4)) && permissions.length > 0 && permissionData.can_view !== 1 && permissionData.can_view !== true) {
       return NextResponse.json({
         error: 'You are not allowed to access this page.'
       }, { status: 403 });
