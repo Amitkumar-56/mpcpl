@@ -302,7 +302,6 @@ export function SessionProvider({ children }) {
       if (token) {
         sessionStorage.setItem('token', token);
       }
-      // Password storage removed - no longer needed for SSO
     }
   }, []);
 
@@ -360,7 +359,6 @@ export function SessionProvider({ children }) {
       if (typeof window !== 'undefined') {
         // Clear session storage
         sessionStorage.removeItem('user');
-        // Password clearing removed - no longer needed for SSO
         sessionStorage.removeItem('customer');
         sessionStorage.removeItem('cst_token');
         sessionStorage.removeItem('agent');
