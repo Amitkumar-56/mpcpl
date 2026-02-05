@@ -929,6 +929,27 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
   // For staff and completed requests: Limited view
   const isStaffViewingCompleted = isStaff && request.status === "Completed";
 
+  // Image preview state for mobile
+  const [imagePreview, setImagePreview] = useState(null);
+
+  const getRequestImages = () => {
+    const imgs = [];
+    if (request.images) {
+      try {
+        const parsed = typeof request.images === 'string' ? JSON.parse(request.images) : request.images;
+        if (parsed?.image1) imgs.push(parsed.image1);
+        if (parsed?.image2) imgs.push(parsed.image2);
+        if (parsed?.image3) imgs.push(parsed.image3);
+      } catch { }
+    }
+    if (imgs.length === 0) {
+      if (request.doc1) imgs.push(request.doc1);
+      if (request.doc2) imgs.push(request.doc2);
+      if (request.doc3) imgs.push(request.doc3);
+    }
+    return imgs.filter(Boolean);
+  };
+
   return (
     <div className={`border rounded-xl p-4 mb-4 bg-white shadow-md hover:shadow-lg transition-all ${statusBorderClass}`}>
       <div className="flex justify-between items-start mb-3">
@@ -949,6 +970,23 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
         </div>
       </div>
       <div className="space-y-3 text-sm">
+        {/* Mobile thumbnails */}
+        <div className="flex items-center gap-2">
+          {getRequestImages().slice(0,3).map((src, idx) => (
+            <button
+              key={idx}
+              onClick={() => setImagePreview(src)}
+              className="w-8 h-8 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+              aria-label="Preview image"
+            >
+              <img src={src} alt="doc" className="w-full h-full object-cover" />
+            </button>
+          ))}
+          {getRequestImages().length === 0 && (
+            <span className="text-xs text-gray-500">No images</span>
+          )}
+        </div>
+
         {/* Staff viewing completed: Limited information */}
         {isStaffViewingCompleted ? (
           <>
@@ -1090,6 +1128,23 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
           />
         </div>
       </div>
+
+      {imagePreview && (
+        <>
+          <div className="fixed inset-0 bg-black bg-opacity-50 z-40" onClick={() => setImagePreview(null)}></div>
+          <div className="fixed inset-0 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full mx-4">
+              <div className="flex justify-between items-center p-3 border-b">
+                <div className="font-medium">Image Preview</div>
+                <button onClick={() => setImagePreview(null)} className="text-gray-500 hover:text-gray-700" aria-label="Close preview">×</button>
+              </div>
+              <div className="p-3">
+                <img src={imagePreview} alt="preview" className="w-full h-auto object-contain max-h-[75vh]" />
+              </div>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Expanded Details */}
       {isExpanded && !isStaffViewingCompleted && (

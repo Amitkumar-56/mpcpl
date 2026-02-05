@@ -3,9 +3,11 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSession } from '@/context/SessionContext';
 
 export default function AddUser() {
+  const { user } = useSession();
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -26,6 +28,11 @@ export default function AddUser() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!user || !user.id) {
+      setError('User not authenticated. Please login again.');
+      return;
+    }
     
     if (!formData.name || !formData.email || !formData.phone || !formData.password) {
       setError('All fields are required');
@@ -56,12 +63,18 @@ export default function AddUser() {
       setLoading(true);
       setError('');
 
+      // Include logged-in customer's ID
+      const requestData = {
+        ...formData,
+        customerId: user.id  // Send logged-in customer's ID
+      };
+
       const response = await fetch('/api/cst/add-user', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(requestData),
       });
 
       const data = await response.json();

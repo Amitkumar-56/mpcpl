@@ -330,142 +330,141 @@ function ClientHistoryContent() {
     );
   };
 
-  // Mobile Card View
+  // Mobile Card View (compact + expandable details)
   const TransactionCard = ({ transaction }) => {
     const statusInfo = getEnhancedTransactionStatus(transaction);
     const isEdited = transaction.trans_type?.toLowerCase() === 'edited';
+    const [showDetails, setShowDetails] = useState(false);
 
     return (
       <div className={`bg-white rounded-lg shadow-sm border p-4 mb-3 hover:shadow-md transition-shadow ${isEdited ? 'border-l-4 border-purple-500 bg-purple-50' : ''}`}>
-        <div className="grid grid-cols-2 gap-3 text-sm">
-          <div>
-            <p className="text-gray-500 text-xs font-medium">ID</p>
-            <p className="font-medium">{transaction.id}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Station</p>
-            <p className="font-medium truncate">
-              {transaction.station_name || "N/A"}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Completed Date</p>
-            <p className="font-medium">
-              {formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Product</p>
-            <p className="font-medium">{transaction.pname || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Vehicle #</p>
-            <p className="font-medium">{transaction.vehicle_number || "N/A"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Trans Type</p>
-            <TransactionTypeBadge type={transaction.trans_type} />
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Loading Qty</p>
-            <p className="font-medium">{transaction.filling_qty || "0"}</p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Amount</p>
-            <p className="font-bold text-blue-600">
-              ₹{formatCurrency(transaction.amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Credit</p>
-            <p className="font-bold text-green-600">
-              ₹{formatCurrency(transaction.credit)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Credit Date</p>
-            <p className="font-medium">
-              {formatDate(transaction.credit_date)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Outstanding</p>
-            <p className="font-bold">
-              ₹{formatCurrency(transaction.new_amount)}
-            </p>
-          </div>
-          
-          {/* ALL Customers - Show Remaining Limit, in_amount, d_amount, limit_type */}
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Remaining Limit</p>
-            <p className={`font-medium ${transaction.remaining_limit < 0 ? 'text-red-600' : 'text-gray-900'}`}>
-              ₹{formatCurrency(transaction.remaining_limit)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Increase Amount</p>
-            <p className="font-bold text-green-600">
-              ₹{formatCurrency(transaction.in_amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Decrease Amount</p>
-            <p className="font-bold text-red-600">
-              ₹{formatCurrency(transaction.d_amount)}
-            </p>
-          </div>
-          <div>
-            <p className="text-gray-500 text-xs font-medium">Limit Type</p>
-            <p className="font-medium">
-              {transaction.limit_type || "N/A"}
-            </p>
-          </div>
-          
-          {/* Day Limit Customers - Show Day Limit Fields */}
-          {isDayLimitCustomer && (
-            <>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+          {/* Compact top area */}
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
               <div>
-                <p className="text-gray-500 text-xs font-medium">Day Limit</p>
-                <p className="font-medium">
-                  {customerBalanceInfo?.day_limit || "N/A"}
-                </p>
+                <p className="text-gray-500 text-xs font-medium">ID</p>
+                <p className="font-medium">{transaction.id}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-xs font-medium">Amount</p>
+                <p className="font-bold text-blue-600">₹{formatCurrency(transaction.amount)}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="min-w-0">
+                <p className="text-gray-500 text-xs font-medium">Station</p>
+                <p className="font-medium truncate">{transaction.station_name || "N/A"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-xs font-medium">Outstanding</p>
+                <p className="font-bold">₹{formatCurrency(transaction.new_amount)}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-xs font-medium">Product</p>
+                <p className="font-medium truncate">{transaction.pname || "N/A"}</p>
               </div>
               <div>
-                <p className="text-gray-500 text-xs font-medium">Final Remaining</p>
-                <p className="font-medium">
-                  {transaction.remaining_day_limit || "N/A"}
-                </p>
+                <p className="text-gray-500 text-xs font-medium">Vehicle #</p>
+                <p className="font-medium">{transaction.vehicle_number || "N/A"}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Secondary area */}
+          <div className="flex flex-col space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-xs font-medium">Completed Date</p>
+                <p className="font-medium">{formatDateTime(transaction.completed_date || transaction.filling_date || transaction.credit_date)}</p>
               </div>
               <div>
-                <p className="text-gray-500 text-xs font-medium">Due Days</p>
-                <p className="font-medium">
-                  {(() => {
-                    const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
-                    const currentDate = new Date();
-                    currentDate.setHours(0, 0, 0, 0);
-                    transactionDate.setHours(0, 0, 0, 0);
-                    const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
-                    return daysDifference;
-                  })()}
-                </p>
+                <p className="text-gray-500 text-xs font-medium">Trans Type</p>
+                <TransactionTypeBadge type={transaction.trans_type} />
               </div>
-            </>
-          )}
-          
-          {/* Status - Show only for day_limit customers */}
-          {isDayLimitCustomer && statusInfo && (
-            <div className="col-span-2">
-              <p className="text-gray-500 text-xs font-medium">Status</p>
-              <EnhancedPaymentStatusBadge statusInfo={statusInfo} />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-gray-500 text-xs font-medium">Loading Qty</p>
+                <p className="font-medium">{transaction.filling_qty || "0"}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-gray-500 text-xs font-medium">Credit</p>
+                <p className="font-bold text-green-600">₹{formatCurrency(transaction.credit)}</p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <button onClick={() => setShowDetails(s => !s)} className="text-sm text-blue-600 hover:underline self-end">
+                {showDetails ? 'Hide details' : 'Show details'}
+              </button>
+            </div>
+          </div>
+
+          {/* Expandable details */}
+          {showDetails && (
+            <div className="col-span-1 sm:col-span-2 mt-3 space-y-2">
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-gray-500 text-xs font-medium">Remaining Limit</p>
+                  <p className={`font-medium ${transaction.remaining_limit < 0 ? 'text-red-600' : 'text-gray-900'}`}>₹{formatCurrency(transaction.remaining_limit)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs font-medium">Increase Amount</p>
+                  <p className="font-bold text-green-600">₹{formatCurrency(transaction.in_amount)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs font-medium">Decrease Amount</p>
+                  <p className="font-bold text-red-600">₹{formatCurrency(transaction.d_amount)}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500 text-xs font-medium">Limit Type</p>
+                  <p className="font-medium">{transaction.limit_type || 'N/A'}</p>
+                </div>
+
+                {isDayLimitCustomer && (
+                  <>
+                    <div>
+                      <p className="text-gray-500 text-xs font-medium">Day Limit</p>
+                      <p className="font-medium">{customerBalanceInfo?.day_limit || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs font-medium">Final Remaining</p>
+                      <p className="font-medium">{transaction.remaining_day_limit || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-gray-500 text-xs font-medium">Due Days</p>
+                      <p className="font-medium">{(() => {
+                        const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
+                        const currentDate = new Date();
+                        currentDate.setHours(0, 0, 0, 0);
+                        transactionDate.setHours(0, 0, 0, 0);
+                        const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
+                        return daysDifference;
+                      })()}</p>
+                    </div>
+                  </>
+                )}
+
+                {isDayLimitCustomer && statusInfo && (
+                  <div className="col-span-2">
+                    <p className="text-gray-500 text-xs font-medium">Status</p>
+                    <EnhancedPaymentStatusBadge statusInfo={statusInfo} />
+                  </div>
+                )}
+
+                <div className="col-span-2">
+                  <p className="text-gray-500 text-xs font-medium">Updated By</p>
+                  <p className="font-medium">{transaction.updated_by_name || 'Unknown'}</p>
+                </div>
+              </div>
             </div>
           )}
-          
-          <div className="col-span-2">
-            <p className="text-gray-500 text-xs font-medium">Updated By</p>
-            <p className="font-medium">
-              {transaction.updated_by_name || "Unknown"}
-            </p>
-          </div>
         </div>
       </div>
     );
@@ -495,7 +494,7 @@ function ClientHistoryContent() {
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center py-6">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center py-6 gap-4">
             <div className="flex items-center space-x-4">
               <button
                 onClick={() => router.back()}

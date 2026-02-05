@@ -32,43 +32,62 @@ export async function GET() {
       ORDER BY fs_id, product
     `);
 
-    // Merge data based on fs_id and product
+    // Merge data based on fs_id and product (defensive, with logging)
     const mergedData = {};
 
-    stockResult.forEach(row => {
-      const { fs_id, product, stock } = row;
+    if (!Array.isArray(stockResult)) {
+      console.error('Unexpected stockResult:', stockResult);
+      return NextResponse.json({ success: false, error: 'Unexpected stock data format from DB' }, { status: 500 });
+    }
 
-      // Initialize the station if it doesn't exist
-      if (!mergedData[fs_id]) {
-        mergedData[fs_id] = {
-          station_id: fs_id,
-          station_name: fillingStations[fs_id] || 'Unknown Station',
-          industrial_oil_40: 0,
-          industrial_oil_60: 0,
-          def_loose: 0,
-          def_bucket: 0,
-        };
-      }
+    try {
+      stockResult.forEach((row, idx) => {
+        // Support alternate column names and guard against nulls
+        const fs_id = row.fs_id ?? row.station_id ?? null;
+        const product = row.product ?? row.product_id ?? null;
+        const stockNum = Number(row.stock) || 0;
 
-      // Add stock based on product type with new mappings
-      switch (parseInt(product)) {
-        case 2: // Industrial Oil 40
-          mergedData[fs_id].industrial_oil_40 += parseInt(stock);
-          break;
-        case 3: // Industrial Oil 60
-          mergedData[fs_id].industrial_oil_60 += parseInt(stock);
-          break;
-        case 4: // DEF Loose
-          mergedData[fs_id].def_loose += parseInt(stock);
-          break;
-        case 5: // DEF Bucket
-          mergedData[fs_id].def_bucket += parseInt(stock);
-          break;
-        default:
-          console.log(`Unmapped product ID: ${product}`);
-          break;
-      }
-    });
+        if (!fs_id || product === null || product === undefined) {
+          console.warn('Skipping invalid stock row at index', idx, row);
+          return; // skip this row
+        }
+
+        // Initialize station entry
+        if (!mergedData[fs_id]) {
+          mergedData[fs_id] = {
+            station_id: fs_id,
+            station_name: fillingStations[fs_id] || 'Unknown Station',
+            industrial_oil_40: 0,
+            industrial_oil_60: 0,
+            def_loose: 0,
+            def_bucket: 0,
+          };
+        }
+
+        // Sum into correct product bucket
+        switch (Number(product)) {
+          case 2: // Industrial Oil 40
+            mergedData[fs_id].industrial_oil_40 += stockNum;
+            break;
+          case 3: // Industrial Oil 60
+            mergedData[fs_id].industrial_oil_60 += stockNum;
+            break;
+          case 4: // DEF Loose
+            mergedData[fs_id].def_loose += stockNum;
+            break;
+          case 5: // DEF Bucket
+            mergedData[fs_id].def_bucket += stockNum;
+            break;
+          default:
+            // Log unmapped product to help debugging but do not fail
+            console.warn('Unmapped product ID in stock row:', { index: idx, product, row });
+            break;
+        }
+      });
+    } catch (err) {
+      console.error('Error processing stockResult:', err);
+      return NextResponse.json({ success: false, error: 'Failed to process stock data: ' + err.message }, { status: 500 });
+    }
 
     return NextResponse.json({
       success: true,

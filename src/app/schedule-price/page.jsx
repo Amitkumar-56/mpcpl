@@ -1,9 +1,9 @@
 //src/app/schedule-price/page.jsx
 "use client";
 
-import Footer from "components/Footer";
-import Header from "components/Header";
-import Sidebar from "components/sidebar";
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
 import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";

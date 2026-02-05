@@ -112,10 +112,10 @@ export default function Sidebar({ user: propUser }) {
 
   return (
     <>
-      {/* Mobile toggle button - Left side for left sidebar */}
+      {/* Mobile toggle button - move to top-right for consistency with header */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="md:hidden fixed top-4 left-4 z-50 p-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
+        className="md:hidden fixed top-4 right-4 z-50 p-3 bg-blue-600 text-white rounded-lg shadow-lg hover:bg-blue-700 transition-colors"
         aria-label="Toggle menu"
       >
         {isOpen ? <FaTimes /> : <FaBars />}
@@ -129,10 +129,10 @@ export default function Sidebar({ user: propUser }) {
         />
       )}
 
-      {/* Sidebar - Left-side on mobile */}
+      {/* Sidebar - slide in from right on mobile */}
       <aside
-        className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${isOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 transition-transform duration-300 left-0`}
+        className={`fixed md:relative z-50 w-64 h-screen bg-blue-200 text-black flex flex-col transform ${isOpen ? "translate-x-0" : "translate-x-full"
+          } md:translate-x-0 transition-transform duration-300 right-0`}
       >
         <div className="p-4 border-b border-gray-300 flex justify-between items-center">
           <div>

@@ -47,11 +47,11 @@ export async function GET(request) {
       )
     `);
 
-    // Ensure all params are defined
-    const safeParams = [...params, Number(limit)];
-    
-    const rows = await executeQuery(
-      `
+    // Ensure all params are defined and normalize undefined to null
+    const safeParams = [...params, Number(limit)].map(p => p === undefined ? null : p);
+
+    // Build the final query and validate placeholder count before execution
+    const query = `
         SELECT 
           id,
           driver_name,
@@ -67,9 +67,21 @@ export async function GET(request) {
         ${whereClause}
         ORDER BY collected_date DESC, id DESC
         LIMIT ?
-      `,
-      safeParams
-    );
+      `;
+
+    // Defensive check: ensure the number of '?' placeholders matches params length
+    const placeholderCount = (query.match(/\?/g) || []).length;
+    if (placeholderCount !== safeParams.length) {
+      console.error('❌ SQL placeholder count mismatch in /api/driver-cash-history', {
+        placeholderCount,
+        paramsLength: safeParams.length,
+        whereClause,
+        params: safeParams,
+      });
+      throw new Error(`SQL parameter count mismatch: expected ${placeholderCount} params but got ${safeParams.length}`);
+    }
+
+    const rows = await executeQuery(query, safeParams);
 
     return NextResponse.json({ success: true, rows });
   } catch (error) {

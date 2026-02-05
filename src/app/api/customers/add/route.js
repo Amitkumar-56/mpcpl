@@ -50,15 +50,15 @@ export async function POST(req) {
             (name, phone, email, password, roleid, billing_type,
              address, city, region, country, postbox,
              gst_name, gst_number, product, blocklocation,
-             day_limit, auth_token, amtlimit, client_type)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             day_limit, auth_token, amtlimit, client_type, com_id)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         const custParams = [
           client_name, phone, email, password, role || null, billing_type || null,
           address, city, region, country, postbox,
           gst_name, gst_number, product, blocklocation,
-          day_limit || 0, auth_token, amtlimit, client_type
+          day_limit || 0, auth_token, amtlimit, client_type, null
         ];
         console.log('Inserting customer with params:', custParams.map(p => (typeof p === 'string' && p.length>100 ? p.slice(0,100)+'...' : p)));
         let custRes;
@@ -70,6 +70,9 @@ export async function POST(req) {
         }
 
         const createdId = custRes.insertId;
+
+        // Update com_id to self-reference (customer ki id hi uski com_id hogi)
+        await conn.execute('UPDATE customers SET com_id = ? WHERE id = ?', [createdId, createdId]);
 
         // Insert customer balance
         const insertBalanceQuery = `

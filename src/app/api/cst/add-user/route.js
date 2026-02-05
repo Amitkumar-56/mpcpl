@@ -11,9 +11,11 @@ async function getLoggedInUserId(request) {
       return parseInt(userIdFromHeader);
     }
 
-    // Temporary: Development के लिए
-    console.log('⚠️ Using default user ID 1 for development');
-    return 1;
+    // Get from session storage for customer login
+    // For now, return the logged-in customer's ID directly
+    // In production, this should come from proper authentication
+    console.log('⚠️ Using customer session - implement proper auth in production');
+    return null; // We'll handle this in the main function
 
   } catch (error) {
     console.error('❌ Error getting user ID:', error);
@@ -29,7 +31,7 @@ export async function POST(request) {
     const body = await request.json();
     console.log('📦 Request body received:', body);
 
-    const { name, email, phone, password } = body;
+    const { name, email, phone, password, customerId } = body;
 
     if (!name || !email || !phone || !password) {
       console.log('❌ Missing fields:', { name, email, phone, password });
@@ -39,16 +41,38 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // Get logged-in user ID
-    const loggedInUserId = await getLoggedInUserId(request);
-    console.log('👤 Logged in user ID:', loggedInUserId);
+    // Get logged-in customer ID - use customerId from request or get from auth
+    let loggedInUserId = customerId;
     
+    // If not in request body, try to get from auth headers
     if (!loggedInUserId) {
+      loggedInUserId = await getLoggedInUserId(request);
+    }
+    
+    // If still null, try to get from session/customer token
+    if (!loggedInUserId) {
+      const authHeader = request.headers.get('authorization');
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        // Here you should decode the token to get customer ID
+        // For now, we'll use a fallback
+        console.log('� Found auth token, but token decoding not implemented');
+      }
+      
+      // Last resort - check if there's a customer session
+      // This should come from proper session management
+      console.log('⚠️ No customer ID found - implement proper session management');
       return NextResponse.json({ 
         success: false,
-        error: 'User not authenticated' 
+        error: 'Customer authentication required' 
       }, { status: 401 });
     }
+
+    console.log('👤 Logged in customer ID:', loggedInUserId);
+    
+    // Use logged-in customer's ID as com_id for new user
+    const customerComId = loggedInUserId;
+    console.log('🏢 Using customer ID as com_id for new user:', customerComId);
 
     const roleid = 2;
 
@@ -101,7 +125,7 @@ export async function POST(request) {
       email,          // email
       phone,          // phone
       hashedPassword, // password (hashed)
-      loggedInUserId, // com_id
+      customerComId,  // com_id (from logged-in customer)
       roleid,         // roleid
       1               // status (active by default)
     ]);
@@ -129,58 +153,37 @@ export async function GET(request) {
   
   try {
     const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    console.log('📋 Query parameters:', { id });
+    const comId = searchParams.get('com_id');
     
-    // Get logged-in user ID
-    const loggedInUserId = await getLoggedInUserId(request);
-    console.log('👤 Logged in user ID:', loggedInUserId);
+    console.log('📋 Query parameters - com_id:', comId);
     
-    if (!loggedInUserId) {
+    if (!comId) {
       return NextResponse.json({ 
         success: false,
-        error: 'User not authenticated' 
-      }, { status: 401 });
+        error: 'com_id parameter आवश्यक है' 
+      }, { status: 400 });
     }
     
-    if (id) {
-      // Single user fetch
-      console.log('🔍 Fetching single user with ID:', id);
-      const customerQuery = 'SELECT id, name, email, phone, status FROM customers WHERE id = ? AND com_id = ?';
-      const customer = await executeQuery(customerQuery, [id, loggedInUserId]);
-      
-      console.log('👤 Single user result:', customer);
-      
-      if (customer.length === 0) {
-        return NextResponse.json({ 
-          success: false,
-          error: 'User not found' 
-        }, { status: 404 });
-      }
-      
-      return NextResponse.json({ 
-        success: true,
-        customer: customer[0] 
-      });
-    }
+    // सिर्फ com_id के आधार पर सभी users fetch करें
+    console.log(`🔍 Fetching all users for com_id: ${comId}`);
     
-    // All users fetch - ONLY EXISTING COLUMNS
-    console.log('🔍 Fetching all users for com_id:', loggedInUserId);
-    const customersQuery = 'SELECT id, name, email, phone, status FROM customers WHERE com_id = ? AND roleid = 2';
-    const customers = await executeQuery(customersQuery, [loggedInUserId]);
+    const customersQuery = 'SELECT * FROM customers WHERE com_id = ? ORDER BY id DESC';
+    const customers = await executeQuery(customersQuery, [comId]);
 
-    console.log('👥 All users result count:', customers.length);
+    console.log('👥 Users found:', customers.length);
 
     return NextResponse.json({ 
       success: true,
-      customers: customers || []
+      customers: customers || [],
+      totalCount: customers.length,
+      comId: comId
     });
 
   } catch (error) {
     console.error('❌ Error in GET /api/cst/add-user:', error);
     return NextResponse.json({ 
       success: false,
-      error: error.message || 'Internal server error' 
+      error: error.message || 'आंतरिक सर्वर त्रुटि' 
     }, { status: 500 });
   }
 }
@@ -206,9 +209,22 @@ export async function PUT(request) {
       }, { status: 401 });
     }
 
-    // Check if target user belongs to current user
+    // Get logged-in customer's com_id
+    const customerQuery = 'SELECT com_id FROM customers WHERE id = ?';
+    const customerResult = await executeQuery(customerQuery, [loggedInUserId]);
+    
+    if (customerResult.length === 0) {
+      return NextResponse.json({ 
+        success: false,
+        error: 'Customer not found' 
+      }, { status: 404 });
+    }
+    
+    const customerComId = customerResult[0].com_id;
+
+    // Check if target user belongs to current user's company
     const targetUserQuery = 'SELECT id FROM customers WHERE id = ? AND com_id = ?';
-    const targetUser = await executeQuery(targetUserQuery, [id, loggedInUserId]);
+    const targetUser = await executeQuery(targetUserQuery, [id, customerComId]);
 
     if (targetUser.length === 0) {
       return NextResponse.json({ 
@@ -252,14 +268,14 @@ export async function PUT(request) {
         SET name = ?, email = ?, phone = ?, password = ?
         WHERE id = ? AND com_id = ?
       `;
-      params = [name, email, phone, hashedPassword, id, loggedInUserId];
+      params = [name, email, phone, hashedPassword, id, customerComId];
     } else {
       updateQuery = `
         UPDATE customers 
         SET name = ?, email = ?, phone = ?
         WHERE id = ? AND com_id = ?
       `;
-      params = [name, email, phone, id, loggedInUserId];
+      params = [name, email, phone, id, customerComId];
     }
     
     await executeQuery(updateQuery, params);
@@ -278,4 +294,4 @@ export async function PUT(request) {
   }
 }
 
-// ✅ DELETE functionality removed - users cannot be deleted
+

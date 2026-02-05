@@ -2,7 +2,7 @@
 
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { FaBars, FaBell, FaCog, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
+import { FaBars, FaBell, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 
 export default function CstHeader({ user: propUser }) {
   const [user, setUser] = useState(propUser || null);
@@ -193,12 +193,7 @@ export default function CstHeader({ user: propUser }) {
           </div>
           
           <div className="flex flex-col mt-4 gap-2 px-4 py-2">
-            <button
-              onClick={() => { router.push('/roles'); setShowSidebar(false); }}
-              className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"
-            >
-              <FaCog className="text-gray-500" /> Role Setting
-            </button>
+
             <button
               onClick={() => { router.push('/cst/cstprofile'); setShowSidebar(false); }}
               className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"

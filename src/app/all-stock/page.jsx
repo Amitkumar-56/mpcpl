@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Suspense, useEffect, useState, useCallback, useRef } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 // Loading component for Suspense fallback
 function AllStockLoading() {
@@ -520,17 +520,37 @@ function AllStockContent() {
 
       if (result.success) {
         const actionText = operationType === 'minus' ? 'deducted' : 'added';
+
+        // Optimistically update local state so UI reflects change immediately
+        const qtyNum = parseInt(quantity) || 0;
+        const keyMap = {
+          2: 'industrial_oil_40',
+          3: 'industrial_oil_60',
+          4: 'def_loose',
+          5: 'def_bucket'
+        };
+        const key = keyMap[selectedProduct];
+
+        if (key) {
+          setStockData(prev => prev.map(s => {
+            if (s.station_id !== selectedStation.station_id) return s;
+            const cur = parseInt(s[key] || 0);
+            const updated = operationType === 'minus' ? Math.max(0, cur - qtyNum) : cur + qtyNum;
+            return { ...s, [key]: updated };
+          }));
+        }
+
         setSuccessMessage(`Stock ${actionText} successfully! ${quantity} units of ${getProductName(selectedProduct)} ${actionText} ${operationType === 'minus' ? 'from' : 'to'} ${selectedStation.station_name}`);
         setShowConfirmModal(false);
         setShowAddModal(false);
-        
-        // Refresh data after short delay (only if component is still mounted)
+
+        // Still refresh data from server after a short delay to ensure consistency
         setTimeout(() => {
           if (isMountedRef.current && !fetchingRef.current) {
             fetchStockData();
           }
         }, 1000);
-        
+
       } else {
         alert(result.error || `Failed to ${operationType === 'minus' ? 'deduct' : 'add'} stock`);
       }
