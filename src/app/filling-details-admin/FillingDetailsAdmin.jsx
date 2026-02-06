@@ -122,10 +122,11 @@ export default function FillingDetailsAdmin() {
   };
   const normalizeDocUrl = (url) => {
     if (!url || typeof url !== 'string') return '';
-    let u = url.replace(/\\/g, '/');
+    let u = url.replace(/\\/g, '/').trim();
     if (u.startsWith('http://') || u.startsWith('https://')) return u;
     if (u.startsWith('/')) return u;
     if (u.startsWith('public/')) return '/' + u.substring(7);
+    if (!u.startsWith('/')) return '/uploads/filling-requests/' + u.split('/').pop();
     return '/' + u;
   };
 
@@ -364,14 +365,25 @@ export default function FillingDetailsAdmin() {
       });
 
       console.log('📨 Submit response status:', response.status);
+      console.log('📨 Submit response headers:', response.headers.get('content-type'));
 
       let result;
       try {
-        result = await response.json();
+        const text = await response.text();
+        console.log('📨 Raw response text:', text.substring(0, 500));
+        
+        if (!text || text.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        
+        result = JSON.parse(text);
       } catch (parseErr) {
-        const text = await response.text().catch(() => '<<unreadable response>>');
-        console.error('❌ Failed to parse JSON from /api/filling-details-admin POST (submit):', parseErr, text);
-        result = { success: false, error: 'Invalid JSON response from server', raw: text };
+        console.error('❌ Failed to parse JSON from /api/filling-details-admin POST (submit):', parseErr);
+        // Provide more helpful error message
+        const message = parseErr.message.includes('Empty response') 
+          ? 'Server returned empty response. Please check server logs.'
+          : 'Invalid response format from server. Please try again.';
+        result = { success: false, error: message };
       }
       console.log('✅ Submit result:', result);
 
@@ -484,11 +496,20 @@ export default function FillingDetailsAdmin() {
 
       let result;
       try {
-        result = await response.json();
+        const text = await response.text();
+        console.log('📨 Raw response text:', text.substring(0, 500));
+        
+        if (!text || text.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        
+        result = JSON.parse(text);
       } catch (parseErr) {
-        const text = await response.text().catch(() => '<<unreadable response>>');
-        console.error('❌ Failed to parse JSON from /api/filling-details-admin POST (cancel):', parseErr, text);
-        result = { success: false, error: 'Invalid JSON response from server', raw: text };
+        console.error('❌ Failed to parse JSON from /api/filling-details-admin POST (cancel):', parseErr);
+        const message = parseErr.message.includes('Empty response') 
+          ? 'Server returned empty response. Please check server logs.'
+          : 'Invalid response format from server. Please try again.';
+        result = { success: false, error: message };
       }
       console.log('✅ Cancel API response:', result);
 
@@ -1047,12 +1068,16 @@ export default function FillingDetailsAdmin() {
                                             className="block"
                                             aria-label={`Preview Document ${docNum}`}
                                           >
-                                            <div className="w-32 h-32 mx-auto">
+                                            <div className="w-32 h-32 mx-auto md:w-40 md:h-40 lg:w-48 lg:h-48">
                                               <img
                                                 src={url}
                                                 alt={`Document ${docNum}`}
                                                 className="w-full h-full object-cover rounded-lg border-2 border-gray-300 bg-white"
-                                                onError={() => setBrokenImages(prev => ({ ...prev, [`doc${docNum}`]: true }))}
+                                                onError={() => {
+                                                  console.error('❌ Image failed to load:', url);
+                                                  setBrokenImages(prev => ({ ...prev, [`doc${docNum}`]: true }));
+                                                }}
+                                                onLoad={() => console.log('✅ Image loaded:', url)}
                                               />
                                             </div>
                                           </button>
@@ -1066,8 +1091,8 @@ export default function FillingDetailsAdmin() {
                                           className="block group"
                                           aria-label={`Open Document ${docNum}`}
                                         >
-                                          <div className="w-32 h-32 border-2 border-gray-300 rounded-lg flex items-center justify-center mx-auto bg-gray-50">
-                                            <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <div className="w-32 h-32 md:w-40 md:h-40 lg:w-48 lg:h-48 border-2 border-gray-300 rounded-lg flex items-center justify-center mx-auto bg-gray-50">
+                                            <svg className="w-12 h-12 md:w-16 md:h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 10h4.764a2 2 0 011.789 2.894l-3.5 7A2 2 0 0115.263 21h-4.017c-.163 0-.326-.02-.485-.06L7 20m7-10V5a2 2 0 00-2-2h-.095c-.5 0-.905.405-.905.905 0 .714-.211 1.412-.608 2.006L7 11v9m7-10h-2M7 20H5a2 2 0 01-2-2v-6a2 2 0 012-2h2.5" />
                                             </svg>
                                           </div>

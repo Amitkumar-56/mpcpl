@@ -298,8 +298,17 @@ export async function POST(request) {
       console.error('Error getting user info:', userError);
     }
 
-    const formData = await request.formData();
-    console.log('✅ Form data parsed successfully');
+    let formData;
+    try {
+      formData = await request.formData();
+      console.log('✅ Form data parsed successfully');
+    } catch (formErr) {
+      console.error('❌ Error parsing form data:', formErr);
+      return NextResponse.json({
+        success: false,
+        error: 'Failed to parse form data: ' + formErr.message
+      }, { status: 400 });
+    }
 
     // Extract all fields
     const id = formData.get('id');
@@ -524,19 +533,24 @@ export async function POST(request) {
     }
 
     console.log('✅ Update successful:', resultMessage);
-    return NextResponse.json({
+    const successResponse = {
       success: true,
       message: resultMessage,
       status: status
-    });
+    };
+    console.log('📤 Sending response:', successResponse);
+    return NextResponse.json(successResponse);
 
   } catch (error) {
     console.error('❌ POST Error:', error);
+    console.error('❌ Error Stack:', error.stack);
 
-    return NextResponse.json({
+    const errorResponse = {
       success: false,
       error: error.message || 'Internal server error'
-    }, { status: 500 });
+    };
+    console.log('📤 Sending error response:', errorResponse);
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 

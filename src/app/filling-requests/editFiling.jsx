@@ -683,13 +683,16 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
       .filter(Boolean)
       .map(s => {
         if (!s) return s;
-        const str = String(s).trim();
+        const str = String(s).trim().replace(/\\/g, '/');
         // If already an absolute URL, keep it
         if (/^https?:\/\//i.test(str)) return str;
         // If starts with a leading slash, keep as-is
         if (str.startsWith('/')) return str;
-        // Otherwise, assume it's a path under /uploads and add leading slash
-        return str.startsWith('uploads/') ? `/${str}` : `/${str}`;
+        // If starts with uploads/, add leading slash
+        if (str.startsWith('uploads/')) return `/${str}`;
+        // Otherwise, extract filename and assume it's in uploads/filling-requests
+        const filename = str.split('/').pop();
+        return `/uploads/filling-requests/${filename}`;
       });
 
     return normalized;
@@ -711,14 +714,35 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
               <button
                 key={idx}
                 onClick={() => setImagePreview(src)}
-                className="w-10 h-10 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+                className="w-12 h-12 rounded overflow-hidden border border-gray-200 hover:ring-2 hover:ring-blue-500 transition-all flex-shrink-0"
                 aria-label="Preview image"
+                title="Click to preview"
               >
-                <img src={src} alt="doc" className="w-full h-full object-cover" />
+                <img 
+                  src={src} 
+                  alt={`doc ${idx + 1}`} 
+                  className="w-full h-full object-cover bg-gray-100"
+                  onError={(e) => {
+                    console.warn('⚠️ Desktop image failed to load:', src);
+                    // Show a placeholder image icon instead of breaking
+                    e.target.style.display = 'none';
+                    const parent = e.target.parentElement;
+                    if (parent && !parent.querySelector('.image-placeholder')) {
+                      const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                      svg.setAttribute('class', 'image-placeholder w-full h-full text-gray-300 bg-gray-50 p-1');
+                      svg.setAttribute('fill', 'none');
+                      svg.setAttribute('viewBox', '0 0 24 24');
+                      svg.setAttribute('stroke', 'currentColor');
+                      svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />';
+                      parent.appendChild(svg);
+                    }
+                  }}
+                  onLoad={() => console.log('✅ Image loaded:', src)}
+                />
               </button>
             ))}
             {getRequestImages().length === 0 && (
-              <span className="text-xs text-gray-500">No images</span>
+              <span className="text-xs text-gray-400">No images</span>
             )}
           </div>
         </td>
@@ -961,7 +985,24 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
       if (request.doc2) imgs.push(request.doc2);
       if (request.doc3) imgs.push(request.doc3);
     }
-    return imgs.filter(Boolean);
+    // Normalize URLs: ensure leading slash for local uploads, preserve absolute URLs
+    const normalized = imgs
+      .filter(Boolean)
+      .map(s => {
+        if (!s) return s;
+        const str = String(s).trim().replace(/\\/g, '/');
+        // If already an absolute URL, keep it
+        if (/^https?:\/\//i.test(str)) return str;
+        // If starts with a leading slash, keep as-is
+        if (str.startsWith('/')) return str;
+        // If starts with uploads/, add leading slash
+        if (str.startsWith('uploads/')) return `/${str}`;
+        // Otherwise, extract filename and assume it's in uploads/filling-requests
+        const filename = str.split('/').pop();
+        return `/uploads/filling-requests/${filename}`;
+      });
+
+    return normalized;
   };
 
   return (
@@ -990,14 +1031,35 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
             <button
               key={idx}
               onClick={() => setImagePreview(src)}
-              className="w-8 h-8 rounded overflow-hidden border hover:ring-2 hover:ring-blue-500"
+              className="w-10 h-10 rounded overflow-hidden border border-gray-200 hover:ring-2 hover:ring-blue-500 transition-all flex-shrink-0"
               aria-label="Preview image"
+              title="Click to preview"
             >
-              <img src={src} alt="doc" className="w-full h-full object-cover" />
+              <img 
+                src={src} 
+                alt={`doc ${idx + 1}`} 
+                className="w-full h-full object-cover bg-gray-100"
+                onError={(e) => {
+                  console.warn('⚠️ Mobile image failed to load:', src);
+                  // Show a placeholder image icon instead of breaking
+                  e.target.style.display = 'none';
+                  const parent = e.target.parentElement;
+                  if (parent && !parent.querySelector('.image-placeholder')) {
+                    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    svg.setAttribute('class', 'image-placeholder w-full h-full text-gray-300 bg-gray-50 p-1');
+                    svg.setAttribute('fill', 'none');
+                    svg.setAttribute('viewBox', '0 0 24 24');
+                    svg.setAttribute('stroke', 'currentColor');
+                    svg.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />';
+                    parent.appendChild(svg);
+                  }
+                }}
+                onLoad={() => console.log('✅ Mobile image loaded:', src)}
+              />
             </button>
           ))}
           {getRequestImages().length === 0 && (
-            <span className="text-xs text-gray-500">No images</span>
+            <span className="text-xs text-gray-400">No images</span>
           )}
         </div>
 
