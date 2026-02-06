@@ -1,9 +1,9 @@
-import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { verifyToken } from '@/lib/auth';
 import { createAuditLog } from '@/lib/auditLog';
+import { verifyToken } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
 import { createEntityLog } from '@/lib/entityLogs';
+import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 // GET endpoint for fetching form data
 export async function GET(request) {
@@ -180,7 +180,7 @@ export async function POST(request) {
     const historyQuery = `
       INSERT INTO voucher_history 
       (row_id, user_id, amount, type, created_at) 
-      VALUES (?, ?, ?, 'voucher', NOW())
+      VALUES (?, ?, ?, 1, NOW())
     `;
 
     await executeQuery(historyQuery, [voucherId, parseInt(user_id), total_expense]);
