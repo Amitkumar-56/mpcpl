@@ -60,35 +60,39 @@ function CreateVoucherContent() {
       return;
     }
 
-    // Check cached permissions
-    if (user.permissions && user.permissions['Voucher']) {
-      const voucherPerms = user.permissions['Voucher'];
-      if (voucherPerms.can_create) {
-        setHasPermission(true);
-        setCheckingPermission(false);
-        fetchFormData();
-        return;
-      }
-    }
+      // Check cached permissions (support singular and plural keys)
+      const moduleName = 'Vouchers';
+      const singularKey = 'Voucher';
+      const pluralKey = moduleName;
 
-    // Check cache
-    const cacheKey = `perms_${user.id}_Voucher`;
-    const cached = sessionStorage.getItem(cacheKey);
-    if (cached) {
-      const cachedPerms = JSON.parse(cached);
-      if (cachedPerms.can_create) {
-        setHasPermission(true);
-        setCheckingPermission(false);
-        fetchFormData();
-        return;
+      if (user.permissions) {
+        const voucherPerms = user.permissions[pluralKey] || user.permissions[singularKey];
+        if (voucherPerms && voucherPerms.can_create) {
+          setHasPermission(true);
+          setCheckingPermission(false);
+          fetchFormData();
+          return;
+        }
       }
-    }
 
-    try {
-      const moduleName = 'Voucher';
-      const createRes = await fetch(
-        `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
-      );
+      // Check cache (support both cache key variants)
+      const cacheKeyPlural = `perms_${user.id}_${pluralKey}`;
+      const cacheKeySingular = `perms_${user.id}_${singularKey}`;
+      const cached = sessionStorage.getItem(cacheKeyPlural) || sessionStorage.getItem(cacheKeySingular);
+      if (cached) {
+        const cachedPerms = JSON.parse(cached);
+        if (cachedPerms.can_create) {
+          setHasPermission(true);
+          setCheckingPermission(false);
+          fetchFormData();
+          return;
+        }
+      }
+
+      try {
+        const createRes = await fetch(
+          `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
+        );
       const createData = await createRes.json();
       
       if (createData.allowed) {

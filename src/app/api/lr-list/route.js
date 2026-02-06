@@ -133,10 +133,34 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    // Fetch shipments data with Creator and Editor names from Audit Logs
+    // Fetch shipments data with all fields needed by client export (Creator/Editor names from Audit Logs)
     const shipmentQuery = `
       SELECT 
-        s.id, s.lr_id, s.consigner, s.consignee, s.from_location, s.to_location, s.tanker_no,
+        s.id,
+        s.lr_id,
+        s.lr_date,
+        s.consigner,
+        s.address_1,
+        s.consignee,
+        s.address_2,
+        s.from_location,
+        s.to_location,
+        s.tanker_no,
+        s.gst_no,
+        s.products,
+        s.boe_no,
+        s.wt_type,
+        s.gross_wt,
+        s.vessel,
+        s.tare_wt,
+        s.invoice_no,
+        s.net_wt,
+        s.gp_no,
+        s.mobile,
+        s.email,
+        s.pan,
+        s.gst,
+        s.remarks,
         (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_by_name,
         (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_at,
         (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_by_name,

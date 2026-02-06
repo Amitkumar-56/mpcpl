@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React, { Suspense, useEffect, useState } from 'react';
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
+import * as XLSX from 'xlsx'; // Excel export के लिए
 
 // Component to fetch and display shipment logs
 function ShipmentLogs({ shipmentId }) {
@@ -143,6 +144,7 @@ function LRManagementContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [expandedShipments, setExpandedShipments] = useState({});
+  const [exporting, setExporting] = useState(false);
   const searchParams = useSearchParams();
 
   const toggleShipmentLogs = (shipmentId) => {
@@ -150,6 +152,212 @@ function LRManagementContent() {
       ...prev,
       [shipmentId]: !prev[shipmentId]
     }));
+  };
+
+  // Export to Excel Function
+  const exportToExcel = () => {
+    if (shipments.length === 0) {
+      alert('No data to export');
+      return;
+    }
+
+    setExporting(true);
+    
+    try {
+      // Prepare data for Excel
+      const exportData = shipments.map(shipment => ({
+        'ID': shipment.id,
+        'LR No.': shipment.lr_id,
+        'LR Date': shipment.lr_date || '',
+        'Consigner': shipment.consigner,
+        'Consigner Address': shipment.address_1 || '',
+        'Consignee': shipment.consignee,
+        'Consignee Address': shipment.address_2 || '',
+        'From Location': shipment.from_location,
+        'To Location': shipment.to_location,
+        'Tanker No': shipment.tanker_no,
+        'GST No.': shipment.gst_no || '',
+        'Products': shipment.products || '',
+        'DEN No': shipment.boe_no || '',
+        'Weight Type': shipment.wt_type || '',
+        'Gross Weight': shipment.gross_wt || '',
+        'Seal No.': shipment.vessel || '',
+        'Tare Weight': shipment.tare_wt || '',
+        'Invoice No': shipment.invoice_no || '',
+        'Net Weight': shipment.net_wt || '',
+        'Eway Bill No': shipment.gp_no || '',
+        'Mobile': shipment.mobile || '+91 7311112659',
+        'Email': shipment.email || 'accounts@gyanti.in',
+        'PAN': shipment.pan || 'AAGCG6220R',
+        'GST': shipment.gst || '09AAGCG6220R1Z3',
+        'Remarks': shipment.remarks || '',
+        'Created By': shipment.created_by_name || '',
+        'Created At': shipment.created_at || '',
+        'Updated By': shipment.updated_by_name || '',
+        'Updated At': shipment.updated_at || ''
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Set column widths
+      const wscols = [
+        { wch: 5 },   // ID
+        { wch: 15 },  // LR No.
+        { wch: 12 },  // LR Date
+        { wch: 25 },  // Consigner
+        { wch: 30 },  // Consigner Address
+        { wch: 25 },  // Consignee
+        { wch: 30 },  // Consignee Address
+        { wch: 20 },  // From Location
+        { wch: 20 },  // To Location
+        { wch: 15 },  // Tanker No
+        { wch: 20 },  // GST No.
+        { wch: 30 },  // Products
+        { wch: 15 },  // DEN No
+        { wch: 12 },  // Weight Type
+        { wch: 12 },  // Gross Weight
+        { wch: 15 },  // Seal No.
+        { wch: 12 },  // Tare Weight
+        { wch: 15 },  // Invoice No
+        { wch: 12 },  // Net Weight
+        { wch: 15 },  // Eway Bill No
+        { wch: 20 },  // Mobile
+        { wch: 25 },  // Email
+        { wch: 15 },  // PAN
+        { wch: 20 },  // GST
+        { wch: 30 },  // Remarks
+        { wch: 20 },  // Created By
+        { wch: 20 },  // Created At
+        { wch: 20 },  // Updated By
+        { wch: 20 }   // Updated At
+      ];
+      ws['!cols'] = wscols;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'LR Shipments');
+
+      // Generate filename with current date
+      const date = new Date();
+      const filename = `LR_Shipments_${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Error exporting to Excel: ' + error.message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // Export to Excel with ALL data from API
+  const exportFullDataToExcel = async () => {
+    setExporting(true);
+    
+    try {
+      // Fetch complete data from LR list API
+      const response = await fetch('/api/lr-list', { credentials: 'include', cache: 'no-store' });
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch export data');
+      }
+      
+      const data = await response.json();
+      
+      if (!data.success || !Array.isArray(data.shipments)) {
+        throw new Error('Invalid data format received');
+      }
+
+      // Prepare data for Excel
+      const exportData = data.shipments.map(shipment => ({
+        'ID': shipment.id,
+        'LR No.': shipment.lr_id,
+        'LR Date': shipment.lr_date || '',
+        'Consigner': shipment.consigner,
+        'Consigner Address': shipment.address_1 || '',
+        'Consignee': shipment.consignee,
+        'Consignee Address': shipment.address_2 || '',
+        'From Location': shipment.from_location,
+        'To Location': shipment.to_location,
+        'Tanker No': shipment.tanker_no,
+        'GST No.': shipment.gst_no || '',
+        'Products': shipment.products || '',
+        'DEN No': shipment.boe_no || '',
+        'Weight Type': shipment.wt_type || '',
+        'Gross Weight': shipment.gross_wt || '',
+        'Seal No.': shipment.vessel || '',
+        'Tare Weight': shipment.tare_wt || '',
+        'Invoice No': shipment.invoice_no || '',
+        'Net Weight': shipment.net_wt || '',
+        'Eway Bill No': shipment.gp_no || '',
+        'Mobile': shipment.mobile || '+91 7311112659',
+        'Email': shipment.email || 'accounts@gyanti.in',
+        'PAN': shipment.pan || 'AAGCG6220R',
+        'GST': shipment.gst || '09AAGCG6220R1Z3',
+        'Remarks': shipment.remarks || '',
+        'Created By': shipment.created_by_name || '',
+        'Created At': shipment.created_at || '',
+        'Updated By': shipment.updated_by_name || '',
+        'Updated At': shipment.updated_at || ''
+      }));
+
+      // Create worksheet
+      const ws = XLSX.utils.json_to_sheet(exportData);
+      
+      // Set column widths
+      const wscols = [
+        { wch: 5 },   // ID
+        { wch: 15 },  // LR No.
+        { wch: 12 },  // LR Date
+        { wch: 25 },  // Consigner
+        { wch: 30 },  // Consigner Address
+        { wch: 25 },  // Consignee
+        { wch: 30 },  // Consignee Address
+        { wch: 20 },  // From Location
+        { wch: 20 },  // To Location
+        { wch: 15 },  // Tanker No
+        { wch: 20 },  // GST No.
+        { wch: 30 },  // Products
+        { wch: 15 },  // DEN No
+        { wch: 12 },  // Weight Type
+        { wch: 12 },  // Gross Weight
+        { wch: 15 },  // Seal No.
+        { wch: 12 },  // Tare Weight
+        { wch: 15 },  // Invoice No
+        { wch: 12 },  // Net Weight
+        { wch: 15 },  // Eway Bill No
+        { wch: 20 },  // Mobile
+        { wch: 25 },  // Email
+        { wch: 15 },  // PAN
+        { wch: 20 },  // GST
+        { wch: 30 },  // Remarks
+        { wch: 20 },  // Created By
+        { wch: 20 },  // Created At
+        { wch: 20 },  // Updated By
+        { wch: 20 }   // Updated At
+      ];
+      ws['!cols'] = wscols;
+
+      // Create workbook
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'LR Shipments');
+
+      // Generate filename with current date
+      const date = new Date();
+      const filename = `LR_Shipments_Full_${date.getFullYear()}-${(date.getMonth() + 1).toString().padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')}.xlsx`;
+
+      // Save file
+      XLSX.writeFile(wb, filename);
+      
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('Error exporting to Excel: ' + error.message);
+    } finally {
+      setExporting(false);
+    }
   };
 
   // Check authentication and fetch data
@@ -280,18 +488,44 @@ function LRManagementContent() {
               </div>
             </div>
 
-            {/* 🔥 CREATE LR BUTTON - Show if user has create permission */}
-            {(permissions?.can_create === 1 || permissions?.can_create === true || permissions?.can_create === '1') && (
-              <Link
-                href="/create-lr"
-                className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm"
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row gap-3">
+              {/* EXPORT EXCEL BUTTON */}
+              <button
+                onClick={exportFullDataToExcel}
+                disabled={exporting || shipments.length === 0}
+                className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-                Create New LR
-              </Link>
-            )}
+                {exporting ? (
+                  <>
+                    <svg className="animate-spin w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export Excel
+                  </>
+                )}
+              </button>
+
+              {/* 🔥 CREATE LR BUTTON - Show if user has create permission */}
+              {(permissions?.can_create === 1 || permissions?.can_create === true || permissions?.can_create === '1') && (
+                <Link
+                  href="/create-lr"
+                  className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm"
+                >
+                  <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Create New LR
+                </Link>
+              )}
+            </div>
           </div>
 
           {error && (
@@ -321,16 +555,18 @@ function LRManagementContent() {
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">Shipment List</h2>
-              <button
-                onClick={fetchShipments}
-                className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
-                disabled={loading}
-              >
-                <svg className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh
-              </button>
+              <div className="flex items-center space-x-3">
+                <button
+                  onClick={fetchShipments}
+                  className="text-sm text-blue-600 hover:text-blue-800 flex items-center"
+                  disabled={loading}
+                >
+                  <svg className={`w-4 h-4 mr-1 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Refresh
+                </button>
+              </div>
             </div>
           </div>
 
@@ -382,8 +618,6 @@ function LRManagementContent() {
                                 </Link>
                               </>
                             )}
-
-                            {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -473,7 +707,6 @@ function LRManagementContent() {
                           Edit
                         </Link>
                       )}
-                      {/* DELETE BUTTON REMOVED - Sadece View ve Edit */}
                     </div>
                   </div>
                   <div className="grid grid-cols-2 gap-2 text-sm">

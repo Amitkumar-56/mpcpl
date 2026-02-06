@@ -171,7 +171,14 @@ export default function FillingDetailsAdmin() {
       console.log('🔍 Fetching request details for ID:', id);
 
       const response = await fetch(`/api/filling-details-admin?id=${id}`);
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (parseErr) {
+        const text = await response.text().catch(() => '<<unreadable response>>');
+        console.error('❌ Failed to parse JSON from /api/filling-details-admin GET:', parseErr, text);
+        throw new Error('Invalid JSON response from server: ' + text);
+      }
 
       console.log('📡 Response status:', response.status);
       console.log('✅ API response:', data);
@@ -358,7 +365,14 @@ export default function FillingDetailsAdmin() {
 
       console.log('📨 Submit response status:', response.status);
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        const text = await response.text().catch(() => '<<unreadable response>>');
+        console.error('❌ Failed to parse JSON from /api/filling-details-admin POST (submit):', parseErr, text);
+        result = { success: false, error: 'Invalid JSON response from server', raw: text };
+      }
       console.log('✅ Submit result:', result);
 
       if (result.success) {
@@ -468,7 +482,14 @@ export default function FillingDetailsAdmin() {
         body: submitData
       });
 
-      const result = await response.json();
+      let result;
+      try {
+        result = await response.json();
+      } catch (parseErr) {
+        const text = await response.text().catch(() => '<<unreadable response>>');
+        console.error('❌ Failed to parse JSON from /api/filling-details-admin POST (cancel):', parseErr, text);
+        result = { success: false, error: 'Invalid JSON response from server', raw: text };
+      }
       console.log('✅ Cancel API response:', result);
 
       if (result.success) {

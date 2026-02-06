@@ -678,7 +678,21 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
       if (request.doc2) imgs.push(request.doc2);
       if (request.doc3) imgs.push(request.doc3);
     }
-    return imgs.filter(Boolean);
+    // Normalize URLs: ensure leading slash for local uploads, preserve absolute URLs
+    const normalized = imgs
+      .filter(Boolean)
+      .map(s => {
+        if (!s) return s;
+        const str = String(s).trim();
+        // If already an absolute URL, keep it
+        if (/^https?:\/\//i.test(str)) return str;
+        // If starts with a leading slash, keep as-is
+        if (str.startsWith('/')) return str;
+        // Otherwise, assume it's a path under /uploads and add leading slash
+        return str.startsWith('uploads/') ? `/${str}` : `/${str}`;
+      });
+
+    return normalized;
   };
 
   return (
