@@ -53,7 +53,7 @@ function OldFillingHistoryContent() {
       console.log('🆔 User ID:', userData.id);
 
       // Fetch from old filling history API
-      const response = await fetch(`/api/old-filling-history?email=${encodeURIComponent(userData.email)}&page=${currentPage}&search=${encodeURIComponent(searchTerm)}`, {
+      const response = await fetch(`/api/cst/old-filling-history?email=${encodeURIComponent(userData.email)}&page=${currentPage}&search=${encodeURIComponent(searchTerm)}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',

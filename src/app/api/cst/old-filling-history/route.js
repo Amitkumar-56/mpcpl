@@ -142,12 +142,11 @@ export async function GET(request) {
           p.pname LIKE ? OR 
           ofh.amount LIKE ? OR 
           DATE(ofh.filling_date) LIKE ? OR
-          ofh.vehicle_number LIKE ? OR
           ofh.trans_type LIKE ? OR
           fs.station_name LIKE ?
         )`;
         const searchPattern = `%${search}%`;
-        queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+        queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
       }
       
       oldHistoryQuery += ` ORDER BY ofh.filling_date DESC LIMIT ? OFFSET ?`;
