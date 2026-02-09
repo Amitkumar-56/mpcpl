@@ -155,8 +155,66 @@ export async function GET(request) {
       console.log('📋 Final Query:', oldHistoryQuery);
       console.log('📋 Query Params:', queryParams);
       
-      oldHistory = await executeQuery(oldHistoryQuery, queryParams);
-      console.log('✅ Old filling history records:', oldHistory.length);
+      // Add server debugging
+      console.log('🔍 Server Debug: Checking table structure...');
+      try {
+        const tableStructure = await executeQuery(`DESCRIBE old_filling_history`);
+        console.log('📋 Server old_filling_history columns:', tableStructure.map(col => col.Field));
+      } catch (structError) {
+        console.log('❌ Could not get table structure:', structError.message);
+      }
+      
+      try {
+        oldHistory = await executeQuery(oldHistoryQuery, queryParams);
+        console.log('✅ Old filling history records:', oldHistory.length);
+      } catch (queryError) {
+        console.error('❌ Query failed on server:', queryError.message);
+        console.error('❌ SQL State:', queryError.sqlState);
+        console.error('❌ SQL Error:', queryError.sqlMessage);
+        
+        // Try with just basic columns to see what works
+        console.log('🔄 Trying basic columns only...');
+        const basicQuery = `
+          SELECT ofh.id, ofh.cl_id, ofh.filling_date, ofh.product_id, ofh.amount
+          FROM old_filling_history ofh
+          WHERE ofh.cl_id = ?
+          ORDER BY ofh.filling_date DESC LIMIT ? OFFSET ?
+        `;
+        
+        try {
+          oldHistory = await executeQuery(basicQuery, [customerInfo?.id, limit, offset]);
+          console.log('✅ Basic query worked:', oldHistory.length);
+          
+          // Add missing fields manually
+          oldHistory = oldHistory.map(record => ({
+            ...record,
+            completed_date: record.filling_date,
+            pname: 'Unknown Products',
+            rid: null,
+            fs_id: null,
+            station_name: 'Unknown Station',
+            trans_type: null,
+            current_stock: null,
+            filling_qty: null,
+            credit: null,
+            in_amount: null,
+            d_amount: null,
+            limit_type: null,
+            credit_date: null,
+            available_stock: null,
+            old_amount: null,
+            new_amount: null,
+            remaining_limit: null,
+            created_by: null,
+            created_at: null,
+            updated_at: null,
+            default_type: 'filling'
+          }));
+        } catch (basicError) {
+          console.error('❌ Even basic query failed:', basicError.message);
+          throw basicError;
+        }
+      }
       
       if (oldHistory.length > 0) {
         console.log('📊 Sample Record:', oldHistory[0]);
