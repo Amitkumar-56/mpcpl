@@ -630,7 +630,7 @@ function AllStockContent() {
                 ←
               </button>
               <div>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">All Stocks</h1>
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">All Stations</h1>
                 <p className="text-xs sm:text-sm text-gray-500 mt-1">Current inventory across all stations</p>
               </div>
             </div>
@@ -658,7 +658,7 @@ function AllStockContent() {
               Home
             </Link>
             <span className="text-gray-500">/</span>
-            <span className="text-gray-700 font-medium">All Stocks</span>
+            <span className="text-gray-700 font-medium">All Stations</span>
           </div>
         </div>
       </nav>

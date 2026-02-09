@@ -162,6 +162,10 @@ export default function DashboardPage() {
       // For other roles: Fetch full dashboard data
       const result = await apiRequest("/api/dashboard");
       if (result.success) {
+        console.log('📊 Dashboard data received:', result.data);
+        console.log('🏢 Total stations:', result.data.totalStations);
+        console.log('📦 Total stocks:', result.data.totalStocks);
+        console.log('📋 Total stock requests:', result.data.totalStockRequests);
         setStats(result.data);
         setLastUpdated(new Date());
         setError(null);
@@ -672,13 +676,17 @@ export default function DashboardPage() {
                       color="purple"
                     />
                   </a>
-                  <a href="/stations" className="block">
+                  <a href="/all-stock" className="block">
                     <InfoCard
                       title="Total Stations"
                       value={stats.totalStations || 0}
                       icon={<BiPackage />}
                       color="green"
                     />
+                    {/* Debug: Show raw value */}
+                    <div className="text-xs text-gray-500 mt-1">
+                      Debug: {JSON.stringify(stats.totalStations)}
+                    </div>
                   </a>
                   <a href="/filling-requests" className="block">
                     <InfoCard

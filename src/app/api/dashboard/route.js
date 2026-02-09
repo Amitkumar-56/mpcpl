@@ -298,22 +298,52 @@ export async function GET(request) {
     let totalStations = 0;
     let totalStocks = 0;
     let totalStockRequests = 0;
+    
+    // ✅ Get total stations with proper debugging
     try {
+      console.log('🔍 Fetching total stations...');
       const stationsResult = await executeQuery(`SELECT COUNT(*) as count FROM filling_stations`);
       totalStations = parseInt(stationsResult[0]?.count) || 0;
-    } catch {}
+      console.log('✅ Total stations found:', totalStations);
+    } catch (error) {
+      console.error('❌ Error fetching total stations:', error);
+      // Try alternative table name
+      try {
+        console.log('🔄 Trying alternative table: stations...');
+        const altStationsResult = await executeQuery(`SELECT COUNT(*) as count FROM stations`);
+        totalStations = parseInt(altStationsResult[0]?.count) || 0;
+        console.log('✅ Total stations (alternative):', totalStations);
+      } catch (altError) {
+        console.error('❌ Alternative table also failed:', altError);
+        totalStations = 0;
+      }
+    }
+    
+    // ✅ Get total stocks with debugging
     try {
+      console.log('🔍 Fetching total stocks...');
       const stocksResult = await executeQuery(`SELECT COUNT(*) as count FROM stock`);
       totalStocks = parseInt(stocksResult[0]?.count) || 0;
-    } catch {}
+      console.log('✅ Total stocks found:', totalStocks);
+    } catch (error) {
+      console.error('❌ Error fetching total stocks:', error);
+      totalStocks = 0;
+    }
+    
+    // ✅ Get total stock requests with debugging
     try {
+      console.log('🔍 Fetching total stock requests...');
       const stockRequestsResult = await executeQuery(`
         SELECT COUNT(*) as count 
         FROM filling_requests 
         WHERE cid IS NOT NULL
       `);
       totalStockRequests = parseInt(stockRequestsResult[0]?.count) || 0;
-    } catch {}
+      console.log('✅ Total stock requests found:', totalStockRequests);
+    } catch (error) {
+      console.error('❌ Error fetching total stock requests:', error);
+      totalStockRequests = 0;
+    }
 
     // ✅ 10. CALCULATE CHANGES
     const clientChange = clientTodayOutstanding;
