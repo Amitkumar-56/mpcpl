@@ -171,23 +171,24 @@ export async function GET(request) {
     try {
       let countQuery = `
         SELECT COUNT(*) as total 
-        FROM old_filling_history 
-        WHERE cl_id = ?
+        FROM old_filling_history ofh
+        LEFT JOIN products p ON ofh.product_id = p.id
+        LEFT JOIN filling_stations fs ON ofh.fs_id = fs.id
+        WHERE ofh.cl_id = ?
       `;
       
       let countParams = [customerInfo?.id];
       
       if (search) {
         countQuery += ` AND (
-          product_name LIKE ? OR 
-          amount LIKE ? OR 
-          DATE(completed_date) LIKE ? OR
-          vehicle_number LIKE ? OR
-          station_name LIKE ? OR
-          trans_type LIKE ?
+          p.pname LIKE ? OR 
+          ofh.amount LIKE ? OR 
+          DATE(ofh.filling_date) LIKE ? OR
+          ofh.trans_type LIKE ? OR
+          fs.station_name LIKE ?
         )`;
         const searchPattern = `%${search}%`;
-        countParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+        countParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
       }
       
       const countResult = await executeQuery(countQuery, countParams);
