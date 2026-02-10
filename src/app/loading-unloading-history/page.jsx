@@ -437,14 +437,22 @@ function LoadingUnloadingContent() {
                                         >
                                           View
                                         </Link>
-                                        {(permissions?.can_edit === 1 || user?.role === 5) && (
+                                        {/* TEMPORARY: Always show Edit button for testing */}
+                                        <Link
+                                          href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
+                                          className="text-gray-600 hover:text-gray-800"
+                                        >
+                                          Edit
+                                        </Link>
+                                        {/* ORIGINAL PERMISSION CHECK - Commented out for testing */}
+                                        {/* {(permissions?.can_edit === 1 || user?.role === 5) && (
                                           <Link
                                             href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
                                             className="text-gray-600 hover:text-gray-800"
                                           >
                                             Edit
                                           </Link>
-                                        )}
+                                        )} */}
                                       </div>
                                     </div>
                                   </div>
