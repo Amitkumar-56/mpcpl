@@ -5,11 +5,13 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 // Inner component that uses useSearchParams
 function PdfLoadingUnloadingContent() {
   const searchParams = useSearchParams();
   const shipmentId = searchParams.get('shipment_id');
+  const router = useRouter();
 
   const [shipment, setShipment] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -330,6 +332,19 @@ function PdfLoadingUnloadingContent() {
     <div className="min-h-screen bg-gray-50 py-8 print:p-0 print:m-0 print:min-h-0 print:bg-white print:overflow-hidden">
       {/* Action Buttons */}
       <div className="flex justify-center gap-4 mb-6 print:hidden">
+        <button
+          onClick={() => {
+            // Try multiple back navigation methods
+            if (window.history.length > 1) {
+              window.history.back();
+            } else {
+              router.push('/loading-unloading-history');
+            }
+          }}
+          className="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
+        >
+          ← Back
+        </button>
         <button
           onClick={generatePDF}
           className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
