@@ -1355,7 +1355,7 @@ async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defa
 }
 
 async function handleCancelStatus(data) {
-  const { id, rid, remarks, doc1Path, doc2Path, doc3Path, userId } = data;
+  const { id, rid, remarks, doc1Base64, doc2Base64, doc3Base64, userId } = data;
 
   const now = getIndianTime();
 
@@ -1485,17 +1485,17 @@ async function handleCancelStatus(data) {
   `;
 
   await executeQuery(updateRequestQuery, [
-    now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, now, id, rid
+    now, userId, remarks, doc1Base64, doc2Base64, doc3Base64, userId, now, id, rid
   ]);
 
-  console.log(`✅ Request ${rid} cancelled successfully`);
+  console.log(` Request ${rid} cancelled successfully`);
 
   return 'Request Cancelled Successfully';
 }
 
 async function updateFillingRequest(data) {
   const {
-    id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
+    id, aqty, status, remarks, doc1Base64, doc2Base64, doc3Base64, userId, sub_product_id
   } = data;
 
   const now = getIndianTime();
@@ -1518,7 +1518,7 @@ async function updateFillingRequest(data) {
           status_updated_by = ?
       WHERE id = ?
     `;
-    queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, now, userId, userId, id];
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, now, userId, userId, id];
   } else {
     updateQuery = `
       UPDATE filling_requests 
@@ -1532,7 +1532,7 @@ async function updateFillingRequest(data) {
           status_updated_by = ?
       WHERE id = ?
     `;
-    queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, userId, id];
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, userId, id];
   }
 
   await executeQuery(updateQuery, queryParams);

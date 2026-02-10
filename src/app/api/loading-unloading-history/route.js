@@ -39,67 +39,58 @@ export async function GET(request) {
       console.log('👑 Admin access granted');
       finalPermissions = { can_view: 1, can_edit: 1, can_create: 1 };
     } else {
-      // Check permissions for Loading modules
-      const moduleNames = ['Loading and Unloading', 'Loading & Unloading', 'Loading History', 'Loading'];
+      // Check permissions for Loading modules - SIMPLIFIED
+      console.log('🔍 Checking permissions for non-admin user...');
       
-      for (const moduleName of moduleNames) {
-        console.log(`🔍 Checking permissions for: ${moduleName}`);
+      try {
+        // Direct permission check for Loading & Unloading module
+        const permQuery = `
+          SELECT can_view, can_edit, can_create 
+          FROM role_permissions 
+          WHERE (module_name = 'Loading & Unloading' OR module_name LIKE '%Loading%') 
+            AND (employee_id = ? OR role = ?)
+          ORDER BY 
+            CASE 
+              WHEN module_name = 'Loading & Unloading' THEN 1
+              WHEN module_name LIKE '%Loading%' THEN 2
+              ELSE 3
+            END
+          LIMIT 1
+        `;
         
-        // Try multiple permission queries
-        const queries = [
-          // Query 1: Exact match with employee_id and role
-          `SELECT can_view, can_edit, can_create 
-           FROM role_permissions 
-           WHERE module_name = ? AND employee_id = ? AND role = ?`,
-          
-          // Query 2: Role only permission
-          `SELECT can_view, can_edit, can_create 
-           FROM role_permissions 
-           WHERE module_name = ? AND role = ? AND (employee_id IS NULL OR employee_id = 0)`,
-          
-          // Query 3: Employee only permission
-          `SELECT can_view, can_edit, can_create 
-           FROM role_permissions 
-           WHERE module_name = ? AND employee_id = ?`,
-          
-          // Query 4: Module name contains Loading
-          `SELECT can_view, can_edit, can_create 
-           FROM role_permissions 
-           WHERE module_name LIKE '%Loading%' AND (employee_id = ? OR role = ?)`
-        ];
+        const permResult = await executeQuery(permQuery, [employeeId, employeeRole]);
         
-        for (const query of queries) {
-          try {
-            let params;
-            if (query.includes('LIKE')) {
-              params = [employeeId, employeeRole];
-            } else if (query.includes('employee_id = ? AND role = ?')) {
-              params = [moduleName, employeeId, employeeRole];
-            } else if (query.includes('role = ?')) {
-              params = [moduleName, employeeRole];
-            } else if (query.includes('employee_id = ?')) {
-              params = [moduleName, employeeId];
-            }
-            
-            const perms = await executeQuery(query, params || [moduleName, employeeId, employeeRole]);
-            
-            if (perms.length > 0) {
-              console.log(`✅ Found permissions with query:`, perms[0]);
-              finalPermissions = {
-                can_view: perms[0].can_view || 0,
-                can_edit: perms[0].can_edit || 0,
-                can_create: perms[0].can_create || 0
-              };
-              break;
-            }
-          } catch (queryErr) {
-            console.log(`Query error: ${queryErr.message}`);
+        if (permResult.length > 0) {
+          console.log('✅ Found permissions:', permResult[0]);
+          finalPermissions = {
+            can_view: permResult[0].can_view || 0,
+            can_edit: permResult[0].can_edit || 0,
+            can_create: permResult[0].can_create || 0
+          };
+        } else {
+          console.log('⚠️ No permissions found, trying fallback...');
+          
+          // Fallback: Check if user has any Loading-related permission
+          const fallbackQuery = `
+            SELECT can_view, can_edit, can_create 
+            FROM role_permissions 
+            WHERE module_name LIKE '%Loading%' 
+            LIMIT 1
+          `;
+          
+          const fallbackResult = await executeQuery(fallbackQuery);
+          
+          if (fallbackResult.length > 0) {
+            console.log('✅ Fallback permissions found:', fallbackResult[0]);
+            finalPermissions = {
+              can_view: fallbackResult[0].can_view || 0,
+              can_edit: fallbackResult[0].can_edit || 0,
+              can_create: fallbackResult[0].can_create || 0
+            };
           }
         }
-        
-        if (finalPermissions.can_view == 1 || finalPermissions.can_edit == 1 || finalPermissions.can_create == 1) {
-          break;
-        }
+      } catch (permErr) {
+        console.error('❌ Permission query error:', permErr);
       }
     }
 
