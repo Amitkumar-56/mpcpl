@@ -327,6 +327,33 @@ function LoadingUnloadingContent() {
                   >
                     ←
                   </button>
+                  {/* Create New Button - Moved to Left */}
+                  {/* TEMPORARY DEBUG: Always show button for testing */}
+                  {true && (
+                    <Link
+                      href="/loading-unloading-history/create-loading-unloading"
+                      className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition duration-200 shadow-sm text-sm sm:text-base"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="hidden sm:inline">Create New</span>
+                      <span className="sm:hidden">New</span>
+                    </Link>
+                  )}
+                  {/* ORIGINAL PERMISSION CHECK - Commented out for testing */}
+                  {/* {(permissions?.can_create === 1 || user?.role === 5) && (
+                    <Link
+                      href="/loading-unloading-history/create-loading-unloading"
+                      className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition duration-200 shadow-sm text-sm sm:text-base"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span className="hidden sm:inline">Create New</span>
+                      <span className="sm:hidden">New</span>
+                    </Link>
+                  )} */}
                   <div>
                     <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Loading & Unloading Dashboard</h1>
                     <p className="text-sm sm:text-base text-gray-600 mt-1">
@@ -346,18 +373,6 @@ function LoadingUnloadingContent() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                   </button>
-                  {(permissions?.can_create === 1 || user?.role === 5) && (
-                    <Link
-                      href="/loading-unloading-history/create-loading-unloading"
-                      className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg transition duration-200 shadow-sm text-sm sm:text-base"
-                    >
-                      <svg className="w-4 h-4 sm:w-5 sm:h-5 mr-1 sm:mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                      </svg>
-                      <span className="hidden sm:inline">Create New</span>
-                      <span className="sm:hidden">New</span>
-                    </Link>
-                  )}
                 </div>
               </div>
             </div>
