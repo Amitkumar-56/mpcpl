@@ -2,6 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
+import Sidebar from '@/components/sidebar';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 // Loading components
 function LoadingSpinner() {
@@ -312,6 +315,382 @@ function TankerFormContent() {
     }));
     setItems(resetItems);
   };
+
+  // Loading state
+  if (loading) {
+    return <FormSkeleton />;
+  }
+
+  return (
+    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 to-blue-50">
+      <Sidebar />
+      <div className="flex-1 flex flex-col">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+          <MessageAlert 
+            message={message} 
+            messageType={messageType} 
+            onClose={closeMessage} 
+          />
+          
+          <div className="max-w-7xl mx-auto">
+            <form onSubmit={handleSubmit} className="space-y-8">
+              {/* Header */}
+              <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="flex items-center justify-between border-b-2 border-gray-800 pb-6 mb-8">
+                  <div className="w-20 h-20 flex items-center justify-center">
+                    <img 
+                      src="/LOGO_NEW.jpg" 
+                      alt="Company Logo" 
+                      className="h-16 w-auto max-w-full"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextSibling) {
+                          e.target.nextSibling.style.display = 'block';
+                        }
+                      }}
+                    />
+                    <div className="hidden border-2 border-gray-300 h-16 w-16 flex items-center justify-center text-xs text-gray-500">
+                      LOGO
+                    </div>
+                  </div>
+                  <div className="text-center flex-1 mx-8">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-2">GYANTI MULTISERVICES PVT. LTD.</h1>
+                    <p className="text-sm text-gray-600 leading-tight">
+                      <strong>Registered Office</strong>: Nakha No. 1, Moharipur, Gorakhpur, Uttar Pradesh – 273007<br />
+                      E-Mail – accounts@gyanti.in<br />
+                      GSTIN – 09AAGCG6220R1Z3, CIN No. U15549UP2016PTC088333
+                    </p>
+                  </div>
+                  <div className="w-20 h-20 flex items-center justify-center">
+                    <img 
+                      src="/mpcl_stamp.jpg" 
+                      alt="Company Stamp" 
+                      className="h-16 w-auto max-w-full"
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextSibling) {
+                          e.target.nextSibling.style.display = 'block';
+                        }
+                      }}
+                    />
+                    <div className="hidden border-2 border-dashed border-gray-400 h-16 w-16 flex items-center justify-center text-xs text-gray-500 text-center">
+                      Company<br />Stamp
+                    </div>
+                  </div>
+                </div>
+
+                <div className="text-center mb-8">
+                  <h2 className="text-xl font-bold text-gray-800 bg-gray-100 py-2 px-5 rounded inline-block">
+                    Tanker Details
+                  </h2>
+                </div>
+
+                {/* Form Fields */}
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Licence Plate
+                      </label>
+                      <input
+                        type="text"
+                        name="licence_plate"
+                        value={formData.licence_plate}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Driver
+                      </label>
+                      <select
+                        name="first_driver"
+                        value={formData.first_driver}
+                        onChange={handleDriverChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      >
+                        <option value="">Select Driver</option>
+                        {dropdownData.employees.map((emp, index) => (
+                          <option key={index} value={emp.name}>
+                            {emp.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Mobile
+                      </label>
+                      <input
+                        type="tel"
+                        name="first_mobile"
+                        value={formData.first_mobile}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        First Start Date
+                      </label>
+                      <input
+                        type="date"
+                        name="first_start_date"
+                        value={formData.first_start_date}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Opening Meter
+                      </label>
+                      <input
+                        type="number"
+                        name="opening_meter"
+                        value={formData.opening_meter}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Closing Meter
+                      </label>
+                      <input
+                        type="number"
+                        name="closing_meter"
+                        value={formData.closing_meter}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Diesel (Liters)
+                      </label>
+                      <input
+                        type="number"
+                        name="diesel_ltr"
+                        value={formData.diesel_ltr}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Opening Station
+                      </label>
+                      <select
+                        name="opening_station"
+                        value={formData.opening_station}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      >
+                        <option value="">Select Station</option>
+                        {dropdownData.stations.map((station, index) => (
+                          <option key={station.id || index} value={station.station_name}>
+                            {station.station_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Closing Station
+                      </label>
+                      <select
+                        name="closing_station"
+                        value={formData.closing_station}
+                        onChange={handleInputChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        required
+                      >
+                        <option value="">Select Station</option>
+                        {dropdownData.stations.map((station, index) => (
+                          <option key={station.id || index} value={station.station_name}>
+                            {station.station_name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Remarks
+                    </label>
+                    <textarea
+                      name="remarks"
+                      value={formData.remarks}
+                      onChange={handleInputChange}
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="bg-white rounded-lg shadow-lg p-8">
+                <div className="text-center mb-6">
+                  <h2 className="text-xl font-bold text-gray-800 bg-gray-100 py-2 px-5 rounded inline-block">
+                    Item Checklist
+                  </h2>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 border border-gray-300">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 border border-gray-300 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Item Name
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Pcs
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Description
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Opening Status
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Opening Driver Sign
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Opening Checker Sign
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Closing Status
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Closing Driver Sign
+                        </th>
+                        <th className="px-4 py-3 border border-gray-300 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Closing Checker Sign
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {items.map((item, index) => (
+                        <tr key={`item-${item.id ?? index}-${index}`} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border">
+                            {item.item_name}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="number"
+                              min="0"
+                              value={item.pcs || ''}
+                              onChange={(e) => handleItemChange(index, 'pcs', e.target.value)}
+                              className="w-20 px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.description || ''}
+                              onChange={(e) => handleItemChange(index, 'description', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.opening_status || ''}
+                              onChange={(e) => handleItemChange(index, 'opening_status', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.opening_driver_sign || ''}
+                              onChange={(e) => handleItemChange(index, 'opening_driver_sign', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.opening_checker_sign || ''}
+                              onChange={(e) => handleItemChange(index, 'opening_checker_sign', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.closing_status || ''}
+                              onChange={(e) => handleItemChange(index, 'closing_status', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.closing_driver_sign || ''}
+                              onChange={(e) => handleItemChange(index, 'closing_driver_sign', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 border">
+                            <input
+                              type="text"
+                              value={item.closing_checker_sign || ''}
+                              onChange={(e) => handleItemChange(index, 'closing_checker_sign', e.target.value)}
+                              className="w-full px-2 py-1 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                            />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Submit Buttons */}
+              <div className="flex justify-center space-x-4">
+                <button
+                  type="submit"
+                  onClick={handleSubmit}
+                  disabled={submitting}
+                  className="px-8 py-3 bg-green-600 text-white font-semibold rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {submitting ? 'Saving...' : 'Save Details'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  className="px-8 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
+                >
+                  Print Form
+                </button>
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="px-8 py-3 bg-gray-600 text-white font-semibold rounded-lg hover:bg-gray-700 focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-colors"
+                >
+                  Reset Form
+                </button>
+              </div>
+            </form>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    </div>
+  );
 }
 
 // Main component with Suspense boundary
