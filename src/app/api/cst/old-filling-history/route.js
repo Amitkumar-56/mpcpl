@@ -115,12 +115,11 @@ export async function GET(request) {
         oldHistoryQuery += ` AND (
           p.pname LIKE ? OR 
           ofh.amount LIKE ? OR 
-          DATE(ofh.filling_date) LIKE ? OR
           ofh.trans_type LIKE ? OR
           fs.station_name LIKE ?
         )`;
         const searchPattern = `%${search}%`;
-        queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+        queryParams.push(searchPattern, searchPattern, searchPattern, searchPattern);
       }
       
       oldHistoryQuery += ` ORDER BY ofh.filling_date DESC LIMIT ? OFFSET ?`;
@@ -138,7 +137,7 @@ export async function GET(request) {
         console.error('❌ SQL Error:', queryError.sqlMessage);
         
         // EMERGENCY FALLBACK - Use only basic columns that should always work
-        console.log('🔄 Emergency fallback - basic columns only...');
+        console.log('� Emergency fallback - basic columns only...');
         const emergencyQuery = `
           SELECT 
             ofh.id,
@@ -189,15 +188,10 @@ export async function GET(request) {
           throw emergencyError;
         }
       }
-      
-      if (oldHistory.length > 0) {
-        console.log('📊 Sample Record:', oldHistory[0]);
-      }
     } catch (error) {
       console.error('❌ Error fetching old filling history:', error);
     }
 
-   
     const totalPages = Math.ceil(oldHistory.length / limit);
 
     console.log('📊 Final Results:');
