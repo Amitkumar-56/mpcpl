@@ -603,16 +603,15 @@ function LoadingUnloadingContent() {
                             {/* Action Buttons */}
                             <div className="flex gap-3 pt-3 border-t border-gray-200">
                               <Link
-                                href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                target="_blank"
-                                className="flex-1 bg-blue-600 text-white text-center py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                                href="/loading-unloading-history"
+                                className="flex-1 bg-gray-600 text-white text-center py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
                               >
-                                View PDF
+                                Back
                               </Link>
                               {(permissions?.can_edit === 1 || user?.role === 5) && (
                                 <Link
                                   href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                  className="flex-1 bg-gray-600 text-white text-center py-2 px-4 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                                  className="flex-1 bg-blue-600 text-white text-center py-2 px-4 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
                                 >
                                   Edit
                                 </Link>
@@ -708,16 +707,15 @@ function LoadingUnloadingContent() {
                             <td className="px-4 sm:px-6 py-4 whitespace-nowrap text-sm">
                               <div className="flex items-center space-x-2">
                                 <Link
-                                  href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                  target="_blank"
-                                  className="text-blue-600 hover:text-blue-800 text-sm"
+                                  href="/loading-unloading-history"
+                                  className="text-gray-600 hover:text-gray-800 text-sm"
                                 >
-                                  View
+                                  Back
                                 </Link>
                                 {(permissions?.can_edit === 1 || user?.role === 5) && (
                                   <Link
                                     href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                    className="text-gray-600 hover:text-gray-800 text-sm"
+                                    className="text-blue-600 hover:text-blue-800 text-sm"
                                   >
                                     Edit
                                   </Link>
@@ -742,16 +740,15 @@ function LoadingUnloadingContent() {
                                       <div className="text-sm font-semibold text-blue-600">
                                         <div className="flex items-center space-x-4">
                                           <Link
-                                            href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                            target="_blank"
-                                            className="hover:text-blue-800"
+                                            href="/loading-unloading-history"
+                                            className="hover:text-gray-800"
                                           >
-                                            View
+                                            Back
                                           </Link>
                                           {(permissions?.can_edit === 1 || user?.role === 5) && (
                                             <Link
                                               href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                              className="text-gray-600 hover:text-gray-800"
+                                              className="text-blue-600 hover:text-blue-800"
                                             >
                                               Edit
                                             </Link>
