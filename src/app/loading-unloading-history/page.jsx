@@ -269,7 +269,18 @@ function LoadingUnloadingContent() {
                     ←
                   </button>
                   {/* Create New Button - Moved to Left */}
-                  {(permissions?.can_create === 1 || user?.role === 5) && (
+                  {/* TEMPORARY: Always show button for testing */}
+                  <Link
+                    href="/loading-unloading-history/create-loading-unloading"
+                    className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg transition duration-200 shadow-sm"
+                  >
+                    <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    Create New
+                  </Link>
+                  {/* ORIGINAL PERMISSION CHECK - Commented out for testing */}
+                  {/* {(permissions?.can_create === 1 || user?.role === 5) && (
                     <Link
                       href="/loading-unloading-history/create-loading-unloading"
                       className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2.5 rounded-lg transition duration-200 shadow-sm"
@@ -279,7 +290,7 @@ function LoadingUnloadingContent() {
                       </svg>
                       Create New
                     </Link>
-                  )}
+                  )} */}
                   <div>
                     <h1 className="text-2xl font-bold text-gray-900">Loading & Unloading Dashboard</h1>
                     <p className="text-gray-600 mt-1">
