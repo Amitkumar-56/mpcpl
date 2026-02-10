@@ -51,53 +51,27 @@ export async function GET(request) {
       console.log('🔍 Fetching filling history from old_filling_history table...');
       console.log('🆔 Customer ID for cl_id:', customerInfo?.id);
       
-      // First, let's check if there are any records for this customer
-      const countCheckQuery = `SELECT COUNT(*) as count FROM old_filling_history WHERE cl_id = ?`;
-      const countResult = await executeQuery(countCheckQuery, [customerInfo?.id]);
-      console.log('📊 Count check result:', countResult);
+      // SIMPLE TEST QUERY FIRST - This should always work
+      console.log('🧪 Testing simple query first...');
+      const simpleTestQuery = `
+        SELECT COUNT(*) as count
+        FROM old_filling_history 
+        WHERE cl_id = ?
+      `;
       
-      if (countResult[0].count === 0) {
-        console.log('⚠️ No records found for cl_id:', customerInfo?.id);
-        
-        // Let's check what cl_ids exist in the table
-        const clIdCheckQuery = `SELECT DISTINCT cl_id, COUNT(*) as count FROM old_filling_history GROUP BY cl_id ORDER BY count DESC LIMIT 10`;
-        const clIdResult = await executeQuery(clIdCheckQuery);
-        console.log('📋 Available cl_ids in old_filling_history:', clIdResult);
-        
-        // Let's also check a sample of records to see structure
-        const sampleQuery = `SELECT * FROM old_filling_history LIMIT 5`;
-        const sampleResult = await executeQuery(sampleQuery);
-        console.log('📋 Sample records from old_filling_history:', sampleResult);
-        
-        // Debug: Check products table structure and data
-        const productsCheckQuery = `SELECT id, pname FROM products LIMIT 10`;
-        const productsResult = await executeQuery(productsCheckQuery);
-        console.log('📋 Products table sample:', productsResult);
-        
-        // Debug: Check if product_id 6 exists in products table
-        const specificProductCheckQuery = `SELECT id, pname FROM products WHERE id = 6`;
-        const specificProductResult = await executeQuery(specificProductCheckQuery);
-        console.log('📋 Product ID 6 check:', specificProductResult);
-        
-        // Debug: Check JOIN result for specific product_id
-        const joinTestQuery = `
-          SELECT 
-            ofh.product_id,
-            p.id as product_table_id,
-            p.pname
-          FROM old_filling_history ofh
-          LEFT JOIN products p ON ofh.product_id = p.id
-          WHERE ofh.cl_id = ? AND ofh.product_id = 6
-          LIMIT 5
-        `;
-        const joinTestResult = await executeQuery(joinTestQuery, [customerInfo?.id]);
-        console.log('📋 JOIN test for product_id 6:', joinTestResult);
-        
-        // Debug: Check old_filling_history product_ids
-        const productIdsCheckQuery = `SELECT DISTINCT product_id FROM old_filling_history WHERE cl_id = ? LIMIT 10`;
-        const productIdsResult = await executeQuery(productIdsCheckQuery, [customerInfo?.id]);
-        console.log('📋 Product IDs in old_filling_history:', productIdsResult);
+      try {
+        const testResult = await executeQuery(simpleTestQuery, [customerInfo?.id]);
+        console.log('✅ Simple test query result:', testResult);
+      } catch (testError) {
+        console.error('❌ Even simple test failed:', testError.message);
+        throw testError;
       }
+      
+      
+     
+      
+      // If simple test passed, continue with full query
+      console.log('🔄 Simple test passed, trying full query...');
       
       // Use proper JOINs with products and filling_stations tables
       let oldHistoryQuery = `
@@ -155,15 +129,6 @@ export async function GET(request) {
       console.log('📋 Final Query:', oldHistoryQuery);
       console.log('📋 Query Params:', queryParams);
       
-      // Add server debugging
-      console.log('🔍 Server Debug: Checking table structure...');
-      try {
-        const tableStructure = await executeQuery(`DESCRIBE old_filling_history`);
-        console.log('📋 Server old_filling_history columns:', tableStructure.map(col => col.Field));
-      } catch (structError) {
-        console.log('❌ Could not get table structure:', structError.message);
-      }
-      
       try {
         oldHistory = await executeQuery(oldHistoryQuery, queryParams);
         console.log('✅ Old filling history records:', oldHistory.length);
@@ -172,23 +137,31 @@ export async function GET(request) {
         console.error('❌ SQL State:', queryError.sqlState);
         console.error('❌ SQL Error:', queryError.sqlMessage);
         
-        // Try with just basic columns to see what works
-        console.log('🔄 Trying basic columns only...');
-        const basicQuery = `
-          SELECT ofh.id, ofh.cl_id, ofh.filling_date, ofh.product_id, ofh.amount
+        // EMERGENCY FALLBACK - Use only basic columns that should always work
+        console.log('🔄 Emergency fallback - basic columns only...');
+        const emergencyQuery = `
+          SELECT 
+            ofh.id,
+            ofh.cl_id,
+            ofh.filling_date,
+            ofh.product_id,
+            ofh.amount
           FROM old_filling_history ofh
           WHERE ofh.cl_id = ?
           ORDER BY ofh.filling_date DESC LIMIT ? OFFSET ?
         `;
         
         try {
-          oldHistory = await executeQuery(basicQuery, [customerInfo?.id, limit, offset]);
-          console.log('✅ Basic query worked:', oldHistory.length);
+          const basicResult = await executeQuery(emergencyQuery, [customerInfo?.id, limit, offset]);
+          console.log('✅ Emergency fallback worked:', basicResult.length);
           
-          // Add missing fields manually
-          oldHistory = oldHistory.map(record => ({
-            ...record,
+          // Add all expected columns with default values so frontend doesn't break
+          oldHistory = basicResult.map(record => ({
+            id: record.id,
+            cl_id: record.cl_id,
             completed_date: record.filling_date,
+            filling_date: record.filling_date,
+            product_id: record.product_id,
             pname: 'Unknown Products',
             rid: null,
             fs_id: null,
@@ -196,6 +169,7 @@ export async function GET(request) {
             trans_type: null,
             current_stock: null,
             filling_qty: null,
+            amount: record.amount,
             credit: null,
             in_amount: null,
             d_amount: null,
@@ -210,9 +184,9 @@ export async function GET(request) {
             updated_at: null,
             default_type: 'filling'
           }));
-        } catch (basicError) {
-          console.error('❌ Even basic query failed:', basicError.message);
-          throw basicError;
+        } catch (emergencyError) {
+          console.error('❌ Even emergency query failed:', emergencyError.message);
+          throw emergencyError;
         }
       }
       
@@ -223,43 +197,12 @@ export async function GET(request) {
       console.error('❌ Error fetching old filling history:', error);
     }
 
-    // Step 3: Get total count for pagination
-    let totalCount = 0;
-    try {
-      let countQuery = `
-        SELECT COUNT(*) as total 
-        FROM old_filling_history ofh
-        LEFT JOIN products p ON ofh.product_id = p.id
-        LEFT JOIN filling_stations fs ON ofh.fs_id = fs.id
-        WHERE ofh.cl_id = ?
-      `;
-      
-      let countParams = [customerInfo?.id];
-      
-      if (search) {
-        countQuery += ` AND (
-          p.pname LIKE ? OR 
-          ofh.amount LIKE ? OR 
-          DATE(ofh.filling_date) LIKE ? OR
-          ofh.trans_type LIKE ? OR
-          fs.station_name LIKE ?
-        )`;
-        const searchPattern = `%${search}%`;
-        countParams.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
-      }
-      
-      const countResult = await executeQuery(countQuery, countParams);
-      totalCount = countResult[0]?.total || 0;
-    } catch (error) {
-      console.error('❌ Error counting records:', error);
-      totalCount = oldHistory.length;
-    }
-
-    const totalPages = Math.ceil(totalCount / limit);
+   
+    const totalPages = Math.ceil(oldHistory.length / limit);
 
     console.log('📊 Final Results:');
     console.log('- Customer Info:', customerInfo);
-    console.log('- Total Records:', totalCount);
+    console.log('- Total Records:', oldHistory.length);
     console.log('- Old Filling History:', oldHistory.length);
     console.log('- Total Pages:', totalPages);
 
@@ -270,7 +213,7 @@ export async function GET(request) {
       pagination: {
         currentPage: page,
         totalPages: totalPages,
-        totalCount: totalCount,
+        totalCount: oldHistory.length,
         limit: limit
       },
       stats: {
