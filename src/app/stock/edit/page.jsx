@@ -349,11 +349,15 @@ function EditStockContent() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select Supplier</option>
-                  {suppliers.map(supplier => (
-                    <option key={supplier.id} value={supplier.id}>
-                      {supplier.name}
-                    </option>
-                  ))}
+                  {suppliers && suppliers.length > 0 ? (
+                    suppliers.map(supplier => (
+                      <option key={supplier.id} value={supplier.id}>
+                        {supplier.name}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="" disabled>Loading suppliers...</option>
+                  )}
                 </select>
               </div>
 
@@ -368,11 +372,15 @@ function EditStockContent() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select Product</option>
-                {products.map(product => (
-                  <option key={product.id} value={product.id}>
-                    {product.pname}
-                  </option>
-                ))}
+                {products && products.length > 0 && Array.isArray(products) ? (
+                  products.map(product => (
+                    <option key={product.id} value={product.id}>
+                      {product.pname}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>Loading products...</option>
+                )}
               </select>
             </div>
             
@@ -387,11 +395,15 @@ function EditStockContent() {
                 className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Select Station</option>
-                {stations.map(station => (
-                  <option key={station.id} value={station.id}>
-                    {station.station_name}
-                  </option>
-                ))}
+                {stations && stations.length > 0 ? (
+                  stations.map(station => (
+                    <option key={station.id} value={station.id}>
+                      {station.station_name}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>Loading stations...</option>
+                )}
               </select>
             </div>
 

@@ -69,6 +69,12 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
     if (!newStatus) return;
 
     setUpdatingStatus(prev => ({ ...prev, [stockId]: true }));
+    
+    console.log('🔄 [Stock Status Update] Starting update:', {
+      stockId,
+      newStatus,
+      editingStatus: editingStatus[stockId]
+    });
 
     try {
       // ✅ FIX: Send id in body, not query parameter
@@ -80,9 +86,14 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
         body: JSON.stringify({ id: stockId, status: newStatus }),
       });
 
+      console.log('📡 [Stock Status Update] API Response Status:', response.status);
+      
       const result = await response.json();
+      
+      console.log('📊 [Stock Status Update] API Response Data:', result);
 
       if (response.ok && result.success) {
+        console.log('✅ [Stock Status Update] Update successful');
         // Update local state
         if (onStatusUpdate) {
           onStatusUpdate(stockId, newStatus);
@@ -98,10 +109,11 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
           onRefresh();
         }
       } else {
+        console.error('❌ [Stock Status Update] Update failed:', result);
         alert(result.error || 'Failed to update status');
       }
     } catch (error) {
-      console.error('Error updating status:', error);
+      console.error('❌ [Stock Status Update] Error:', error);
       alert('Error updating status. Please try again.');
     } finally {
       setUpdatingStatus(prev => {

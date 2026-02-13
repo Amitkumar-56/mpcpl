@@ -52,10 +52,13 @@ export default function CreateRequestPage() {
 
   useEffect(() => {
     if (!authLoading) {
+      console.log('🔍 [Create Request] Auth loading:', authLoading);
       if (!user) {
+        console.log('❌ [Create Request] No user found, redirecting to login');
         router.push('/login');
         return;
       }
+      console.log('✅ [Create Request] User found:', { id: user.id, role: user.role, name: user.name });
       checkPermissions();
     }
   }, [user, authLoading]);
@@ -110,13 +113,21 @@ export default function CreateRequestPage() {
   useEffect(() => {
     async function fetchData() {
       try {
+        console.log('🔄 [Create Request] Starting data fetch...');
         setLoading(true);
         setError('');
+        
         const [customersRes, productsRes, stationsRes] = await Promise.all([
           fetch('/api/customers'),
           fetch('/api/products'),
           fetch('/api/stations')
         ]);
+
+        console.log('📡 [Create Request] API Responses:', {
+          customers: customersRes.status,
+          products: productsRes.status,
+          stations: stationsRes.status
+        });
 
         if (!customersRes.ok) throw new Error('Failed to fetch customers');
         if (!productsRes.ok) throw new Error('Failed to fetch products');
@@ -125,15 +136,21 @@ export default function CreateRequestPage() {
         const [customersData, productsData, stationsData] = await Promise.all([
           customersRes.json(),
           productsRes.json(),
-          stationsRes.json(),
+          stationsRes.json()
         ]);
+
+        console.log('📊 [Create Request] Fetched Data:', {
+          customersCount: customersData.length,
+          productsCount: productsData.length,
+          stationsCount: stationsData.length
+        });
 
         setCustomers(customersData);
         setProducts(productsData);
         setProductCodes([]);
         setStations(stationsData);
       } catch (err) {
-        console.error('❌ Fetch error:', err);
+        console.error('❌ [Create Request] Fetch error:', err);
         setError('Error loading data. Please refresh the page.');
       } finally {
         setLoading(false);
@@ -709,9 +726,14 @@ export default function CreateRequestPage() {
                 <div className="flex flex-col">
                   <label className="mb-1 font-medium">Select Station *</label>
                   <select name="station_id" value={formData.station_id} onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" required>
+                    className="border border-gray-300 rounded p-2" required
+                  >
                     <option value="">Select Station</option>
-                    {stations.map(s => <option key={s.id} value={s.id}>{s.station_name}</option>)}
+                    {stations && stations.length > 0 ? (
+                      stations.map(s => <option key={s.id} value={s.id}>{s.station_name}</option>)
+                    ) : (
+                      <option value="" disabled>Loading stations...</option>
+                    )}
                   </select>
                 </div>
 

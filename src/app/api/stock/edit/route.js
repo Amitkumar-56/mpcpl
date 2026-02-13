@@ -59,7 +59,14 @@ export async function PUT(request) {
     const body = await request.json();
     const { id, ...updateData } = body;
 
+    console.log('🔄 [Stock Edit API] PUT Request Received:', {
+      id,
+      updateData,
+      bodyKeys: Object.keys(body)
+    });
+
     if (!id) {
+      console.log('❌ [Stock Edit API] No ID provided');
       return NextResponse.json(
         { success: false, error: 'Stock ID is required' },
         { status: 400 }
@@ -750,6 +757,13 @@ export async function PUT(request) {
         recordId: parseInt(id)
       });
     }
+
+    console.log('✅ [Stock Edit API] Update successful, sending response:', {
+      success: true,
+      message: 'Stock updated successfully',
+      id: id,
+      changes: Object.keys(changes).length
+    });
 
     return NextResponse.json({
       success: true,
