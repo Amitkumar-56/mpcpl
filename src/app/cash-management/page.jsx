@@ -173,10 +173,12 @@ function CashManagementContent() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      <Sidebar />
+    <div className="flex min-h-screen bg-gray-100">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
       
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <div className="lg:ml-64 flex flex-col flex-1 min-h-screen">
         <Header />
         
         <main className="flex-1 overflow-y-auto bg-gray-50">

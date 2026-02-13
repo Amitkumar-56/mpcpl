@@ -13,6 +13,7 @@ export default function LoadingStations() {
   const [stations, setStations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [hasPermission, setHasPermission] = useState(false);
+  const [stationFilterInfo, setStationFilterInfo] = useState(null);
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
@@ -121,9 +122,38 @@ export default function LoadingStations() {
   const fetchStations = async () => {
     try {
       setLoading(true);
-      const res = await fetch('/api/stations');
+      
+      // For admin (role 5), fetch all stations
+      // For staff/incharge (role 1,2), fetch only assigned stations
+      let apiUrl = '/api/stations';
+      
+      if (user && Number(user.role) !== 5) {
+        // Non-admin user - send user info for station filtering
+        apiUrl += `?user_id=${user.id}&role=${user.role}`;
+        console.log('🔍 Fetching assigned stations for user:', user.id, user.role);
+      } else {
+        console.log('👑 Admin user - fetching all stations');
+      }
+      
+      const res = await fetch(apiUrl);
       const data = await res.json();
-      setStations(Array.isArray(data) ? data : []);
+      
+      // Log the response for debugging
+      console.log('📊 Stations API Response:', {
+        success: data.success,
+        count: Array.isArray(data.stations) ? data.stations.length : 0,
+        filtered: data.filtered || false,
+        userRole: user?.role
+      });
+      
+      setStations(Array.isArray(data.stations) ? data.stations : []);
+      
+      // Set station filter info for non-admin users
+      if (user && Number(user.role) !== 5 && data.filtered) {
+        setStationFilterInfo('Showing your assigned stations only');
+      } else {
+        setStationFilterInfo(null);
+      }
     } catch (err) {
       console.error('Error fetching stations:', err);
       setStations([]);
@@ -176,7 +206,22 @@ export default function LoadingStations() {
               ←
             </button>
           </div>
-          <h1 className="text-2xl font-bold mb-6">Loading Stations</h1>
+          <div className="flex justify-between items-center mb-6">
+            <div>
+              <h1 className="text-2xl font-bold">Loading Stations</h1>
+              {/* Station Filter Info */}
+              {stationFilterInfo && (
+                <div className="mt-2">
+                  <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {stationFilterInfo}
+                  </span>
+                </div>
+              )}
+            </div>
+          </div>
 
           {loading ? (
             <div className="flex justify-center items-center h-64">
@@ -184,12 +229,15 @@ export default function LoadingStations() {
             </div>
           ) : (
             <>
-              <a
-                href="/loading-stations/add-station"
-                className="fixed bottom-16 right-4 sm:right-10 bg-purple-700 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-full shadow-lg hover:bg-purple-800 z-10 flex items-center justify-center text-sm sm:text-base"
-              >
-                <span className="mr-1 sm:mr-2">+</span> <span className="hidden sm:inline">Add Station</span>
-              </a>
+              {/* Add Station Button - Only for admin */}
+              {user && Number(user.role) === 5 && (
+                <a
+                  href="/loading-stations/add-station"
+                  className="fixed bottom-16 right-4 sm:right-10 bg-purple-700 text-white px-3 sm:px-4 py-2 sm:py-3 rounded-full shadow-lg hover:bg-purple-800 z-10 flex items-center justify-center text-sm sm:text-base"
+                >
+                  <span className="mr-1 sm:mr-2">+</span> <span className="hidden sm:inline">Add Station</span>
+                </a>
+              )}
 
               {/* Desktop Table */}
               <div className="hidden md:block overflow-x-auto bg-white rounded-lg shadow">
@@ -223,19 +271,26 @@ export default function LoadingStations() {
                                 <span className="text-gray-400">No map link</span>
                               )}
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap flex space-x-3">
-                              <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
-                                <BiEdit size={20} />
-                              </a>
-                              <a href={`/loading-stations/view?id=${station.id}`} className="text-blue-600 hover:text-blue-800">
-                                <BiShow size={20} />
-                              </a>
-                              <a
-                                href={`/stock-history?id=${station.id}`}
-                                className="text-red-600 hover:text-red-800"
-                              >
-                                <BiHistory size={20} />
-                              </a>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              {/* Actions column - Hide for staff/incharge, show for admin */}
+                              {user && Number(user.role) === 5 ? (
+                                <div className="flex space-x-3">
+                                  <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
+                                    <BiEdit size={20} />
+                                  </a>
+                                  <a href={`/loading-stations/view?id=${station.id}`} className="text-blue-600 hover:text-blue-800">
+                                    <BiShow size={20} />
+                                  </a>
+                                  <a
+                                    href={`/stock-history?id=${station.id}`}
+                                    className="text-red-600 hover:text-red-800"
+                                  >
+                                    <BiHistory size={20} />
+                                  </a>
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-sm">No actions</span>
+                              )}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <button
@@ -312,17 +367,26 @@ export default function LoadingStations() {
                       </div>
 
                       <div className="mt-4 flex justify-around pt-3 border-t border-gray-100">
-                        <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
-                          <BiEdit size={20} />
-                        </a>
-                        <a href={`/loading-stations/view?id=${station.id}`} className="flex flex-col items-center text-blue-600">
-                          <BiShow size={24} />
-                          <span className="text-xs mt-1">View</span>
-                        </a>
-                        <a href={`/stock-history?id=${station.id}`} className="flex flex-col items-center text-red-600">
-                          <BiHistory size={24} />
-                          <span className="text-xs mt-1">History</span>
-                        </a>
+                        {/* Actions - Hide for staff/incharge, show for admin */}
+                        {user && Number(user.role) === 5 ? (
+                          <>
+                            <a href={`/loading-stations/edit?id=${station.id}`} className="text-green-600 hover:text-green-800">
+                              <BiEdit size={20} />
+                            </a>
+                            <a href={`/loading-stations/view?id=${station.id}`} className="flex flex-col items-center text-blue-600">
+                              <BiShow size={24} />
+                              <span className="text-xs mt-1">View</span>
+                            </a>
+                            <a href={`/stock-history?id=${station.id}`} className="flex flex-col items-center text-red-600">
+                              <BiHistory size={24} />
+                              <span className="text-xs mt-1">History</span>
+                            </a>
+                          </>
+                        ) : (
+                          <div className="text-gray-400 text-sm text-center w-full">
+                            No actions available
+                          </div>
+                        )}
                       </div>
 
                       {/* Mobile Logs Section */}

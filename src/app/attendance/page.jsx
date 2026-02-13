@@ -307,16 +307,16 @@ export default function AttendancePage() {
   const availableStations = getAvailableStations();
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      <div className="flex-shrink-0">
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
       </div>
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
         <div className="flex-shrink-0">
           <Header />
         </div>
 
-        <main className="flex-1 overflow-y-auto min-h-0">
+        <main className="flex-1 overflow-y-auto">
           <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
             <div className="flex items-center gap-3 mb-4">
               <button

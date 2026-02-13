@@ -487,10 +487,10 @@ function CustomersPage() {
   if (user && !hasPermission) {
     return (
       <div className="flex min-h-screen overflow-hidden bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
-        <div className="flex-shrink-0">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
           <Sidebar activePage="Customers" />
         </div>
-        <div className="flex flex-col flex-1 min-h-screen overflow-hidden">
+        <div className="lg:ml-64 flex flex-col flex-1 min-h-screen overflow-hidden">
           <div className="flex-shrink-0">
             <Header />
           </div>
@@ -509,17 +509,17 @@ function CustomersPage() {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50 overflow-hidden">
-      <div className="flex-shrink-0">
+    <div className="flex min-h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
       </div>
 
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="lg:ml-64 flex flex-col flex-1 min-h-screen">
         <div className="flex-shrink-0">
           <Header />
         </div>
 
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6 min-h-0">
+        <main className="flex-1 overflow-y-auto p-3 sm:p-4 lg:p-6">
           <div className="max-w-7xl mx-auto">
             <nav className="mb-4 lg:mb-6">
               <div className="flex items-center gap-3 mb-2">
@@ -1355,9 +1355,11 @@ function CustomersPage() {
 export default function Page() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen bg-gray-50">
-        <div className="animate-pulse bg-gray-200 w-64 h-screen"></div>
-        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <div className="animate-pulse bg-gray-200 w-64 h-screen"></div>
+        </div>
+        <div className="lg:ml-64 flex flex-col flex-1 min-h-screen overflow-hidden">
           <div className="animate-pulse bg-gray-200 h-16"></div>
           <div className="flex-1 overflow-y-auto p-8">
             <div className="animate-pulse bg-gray-200 h-8 w-64 mb-6 rounded"></div>

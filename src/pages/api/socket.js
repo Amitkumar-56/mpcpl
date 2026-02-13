@@ -1,10 +1,13 @@
 import { executeQuery } from "@/lib/db";
 let io;
 export default function SocketHandler(req, res) {
+  console.log('Socket handler called');
   if (res.headersSent) {
+    console.log('Headers already sent, returning');
     return res.end();
   }
   if (!res.socket.server.io) {
+    console.log('Initializing new Socket.io server');
     try {
       const { Server } = require("socket.io");
       io = new Server(res.socket.server, {
@@ -24,7 +27,10 @@ export default function SocketHandler(req, res) {
       });
       res.socket.server.io = io;
       try { global._io = io; } catch (e) {}
+      console.log('Socket.io server created successfully');
+      
       io.on("connection", (socket) => {
+        console.log('New socket connection:', socket.id);
         socket.on("customer_join", async (data) => {
           try {
             const { customerId, customerName } = data;
@@ -114,6 +120,7 @@ export default function SocketHandler(req, res) {
         });
         socket.on("employee_join", (data) => {
           try {
+            console.log('Employee join request:', data);
             const { employeeId, employeeName, role } = data;
             if (!employeeId) {
               socket.emit("error", { message: "Employee ID is required" });
@@ -126,11 +133,13 @@ export default function SocketHandler(req, res) {
             socket.employeeId = employeeId;
             socket.userType = "employee";
             socket.userName = employeeName;
+            console.log(`Employee ${employeeName} (${employeeId}) joined successfully`);
             socket.emit("employee_joined", {
               message: "Employee joined successfully",
               socketId: socket.id,
             });
           } catch (error) {
+            console.error('Employee join error:', error);
             socket.emit("error", { message: "Failed to join as employee" });
           }
         });

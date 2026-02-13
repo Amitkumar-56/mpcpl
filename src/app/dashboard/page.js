@@ -289,8 +289,17 @@ export default function DashboardPage() {
 
     const initializeSocket = async () => {
       try {
-        await fetch('/api/socket');
+        console.log('Dashboard: Initializing socket connection...');
+        
+        // First, initialize the socket server
+        const socketInitResponse = await fetch('/api/socket');
+        console.log('Dashboard: Socket init response:', socketInitResponse.status);
+        
+        if (!socketInitResponse.ok) {
+          throw new Error('Socket initialization failed');
+        }
 
+        console.log('Dashboard: Creating socket client...');
         socketInstance = io({
           path: '/api/socket',
           transports: ['websocket', 'polling'],
@@ -318,6 +327,7 @@ export default function DashboardPage() {
 
         socketInstance.on('connect_error', (error) => {
           console.error('Dashboard: Socket connection error:', error);
+          console.error('Dashboard: Error details:', error.message, error.description);
           setSocketConnected(false);
         });
 
