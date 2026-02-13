@@ -106,23 +106,25 @@ function ProductViewContent({ params }) {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex min-h-screen bg-gray-100">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
+          <div className="w-full max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
               <button
                 onClick={handleBack}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-gray-800"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-gray-800 text-sm sm:text-base"
               >
                 ← Back to Products
               </button>
-              <div className="flex gap-2">
+              <div className="flex gap-2 w-full sm:w-auto">
                 <button
                   onClick={handleEdit}
-                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="flex-1 sm:flex-none px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm sm:text-base"
                 >
                   Edit Product
                 </button>
@@ -139,34 +141,36 @@ function ProductViewContent({ params }) {
               <div className="text-red-600 text-center py-10">{error}</div>
             ) : product ? (
               <div>
-                <h1 className="text-3xl font-bold mb-6 text-gray-800">Product Details</h1>
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-6 text-gray-800">Product Details</h1>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-sm font-semibold text-gray-600 mb-2">Product ID</h3>
-                    <p className="text-lg font-medium text-gray-900">{product.id}</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 mb-6 sm:mb-8">
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">Product ID</h3>
+                    <p className="text-base sm:text-lg font-medium text-gray-900 break-all">{product.id}</p>
                   </div>
                   
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h3 className="text-sm font-semibold text-gray-600 mb-2">Product Name</h3>
-                    <p className="text-lg font-medium text-gray-900">{product.pname}</p>
+                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
+                    <h3 className="text-xs sm:text-sm font-semibold text-gray-600 mb-2">Product Name</h3>
+                    <p className="text-base sm:text-lg font-medium text-gray-900 break-words">{product.pname}</p>
                   </div>
                 </div>
 
-                <div className="mb-8">
-                  <h3 className="text-lg font-semibold text-gray-700 mb-3">Product Codes</h3>
-                  <div className="flex flex-wrap gap-2">
+                <div className="mb-6 sm:mb-8">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-700 mb-3">Product Codes</h3>
+                  <div className="flex flex-wrap gap-1 sm:gap-2">
                     {product.pcodes.map((code, index) => (
-                      <span key={index} className="px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-sm font-medium">
+                      <span key={index} className="px-2 sm:px-3 py-1 bg-purple-100 text-purple-800 rounded-full text-xs sm:text-sm font-medium break-all">
                         {code}
                       </span>
                     ))}
                   </div>
                 </div>
 
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-semibold text-gray-700 mb-4">Activity Logs</h3>
-                  <EntityLogs entityType="product" entityId={product.id} />
+                <div className="border-t pt-4 sm:pt-6">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-700 mb-3 sm:mb-4">Activity Logs</h3>
+                  <div className="overflow-x-auto">
+                    <EntityLogs entityType="product" entityId={product.id} />
+                  </div>
                 </div>
               </div>
             ) : (
@@ -185,12 +189,14 @@ export default function ProductViewPage({ params }) {
   return (
     <Suspense fallback={
       <div className="flex h-screen bg-gray-100">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-auto p-6">
-            <div className="max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-6">
-              <div className="text-center py-10">Loading product details...</div>
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
+          <div className="w-full max-w-4xl mx-auto bg-white rounded-lg shadow-lg p-4 sm:p-6">
+            <div className="text-center py-8 sm:py-10">Loading product details...</div>
             </div>
           </main>
           <Footer />

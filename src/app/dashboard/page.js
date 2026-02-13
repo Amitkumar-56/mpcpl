@@ -154,8 +154,8 @@ export default function DashboardPage() {
     try {
       const userRole = sessionUser?.role ? Number(sessionUser.role) : null;
 
-      // ✅ For staff/incharge: Don't fetch anything (blank dashboard)
-      if (userRole === 1 || userRole === 2) {
+      // ✅ For staff/incharge/driver: Don't fetch anything (blank dashboard)
+      if (userRole === 1 || userRole === 2 || userRole === 6) {
         return;
       }
 
@@ -517,8 +517,8 @@ export default function DashboardPage() {
         </div>
 
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          {/* Error Alert (Hidden for Staff/Incharge) */}
-          {error && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+          {/* Error Alert (Hidden for Staff/Incharge/Driver) */}
+          {error && !(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6) && (
             <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
               <div className="flex items-center">
                 <BiError className="text-red-500 mr-2" />
@@ -530,8 +530,8 @@ export default function DashboardPage() {
             </div>
           )}
 
-          {/* Chat Notification - Top Right (Hidden for Staff/Incharge) */}
-          {!(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+          {/* Chat Notification - Top Right (Hidden for Staff/Incharge/Driver) */}
+          {!(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6) && (
             <div className="fixed top-20 right-4 z-50">
               <button
                 onClick={() => setShowChat(!showChat)}
@@ -556,11 +556,11 @@ export default function DashboardPage() {
                   Welcome, {sessionUser?.name}!
                 </h1>
                 <p className="text-gray-600 mt-1 text-sm">
-                  {((sessionUser?.role === 1 || sessionUser?.role === 2))
+                  {((sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6))
                     ? "Dashboard"
                     : "Real-time outstanding balances overview"}
                 </p>
-                {lastUpdated && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+                {lastUpdated && !(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6) && (
                   <p className="text-gray-500 text-xs mt-1">
                     Updated: {lastUpdated.toLocaleTimeString('en-IN')}
                     {socketConnected && (
@@ -570,7 +570,7 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {!(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+              {!(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6) && (
                 <div className="flex items-center space-x-2 mt-3 lg:mt-0">
                   <button
                     onClick={handleRefresh}
@@ -592,8 +592,8 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          {/* ✅ For staff/incharge: Show nothing (blank dashboard with design only) */}
-          {(sessionUser?.role === 1 || sessionUser?.role === 2) ? (
+          {/* ✅ For staff/incharge/driver: Show nothing (blank dashboard with design only) */}
+          {(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6) ? (
             <div className="mb-6">
               {/* Empty dashboard - no content shown for Staff/Incharge */}
             </div>
@@ -751,9 +751,9 @@ export default function DashboardPage() {
         <PWAInstallBanner />
       </div >
 
-      {/* Chat Widget (Hidden for Staff/Incharge) */}
+      {/* Chat Widget (Hidden for Staff/Incharge/Driver) */}
       {
-        showChat && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+        showChat && !(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 6) && (
           <ChatWidget
             activeChats={activeChats}
             selectedCustomer={selectedCustomer}

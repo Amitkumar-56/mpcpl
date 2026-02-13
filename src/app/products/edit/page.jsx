@@ -153,22 +153,24 @@ function EditProductForm() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="flex min-h-screen bg-gray-100">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
         <Header />
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-6">
-            <div className="flex items-center justify-between mb-6">
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
+          <div className="w-full max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-4 sm:p-6">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
               <button
                 onClick={handleBack}
-                className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-gray-800"
+                className="w-full sm:w-auto px-4 py-2 bg-gray-300 rounded hover:bg-gray-400 text-gray-800 text-sm sm:text-base"
               >
                 ← Back to Products
               </button>
             </div>
 
-            <h2 className="text-2xl font-bold mb-4">Edit Product</h2>
+            <h2 className="text-xl sm:text-2xl font-bold mb-4">Edit Product</h2>
 
             {authLoading || loading ? (
               <div className="text-center py-10">Loading...</div>
@@ -181,30 +183,30 @@ function EditProductForm() {
             ) : product ? (
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block mb-1 font-medium">Product Name</label>
+                  <label className="block mb-1 font-medium text-sm sm:text-base">Product Name</label>
                   <input
                     type="text"
                     value={pname}
                     onChange={(e) => setPname(e.target.value)}
-                    className="w-full border rounded px-3 py-2"
+                    className="w-full border rounded px-3 py-2 text-sm sm:text-base"
                     placeholder="Enter product name"
                   />
                 </div>
 
                 <div>
-                  <label className="block mb-1 font-medium">Product Codes</label>
-                  <div className="flex space-x-2">
+                  <label className="block mb-1 font-medium text-sm sm:text-base">Product Codes</label>
+                  <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
                     <input
                       type="text"
                       value={pcodeInput}
                       onChange={(e) => setPcodeInput(e.target.value)}
-                      className="flex-1 border rounded px-3 py-2"
+                      className="flex-1 border rounded px-3 py-2 text-sm sm:text-base"
                       placeholder="Enter product code"
                     />
                     <button
                       type="button"
                       onClick={addPcode}
-                      className="px-4 py-2 bg-gray-500 text-white rounded"
+                      className="w-full sm:w-auto px-4 py-2 bg-gray-500 text-white rounded text-sm sm:text-base hover:bg-gray-600"
                     >
                       Add
                     </button>
@@ -212,15 +214,15 @@ function EditProductForm() {
                 </div>
 
                 <div>
-                  <label className="block mb-2 font-medium">Current Product Codes</label>
-                  <div className="space-y-2">
+                  <label className="block mb-2 font-medium text-sm sm:text-base">Current Product Codes</label>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
                     {pcodes.map((code, index) => (
                       <div key={index} className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-gray-700">{code}</span>
+                        <span className="text-gray-700 text-sm sm:text-base break-all flex-1 mr-2">{code}</span>
                         <button
                           type="button"
                           onClick={() => removePcode(index)}
-                          className="px-2 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600"
+                          className="px-2 py-1 bg-red-500 text-white rounded text-xs sm:text-sm hover:bg-red-600 flex-shrink-0"
                         >
                           Remove
                         </button>
@@ -229,31 +231,31 @@ function EditProductForm() {
                   </div>
                 </div>
 
-                <div>
-                  <table className="min-w-full bg-white">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full bg-white text-sm sm:text-base">
                     <thead>
                       <tr>
-                        <th className="py-2 px-4 border-b">Product Name</th>
-                        <th className="py-2 px-4 border-b">Product Codes</th>
+                        <th className="py-2 px-2 sm:px-4 border-b text-xs sm:text-sm">Product Name</th>
+                        <th className="py-2 px-2 sm:px-4 border-b text-xs sm:text-sm">Product Codes</th>
                       </tr>
                     </thead>
                     <tbody>
                       {pcodes.map((code, index) => (
                         <tr key={index}>
-                          <td className="py-2 px-4 border-b">{pname}</td>
-                          <td className="py-2 px-4 border-b">{code}</td>
+                          <td className="py-2 px-2 sm:px-4 border-b break-words">{pname}</td>
+                          <td className="py-2 px-2 sm:px-4 border-b break-all">{code}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
 
-                <div className="flex space-x-2">
-                  <button type="submit" className="px-6 py-2 bg-blue-600 text-white rounded">Update Product</button>
+                <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                  <button type="submit" className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-blue-600 text-white rounded text-sm sm:text-base hover:bg-blue-700">Update Product</button>
                   <button
                     type="button"
                     onClick={handleBack}
-                    className="px-6 py-2 bg-gray-600 text-white rounded"
+                    className="w-full sm:w-auto px-4 sm:px-6 py-2 bg-gray-600 text-white rounded text-sm sm:text-base hover:bg-gray-700"
                   >
                     Cancel
                   </button>
@@ -281,12 +283,14 @@ export default function EditProductPage() {
   return (
     <Suspense fallback={
       <div className="flex h-screen bg-gray-100">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
-        <div className="flex-1 flex flex-col overflow-hidden">
-          <Header />
-          <main className="flex-1 overflow-auto p-6">
-            <div className="max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-6">
-              <div className="text-center py-10">Loading product data...</div>
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+        <Header />
+        <main className="flex-1 overflow-auto p-3 sm:p-4 md:p-6">
+          <div className="w-full max-w-3xl mx-auto bg-white rounded-lg shadow-lg p-4 sm:p-6">
+            <div className="text-center py-8 sm:py-10">Loading product data...</div>
             </div>
           </main>
           <Footer />

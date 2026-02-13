@@ -139,9 +139,11 @@ export default function ProductsPage() {
 
 
   return (
-    <div className="h-screen flex bg-gray-50">
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="min-h-screen flex bg-gray-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
         <Header />
 
         <main className="flex-1 p-3 sm:p-4 md:p-6 overflow-y-auto">
