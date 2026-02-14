@@ -25,11 +25,12 @@ export async function GET(request) {
         s.*,
         p.pname as product_name,
         sup.name as supplier_name,
-        NULL as transporter_name,
+        t.transporter_name,
         fs.station_name
       FROM stock s
       LEFT JOIN products p ON s.product_id = p.id
       LEFT JOIN suppliers sup ON s.supplier_id = sup.id
+      LEFT JOIN transporters t ON s.transporter_id = t.id
       LEFT JOIN filling_stations fs ON s.fs_id = fs.id
       ORDER BY s.id DESC
     `;

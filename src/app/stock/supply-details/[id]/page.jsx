@@ -1,8 +1,8 @@
-// app/stock/supply-details/page.jsx
+// app/stock/supply-details/[id]/page.jsx
 'use client';
 
 import Link from 'next/link';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
 // Toast Component (Inline)
@@ -120,8 +120,8 @@ function ErrorDisplay({ error, onRetry }) {
 // Main Content Component (wrapped in Suspense boundary)
 function SupplyDetailsContent() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const id = searchParams.get('id');
+  const params = useParams();
+  const id = params.id;
   
   const [supplyDetails, setSupplyDetails] = useState(null);
   const [loading, setLoading] = useState(true);

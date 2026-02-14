@@ -22,21 +22,27 @@ export default function StockActivityLogsPage() {
         userName = parsed?.name || null;
       }
       const uniqueCode = `PAGEVIEW-STOCK-${Date.now()}`;
-      fetch('/api/audit-logs', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          page: 'Stock Management',
-          section: 'Activity Logs',
-          action: 'view',
-          uniqueCode,
-          userId,
-          userName,
-          recordType: 'page_view',
-          remarks: 'Visited Stock Activity Logs page'
-        })
-      }).catch(() => {});
-    } catch {}
+      
+      // Only create audit log if we have valid user data
+      if (userId && userName) {
+        fetch('/api/audit-logs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            page: 'Stock Management',
+            section: 'Activity Logs',
+            action: 'view',
+            uniqueCode,
+            userId,
+            userName,
+            recordType: 'page_view',
+            remarks: 'Visited Stock Activity Logs page'
+          })
+        }).catch(() => {});
+      }
+    } catch (error) {
+      console.error('Error creating audit log:', error);
+    }
   }, []);
 
   return (

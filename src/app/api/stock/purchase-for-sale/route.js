@@ -32,7 +32,10 @@ export async function POST(request) {
       tds_cutting = 0,
       status,
       quantityChanged,
-      quantity_change_reason
+      quantity_change_reason,
+      transport_number,
+      t_invoice_value,
+      t_payable
     } = data;
 
     // Validate required fields
@@ -111,6 +114,9 @@ export async function POST(request) {
         driver_no,
         lr_no,
         transporter_id,
+        transport_number,
+        t_invoice_value,
+        t_payable,
         v_invoice_value,
         dncn,
         payable,
@@ -118,7 +124,7 @@ export async function POST(request) {
         status,
         weight_type,
         created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     ` : `
       INSERT INTO stock (
         supplier_id,
@@ -134,14 +140,18 @@ export async function POST(request) {
         tanker_no,
         driver_no,
         lr_no,
+        transport_number,
+        t_invoice_value,
+        t_payable,
         v_invoice_value,
         dncn,
         payable,
         payment,
         status,
         weight_type,
+        quantity_change_reason,
         created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
 
     const stockValues = hasTransporterId ? [
@@ -159,6 +169,9 @@ export async function POST(request) {
       driverNumber || null,
       lrNo || null,
       transporter_id || null,
+      transport_number || null,
+      t_invoice_value || null,
+      t_payable || null,
       invoiceAmountNum,
       dncn,
       payable,
@@ -179,12 +192,16 @@ export async function POST(request) {
       tankerNumber || null,
       driverNumber || null,
       lrNo || null,
+      transport_number || null,
+      t_invoice_value || null,
+      t_payable || null,
       invoiceAmountNum,
       dncn,
       payable,
       0, // payment default 0
       status || "pending",
-      quantityChanged ? "changed" : "normal"
+      quantityChanged ? "changed" : "normal",
+      quantity_change_reason || null
     ];
 
     console.log("Executing stock query with values:", stockValues);

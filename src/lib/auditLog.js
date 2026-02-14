@@ -166,29 +166,35 @@ export async function createAuditLog({
     const newValueJson = newValue ? (typeof newValue === 'string' ? newValue : JSON.stringify(newValue)) : null;
 
     // Insert audit log entry
-    await executeQuery(
-      `INSERT INTO audit_log (
+    const query = `
+      INSERT INTO audit_log (
         page, unique_code, section, user_id, user_name, action, remarks,
         old_value, new_value, field_name, record_type, record_id,
         action_date, action_time
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        page || 'Unknown',
-        uniqueCode || 'N/A',
-        section || 'General',
-        userId || null,
-        finalUserName || 'Unknown User',
-        action || 'unknown',
-        remarks || '',
-        oldValueJson,
-        newValueJson,
-        fieldName || null,
-        recordType || null,
-        recordId || null,
-        actionDate,
-        actionTime
-      ]
-    );
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    
+    const values = [
+      page || 'Unknown',
+      uniqueCode || 'N/A',
+      section || 'General',
+      userId || null,
+      finalUserName || 'Unknown User',
+      action || 'unknown',
+      remarks || '',
+      oldValueJson,
+      newValueJson,
+      fieldName || null,
+      recordType || null,
+      recordId || null,
+      actionDate,
+      actionTime
+    ];
+    
+    console.log('🔍 [AuditLog] Query:', query);
+    console.log('🔍 [AuditLog] Values:', values);
+    
+    await executeQuery(query, values);
 
     return { success: true };
   } catch (error) {

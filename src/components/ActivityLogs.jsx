@@ -42,6 +42,10 @@ export default function ActivityLogs({
     to_date: ''
   });
   
+  // Filter actions to only show specific ones
+  const allowedActions = ['create', 'add', 'edit', 'update', 'created by', 'updated by', 'edited by'];
+  const [showOnlySpecificActions, setShowOnlySpecificActions] = useState(true);
+  
   const [currentPage, setCurrentPage] = useState(1);
 
   useEffect(() => {
@@ -103,19 +107,30 @@ export default function ActivityLogs({
       if (result.success) {
         const logsData = result.data || [];
         
+        // Filter logs to show only specific actions if enabled
+        const filteredLogs = showOnlySpecificActions 
+          ? logsData.filter(log => {
+              const action = (log.action || '').toLowerCase();
+              return allowedActions.some(allowedAction => 
+                action.includes(allowedAction.toLowerCase()) || 
+                allowedAction.toLowerCase().includes(action)
+              );
+            })
+          : logsData;
+        
         // ✅ FIX: Debug - log actions to see what we're getting
-        const actionsInData = logsData.map(log => log.action).filter(Boolean);
+        const actionsInData = filteredLogs.map(log => log.action).filter(Boolean);
         const uniqueActionsInData = [...new Set(actionsInData)];
         console.log('🔍 [ActivityLogs] Actions received from API:', uniqueActionsInData);
-        if (logsData.length > 0) {
-          console.log('🔍 [ActivityLogs] Sample log actions:', logsData.slice(0, 5).map(log => ({ id: log.id, action: log.action, page: log.page })));
+        if (filteredLogs.length > 0) {
+          console.log('🔍 [ActivityLogs] Sample log actions:', filteredLogs.slice(0, 5).map(log => ({ id: log.id, action: log.action, page: log.page })));
         }
         
-        setLogs(logsData);
+        setLogs(filteredLogs);
         setTotal(result.total || 0);
         setHasMore(result.hasMore || false);
         
-        // Extract unique actions from logs
+        // Extract unique actions from filtered logs
         const uniqueActions = [...new Set(actionsInData)].sort();
         setAvailableActions(uniqueActions);
       } else {
@@ -201,10 +216,22 @@ export default function ActivityLogs({
     <div className="bg-white rounded-lg shadow">
       {/* Header */}
       <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-        <h2 className="text-lg font-semibold text-gray-900">
-          Activity Logs
-          {pageName && <span className="text-sm font-normal text-gray-500 ml-2">({pageName})</span>}
-        </h2>
+        <div className="flex items-center space-x-4">
+          <h2 className="text-lg font-semibold text-gray-900">
+            Activity Logs
+            {pageName && <span className="text-sm font-normal text-gray-500 ml-2">({pageName})</span>}
+          </h2>
+          <button
+            onClick={() => setShowOnlySpecificActions(!showOnlySpecificActions)}
+            className={`px-3 py-1 text-sm rounded-md transition-colors ${
+              showOnlySpecificActions 
+                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+            }`}
+          >
+            {showOnlySpecificActions ? 'Show All Actions' : 'Show Only Created/Updated'}
+          </button>
+        </div>
         <ExportButton 
           data={logs} 
           fileName={`activity_logs_${pageName || 'all'}`} 
@@ -350,18 +377,6 @@ export default function ActivityLogs({
                   </div>
                   
                   <div className="space-y-2 text-sm">
-                    {log.section && (
-                      <div>
-                        <span className="text-xs text-gray-500">Section:</span>
-                        <span className="ml-2 text-gray-900">{log.section}</span>
-                      </div>
-                    )}
-                    {log.unique_code && (
-                      <div>
-                        <span className="text-xs text-gray-500">Code:</span>
-                        <span className="ml-2 text-gray-900 font-mono">{log.unique_code}</span>
-                      </div>
-                    )}
                     {log.old_value || log.new_value ? (
                       <div>
                         <div className="text-xs text-gray-500 mb-1">
@@ -420,8 +435,6 @@ export default function ActivityLogs({
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Section</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unique Code</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Value Change</th>
@@ -433,12 +446,6 @@ export default function ActivityLogs({
                     <tr key={log.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                         {formatDateTime(log.action_date, log.action_time)}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
-                        {log.section || 'N/A'}
-                      </td>
-                      <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-gray-900">
-                        {log.unique_code || 'N/A'}
                       </td>
                       <td className="px-4 py-3 text-sm">
                         <div className="flex flex-col">

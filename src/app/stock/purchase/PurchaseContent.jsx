@@ -10,6 +10,7 @@ export default function PurchaseContent() {
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [purchaseData, setPurchaseData] = useState({
+    transporter_id: '',
     supplier_id: '',
     product_id: '',
     fs_id: '',
@@ -23,15 +24,19 @@ export default function PurchaseContent() {
     tankerNumber: '',
     driverNumber: '',
     lrNo: '',
+    transport_number: '',
     invoiceAmount: '',
     debitNote: '',
     creditNote: '',
+    t_invoice_value: '',
+    t_payable: '',
   });
 
   const [formData, setFormData] = useState({
     suppliers: [],
     products: [],
-    stations: []
+    stations: [],
+    transporters: []
   });
 
   const [status, setStatus] = useState('pending');
@@ -48,7 +53,8 @@ export default function PurchaseContent() {
           setFormData({
             suppliers: data.suppliers || [],
             products: data.products || [],
-            stations: data.stations || []
+            stations: data.stations || [],
+            transporters: data.transporters || []
           });
         } else {
           console.error('Failed to fetch dropdown data');
@@ -74,7 +80,7 @@ export default function PurchaseContent() {
     setLoading(true);
     
     // Validate required fields
-    const requiredFields = ['supplier_id', 'product_id', 'fs_id', 'invoiceNumber', 'invoiceDate', 'invoiceAmount'];
+    const requiredFields = ['transporter_id', 'supplier_id', 'product_id', 'fs_id', 'invoiceNumber', 'invoiceDate', 'invoiceAmount'];
     const missingFields = requiredFields.filter(field => !purchaseData[field]);
     
     if (missingFields.length > 0) {
@@ -128,6 +134,7 @@ export default function PurchaseContent() {
 
   const resetForm = () => {
     setPurchaseData({
+      transporter_id: '',
       supplier_id: '',
       product_id: '',
       fs_id: '',
@@ -141,9 +148,12 @@ export default function PurchaseContent() {
       tankerNumber: '',
       driverNumber: '',
       lrNo: '',
+      transport_number: '',
       invoiceAmount: '',
       debitNote: '',
       creditNote: '',
+      t_invoice_value: '',
+      t_payable: '',
     });
     setStatus('on_the_way');
     setQuantityChanged(false);
@@ -195,6 +205,22 @@ export default function PurchaseContent() {
           {/* Purchase Form */}
           <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {/* Transporter Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Transporter</label>
+                <select
+                  name="transporter_id"
+                  value={purchaseData.transporter_id}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                >
+                  <option value="">Select Transporter</option>
+                  {formData.transporters.map(t => (
+                    <option key={t.id} value={t.id}>{t.transporter_name}</option>
+                  ))}
+                </select>
+              </div>
+
               {/* Supplier Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Supplier *</label>
@@ -365,6 +391,50 @@ export default function PurchaseContent() {
                   value={purchaseData.driverNumber}
                   onChange={handleInputChange}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Transport Number
+                </label>
+                <input
+                  type="text"
+                  name="transport_number"
+                  value={purchaseData.transport_number}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  placeholder="Enter transport number"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Transporter Invoice Value
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="t_invoice_value"
+                  value={purchaseData.t_invoice_value}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  placeholder="Enter transporter invoice value"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Transporter Payable Amount
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="t_payable"
+                  value={purchaseData.t_payable}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  placeholder="Enter transporter payable amount"
                 />
               </div>
 

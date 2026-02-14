@@ -721,7 +721,7 @@ export async function POST(request) {
           section: 'Request Management',
           userId: userId,
           userName: userName,
-          action: 'create',
+          action: 'created by',
           remarks: `Filling request created: ${nextRID} for customer ${customer}, product ${productName}, quantity ${qty}L`,
           oldValue: null,
           newValue: {

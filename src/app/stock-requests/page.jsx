@@ -254,7 +254,16 @@ function StockRequestsContent() {
                             {request.invoice_number || 'N/A'}
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden lg:table-cell">
-                            {request.transporter_name || 'N/A'}
+                            {request.transporter_name ? (
+                              <Link
+                                href={`/transportersinvoice?transporter_id=${request.transporter_id}`}
+                                className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                              >
+                                {request.transporter_name}
+                              </Link>
+                            ) : (
+                              'N/A'
+                            )}
                           </td>
                           <td className="px-3 sm:px-6 py-4 whitespace-nowrap text-sm text-gray-500 hidden xl:table-cell">
                             {request.transport_number || 'N/A'}
