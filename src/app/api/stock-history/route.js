@@ -165,21 +165,25 @@ export async function GET(request) {
     let employeeNameMap = {};
     if (missingEmployeeIds.size > 0) {
       try {
+        console.log(`🔍 Fetching ${missingEmployeeIds.size} missing employee names for stock history`);
         const employeeIds = Array.from(missingEmployeeIds);
         const placeholders = employeeIds.map(() => '?').join(',');
         const empResult = await executeQuery(
           `SELECT id, name, emp_code FROM employee_profile WHERE id IN (${placeholders})`,
           employeeIds
         );
+        console.log(`✅ Fetched ${empResult.length} employee names from employee_profile table`);
         empResult.forEach(emp => {
-          employeeNameMap[emp.id] = {
-            name: emp.name,
-            emp_code: emp.emp_code
-          };
+          if (emp.name && emp.id) {
+            employeeNameMap[emp.id] = {
+              name: emp.name,
+              emp_code: emp.emp_code
+            };
+            console.log(`  - ID: ${emp.id} => Name: ${emp.name}`);
+          }
         });
-        console.log(`✅ Fetched ${empResult.length} employee names for stock history`);
       } catch (fetchError) {
-        console.error('⚠️ Error fetching employee names:', fetchError);
+        console.error('❌ Error fetching employee names:', fetchError);
       }
     }
 
@@ -196,16 +200,21 @@ export async function GET(request) {
         if (empData && empData.name) {
           displayName = empData.name;
         } else {
-          // Employee ID exists but not found in employee_profile
-          if (row.created_by_emp_code) {
-            displayName = `Emp: ${row.created_by} (${row.created_by_emp_code})`;
-          } else {
-            displayName = `Emp: ${row.created_by}`;
-          }
+          displayName = `Emp ID: ${row.created_by}`;
         }
+      } else {
+        // System or null created_by
+        displayName = 'System';
       }
-      
-      // ✅ Handle Outward transactions - get vehicle number
+
+      return {
+        ...row,
+        created_by_display_name: displayName
+      };
+    });
+
+    // ✅ Handle Outward transactions - get vehicle number
+    const processedRows = formattedRows.map((row) => {
       let vehicleNumber = row.vehicle_number || '';
       if ((row.trans_type === 'Outward' || row.trans_type === 'Edited') && row.rid) {
         // If vehicle_number is empty, try to extract from request_rid or use rid

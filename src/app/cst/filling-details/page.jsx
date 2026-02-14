@@ -295,7 +295,15 @@ function FillingDetailsContent() {
                 </label>
                 <input
                   type="text"
-                  value={request?.created_at ? new Date(request.created_at).toLocaleString() : ''}
+                  value={request?.created_at ? new Date(request.created_at).toLocaleString('en-IN', {
+                    day: '2-digit',
+                    month: 'short', 
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true,
+                    timeZone: 'Asia/Kolkata'
+                  }) : ''}
                   readOnly
                   className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-500 cursor-not-allowed"
                 />

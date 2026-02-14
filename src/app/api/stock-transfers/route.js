@@ -144,22 +144,30 @@ export async function POST(request) {
     ]);
 
     // Get current user for audit log
+    console.log('🔍 [StockTransfer] Getting current user for audit log...');
     const currentUser = await getCurrentUser();
+    console.log('🔍 [StockTransfer] Current user:', currentUser);
     const userId = currentUser?.userId || null;
     // Ensure userName is fetched from employee_profile
     let userName = currentUser?.userName;
     if (!userName && currentUser?.userId) {
+      console.log('🔍 [StockTransfer] Fetching user name for userId:', currentUser.userId);
       const users = await executeQuery(
         `SELECT name FROM employee_profile WHERE id = ?`,
         [currentUser.userId]
       );
       if (users.length > 0 && users[0].name) {
         userName = users[0].name;
+        console.log('✅ [StockTransfer] Found user name:', userName);
+      } else {
+        console.warn('⚠️ [StockTransfer] User not found in employee_profile for userId:', currentUser.userId);
       }
     }
+    console.log('🔍 [StockTransfer] Final user info:', { userId, userName });
 
     // Create audit log
-    await createAuditLog({
+    console.log('🔍 [StockTransfer] Creating audit log...');
+    const auditResult = await createAuditLog({
       page: 'Stock Transfers',
       uniqueCode: `TRANSFER-${result.insertId}`,
       section: 'Stock Transfer',
@@ -180,6 +188,7 @@ export async function POST(request) {
       recordType: 'stock_transfer',
       recordId: result.insertId
     });
+    console.log('✅ [StockTransfer] Audit log result:', auditResult);
 
     return NextResponse.json({ 
       message: "Stock transfer created successfully",

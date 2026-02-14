@@ -431,7 +431,7 @@ function StockHistoryContent() {
               <div className="flex justify-between items-center bg-white rounded-lg p-3 border border-gray-200">
                 <span className="text-sm font-medium text-gray-700">Created By</span>
                 <span className="text-sm text-gray-900">
-                  {row.created_by_name || row.user_name || (row.created_by ? `Emp ${row.created_by}` : '-')}
+                  {row.created_by_display_name || row.user_name || 'System'}
                 </span>
               </div>
 

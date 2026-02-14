@@ -236,16 +236,28 @@ function FillingRequestsPage() {
   const formatDateTime = (dateString) => {
     if (!dateString) return 'N/A';
     try {
-      const date = new Date(dateString);
+      // Handle different date formats
+      let date;
+      
+      // If it's just a date (YYYY-MM-DD), add current time to avoid timezone issues
+      if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        date = new Date(dateString + 'T00:00:00');
+      } else {
+        date = new Date(dateString);
+      }
+      
+      // Format for IST timezone
       return date.toLocaleString('en-IN', {
         day: '2-digit',
         month: 'short',
         year: 'numeric',
         hour: '2-digit',
         minute: '2-digit',
-        hour12: true
+        hour12: true,
+        timeZone: 'Asia/Kolkata'
       });
     } catch (e) {
+      console.error('Date formatting error:', e, 'for date:', dateString);
       return dateString;
     }
   };

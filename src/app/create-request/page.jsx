@@ -788,16 +788,16 @@ export default function CreateRequestPage() {
                   
                 </div>
 
-                <div className="md:col-span-2 flex justify-end gap-4">
-                  <button type="button" onClick={handleReset} className="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400">
-                    Reset
-                  </button>
+                <div className="md:col-span-2 flex justify-start gap-4">
                   <button
                     type="submit"
                     className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
                     disabled={submitting}
                   >
                     {submitting ? 'Submitting...' : 'Submit Request'}
+                  </button>
+                  <button type="button" onClick={handleReset} className="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400">
+                    Reset
                   </button>
                 </div>
               </form>
