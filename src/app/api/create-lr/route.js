@@ -6,27 +6,34 @@ import { getCurrentUser } from '@/lib/auth';
 // Helper function to generate LR number
 async function generateLRNumber() {
   try {
-    // Get the highest LR number that starts with 'LR'
+    // Always start from 002062, regardless of existing records
+    // Get the highest LR number
     const latestLrResult = await executeQuery(
       `SELECT lr_id FROM shipment 
-       WHERE lr_id LIKE 'LR%' 
-       ORDER BY CAST(SUBSTRING(lr_id, 3) AS UNSIGNED) DESC 
+       WHERE lr_id REGEXP '^[0-9]+$' 
+       ORDER BY CAST(lr_id AS UNSIGNED) DESC 
        LIMIT 1`
     );
     
     if (latestLrResult.length > 0) {
       const lastLR = latestLrResult[0].lr_id;
       // Extract numeric part and increment
-      const numericPart = parseInt(lastLR.replace('LR', '')) || 0;
+      const numericPart = parseInt(lastLR) || 0;
       const newNumber = numericPart + 1;
-      return `LR${newNumber.toString().padStart(3, '0')}`;
+      
+      // Always start from 002062 minimum
+      if (newNumber < 2062) {
+        return '002062';
+      }
+      
+      return newNumber.toString().padStart(6, '0');
     }
     
-    // If no records found, start from LR001
-    return 'LR001';
+    // If no records found, start from 002062
+    return '002062';
   } catch (error) {
     console.error('Error generating LR number:', error);
-    return 'LR001';
+    return '002062';
   }
 }
 
@@ -36,7 +43,7 @@ export async function GET(request) {
     const id = searchParams.get('id');
 
     let lrData = {};
-    let newLrId = 'LR001';
+    let newLrId = '002062';
 
     // If editing, fetch existing data
     if (id) {
