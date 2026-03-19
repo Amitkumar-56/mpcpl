@@ -22,8 +22,8 @@ export async function POST(request) {
 
     // Record history (who added cash) - allow NULL user if not provided
     const historySql = `
-      INSERT INTO voucher_history (row_id, user_id, amount, type, created_at)
-      VALUES (?, ?, ?, '1-voucher', NOW())
+      INSERT INTO voucher_history (row_id, user_id, amount, created_at)
+      VALUES (?, ?, ?, NOW())
     `;
     await executeQuery(historySql, [voucher_id, user_id ? parseInt(user_id) : null, amount]);
 

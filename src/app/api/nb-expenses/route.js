@@ -688,6 +688,11 @@ export async function PUT(request) {
       // Get payment_type from body or use old value
       const payment_type = body.payment_type || oldCash.payment_type;
       
+      // Log payment_type for debugging
+      console.log('Payment type received:', payment_type);
+      console.log('Body payment_type:', body.payment_type);
+      console.log('Old payment_type:', oldCash.payment_type);
+      
       // Update query for recharge_wallets
       const updateQuery = `
         UPDATE recharge_wallets 
