@@ -84,7 +84,7 @@ export async function POST(req) {
       String(vehicle_number).trim(),
       String(customer_name).trim(),
       parseFloat(amount),
-      collected_date ? new Date(collected_date) : null,
+      collected_date || null,
       remarks || null,
       userId || null
     ];

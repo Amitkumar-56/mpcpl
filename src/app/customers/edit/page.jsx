@@ -7,11 +7,13 @@ import axios from "axios";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { FiEdit, FiLoader, FiMapPin, FiPackage, FiSave, FiSettings, FiUser } from "react-icons/fi";
+import { useSession } from "@/context/SessionContext";
 
 function EditCustomerContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const customerId = searchParams.get("id");
+  const { user } = useSession();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -118,7 +120,7 @@ function EditCustomerContent() {
 
         const apiCallPromise = Promise.all([
           axios.get(`/api/customers/edit?id=${customerId}`),
-          axios.get(`/api/stations`),
+          axios.get(`/api/stations?user_id=${user?.id}&role=${user?.role}`),
           axios.get(`/api/products`)
         ]);
 
@@ -131,7 +133,17 @@ function EditCustomerContent() {
         console.log('Station Data:', stationData.data);
         console.log('Product Data:', prodData.data);
 
-        setStations(stationData.data || []);
+        // Handle different response structures
+        let stations = [];
+        if (stationData.data?.stations) {
+          stations = stationData.data.stations;
+        } else if (stationData.data?.data) {
+          stations = stationData.data.data;
+        } else {
+          stations = stationData.data || [];
+        }
+
+        setStations(stations || []);
         setProductList(prodData.data || []);
 
         // Handle different response structures
