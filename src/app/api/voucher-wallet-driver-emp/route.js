@@ -94,6 +94,36 @@ export async function GET(request) {
     const result = await executeQuery(sql, params);
     console.log('Query result:', result.length, 'records found');
 
+    // Auto-approve logic: Check if any voucher has been pending for more than 24 hours
+    const processedVouchers = result.map(voucher => {
+      // If voucher is still pending (status = 0 or null) and created more than 24 hours ago
+      if ((voucher.status == 0 || voucher.status == null) && voucher.created_at) {
+        const createdDate = new Date(voucher.created_at);
+        const now = new Date();
+        const hoursDiff = (now - createdDate) / (1000 * 60 * 60);
+        
+        // Auto-approve after 24 hours
+        if (hoursDiff > 24) {
+          console.log(`Auto-approving voucher ${voucher.voucher_id} after ${hoursDiff.toFixed(2)} hours`);
+          
+          // Update voucher status to approved
+          executeQuery(
+            'UPDATE vouchers SET status = 1, approved_by = ?, approved_at = NOW() WHERE voucher_id = ?',
+            ['System Auto-Approve', voucher.voucher_id]
+          ).catch(err => console.error('Error auto-approving voucher:', err));
+          
+          // Return updated voucher
+          return {
+            ...voucher,
+            status: 1,
+            approved_by: 'System Auto-Approve',
+            approved_at: new Date().toISOString()
+          };
+        }
+      }
+      return voucher;
+    });
+
     // Get driver name
     let driver_name = null;
     if (emp_id) {
@@ -107,14 +137,14 @@ export async function GET(request) {
 
     return NextResponse.json({
       success: true,
-      vouchers: result,
+      vouchers: processedVouchers,
       driver_name: driver_name,
       permissions: permissionsResult[0],
       current_user: { id: userId },
       query_info: {
         role: role,
         emp_id: emp_id,
-        records: result.length
+        records: processedVouchers.length
       }
     });
 

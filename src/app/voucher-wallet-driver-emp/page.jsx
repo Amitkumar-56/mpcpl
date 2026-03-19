@@ -510,24 +510,28 @@ function VoucherWalletDriverEmpContent() {
                                       </td>
                                       <td className="px-3 py-2 whitespace-nowrap">
                                         <div className="flex flex-wrap gap-1 items-center">
-                                          <button
-                                            onClick={() => openCashModal(voucher)}
-                                            className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
-                                            title="Add Expense"
-                                          >
-                                            <span className="text-xs font-bold">₹</span>
-                                            <span className="ml-1">Add Expense</span>
-                                          </button>
+                                          {voucher.status == 0 && (
+                                            <>
+                                              <button
+                                                onClick={() => openCashModal(voucher)}
+                                                className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
+                                                title="Add Expense"
+                                              >
+                                                <span className="text-xs font-bold">₹</span>
+                                                <span className="ml-1">Add Expense</span>
+                                              </button>
 
-                                          <button
-                                            onClick={() => openAdvanceModal(voucher)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
-                                            title="Add Advance"
-                                          >
-                                            <span className="text-xs font-bold">₹</span>
-                                            <span className="ml-1">Add Advance</span>
-                                          </button>
-
+                                              <button
+                                                onClick={() => openAdvanceModal(voucher)}
+                                                className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
+                                                title="Add Advance"
+                                              >
+                                                <span className="text-xs font-bold">₹</span>
+                                                <span className="ml-1">Add Advance</span>
+                                              </button>
+                                            </>
+                                          )}
+                                          
                                           <Link
                                             href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
                                             className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
@@ -551,7 +555,7 @@ function VoucherWalletDriverEmpContent() {
                                             <span className="ml-1">View</span>
                                           </Link>
 
-                                          {permissions?.can_edit == 1 && voucher.status == 0 && (
+                                          {voucher.status == 0 && (
                                             <>
                                               <button
                                                 onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
@@ -561,6 +565,7 @@ function VoucherWalletDriverEmpContent() {
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                                 </svg>
+                                                <span className="ml-1">Approve</span>
                                               </button>
                                               <button
                                                 onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
@@ -570,10 +575,8 @@ function VoucherWalletDriverEmpContent() {
                                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                                 </svg>
+                                                <span className="ml-1">Reject</span>
                                               </button>
-                                              <span className="inline-flex items-center px-2 py-1 rounded bg-yellow-100 text-yellow-800 text-[10px] font-medium">
-                                                Pending
-                                              </span>
                                             </>
                                           )}
                                           
@@ -640,24 +643,28 @@ function VoucherWalletDriverEmpContent() {
                                   </td>
                                   <td className="px-3 py-2 whitespace-nowrap">
                                     <div className="flex flex-wrap gap-1 items-center">
-                                      <button
-                                        onClick={() => openCashModal(voucher)}
-                                        className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
-                                        title="Add Expense"
-                                      >
-                                        <span className="text-xs font-bold">₹</span>
-                                        <span className="ml-1">Add Expense</span>
-                                      </button>
+                                      {voucher.status != 2 && (
+                                        <>
+                                          <button
+                                            onClick={() => openCashModal(voucher)}
+                                            className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
+                                            title="Add Expense"
+                                          >
+                                            <span className="text-xs font-bold">₹</span>
+                                            <span className="ml-1">Add Expense</span>
+                                          </button>
 
-                                      <button
-                                        onClick={() => openAdvanceModal(voucher)}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
-                                        title="Add Advance"
-                                      >
-                                        <span className="text-xs font-bold">₹</span>
-                                        <span className="ml-1">Add Advance</span>
-                                      </button>
-
+                                          <button
+                                            onClick={() => openAdvanceModal(voucher)}
+                                            className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
+                                            title="Add Advance"
+                                          >
+                                            <span className="text-xs font-bold">₹</span>
+                                            <span className="ml-1">Add Advance</span>
+                                          </button>
+                                        </>
+                                      )}
+                                      
                                       <Link
                                         href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
                                         className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
@@ -691,6 +698,7 @@ function VoucherWalletDriverEmpContent() {
                                           <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                                           </svg>
+                                          <span className="ml-1">Print</span>
                                         </Link>
                                       )}
                                       
@@ -818,23 +826,27 @@ function VoucherWalletDriverEmpContent() {
                                     </div>
                                     
                                     <div className="flex gap-2">
-                                      <button
-                                        onClick={() => openCashModal(voucher)}
-                                        className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                      >
-                                        <span className="text-sm font-bold">₹</span>
-                                        Add Expense
-                                      </button>
+                                      {voucher.status != 2 && (
+                                        <>
+                                          <button
+                                            onClick={() => openCashModal(voucher)}
+                                            className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
+                                          >
+                                            <span className="text-sm font-bold">₹</span>
+                                            Add Expense
+                                          </button>
+                                          
+                                          <button
+                                            onClick={() => openAdvanceModal(voucher)}
+                                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
+                                          >
+                                            <span className="text-sm font-bold">₹</span>
+                                            Add Advance
+                                          </button>
+                                        </>
+                                      )}
                                       
-                                      <button
-                                        onClick={() => openAdvanceModal(voucher)}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                      >
-                                        <span className="text-sm font-bold">₹</span>
-                                        Add Advance
-                                      </button>
-                                      
-                                      {permissions?.can_edit == 1 && voucher.status == 0 && (
+                                      {voucher.status == 0 && (
                                         <>
                                           <button
                                             onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
@@ -924,21 +936,25 @@ function VoucherWalletDriverEmpContent() {
                             </div>
                             
                             <div className="flex gap-2">
-                              <button
-                                onClick={() => openCashModal(voucher)}
-                                className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                              >
-                                <span className="text-sm font-bold">₹</span>
-                                Add Expense
-                              </button>
-                              
-                              <button
-                                onClick={() => openAdvanceModal(voucher)}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                              >
-                                <span className="text-sm font-bold">₹</span>
-                                Add Advance
-                              </button>
+                              {voucher.status != 2 && (
+                                <>
+                                  <button
+                                    onClick={() => openCashModal(voucher)}
+                                    className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
+                                  >
+                                    <span className="text-sm font-bold">₹</span>
+                                    Add Expense
+                                  </button>
+                                  
+                                  <button
+                                    onClick={() => openAdvanceModal(voucher)}
+                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
+                                  >
+                                    <span className="text-sm font-bold">₹</span>
+                                    Add Advance
+                                  </button>
+                                </>
+                              )}
                               
                               <Link
                                 href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
@@ -949,6 +965,29 @@ function VoucherWalletDriverEmpContent() {
                                 </svg>
                                 Edit
                               </Link>
+                              
+                              {voucher.status == 0 && (
+                                <>
+                                  <button
+                                    onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
+                                  >
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                    Reject
+                                  </button>
+                                </>
+                              )}
                               
                               <Link
                                 href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
