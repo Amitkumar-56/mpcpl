@@ -59,15 +59,25 @@ export default function AttendancePage() {
 
   const fetchStations = async () => {
     try {
-      const response = await fetch('/api/stations');
+      const url = user ? `/api/stations?user_id=${user.id}&role=${user.role}` : '/api/stations';
+      console.log('🔍 Fetching stations from:', url);
+      const response = await fetch(url);
       const data = await response.json();
-      if (Array.isArray(data)) {
+      console.log('📦 Stations API Response:', data);
+      
+      if (data.success && data.stations) {
+        console.log('✅ Setting stations:', data.stations);
+        setStations(data.stations);
+      } else if (Array.isArray(data)) {
+        console.log('✅ Setting stations (direct array):', data);
         setStations(data);
-      } else if (data.success && data.data) {
-        setStations(data.data);
+      } else {
+        console.log('❌ Invalid stations response:', data);
+        setStations([]);
       }
     } catch (error) {
-      console.error('Error fetching stations:', error);
+      console.error('❌ Error fetching stations:', error);
+      setStations([]);
     }
   };
 
@@ -305,6 +315,14 @@ export default function AttendancePage() {
   };
 
   const availableStations = getAvailableStations();
+  
+  // Debug logging
+  console.log('Debug Info:', {
+    user: user,
+    stations: stations,
+    availableStations: availableStations,
+    selectedStation: selectedStation
+  });
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -373,7 +391,7 @@ export default function AttendancePage() {
                     <option value="">All Stations</option>
                     {availableStations.map((station) => (
                       <option key={station.id} value={station.id}>
-                        {station.station_name}
+                        {station.station_name || station.name || `Station ${station.id}`}
                       </option>
                     ))}
                   </select>
@@ -652,7 +670,7 @@ export default function AttendancePage() {
                       <option value="">Select Station</option>
                       {availableStations.map((station) => (
                         <option key={station.id} value={station.id}>
-                          {station.station_name}
+                          {station.station_name || station.name || `Station ${station.id}`}
                         </option>
                       ))}
                     </select>

@@ -14,6 +14,12 @@ export async function GET(request) {
     let params = [];
     let filtered = false;
     
+    console.log('🔍 Executing query:', query);
+    
+    // Try alternative field names if station_name doesn't exist
+    const alternativeQuery = 'SELECT id, name as station_name, manager, phone, map_link FROM filling_stations';
+    console.log('🔄 Alternative query:', alternativeQuery);
+    
     // If user is not admin (role 5), filter by their assigned stations
     if (userId && userRole && userRole !== '5') {
       console.log('🔒 Non-admin user - applying station filter');
@@ -49,6 +55,7 @@ export async function GET(request) {
     
     const rows = await executeQuery(query, params);
     console.log(`✅ Found ${rows.length} stations (filtered: ${filtered})`);
+    console.log('📊 Station data:', rows);
     
     return NextResponse.json({
       success: true,

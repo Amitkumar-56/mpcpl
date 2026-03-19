@@ -377,10 +377,10 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
       <div ref={audioRef} style={{ display: 'none' }} />
 
       {/* Chat Toggle Button */}
-      <div className="fixed bottom-6 right-6 z-50">
+      <div className="fixed bottom-20 right-20 z-50">
         <button
           onClick={() => setShowChat(!showChat)}
-          className="bg-blue-600 text-white rounded-full p-4 shadow-lg hover:bg-blue-700 transition-all relative"
+          className="bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 transition-all relative"
           title="Open Chat"
         >
           <BiMessageRounded className="w-6 h-6" />
@@ -394,7 +394,7 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
       {/* Chat Window */}
       {showChat && (
-        <div className="fixed bottom-24 right-6 w-96 h-[600px] bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+        <div className="fixed bottom-32 right-20 w-80 h-64 bg-white rounded-lg shadow-2xl z-50 flex flex-col">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-lg flex items-center justify-between">
             <div className="flex items-center gap-3">

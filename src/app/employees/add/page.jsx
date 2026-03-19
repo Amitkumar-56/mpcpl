@@ -86,11 +86,23 @@ export default function CreateUserPage() {
 
   const fetchStations = async () => {
     try {
-      const response = await fetch('/api/stations');
+      const url = user ? `/api/stations?user_id=${user.id}&role=${user.role}` : '/api/stations';
+      const response = await fetch(url);
       const data = await response.json();
-      setStations(data || []);
+      
+      console.log('Employees Add - Stations API Response:', data);
+      
+      if (data.success && data.stations) {
+        setStations(data.stations);
+      } else if (Array.isArray(data)) {
+        setStations(data);
+      } else {
+        console.log('Employees Add - Invalid stations response:', data);
+        setStations([]);
+      }
     } catch (err) {
       console.error('Error fetching stations:', err);
+      setStations([]);
     }
   };
 
@@ -401,7 +413,7 @@ export default function CreateUserPage() {
             <div className="mt-6 bg-white rounded-lg p-4">
               <label className="block text-sm font-medium text-gray-700 mb-3">Assign Stations</label>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3 max-h-60 overflow-y-auto p-2">
-                {stations.map((station) => (
+                {Array.isArray(stations) && stations.map((station) => (
                   <label
                     key={station.id}
                     className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-all ${selectedStations.includes(station.id)
@@ -428,7 +440,7 @@ export default function CreateUserPage() {
                       </div>
                     </div>
                     <span className="flex-1 text-gray-700 font-medium">
-                      {station.station_name}
+                      {station.station_name || station.name || `Station ${station.id}`}
                     </span>
                   </label>
                 ))}

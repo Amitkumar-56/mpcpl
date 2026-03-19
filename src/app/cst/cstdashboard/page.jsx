@@ -1,7 +1,6 @@
 // src/app/cst/cstdashboard/page.jsx
 "use client";
 
-import ChatBox from "@/components/ChatBox";
 import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Footer from "@/components/Footer";
@@ -787,7 +786,7 @@ export default function CustomerDashboardPage() {
 
       {/* Chat Widget */}
       {showChat && (
-        <div className={`fixed bottom-0 right-0 md:bottom-4 md:right-4 z-50 w-full md:w-80 ${chatMinimized ? "h-12" : "h-[60vh] md:h-96"} md:max-h-96 transition-all bg-white rounded-t-lg md:rounded-lg shadow-lg flex flex-col border`}>
+        <div className={`fixed bottom-16 right-4 z-50 w-80 ${chatMinimized ? "h-12" : "h-64"} transition-all bg-white rounded-lg shadow-lg flex flex-col border`}>
           {/* Chat Header */}
           <div className="bg-blue-600 p-3 flex items-center justify-between text-white">
             <div className="flex items-center">
@@ -887,7 +886,7 @@ export default function CustomerDashboardPage() {
       {!showChat && (
         <button
           onClick={toggleChat}
-          className="fixed bottom-4 right-4 bg-blue-600 text-white rounded-full p-3 shadow z-40"
+          className="fixed bottom-20 right-4 bg-blue-600 text-white rounded-full p-3 shadow z-40"
         >
           <BiMessageRounded className="w-5 h-5" />
           {unreadCount > 0 && (
@@ -898,14 +897,6 @@ export default function CustomerDashboardPage() {
         </button>
       )}
 
-      {/* ChatBox Component */}
-      {user && (
-        <ChatBox
-          customerId={user.id}
-          customerName={user.name}
-          userRole="customer"
-        />
-      )}
       <PWAInstallBanner />
     </div>
   );
