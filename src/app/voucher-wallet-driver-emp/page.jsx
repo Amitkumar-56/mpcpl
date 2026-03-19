@@ -267,9 +267,16 @@ function VoucherWalletDriverEmpContent() {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col lg:ml-64 min-h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-h-screen overflow-hidden">
         {/* Desktop Header - Fixed at top */}
-        <div className="hidden lg:block fixed top-0 left-64 right-0 z-20 bg-white shadow-sm"><Header /></div>
+        <div className="hidden lg:block fixed top-0 left-64 right-0 z-20 bg-white shadow-sm border-b border-gray-200">
+          <div className="px-4 py-3 flex justify-between items-center">
+            <h1 className="text-xl font-bold text-blue-800">Voucher Wallet</h1>
+            <div className="flex items-center gap-4">
+              <div className="w-8 h-8 bg-gray-200 rounded-full"></div>
+            </div>
+          </div>
+        </div>
 
         {/* Mobile Header with Menu Button */}
         <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white shadow-sm">
@@ -302,7 +309,7 @@ function VoucherWalletDriverEmpContent() {
         </div>
 
         {/* Main Content - Scrollable */}
-        <div className="flex-1 pt-[56px] lg:pt-16 overflow-y-auto p-4 md:p-6 bg-gray-50 pb-24">
+        <div className="flex-1 pt-[56px] lg:pt-16 lg:ml-64 overflow-y-auto p-4 md:p-6 bg-gray-50 pb-24">
           <div className="max-w-full mx-auto">
             {/* Header Section */}
             <div className="mb-4 lg:mb-6">
@@ -508,9 +515,7 @@ function VoucherWalletDriverEmpContent() {
                                             className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
                                             title="Add Expense"
                                           >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                            </svg>
+                                            <span className="text-xs font-bold">₹</span>
                                             <span className="ml-1">Add Expense</span>
                                           </button>
 
@@ -519,9 +524,7 @@ function VoucherWalletDriverEmpContent() {
                                             className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
                                             title="Add Advance"
                                           >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                            </svg>
+                                            <span className="text-xs font-bold">₹</span>
                                             <span className="ml-1">Add Advance</span>
                                           </button>
 
@@ -642,9 +645,7 @@ function VoucherWalletDriverEmpContent() {
                                         className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
                                         title="Add Expense"
                                       >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                        </svg>
+                                        <span className="text-xs font-bold">₹</span>
                                         <span className="ml-1">Add Expense</span>
                                       </button>
 
@@ -653,9 +654,7 @@ function VoucherWalletDriverEmpContent() {
                                         className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
                                         title="Add Advance"
                                       >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                        </svg>
+                                        <span className="text-xs font-bold">₹</span>
                                         <span className="ml-1">Add Advance</span>
                                       </button>
 
@@ -823,9 +822,7 @@ function VoucherWalletDriverEmpContent() {
                                         onClick={() => openCashModal(voucher)}
                                         className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
                                       >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                        </svg>
+                                        <span className="text-sm font-bold">₹</span>
                                         Add Expense
                                       </button>
                                       
@@ -833,9 +830,7 @@ function VoucherWalletDriverEmpContent() {
                                         onClick={() => openAdvanceModal(voucher)}
                                         className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
                                       >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                        </svg>
+                                        <span className="text-sm font-bold">₹</span>
                                         Add Advance
                                       </button>
                                       
@@ -933,9 +928,7 @@ function VoucherWalletDriverEmpContent() {
                                 onClick={() => openCashModal(voucher)}
                                 className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
                               >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                </svg>
+                                <span className="text-sm font-bold">₹</span>
                                 Add Expense
                               </button>
                               
@@ -943,9 +936,7 @@ function VoucherWalletDriverEmpContent() {
                                 onClick={() => openAdvanceModal(voucher)}
                                 className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
                               >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-                                </svg>
+                                <span className="text-sm font-bold">₹</span>
                                 Add Advance
                               </button>
                               

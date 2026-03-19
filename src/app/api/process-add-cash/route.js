@@ -11,6 +11,7 @@ export async function POST(request) {
     const voucher_no = formData.get('voucher_no');
     const item_details = formData.get('item_details');
     const amount = formData.get('amount');
+    const user_id = formData.get('user_id');
 
     // Insert into voucher_items table
     const insertItemSql = `
@@ -20,10 +21,9 @@ export async function POST(request) {
     await executeQuery(insertItemSql, [voucher_id, item_details, amount]);
 
     // Record history (who added cash) - allow NULL user if not provided
-    const user_id = formData.get('user_id');
     const historySql = `
       INSERT INTO voucher_history (row_id, user_id, amount, type, created_at)
-      VALUES (?, ?, ?, 'cash', NOW())
+      VALUES (?, ?, ?, '1-voucher', NOW())
     `;
     await executeQuery(historySql, [voucher_id, user_id ? parseInt(user_id) : null, amount]);
 

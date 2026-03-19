@@ -8,7 +8,16 @@ export async function POST(request) {
   try {
     const formData = await request.formData();
     const voucher_id = formData.get('voucher_id');
+    const voucher_no = formData.get('voucher_no');
     const advance_amount = formData.get('advance_amount');
+    const user_id = formData.get('user_id');
+
+    // Insert into vouchers_items table
+    const insertItemSql = `
+      INSERT INTO vouchers_items (voucher_id, item_details, amount, created_at) 
+      VALUES (?, ?, ?, NOW())
+    `;
+    await executeQuery(insertItemSql, [voucher_id, 'Advance Payment', advance_amount]);
 
     // Update voucher advance amount and recalculate remaining_amount = advance - total_expense
     // Fetch current totals
@@ -22,10 +31,9 @@ export async function POST(request) {
     await executeQuery(updateSql, [newAdvance, newRemaining, voucher_id]);
 
     // Record history (who added advance) - allow NULL user if not provided
-    const user_id = formData.get('user_id');
     const historySql = `
       INSERT INTO voucher_history (row_id, user_id, amount, type, created_at)
-      VALUES (?, ?, ?, 'advance', NOW())
+      VALUES (?, ?, ?, '1-voucher', NOW())
     `;
     await executeQuery(historySql, [voucher_id, user_id ? parseInt(user_id) : null, advance_amount]);
 

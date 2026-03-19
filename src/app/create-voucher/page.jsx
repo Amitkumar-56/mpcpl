@@ -518,14 +518,14 @@ function CreateVoucherContent() {
 
                     {/* Voucher Items */}
                     <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Voucher Items *</h3>
+                      <h3 className="text-lg font-medium text-gray-900 mb-4">Voucher Items </h3>
                       
                       {voucherItems.map((item, index) => (
                         <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
                           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 items-end">
                             <div className="sm:col-span-5">
                               <label className="block text-sm font-medium text-gray-700">
-                                Item Details *
+                                Item Details 
                               </label>
                               <input
                                 type="text"
@@ -533,13 +533,13 @@ function CreateVoucherContent() {
                                 onChange={(e) => handleItemChange(index, 'item_details', e.target.value)}
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                                 placeholder="Enter item details"
-                                required
+                          
                               />
                             </div>
 
                             <div className="sm:col-span-3">
                               <label className="block text-sm font-medium text-gray-700">
-                                Amount *
+                                Amount 
                               </label>
                               <input
                                 type="number"
@@ -548,7 +548,7 @@ function CreateVoucherContent() {
                                 onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
                                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
                                 placeholder="Enter amount"
-                                required
+                              
                               />
                             </div>
 
