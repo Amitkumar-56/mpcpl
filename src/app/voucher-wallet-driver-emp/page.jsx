@@ -1,9 +1,8 @@
 // src/app/voucher-wallet-driver-emp/page.jsx
 'use client';
 
-import AuditLogsPanel from 'components/AuditLogsPanel'; // Ensure this import exists
+import AuditLogsPanel from 'components/AuditLogsPanel';
 import Footer from 'components/Footer';
-import Header from 'components/Header';
 import Sidebar from 'components/sidebar';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -150,7 +149,7 @@ function VoucherWalletDriverEmpContent() {
       if (data.success) {
         alert('Cash added successfully!');
         closeModal();
-        fetchVouchers(); // Refresh data
+        fetchVouchers();
       } else {
         alert('Error: ' + data.error);
       }
@@ -174,7 +173,7 @@ function VoucherWalletDriverEmpContent() {
       if (data.success) {
         alert('Advance added successfully!');
         closeModal();
-        fetchVouchers(); // Refresh data
+        fetchVouchers();
       } else {
         alert('Error: ' + data.error);
       }
@@ -191,7 +190,7 @@ function VoucherWalletDriverEmpContent() {
         
         if (data.success) {
           alert(`Voucher ${status === 1 ? 'approved' : 'rejected'} successfully!`);
-          fetchVouchers(); // Refresh data
+          fetchVouchers();
         } else {
           alert('Error: ' + data.error);
         }
@@ -213,10 +212,8 @@ function VoucherWalletDriverEmpContent() {
     return new Date(dateString).toLocaleDateString('en-IN');
   };
 
-  // रुपए फॉर्मेट करने के लिए (₹ सिंबल के साथ)
   const formatCurrency = (amount) => {
     const num = parseFloat(amount || 0);
-    // भारतीय रुपए फॉर्मेट में
     return `₹${num.toLocaleString('en-IN', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
@@ -225,11 +222,11 @@ function VoucherWalletDriverEmpContent() {
 
   const getStatusBadge = (voucher) => {
     if (voucher.status == 1) {
-      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">✓</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Approved</span>;
     } else if (voucher.status == 2) {
-      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">✗</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Rejected</span>;
     } else {
-      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">⏳</span>;
+      return <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">Pending</span>;
     }
   };
 
@@ -394,7 +391,7 @@ function VoucherWalletDriverEmpContent() {
               </div>
             )}
 
-            {/* Stats Summary - Responsive Grid */}
+            {/* Stats Summary */}
             {vouchers.length > 0 && !error && (
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
                 <div className="bg-white p-3 rounded-lg shadow border">
@@ -422,634 +419,604 @@ function VoucherWalletDriverEmpContent() {
               </div>
             )}
 
-            {/* Table - Mobile Card View / Desktop Table View */}
-            <div className="bg-white rounded-lg shadow overflow-hidden border">
-              {/* Desktop Table */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voucher No.</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Advance</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pending</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reserve</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {vouchers.length > 0 && !error ? (
-                      (() => {
-                        const pendingVouchers = vouchers.filter(v => v.status == 0 || v.status == null);
-                        const otherVouchers = vouchers.filter(v => v.status != 0 && v.status != null);
-                        let displayIndex = 0;
-                        
-                        return (
-                          <>
-                            {/* Pending Vouchers Section */}
-                            {pendingVouchers.length > 0 && (
-                              <>
-                                <tr className="bg-yellow-50">
-                                  <td colSpan="11" className="px-3 py-2">
-                                    <button
-                                      onClick={() => setPendingExpanded(!pendingExpanded)}
-                                      className="flex items-center justify-between w-full text-left"
+            {/* Desktop Table View - कोई ड्रॉपडाउन नहीं, सीधे बटन */}
+            <div className="hidden lg:block bg-white rounded-lg shadow overflow-hidden border">
+              <table className="min-w-full divide-y divide-gray-200 text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Voucher No.</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Advance</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pending</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reserve</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {vouchers.length > 0 && !error ? (
+                    (() => {
+                      const pendingVouchers = vouchers.filter(v => v.status == 0 || v.status == null);
+                      const otherVouchers = vouchers.filter(v => v.status != 0 && v.status != null);
+                      let displayIndex = 0;
+                      
+                      return (
+                        <>
+                          {/* Pending Vouchers Section */}
+                          {pendingVouchers.length > 0 && (
+                            <>
+                              <tr className="bg-yellow-50">
+                                <td colSpan="11" className="px-3 py-2">
+                                  <button
+                                    onClick={() => setPendingExpanded(!pendingExpanded)}
+                                    className="flex items-center justify-between w-full text-left"
+                                  >
+                                    <span className="font-semibold text-yellow-800 text-xs">
+                                      Pending Vouchers ({pendingVouchers.length})
+                                    </span>
+                                    <svg 
+                                      className={`w-4 h-4 text-yellow-800 transition-transform ${pendingExpanded ? 'rotate-180' : ''}`}
+                                      fill="none" 
+                                      stroke="currentColor" 
+                                      viewBox="0 0 24 24"
                                     >
-                                      <span className="font-semibold text-yellow-800 text-xs">
-                                        Pending Vouchers ({pendingVouchers.length})
-                                      </span>
-                                      <svg 
-                                        className={`w-4 h-4 text-yellow-800 transition-transform ${pendingExpanded ? 'rotate-180' : ''}`}
-                                        fill="none" 
-                                        stroke="currentColor" 
-                                        viewBox="0 0 24 24"
-                                      >
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                    </svg>
+                                  </button>
+                                </td>
+                              </tr>
+                              {pendingExpanded && pendingVouchers.map((voucher, idx) => {
+                                displayIndex++;
+                                return (
+                                  <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
+                                    <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                      {displayIndex}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
+                                      <div className="text-xs">{voucher.voucher_no || 'N/A'}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                      <div className="text-xs">{formatDate(voucher.exp_date)}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                      <div className="text-xs truncate max-w-[100px]">{voucher.station_name || 'N/A'}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                      <div className="text-xs">{voucher.vehicle_no || 'N/A'}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                      <div className="text-xs">{formatCurrency(voucher.advance)}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
+                                      <div className="text-xs">{formatCurrency(voucher.total_expense)}</div>
+                                    </td>
+                                    <td className={`px-3 py-2 whitespace-nowrap font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                                      <div className="text-xs">{formatCurrency(voucher.remaining_amount)}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap text-purple-600">
+                                      <div className="text-xs">{formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}</div>
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {getStatusBadge(voucher)}
+                                    </td>
+                                    <td className="px-3 py-2 whitespace-nowrap">
+                                      {/* पेंडिंग वाउचर के लिए सीधे बटन - कोई ड्रॉपडाउन नहीं */}
+                                      <div className="flex flex-wrap gap-1">
+                                        {/* Add Expense */}
+                                        <button
+                                          onClick={() => openCashModal(voucher)}
+                                          className="bg-gray-800 hover:bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                                          title="Add Expense"
+                                        >
+                                          <span className="text-xs font-bold">₹</span>
+                                          <span className="ml-1">Add Expense</span>
+                                        </button>
+
+                                        {/* Add Advance */}
+                                        <button
+                                          onClick={() => openAdvanceModal(voucher)}
+                                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                                          title="Add Advance"
+                                        >
+                                          <span className="text-xs font-bold">₹</span>
+                                          <span className="ml-1">Add Advance</span>
+                                        </button>
+                                        
+                                        {/* Edit */}
+                                        <Link
+                                          href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                          title="Edit"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                          </svg>
+                                          <span className="ml-1">Edit</span>
+                                        </Link>
+                                        
+                                        {/* View */}
+                                        <Link
+                                          href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                          className="bg-cyan-500 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                          title="View"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                          </svg>
+                                          <span className="ml-1">View</span>
+                                        </Link>
+
+                                        {/* Approve */}
+                                        <button
+                                          onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                                          className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                          title="Approve"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                          </svg>
+                                          <span className="ml-1">Approve</span>
+                                        </button>
+                                        
+                                        {/* Reject */}
+                                        <button
+                                          onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                                          className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                          title="Reject"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                          </svg>
+                                          <span className="ml-1">Reject</span>
+                                        </button>
+                                        
+                                        {/* Logs */}
+                                        <button
+                                          onClick={() => openLogModal(voucher)}
+                                          className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                          title="Logs"
+                                        >
+                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
+                                          </svg>
+                                          <span className="ml-1">Log</span>
+                                        </button>
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </>
+                          )}
+                          
+                          {/* Other Vouchers (Approved/Rejected) */}
+                          {otherVouchers.map((voucher, idx) => {
+                            displayIndex++;
+                            return (
+                              <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
+                                <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                  {displayIndex}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
+                                  <div className="text-xs">{voucher.voucher_no || 'N/A'}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                  <div className="text-xs">{formatDate(voucher.exp_date)}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                  <div className="text-xs truncate max-w-[100px]">{voucher.station_name || 'N/A'}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                  <div className="text-xs">{voucher.vehicle_no || 'N/A'}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-gray-900">
+                                  <div className="text-xs">{formatCurrency(voucher.advance)}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
+                                  <div className="text-xs">{formatCurrency(voucher.total_expense)}</div>
+                                </td>
+                                <td className={`px-3 py-2 whitespace-nowrap font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                                  <div className="text-xs">{formatCurrency(voucher.remaining_amount)}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap text-purple-600">
+                                  <div className="text-xs">{formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}</div>
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  {getStatusBadge(voucher)}
+                                </td>
+                                <td className="px-3 py-2 whitespace-nowrap">
+                                  {/* अप्रूव्ड/रिजेक्टेड वाउचर के लिए सीधे बटन - कोई ड्रॉपडाउन नहीं */}
+                                  <div className="flex flex-wrap gap-1">
+                                    {/* Add Expense - सिर्फ अप्रूव्ड वाउचर के लिए */}
+                                    {voucher.status == 1 && (
+                                      <>
+                                        <button
+                                          onClick={() => openCashModal(voucher)}
+                                          className="bg-gray-800 hover:bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                                          title="Add Expense"
+                                        >
+                                          <span className="text-xs font-bold">₹</span>
+                                          <span className="ml-1">Add Expense</span>
+                                        </button>
+
+                                        <button
+                                          onClick={() => openAdvanceModal(voucher)}
+                                          className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                                          title="Add Advance"
+                                        >
+                                          <span className="text-xs font-bold">₹</span>
+                                          <span className="ml-1">Add Advance</span>
+                                        </button>
+                                      </>
+                                    )}
+                                    
+                                    {/* Edit - सभी के लिए */}
+                                    <Link
+                                      href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                      className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                      title="Edit"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                       </svg>
+                                      <span className="ml-1">Edit</span>
+                                    </Link>
+                                    
+                                    {/* View - सभी के लिए */}
+                                    <Link
+                                      href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                      className="bg-cyan-500 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                      title="View"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                      </svg>
+                                      <span className="ml-1">View</span>
+                                    </Link>
+
+                                    {/* Print - सिर्फ अप्रूव्ड के लिए */}
+                                    {voucher.status == 1 && (
+                                      <Link
+                                        href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                        target="_blank"
+                                        className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                        title="Print"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                        </svg>
+                                        <span className="ml-1">Print</span>
+                                      </Link>
+                                    )}
+                                    
+                                    {/* Logs - सभी के लिए */}
+                                    <button
+                                      onClick={() => openLogModal(voucher)}
+                                      className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                      title="Logs"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
+                                      </svg>
+                                      <span className="ml-1">Log</span>
                                     </button>
-                                  </td>
-                                </tr>
-                                {pendingExpanded && pendingVouchers.map((voucher, idx) => {
-                                  displayIndex++;
-                                  return (
-                                    <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
-                                      <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                        {displayIndex}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
-                                        <div className="text-xs">{voucher.voucher_no || 'N/A'}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                        <div className="text-xs">{formatDate(voucher.exp_date)}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                        <div className="text-xs truncate max-w-[100px]">{voucher.station_name || 'N/A'}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                        <div className="text-xs">{voucher.vehicle_no || 'N/A'}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                        <div className="text-xs">{formatCurrency(voucher.advance)}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
-                                        <div className="text-xs">{formatCurrency(voucher.total_expense)}</div>
-                                      </td>
-                                      <td className={`px-3 py-2 whitespace-nowrap font-medium ${getAmountColor(voucher.remaining_amount)}`}>
-                                        <div className="text-xs">{formatCurrency(voucher.remaining_amount)}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-purple-600">
-                                        <div className="text-xs">{formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}</div>
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap">
-                                        {getStatusBadge(voucher)}
-                                      </td>
-                                      <td className="px-3 py-2 whitespace-nowrap">
-                                        <div className="flex flex-wrap gap-1 items-center">
-                                          {voucher.status == 0 && (
-                                            <>
-                                              <button
-                                                onClick={() => openCashModal(voucher)}
-                                                className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
-                                                title="Add Expense"
-                                              >
-                                                <span className="text-xs font-bold">₹</span>
-                                                <span className="ml-1">Add Expense</span>
-                                              </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </>
+                      );
+                    })()
+                  ) : (
+                    <tr>
+                      <td colSpan="11" className="px-3 py-8 text-center">
+                        <div className="text-gray-500 text-sm mb-2">
+                          No vouchers found for this staff member
+                        </div>
+                        <div className="flex gap-2 justify-center">
+                          <button
+                            onClick={fetchVouchers}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs"
+                          >
+                            Try Again
+                          </button>
+                          <Link
+                            href="/voucher-wallet-driver"
+                            className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs"
+                          >
+                            View All
+                          </Link>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
 
-                                              <button
-                                                onClick={() => openAdvanceModal(voucher)}
-                                                className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
-                                                title="Add Advance"
-                                              >
-                                                <span className="text-xs font-bold">₹</span>
-                                                <span className="ml-1">Add Advance</span>
-                                              </button>
-                                            </>
-                                          )}
-                                          
-                                          <Link
-                                            href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
-                                            title="Edit"
-                                          >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                            </svg>
-                                            <span className="ml-1">Edit</span>
-                                          </Link>
-                                          
-                                          <Link
-                                            href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                                            className="bg-cyan-500 hover:bg-cyan-600 text-white p-1 rounded text-xs"
-                                            title="View"
-                                          >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
-                                            <span className="ml-1">View</span>
-                                          </Link>
-
-                                          {voucher.status == 0 && (
-                                            <>
-                                              <button
-                                                onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                                                className="bg-green-600 hover:bg-green-700 text-white p-1 rounded text-xs"
-                                                title="Approve"
-                                              >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                                </svg>
-                                                <span className="ml-1">Approve</span>
-                                              </button>
-                                              <button
-                                                onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                                                className="bg-red-600 hover:bg-red-700 text-white p-1 rounded text-xs"
-                                                title="Reject"
-                                              >
-                                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                                </svg>
-                                                <span className="ml-1">Reject</span>
-                                              </button>
-                                            </>
-                                          )}
-                                          
-                                          <button
-                                            onClick={() => openLogModal(voucher)}
-                                            className="bg-purple-600 hover:bg-purple-700 text-white p-1 rounded text-xs"
-                                            title="Logs"
-                                          >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
-                                            </svg>
-                                            <span className="ml-1">Log</span>
-                                          </button>
-                                          
-                                          {voucher.status == 1 && (
-                                            <div className="w-full mt-1">
-                                              <div className="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-[10px] font-medium">
-                                                Approved by {voucher.approved_by || 'N/A'} on {voucher.updated_at || voucher.approved_at || ''}
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </td>
-                                    </tr>
-                                  );
-                                })}
+            {/* Mobile Card View */}
+            <div className="lg:hidden">
+              {vouchers.length > 0 && !error ? (
+                (() => {
+                  const pendingVouchers = vouchers.filter(v => v.status == 0 || v.status == null);
+                  const otherVouchers = vouchers.filter(v => v.status != 0 && v.status != null);
+                  
+                  return (
+                    <div className="p-3 space-y-3">
+                      {/* Pending Vouchers Section */}
+                      {pendingVouchers.length > 0 && (
+                        <div className="mb-4">
+                          <button
+                            onClick={() => setPendingExpanded(!pendingExpanded)}
+                            className="w-full bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between"
+                          >
+                            <span className="font-semibold text-yellow-800 text-sm">
+                              Pending Vouchers ({pendingVouchers.length})
+                            </span>
+                            <svg 
+                              className={`w-5 h-5 text-yellow-800 transition-transform ${pendingExpanded ? 'rotate-180' : ''}`}
+                              fill="none" 
+                              stroke="currentColor" 
+                              viewBox="0 0 24 24"
+                            >
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </button>
+                          
+                          {pendingExpanded && (
+                            <div className="mt-3 space-y-3">
+                              {pendingVouchers.map((voucher, idx) => (
+                                <div key={voucher.voucher_id || idx} className="bg-white border rounded-lg p-3 shadow-sm">
+                                  <div className="flex justify-between items-start mb-2">
+                                    <div>
+                                      <div className="font-medium text-gray-900 text-sm">
+                                        #{voucher.voucher_no || 'N/A'}
+                                      </div>
+                                      <div className="text-xs text-gray-500 mt-1">
+                                        {formatDate(voucher.exp_date)} • {voucher.station_name || 'N/A'}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      {getStatusBadge(voucher)}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                                    <div>
+                                      <div className="text-gray-500">Advance</div>
+                                      <div className="font-medium">{formatCurrency(voucher.advance)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-500">Total</div>
+                                      <div className="font-medium">{formatCurrency(voucher.total_expense)}</div>
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-500">Pending</div>
+                                      <div className={`font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                                        {formatCurrency(voucher.remaining_amount)}
+                                      </div>
+                                    </div>
+                                    <div>
+                                      <div className="text-gray-500">Reserve</div>
+                                      <div className="font-medium text-purple-600">
+                                        {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex flex-wrap gap-2">
+                                    <button
+                                      onClick={() => openCashModal(voucher)}
+                                      className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
+                                    >
+                                      <span className="text-sm font-bold">₹</span>
+                                      Add Expense
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => openAdvanceModal(voucher)}
+                                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
+                                    >
+                                      <span className="text-sm font-bold">₹</span>
+                                      Add Advance
+                                    </button>
+                                    
+                                    <Link
+                                      href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                      Edit
+                                    </Link>
+                                    
+                                    <Link
+                                      href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                      className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                      </svg>
+                                      View
+                                    </Link>
+                                    
+                                    <button
+                                      onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                                      className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                      </svg>
+                                      Approve
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                                      className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                      </svg>
+                                      Reject
+                                    </button>
+                                    
+                                    <button
+                                      onClick={() => openLogModal(voucher)}
+                                      className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                                    >
+                                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
+                                      </svg>
+                                      Log
+                                    </button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {/* Other Vouchers */}
+                      {otherVouchers.map((voucher, idx) => (
+                        <div key={voucher.voucher_id || idx} className="bg-white border rounded-lg p-3 shadow-sm">
+                          <div className="flex justify-between items-start mb-2">
+                            <div>
+                              <div className="font-medium text-gray-900 text-sm">
+                                #{voucher.voucher_no || 'N/A'}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1">
+                                {formatDate(voucher.exp_date)} • {voucher.station_name || 'N/A'}
+                              </div>
+                            </div>
+                            <div>
+                              {getStatusBadge(voucher)}
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-2 text-xs mb-3">
+                            <div>
+                              <div className="text-gray-500">Advance</div>
+                              <div className="font-medium">{formatCurrency(voucher.advance)}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Total</div>
+                              <div className="font-medium">{formatCurrency(voucher.total_expense)}</div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Pending</div>
+                              <div className={`font-medium ${getAmountColor(voucher.remaining_amount)}`}>
+                                {formatCurrency(voucher.remaining_amount)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-gray-500">Reserve</div>
+                              <div className="font-medium text-purple-600">
+                                {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-2">
+                            {voucher.status == 1 && (
+                              <>
+                                <button
+                                  onClick={() => openCashModal(voucher)}
+                                  className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
+                                >
+                                  <span className="text-sm font-bold">₹</span>
+                                  Add Expense
+                                </button>
+                                
+                                <button
+                                  onClick={() => openAdvanceModal(voucher)}
+                                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
+                                >
+                                  <span className="text-sm font-bold">₹</span>
+                                  Add Advance
+                                </button>
                               </>
                             )}
                             
-                            {/* Other Vouchers */}
-                            {otherVouchers.map((voucher, idx) => {
-                              displayIndex++;
-                              return (
-                                <tr key={voucher.voucher_id || idx} className="hover:bg-gray-50 transition-colors">
-                                  <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                    {displayIndex}
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
-                                    <div className="text-xs">{voucher.voucher_no || 'N/A'}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                    <div className="text-xs">{formatDate(voucher.exp_date)}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                    <div className="text-xs truncate max-w-[100px]">{voucher.station_name || 'N/A'}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                    <div className="text-xs">{voucher.vehicle_no || 'N/A'}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-gray-900">
-                                    <div className="text-xs">{formatCurrency(voucher.advance)}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap font-medium text-gray-900">
-                                    <div className="text-xs">{formatCurrency(voucher.total_expense)}</div>
-                                  </td>
-                                  <td className={`px-3 py-2 whitespace-nowrap font-medium ${getAmountColor(voucher.remaining_amount)}`}>
-                                    <div className="text-xs">{formatCurrency(voucher.remaining_amount)}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap text-purple-600">
-                                    <div className="text-xs">{formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}</div>
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap">
-                                    {getStatusBadge(voucher)}
-                                  </td>
-                                  <td className="px-3 py-2 whitespace-nowrap">
-                                    <div className="flex flex-wrap gap-1 items-center">
-                                      {voucher.status != 2 && (
-                                        <>
-                                          <button
-                                            onClick={() => openCashModal(voucher)}
-                                            className="bg-gray-800 hover:bg-gray-900 text-white p-1 rounded text-xs"
-                                            title="Add Expense"
-                                          >
-                                            <span className="text-xs font-bold">₹</span>
-                                            <span className="ml-1">Add Expense</span>
-                                          </button>
-
-                                          <button
-                                            onClick={() => openAdvanceModal(voucher)}
-                                            className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
-                                            title="Add Advance"
-                                          >
-                                            <span className="text-xs font-bold">₹</span>
-                                            <span className="ml-1">Add Advance</span>
-                                          </button>
-                                        </>
-                                      )}
-                                      
-                                      <Link
-                                        href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                                        className="bg-blue-600 hover:bg-blue-700 text-white p-1 rounded text-xs"
-                                        title="Edit"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                        <span className="ml-1">Edit</span>
-                                      </Link>
-                                      
-                                      <Link
-                                        href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                                        className="bg-cyan-500 hover:bg-cyan-600 text-white p-1 rounded text-xs"
-                                        title="View"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                        <span className="ml-1">View</span>
-                                      </Link>
-
-                                      {voucher.status == 1 && (
-                                        <Link
-                                          href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                                          target="_blank"
-                                          className="bg-yellow-600 hover:bg-yellow-700 text-white p-1 rounded text-xs"
-                                          title="Print"
-                                        >
-                                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                          </svg>
-                                          <span className="ml-1">Print</span>
-                                        </Link>
-                                      )}
-                                      
-                                      <button
-                                        onClick={() => openLogModal(voucher)}
-                                        className="bg-purple-600 hover:bg-purple-700 text-white p-1 rounded text-xs"
-                                        title="Logs"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
-                                        </svg>
-                                        <span className="ml-1">Log</span>
-                                      </button>
-                                      
-                                      {voucher.status == 1 && (
-                                        <div className="w-full mt-1">
-                                          <div className="inline-flex items-center px-2 py-1 rounded bg-green-100 text-green-800 text-[10px] font-medium">
-                                            Approved by {voucher.approved_by || 'N/A'} on {voucher.updated_at || voucher.approved_at || ''}
-                                          </div>
-                                        </div>
-                                      )}
-                                    </div>
-                                  </td>
-                                </tr>
-                              );
-                            })}
-                          </>
-                        );
-                      })()
-                    ) : (
-                      <tr>
-                        <td colSpan="11" className="px-3 py-8 text-center">
-                          <div className="text-gray-500 text-sm mb-2">
-                            No vouchers found for this staff member
-                          </div>
-                          <div className="flex gap-2 justify-center">
-                            <button
-                              onClick={fetchVouchers}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs"
-                            >
-                              Try Again
-                            </button>
                             <Link
-                              href="/voucher-wallet-driver"
-                              className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs"
+                              href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                              className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
                             >
-                              View All
-                            </Link>
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Card View */}
-              <div className="lg:hidden">
-                {vouchers.length > 0 && !error ? (
-                  (() => {
-                    const pendingVouchers = vouchers.filter(v => v.status == 0 || v.status == null);
-                    const otherVouchers = vouchers.filter(v => v.status != 0 && v.status != null);
-                    
-                    return (
-                      <div className="p-3 space-y-3">
-                        {/* Pending Vouchers Section */}
-                        {pendingVouchers.length > 0 && (
-                          <div className="mb-4">
-                            <button
-                              onClick={() => setPendingExpanded(!pendingExpanded)}
-                              className="w-full bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between"
-                            >
-                              <span className="font-semibold text-yellow-800 text-sm">
-                                Pending Vouchers ({pendingVouchers.length})
-                              </span>
-                              <svg 
-                                className={`w-5 h-5 text-yellow-800 transition-transform ${pendingExpanded ? 'rotate-180' : ''}`}
-                                fill="none" 
-                                stroke="currentColor" 
-                                viewBox="0 0 24 24"
-                              >
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                               </svg>
-                            </button>
+                              Edit
+                            </Link>
                             
-                            {pendingExpanded && (
-                              <div className="mt-3 space-y-3">
-                                {pendingVouchers.map((voucher, idx) => (
-                                  <div key={voucher.voucher_id || idx} className="bg-white border rounded-lg p-3 shadow-sm">
-                                    <div className="flex justify-between items-start mb-2">
-                                      <div>
-                                        <div className="font-medium text-gray-900 text-sm">
-                                          #{voucher.voucher_no || 'N/A'}
-                                        </div>
-                                        <div className="text-xs text-gray-500 mt-1">
-                                          {formatDate(voucher.exp_date)} • {voucher.station_name || 'N/A'}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        {getStatusBadge(voucher)}
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                                      <div>
-                                        <div className="text-gray-500">Advance</div>
-                                        <div className="font-medium">{formatCurrency(voucher.advance)}</div>
-                                      </div>
-                                      <div>
-                                        <div className="text-gray-500">Total</div>
-                                        <div className="font-medium">{formatCurrency(voucher.total_expense)}</div>
-                                      </div>
-                                      <div>
-                                        <div className="text-gray-500">Pending</div>
-                                        <div className={`font-medium ${getAmountColor(voucher.remaining_amount)}`}>
-                                          {formatCurrency(voucher.remaining_amount)}
-                                        </div>
-                                      </div>
-                                      <div>
-                                        <div className="text-gray-500">Reserve</div>
-                                        <div className="font-medium text-purple-600">
-                                          {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
-                                        </div>
-                                      </div>
-                                    </div>
-                                    
-                                    <div className="flex gap-2">
-                                      {voucher.status != 2 && (
-                                        <>
-                                          <button
-                                            onClick={() => openCashModal(voucher)}
-                                            className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                          >
-                                            <span className="text-sm font-bold">₹</span>
-                                            Add Expense
-                                          </button>
-                                          
-                                          <button
-                                            onClick={() => openAdvanceModal(voucher)}
-                                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                          >
-                                            <span className="text-sm font-bold">₹</span>
-                                            Add Advance
-                                          </button>
-                                        </>
-                                      )}
-                                      
-                                      {voucher.status == 0 && (
-                                        <>
-                                          <button
-                                            onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                          >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                            </svg>
-                                            Approve
-                                          </button>
-                                          <button
-                                            onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                                            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                          >
-                                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                            </svg>
-                                            Reject
-                                          </button>
-                                        </>
-                                      )}
-                                      <Link
-                                        href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                        </svg>
-                                        Edit
-                                      </Link>
-                                      <Link
-                                        href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                                        className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                      >
-                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                        </svg>
-                                        View
-                                      </Link>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
+                            <Link
+                              href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                              className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                              </svg>
+                              View
+                            </Link>
+                            
+                            {voucher.status == 1 && (
+                              <Link
+                                href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                target="_blank"
+                                className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                Print
+                              </Link>
                             )}
-                          </div>
-                        )}
-                        
-                        {/* Other Vouchers */}
-                        {otherVouchers.map((voucher, idx) => (
-                          <div key={voucher.voucher_id || idx} className="bg-white border rounded-lg p-3 shadow-sm">
-                            <div className="flex justify-between items-start mb-2">
-                              <div>
-                                <div className="font-medium text-gray-900 text-sm">
-                                  #{voucher.voucher_no || 'N/A'}
-                                </div>
-                                <div className="text-xs text-gray-500 mt-1">
-                                  {formatDate(voucher.exp_date)} • {voucher.station_name || 'N/A'}
-                                </div>
-                              </div>
-                              <div>
-                                {getStatusBadge(voucher)}
-                              </div>
-                            </div>
                             
-                            <div className="grid grid-cols-2 gap-2 text-xs mb-3">
-                              <div>
-                                <div className="text-gray-500">Advance</div>
-                                <div className="font-medium">{formatCurrency(voucher.advance)}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Total</div>
-                                <div className="font-medium">{formatCurrency(voucher.total_expense)}</div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Pending</div>
-                                <div className={`font-medium ${getAmountColor(voucher.remaining_amount)}`}>
-                                  {formatCurrency(voucher.remaining_amount)}
-                                </div>
-                              </div>
-                              <div>
-                                <div className="text-gray-500">Reserve</div>
-                                <div className="font-medium text-purple-600">
-                                  {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
-                                </div>
-                              </div>
-                            </div>
-                            
-                            <div className="flex gap-2">
-                              {voucher.status != 2 && (
-                                <>
-                                  <button
-                                    onClick={() => openCashModal(voucher)}
-                                    className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                  >
-                                    <span className="text-sm font-bold">₹</span>
-                                    Add Expense
-                                  </button>
-                                  
-                                  <button
-                                    onClick={() => openAdvanceModal(voucher)}
-                                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                  >
-                                    <span className="text-sm font-bold">₹</span>
-                                    Add Advance
-                                  </button>
-                                </>
-                              )}
-                              
-                              <Link
-                                href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                                </svg>
-                                Edit
-                              </Link>
-                              
-                              {voucher.status == 0 && (
-                                <>
-                                  <button
-                                    onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                                    className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                  >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                                    className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                  >
-                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                    </svg>
-                                    Reject
-                                  </button>
-                                </>
-                              )}
-                              
-                              <Link
-                                href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                                className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                </svg>
-                                View
-                              </Link>
-                              
-                              <button
-                                onClick={() => openLogModal(voucher)}
-                                className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
-                                </svg>
-                                Log
-                              </button>
-                              
-                              {voucher.status == 1 && (
-                                <Link
-                                  href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                                  target="_blank"
-                                  className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1"
-                                >
-                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                  </svg>
-                                  Print
-                                </Link>
-                              )}
-                            </div>
+                            <button
+                              onClick={() => openLogModal(voucher)}
+                              className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" />
+                              </svg>
+                              Log
+                            </button>
                           </div>
-                        ))}
-                      </div>
-                    );
-                  })()
-                ) : (
-                  <div className="p-8 text-center">
-                    <div className="text-gray-500 text-sm mb-2">
-                      No vouchers found for this staff member
+                        </div>
+                      ))}
                     </div>
-                    <div className="flex gap-2 justify-center">
-                      <button
-                        onClick={fetchVouchers}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs"
-                      >
-                        Try Again
-                      </button>
-                      <Link
-                        href="/voucher-wallet-driver"
-                        className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs"
-                      >
-                        View All
-                      </Link>
-                    </div>
+                  );
+                })()
+              ) : (
+                <div className="p-8 text-center">
+                  <div className="text-gray-500 text-sm mb-2">
+                    No vouchers found for this staff member
                   </div>
-                )}
-              </div>
+                  <div className="flex gap-2 justify-center">
+                    <button
+                      onClick={fetchVouchers}
+                      className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs"
+                    >
+                      Try Again
+                    </button>
+                    <Link
+                      href="/voucher-wallet-driver"
+                      className="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1 rounded text-xs"
+                    >
+                      View All
+                    </Link>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Modals */}
