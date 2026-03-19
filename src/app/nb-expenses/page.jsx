@@ -219,15 +219,29 @@ function ExpenseLogs({ expenseId, sourceTable }) {
 // Loading Skeleton
 function LoadingSkeleton() {
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-blue-50 to-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col h-screen">
-        <Header />
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
         <div className="flex-1 overflow-auto p-4 md:p-6">
           <div className="mb-6">
             <div className="animate-pulse">
               <div className="h-8 w-64 bg-gray-200 rounded mb-4"></div>
               <div className="h-4 w-48 bg-gray-200 rounded"></div>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                {[1,2,3,4].map(i => (
+                  <div key={i} className="bg-white rounded-lg shadow p-4">
+                    <div className="animate-pulse">
+                      <div className="h-4 w-24 bg-gray-200 rounded mb-2"></div>
+                      <div className="h-6 w-32 bg-gray-200 rounded"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
@@ -631,10 +645,14 @@ function ExpensesContent() {
   }
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-blue-50 to-gray-100">
-      <Sidebar />
-      <div className="flex-1 flex flex-col h-screen">
-        <Header />
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
         
         <div className="flex-1 overflow-auto p-4 md:p-6">
           {/* Breadcrumb and Title */}
