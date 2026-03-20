@@ -83,7 +83,7 @@ function VoucherWalletDriverEmpContent() {
       }
       
       setVouchers(data.vouchers || []);
-      setPermissions(data.permissions);
+      setPermissions(data.permissions || {});
       setDriverName(data.driver_name);
       setCurrentUser(data.current_user);
       
@@ -472,7 +472,7 @@ function VoucherWalletDriverEmpContent() {
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="flex flex-wrap gap-1">
-                            {/* Add Expense - for pending and approved vouchers */}
+                            {/* Add Expense - only for pending and approved vouchers */}
                             {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (
                               <button
                                 onClick={() => openCashModal(voucher)}
@@ -484,7 +484,7 @@ function VoucherWalletDriverEmpContent() {
                               </button>
                             )}
 
-                            {/* Add Advance - for pending and approved vouchers */}
+                            {/* Add Advance - only for pending and approved vouchers */}
                             {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (
                               <button
                                 onClick={() => openAdvanceModal(voucher)}
@@ -496,7 +496,7 @@ function VoucherWalletDriverEmpContent() {
                               </button>
                             )}
                             
-                            {/* Edit - for all */}
+                            {/* Edit - always show */}
                             <Link
                               href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
                               className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -508,7 +508,7 @@ function VoucherWalletDriverEmpContent() {
                               <span className="ml-1">Edit</span>
                             </Link>
                             
-                            {/* View - for all */}
+                            {/* View - always show */}
                             <Link
                               href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
                               className="bg-cyan-500 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -564,7 +564,7 @@ function VoucherWalletDriverEmpContent() {
                               </Link>
                             )}
                             
-                            {/* Logs - for all */}
+                            {/* Logs - always show */}
                             <button
                               onClick={() => openLogModal(voucher)}
                               className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
