@@ -169,9 +169,9 @@ function LRManagementContent() {
         'ID': shipment.id,
         'LR No.': shipment.lr_id,
         'LR Date': shipment.lr_date || '',
-        'Consigner': shipment.consigner,
+        'Consigner': shipment.consigner ? shipment.consigner.substring(0, 30) + (shipment.consigner.length > 30 ? '...' : '') : '',
         'Consigner Address': shipment.address_1 || '',
-        'Consignee': shipment.consignee,
+        'Consignee': shipment.consignee ? shipment.consignee.substring(0, 30) + (shipment.consignee.length > 30 ? '...' : '') : '',
         'Consignee Address': shipment.address_2 || '',
         'From Location': shipment.from_location,
         'To Location': shipment.to_location,
@@ -276,9 +276,9 @@ function LRManagementContent() {
         'ID': shipment.id,
         'LR No.': shipment.lr_id,
         'LR Date': shipment.lr_date || '',
-        'Consigner': shipment.consigner,
+        'Consigner': shipment.consigner ? shipment.consigner.substring(0, 30) + (shipment.consigner.length > 30 ? '...' : '') : '',
         'Consigner Address': shipment.address_1 || '',
-        'Consignee': shipment.consignee,
+        'Consignee': shipment.consignee ? shipment.consignee.substring(0, 30) + (shipment.consignee.length > 30 ? '...' : '') : '',
         'Consignee Address': shipment.address_2 || '',
         'From Location': shipment.from_location,
         'To Location': shipment.to_location,
@@ -579,7 +579,6 @@ function LRManagementContent() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consigner</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consignee</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker No</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
@@ -592,8 +591,16 @@ function LRManagementContent() {
                       <tr className="hover:bg-gray-50 transition duration-150">
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.id}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{shipment.lr_id}</td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.consigner}</td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.consignee}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                          <div className="max-w-[150px] truncate" title={shipment.consigner}>
+                            {shipment.consigner && shipment.consigner.length > 20 ? shipment.consigner.substring(0, 20) + '...' : shipment.consigner}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                          <div className="max-w-[150px] truncate" title={shipment.consignee}>
+                            {shipment.consignee && shipment.consignee.length > 20 ? shipment.consignee.substring(0, 20) + '...' : shipment.consignee}
+                          </div>
+                        </td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.from_location}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
@@ -606,17 +613,13 @@ function LRManagementContent() {
                             >
                               View
                             </Link>
-
                             {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
-                              <>
-                                <span className="text-gray-300">|</span>
-                                <Link
-                                  href={`/create-lr?id=${shipment.id}`}
-                                  className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
-                                >
-                                  Edit
-                                </Link>
-                              </>
+                              <Link
+                                href={`/create-lr?id=${shipment.id}`}
+                                className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
+                              >
+                                Edit
+                              </Link>
                             )}
                           </div>
                         </td>
@@ -695,14 +698,14 @@ function LRManagementContent() {
                       <Link
                         href={`/transport-receipt?id=${shipment.id}`}
                         target="_blank"
-                        className="text-blue-600 text-sm"
+                        className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm"
                       >
                         View
                       </Link>
                       {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
                         <Link
                           href={`/create-lr?id=${shipment.id}`}
-                          className="text-orange-600 text-sm"
+                          className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
                         >
                           Edit
                         </Link>
@@ -712,11 +715,15 @@ function LRManagementContent() {
                   <div className="grid grid-cols-2 gap-2 text-sm">
                     <div>
                       <span className="font-medium">Consigner:</span>
-                      <p>{shipment.consigner}</p>
+                      <p className="truncate max-w-[120px]" title={shipment.consigner}>
+                        {shipment.consigner && shipment.consigner.length > 15 ? shipment.consigner.substring(0, 15) + '...' : shipment.consigner}
+                      </p>
                     </div>
                     <div>
                       <span className="font-medium">Consignee:</span>
-                      <p>{shipment.consignee}</p>
+                      <p className="truncate max-w-[120px]" title={shipment.consignee}>
+                        {shipment.consignee && shipment.consignee.length > 15 ? shipment.consignee.substring(0, 15) + '...' : shipment.consignee}
+                      </p>
                     </div>
                     <div>
                       <span className="font-medium">From:</span>

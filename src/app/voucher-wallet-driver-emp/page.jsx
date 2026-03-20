@@ -473,31 +473,27 @@ function VoucherWalletDriverEmpContent() {
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="flex flex-wrap gap-1">
-                            {/* Add Expense - only for pending and approved vouchers with edit permission */}
-                            {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                              <button
-                                onClick={() => openCashModal(voucher)}
-                                className="bg-gray-800 hover:bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
-                                title="Add Expense"
-                              >
-                                <span className="text-xs font-bold">₹</span>
-                                <span className="ml-1">Add Expense</span>
-                              </button>
-                            )}
+                            {/* Add Expense */}
+                            <button
+                              onClick={() => openCashModal(voucher)}
+                              className="bg-gray-800 hover:bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                              title="Add Expense"
+                            >
+                              <span className="text-xs font-bold">₹</span>
+                              <span className="ml-1">Add Expense</span>
+                            </button>
 
-                            {/* Add Advance - only for pending and approved vouchers with edit permission */}
-                            {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                              <button
-                                onClick={() => openAdvanceModal(voucher)}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
-                                title="Add Advance"
-                              >
-                                <span className="text-xs font-bold">₹</span>
-                                <span className="ml-1">Add Advance</span>
-                              </button>
-                            )}
+                            {/* Add Advance */}
+                            <button
+                              onClick={() => openAdvanceModal(voucher)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
+                              title="Add Advance"
+                            >
+                              <span className="text-xs font-bold">₹</span>
+                              <span className="ml-1">Add Advance</span>
+                            </button>
                             
-                            {/* Edit - always show */}
+                            {/* Edit */}
                             <Link
                               href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
                               className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -509,7 +505,7 @@ function VoucherWalletDriverEmpContent() {
                               <span className="ml-1">Edit</span>
                             </Link>
                             
-                            {/* View - always show */}
+                            {/* View */}
                             <Link
                               href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
                               className="bg-cyan-500 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -522,50 +518,44 @@ function VoucherWalletDriverEmpContent() {
                               <span className="ml-1">View</span>
                             </Link>
 
-                            {/* Approve - only for pending with edit permission */}
-                            {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                              <button
-                                onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                                className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                                title="Approve"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                                <span className="ml-1">Approve</span>
-                              </button>
-                            )}
+                            {/* Approve */}
+                            <button
+                              onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                              title="Approve"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              <span className="ml-1">Approve</span>
+                            </button>
                             
-                            {/* Reject - only for pending with edit permission */}
-                            {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                              <button
-                                onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                                className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                                title="Reject"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                                <span className="ml-1">Reject</span>
-                              </button>
-                            )}
+                            {/* Reject */}
+                            <button
+                              onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                              className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                              title="Reject"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              <span className="ml-1">Reject</span>
+                            </button>
 
-                            {/* Print - only for approved */}
-                            {voucher.status == 1 && (
-                              <Link
-                                href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                                target="_blank"
-                                className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                                title="Print"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                </svg>
-                                <span className="ml-1">Print</span>
-                              </Link>
-                            )}
+                            {/* Print */}
+                            <Link
+                              href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                              target="_blank"
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                              title="Print"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                              </svg>
+                              <span className="ml-1">Print</span>
+                            </Link>
                             
-                            {/* Logs - always show */}
+                            {/* Logs */}
                             <button
                               onClick={() => openLogModal(voucher)}
                               className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -651,27 +641,23 @@ function VoucherWalletDriverEmpContent() {
                       </div>
                       
                       <div className="flex flex-wrap gap-2">
-                        {/* Add Expense - for pending and approved with edit permission */}
-                        {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                          <button
-                            onClick={() => openCashModal(voucher)}
-                            className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
-                          >
-                            <span className="text-sm font-bold">₹</span>
-                            Add Expense
-                          </button>
-                        )}
+                        {/* Add Expense */}
+                        <button
+                          onClick={() => openCashModal(voucher)}
+                          className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
+                        >
+                          <span className="text-sm font-bold">₹</span>
+                          Add Expense
+                        </button>
                         
-                        {/* Add Advance - for pending and approved with edit permission */}
-                        {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                          <button
-                            onClick={() => openAdvanceModal(voucher)}
-                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
-                          >
-                            <span className="text-sm font-bold">₹</span>
-                            Add Advance
-                          </button>
-                        )}
+                        {/* Add Advance */}
+                        <button
+                          onClick={() => openAdvanceModal(voucher)}
+                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
+                        >
+                          <span className="text-sm font-bold">₹</span>
+                          Add Advance
+                        </button>
                         
                         <Link
                           href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
@@ -694,45 +680,39 @@ function VoucherWalletDriverEmpContent() {
                           View
                         </Link>
                         
-                        {/* Approve - only for pending with edit permission */}
-                        {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                          <button
-                            onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                            className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                            </svg>
-                            Approve
-                          </button>
-                        )}
+                        {/* Approve */}
+                        <button
+                          onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Approve
+                        </button>
                         
-                        {/* Reject - only for pending with edit permission */}
-                        {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
-                          <button
-                            onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                            className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                            Reject
-                          </button>
-                        )}
+                        {/* Reject */}
+                        <button
+                          onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                          className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                          Reject
+                        </button>
                         
-                        {/* Print - only for approved */}
-                        {voucher.status == 1 && (
-                          <Link
-                            href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                            target="_blank"
-                            className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                            </svg>
-                            Print
-                          </Link>
-                        )}
+                        {/* Print */}
+                        <Link
+                          href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                          target="_blank"
+                          className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                          Print
+                        </Link>
                         
                         <button
                           onClick={() => openLogModal(voucher)}
@@ -872,17 +852,15 @@ function VoucherWalletDriverEmpContent() {
         </div>
 
         {/* Floating Add Button for Mobile */}
-        {permissions?.can_create === 1 && (
-          <Link 
-            href="/create-voucher" 
-            className="fixed bottom-6 right-6 bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-full shadow-lg transition-colors z-50 lg:p-3"
-          >
+        <Link 
+          href="/create-voucher" 
+          className="fixed bottom-6 right-6 bg-purple-600 hover:bg-purple-700 text-white p-4 rounded-full shadow-lg transition-colors z-50 lg:p-3"
+        >
             <svg className="w-6 h-6 lg:w-5 lg:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
             <span className="sr-only lg:not-sr-only lg:ml-1">Add</span>
           </Link>
-        )}
         
         {logsPanel.open && logsPanel.recordId && (
           <AuditLogsPanel
