@@ -29,8 +29,17 @@ export async function GET(request) {
     const customerId = customerResult[0].id;
     console.log('✅ Customer found, ID:', customerId);
     
-    // Simple query to get old filling history
-    const query = `SELECT * FROM old_filling_history where cl_id=? ORDER BY filling_date DESC LIMIT 50`;
+    // Simple query to get old filling history with vehicle number
+    const query = `
+      SELECT 
+        ofh.*,
+        ofr.vehicle_number
+      FROM old_filling_history ofh
+      LEFT JOIN old_filling_requests ofr ON ofh.rid = ofr.rid
+      WHERE ofh.cl_id = ? 
+      ORDER BY ofh.filling_date DESC 
+      LIMIT 50
+    `;
     const result = await executeQuery(query, [customerId]);
     
     console.log('✅ Old filling history records:', result.length);

@@ -90,7 +90,8 @@ function VoucherWalletDriverEmpContent() {
       console.log('Staff data loaded successfully:', {
         vouchers_count: data.vouchers?.length,
         driver_name: data.driver_name,
-        emp_id: emp_id
+        emp_id: emp_id,
+        permissions: data.permissions
       });
       
     } catch (error) {
@@ -276,7 +277,7 @@ function VoucherWalletDriverEmpContent() {
 
         {/* Mobile Header with Menu Button */}
         <div className="lg:hidden fixed top-0 left-0 right-0 z-40 bg-white shadow-sm">
-          <div className="flex items-center justify-between p-4">
+          <div className="flex items-center justify-between p-4 h-14">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -305,7 +306,7 @@ function VoucherWalletDriverEmpContent() {
         </div>
 
         {/* Main Content - Scrollable */}
-        <div className="flex-1 pt-[56px] lg:pt-16 lg:ml-64 overflow-y-auto p-4 md:p-6 bg-gray-50 pb-24">
+        <div className="flex-1 pt-[60px] lg:pt-16 lg:ml-64 overflow-y-auto p-4 md:p-6 bg-gray-50 pb-20 lg:pb-20">
           <div className="max-w-full mx-auto">
             {/* Header Section */}
             <div className="mb-4 lg:mb-6">
@@ -472,8 +473,8 @@ function VoucherWalletDriverEmpContent() {
                         </td>
                         <td className="px-3 py-2 whitespace-nowrap">
                           <div className="flex flex-wrap gap-1">
-                            {/* Add Expense - only for pending and approved vouchers */}
-                            {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (
+                            {/* Add Expense - only for pending and approved vouchers with edit permission */}
+                            {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                               <button
                                 onClick={() => openCashModal(voucher)}
                                 className="bg-gray-800 hover:bg-gray-900 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
@@ -484,8 +485,8 @@ function VoucherWalletDriverEmpContent() {
                               </button>
                             )}
 
-                            {/* Add Advance - only for pending and approved vouchers */}
-                            {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (
+                            {/* Add Advance - only for pending and approved vouchers with edit permission */}
+                            {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                               <button
                                 onClick={() => openAdvanceModal(voucher)}
                                 className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap"
@@ -521,8 +522,8 @@ function VoucherWalletDriverEmpContent() {
                               <span className="ml-1">View</span>
                             </Link>
 
-                            {/* Approve - only for pending */}
-                            {(voucher.status == 0 || voucher.status == null) && (
+                            {/* Approve - only for pending with edit permission */}
+                            {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                               <button
                                 onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
                                 className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -535,8 +536,8 @@ function VoucherWalletDriverEmpContent() {
                               </button>
                             )}
                             
-                            {/* Reject - only for pending */}
-                            {(voucher.status == 0 || voucher.status == null) && (
+                            {/* Reject - only for pending with edit permission */}
+                            {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                               <button
                                 onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
                                 className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
@@ -650,8 +651,8 @@ function VoucherWalletDriverEmpContent() {
                       </div>
                       
                       <div className="flex flex-wrap gap-2">
-                        {/* Add Expense - for pending and approved */}
-                        {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (
+                        {/* Add Expense - for pending and approved with edit permission */}
+                        {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                           <button
                             onClick={() => openCashModal(voucher)}
                             className="flex-1 bg-gray-800 hover:bg-gray-900 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
@@ -661,8 +662,8 @@ function VoucherWalletDriverEmpContent() {
                           </button>
                         )}
                         
-                        {/* Add Advance - for pending and approved */}
-                        {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (
+                        {/* Add Advance - for pending and approved with edit permission */}
+                        {(voucher.status == 0 || voucher.status == null || voucher.status == 1) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                           <button
                             onClick={() => openAdvanceModal(voucher)}
                             className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[100px]"
@@ -693,8 +694,8 @@ function VoucherWalletDriverEmpContent() {
                           View
                         </Link>
                         
-                        {/* Approve - only for pending */}
-                        {(voucher.status == 0 || voucher.status == null) && (
+                        {/* Approve - only for pending with edit permission */}
+                        {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                           <button
                             onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
                             className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
@@ -706,8 +707,8 @@ function VoucherWalletDriverEmpContent() {
                           </button>
                         )}
                         
-                        {/* Reject - only for pending */}
-                        {(voucher.status == 0 || voucher.status == null) && (
+                        {/* Reject - only for pending with edit permission */}
+                        {(voucher.status == 0 || voucher.status == null) && (permissions?.can_edit === 1 || permissions === null || permissions === undefined) && (
                           <button
                             onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
                             className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
@@ -865,7 +866,9 @@ function VoucherWalletDriverEmpContent() {
 
         {/* Footer - Fixed at bottom */}
         <div className="fixed bottom-0 left-0 lg:left-64 right-0 z-40 bg-white border-t">
-          <Footer />
+          <div className="h-12">
+            <Footer />
+          </div>
         </div>
 
         {/* Floating Add Button for Mobile */}

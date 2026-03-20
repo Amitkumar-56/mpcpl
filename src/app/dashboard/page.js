@@ -706,6 +706,16 @@ export default function DashboardPage() {
                       color="blue"
                     />
                   </a>
+                  {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3 || sessionUser?.role === 7) && (
+                    <a href="/old-filling-requests" className="block">
+                      <InfoCard
+                        title="Old Requests"
+                        value={stats.totalOldRequests || 0}
+                        icon={<BiCalendar />}
+                        color="yellow"
+                      />
+                    </a>
+                  )}
                   <a href="/stock" className="block">
                     <InfoCard
                       title="Stock Management"

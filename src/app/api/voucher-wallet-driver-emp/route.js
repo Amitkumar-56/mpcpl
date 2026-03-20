@@ -26,15 +26,38 @@ export async function GET(request) {
     console.log('Session - User ID:', userId, 'Role:', role, 'FS ID:', fs_id);
     console.log('Request emp_id:', emp_id);
 
-    // Check permissions
-    const permissionsQuery = `
-      SELECT module_name, can_view, can_edit, can_create 
-      FROM role_permissions 
-      WHERE module_name = 'Vouchers' AND role = ?
-    `;
-    const permissionsResult = await executeQuery(permissionsQuery, [role]);
+    // Check permissions - Auto-grant for roles 5,4,3,7
+    let permissions = {
+      module_name: 'Vouchers',
+      can_view: 0,
+      can_edit: 0,
+      can_create: 0
+    };
+
+    // Auto-grant full permissions for admin roles
+    if (role == 5 || role == 4 || role == 3 || role == 7) {
+      permissions = {
+        module_name: 'Vouchers',
+        can_view: 1,
+        can_edit: 1,
+        can_create: 1
+      };
+      console.log(`Auto-granted full permissions for admin role ${role}`);
+    } else {
+      // Check role_permissions for other roles
+      const permissionsQuery = `
+        SELECT module_name, can_view, can_edit, can_create 
+        FROM role_permissions 
+        WHERE module_name = 'Vouchers' AND role = ?
+      `;
+      const permissionsResult = await executeQuery(permissionsQuery, [role]);
+      
+      if (permissionsResult.length > 0) {
+        permissions = permissionsResult[0];
+      }
+    }
     
-    if (permissionsResult.length === 0 || permissionsResult[0].can_view !== 1) {
+    if (permissions.can_view !== 1) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 
@@ -42,7 +65,7 @@ export async function GET(request) {
     let params = [];
 
     // Build query based on role
-    if (role == 5 || role == 4 || role == 3) {
+    if (role == 5 || role == 4 || role == 3 || role == 7) {
       sql = `
         SELECT 
           v.*,
@@ -79,7 +102,7 @@ export async function GET(request) {
         success: true,
         vouchers: [],
         driver_name: null,
-        permissions: permissionsResult[0],
+        permissions: permissions,
         message: 'No employee ID provided'
       });
     }
@@ -139,7 +162,7 @@ export async function GET(request) {
       success: true,
       vouchers: processedVouchers,
       driver_name: driver_name,
-      permissions: permissionsResult[0],
+      permissions: permissions,
       current_user: { id: userId },
       query_info: {
         role: role,

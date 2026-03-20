@@ -78,6 +78,7 @@ export default function Sidebar({ user: propUser }) {
   const menuItems = [
     { name: "Dashboard", icon: <FaHome />, path: "/cst/cstdashboard" },
     { name: "Filling Requests", icon: <FaFileInvoice />, path: "/cst/filling-requests" },
+    { name: "Old Filling History", icon: <FaFileInvoice />, path: "/cst/old-filling-history" },
     { name: "Loading Stations", icon: <FaTruck />, path: "/cst/loading-stations" },
   ];
 

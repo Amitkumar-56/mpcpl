@@ -221,6 +221,7 @@ function OldFillingHistoryContent() {
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Completed Date</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Product</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">RID</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Vehicle No</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">FS ID</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Trans Type</th>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Current Stock</th>
@@ -256,6 +257,9 @@ function OldFillingHistoryContent() {
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {record.rid || 'N/A'}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-900">
+                        {record.vehicle_number || 'N/A'}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-900">
                         {record.fs_id || 'N/A'}

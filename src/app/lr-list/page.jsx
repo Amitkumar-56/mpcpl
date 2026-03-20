@@ -574,15 +574,15 @@ function LRManagementContent() {
             <table className="w-full min-w-full">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LR No.</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consigner</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consignee</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker No</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">LR No.</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consigner</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consignee</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker No</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -590,15 +590,15 @@ function LRManagementContent() {
                   shipments.map((shipment) => (
                     <React.Fragment key={shipment.id}>
                       <tr className="hover:bg-gray-50 transition duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">{shipment.lr_id}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consigner}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.consignee}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.from_location}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-3">
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.id}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-blue-600">{shipment.lr_id}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.consigner}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.consignee}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.from_location}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
+                          <div className="flex items-center space-x-2">
                             <Link
                               href={`/transport-receipt?id=${shipment.id}`}
                               target="_blank"
@@ -620,7 +620,7 @@ function LRManagementContent() {
                             )}
                           </div>
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
+                        <td className="px-3 py-3 whitespace-nowrap">
                           <button
                             onClick={() => toggleShipmentLogs(shipment.id)}
                             className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
@@ -628,12 +628,12 @@ function LRManagementContent() {
                           >
                             {expandedShipments[shipment.id] ? (
                               <>
-                                <BiChevronUp size={18} />
+                                <BiChevronUp size={16} />
                                 <span className="ml-1 text-xs">Hide</span>
                               </>
                             ) : (
                               <>
-                                <BiChevronDown size={18} />
+                                <BiChevronDown size={16} />
                                 <span className="ml-1 text-xs">Logs</span>
                               </>
                             )}
@@ -643,7 +643,7 @@ function LRManagementContent() {
                       {/* Expandable Logs Row */}
                       {expandedShipments[shipment.id] && (
                         <tr className="bg-gray-50">
-                          <td colSpan="9" className="px-6 py-4">
+                          <td colSpan="9" className="px-3 py-3">
                             <div className="max-w-4xl">
                               <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for LR #{shipment.lr_id}</h3>
                               <ShipmentLogs shipmentId={shipment.id} />
