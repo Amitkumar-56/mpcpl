@@ -142,7 +142,7 @@ export default function CstHeader({ user: propUser }) {
                   <FaUser /> My Profile
                 </button>
                 <button
-                  onClick={() => { router.push('/change-password'); setShowProfileMenu(false); }}
+                  onClick={() => { router.push('/cst/change-password'); setShowProfileMenu(false); }}
                   className="flex items-center gap-2 px-4 py-2 w-full text-left text-gray-700 hover:bg-gray-100"
                 >
                   <FaKey /> Change Password
@@ -201,7 +201,7 @@ export default function CstHeader({ user: propUser }) {
               <FaUser className="text-gray-500" /> My Profile
             </button>
             <button
-              onClick={() => { router.push('/change-password'); setShowSidebar(false); }}
+              onClick={() => { router.push('/cst/change-password'); setShowSidebar(false); }}
               className="flex items-center gap-3 px-3 py-3 text-gray-700 hover:bg-gray-100 rounded-lg"
             >
               <FaKey className="text-gray-500" /> Change Password

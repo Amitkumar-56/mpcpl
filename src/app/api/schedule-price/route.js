@@ -68,7 +68,7 @@ export async function GET(req) {
 
       const customers = await executeQuery(`
         SELECT id, name FROM customers
-        WHERE status = 1
+        WHERE status = 1 AND roleid = 1
         ORDER BY name
       `);
 

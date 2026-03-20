@@ -19,6 +19,11 @@ export default function UserList() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [successMessage, setSuccessMessage] = useState('');
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
 
   useEffect(() => {
     if (user) {
@@ -35,9 +40,10 @@ export default function UserList() {
       let comId = null;
       
       if (user && user.com_id) {
+        // Sub-user: use com_id from their record
         comId = user.com_id;
       } else if (user && user.id) {
-        // If com_id is not available, use user's id as fallback
+        // Main customer: use their own id as com_id
         comId = user.id;
       }
       
@@ -45,7 +51,17 @@ export default function UserList() {
         throw new Error('User not authenticated or com_id not found');
       }
       
-      const response = await fetch(`/api/cst/add-user?com_id=${comId}`);
+      console.log('🔍 Fetching users for com_id:', comId);
+      
+      // Add authentication headers
+      const headers = {};
+      if (user && user.id) {
+        headers['x-customer-id'] = user.id.toString();
+      }
+      
+      const response = await fetch(`/api/cst/add-user?com_id=${comId}`, {
+        headers
+      });
       
       if (!response.ok) {
         throw new Error(`Failed to fetch users: ${response.status}`);
@@ -55,6 +71,7 @@ export default function UserList() {
       
       if (data.success) {
         setCustomers(data.customers || []);
+        console.log('✅ Users loaded:', data.customers?.length);
       } else {
         setError(data.error || 'Failed to fetch users');
       }
@@ -84,6 +101,95 @@ export default function UserList() {
   const closeView = () => {
     setViewOpen(false);
     setViewData(null);
+  };
+
+  const openPasswordModal = (customer) => {
+    setSelectedUser(customer);
+    setNewPassword('');
+    setPasswordError('');
+    setShowPasswordModal(true);
+  };
+
+  const closePasswordModal = () => {
+    setSelectedUser(null);
+    setNewPassword('');
+    setPasswordError('');
+  };
+
+  const handleChangePassword = async () => {
+    try {
+      setPasswordError('');
+      
+      if (!newPassword || newPassword.length < 6) {
+        setPasswordError('Password must be at least 6 characters long');
+        return;
+      }
+
+      console.log('🔐 Starting password change for user:', selectedUser.id);
+      console.log('👤 User data:', selectedUser);
+      console.log('🔑 New password length:', newPassword.length);
+
+      setChangingPassword(true);
+
+      // Get current user from session
+      const savedUser = typeof window !== 'undefined' ? 
+        localStorage.getItem("customer") || sessionStorage.getItem("customer") : null;
+      
+      const headers = { 'Content-Type': 'application/json' };
+      
+      if (savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          headers['x-customer-id'] = userData.id.toString();
+          console.log('👤 Logged in customer ID:', userData.id);
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+      } else {
+        console.log('⚠️ No user session found');
+      }
+
+      const payload = {
+        id: selectedUser.id,
+        name: selectedUser.name,
+        email: selectedUser.email,
+        phone: selectedUser.phone,
+        password: newPassword
+      };
+
+      console.log('📦 Sending payload:', {
+        ...payload,
+        password: '***' // Hide password in logs
+      });
+
+      const res = await fetch('/api/cst/add-user', {
+        method: 'PUT',
+        headers,
+        body: JSON.stringify(payload)
+      });
+
+      console.log('📡 Response status:', res.status);
+      const data = await res.json();
+      console.log('📦 Response data:', data);
+      
+      if (!res.ok || !data.success) {
+        console.error('❌ API Error:', data);
+        throw new Error(data.error || 'Failed to change password');
+      }
+
+      console.log('✅ Password changed successfully');
+      setSuccessMessage(`Password changed successfully for ${selectedUser.name}`);
+      closePasswordModal();
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccessMessage(''), 3000);
+
+    } catch (err) {
+      console.error('❌ Password change error:', err);
+      setPasswordError(err.message);
+    } finally {
+      setChangingPassword(false);
+    }
   };
 
   // Filter and search logic
@@ -429,25 +535,36 @@ export default function UserList() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <div className="flex items-center space-x-3">
+                        <div className="flex items-center space-x-2">
                           <button
                             onClick={() => openView(customer.id)}
-                            className="inline-flex items-center px-3 py-1.5 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200 text-sm"
+                            className="inline-flex items-center px-2 py-1.5 border border-gray-300 rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors duration-200 text-sm"
                             title="View Details"
                           >
-                            <svg className="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 20 20">
+                            <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
                               <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
                               <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
                             </svg>
                             View
                           </button>
                           
+                          <button
+                            onClick={() => openPasswordModal(customer)}
+                            className="inline-flex items-center px-2 py-1.5 border border-orange-300 rounded-md text-orange-700 bg-orange-50 hover:bg-orange-100 transition-colors duration-200 text-sm"
+                            title="Change Password"
+                          >
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                            </svg>
+                            Password
+                          </button>
+                          
                           <Link
                             href={`/cst/edit-user?id=${customer.id}`}
-                            className="inline-flex items-center px-3 py-1.5 border border-purple-300 rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors duration-200 text-sm"
+                            className="inline-flex items-center px-2 py-1.5 border border-purple-300 rounded-md text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors duration-200 text-sm"
                             title="Edit User"
                           >
-                            <svg className="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                             </svg>
                             Edit
@@ -650,6 +767,86 @@ export default function UserList() {
                 >
                   Edit User
                 </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Password Change Modal */}
+      {showPasswordModal && selectedUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-100">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-gray-200">
+              <div className="flex items-center justify-between">
+                <h3 className="text-xl font-semibold text-gray-900">Change Password</h3>
+                <button
+                  onClick={closePasswordModal}
+                  className="p-2 hover:bg-gray-100 rounded-lg transition-colors duration-200"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Modal Content */}
+            <div className="px-6 py-5">
+              <div className="text-center mb-6">
+                <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full">
+                  <svg className="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                  </svg>
+                </div>
+                <h4 className="mt-4 text-lg font-semibold text-gray-900">{selectedUser.name}</h4>
+                <p className="text-sm text-gray-500">User ID: {selectedUser.id}</p>
+              </div>
+
+              {passwordError && (
+                <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                  {passwordError}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                    New Password
+                  </label>
+                  <input
+                    type="password"
+                    id="newPassword"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+                    placeholder="Enter new password (min 6 characters)"
+                    minLength="6"
+                    disabled={changingPassword}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Password must be at least 6 characters long</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+              <div className="flex gap-3">
+                <button
+                  onClick={closePasswordModal}
+                  className="flex-1 px-4 py-2.5 border border-gray-300 text-gray-700 bg-white rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200"
+                  disabled={changingPassword}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleChangePassword}
+                  disabled={changingPassword || !newPassword}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-lg font-medium hover:bg-orange-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors duration-200"
+                >
+                  {changingPassword ? 'Changing...' : 'Change Password'}
+                </button>
               </div>
             </div>
           </div>

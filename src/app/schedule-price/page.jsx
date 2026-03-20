@@ -353,7 +353,7 @@ function SchedulePriceContent() {
 
   // Submit scheduled prices
   const handleSubmit = async (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     
     if (selectedCustomers.length === 0) {
       alert("Please select at least one customer first");
@@ -896,38 +896,41 @@ function SchedulePriceContent() {
                   </div>
                 ))}
 
-                <div className="flex flex-col sm:flex-row items-center justify-center mt-10 gap-4">
-                  <button
-                    type="submit"
-                    disabled={loading || selectedCustomers.length === 0}
-                    className="px-12 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 w-full sm:w-auto transform"
-                  >
-                    {loading ? (
-                      <span className="flex items-center justify-center">
-                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Saving Schedule...
-                      </span>
-                    ) : (
-                      <span className="flex items-center justify-center">
-                        <span className="mr-2">💾</span>
-                        Save Schedule for {selectedCustomers.length} Customer{selectedCustomers.length !== 1 ? 's' : ''}
-                      </span>
-                    )}
-                  </button>
-                  
-                  {selectedCustomers.length === 0 && (
-                    <div className="text-center sm:text-left">
-                      <p className="text-sm text-gray-500 flex items-center">
-                        <span className="mr-2">ℹ️</span>
-                        Please select at least one customer to continue
-                      </p>
-                    </div>
+                </form>
+
+              {/* Save Button - Moved outside form */}
+              <div className="flex flex-col sm:flex-row items-center justify-center mt-10 gap-4">
+                <button
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading || selectedCustomers.length === 0}
+                  className="px-12 py-4 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white rounded-xl hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed font-bold text-lg shadow-xl transition-all duration-300 hover:shadow-2xl hover:scale-105 w-full sm:w-auto transform"
+                >
+                  {loading ? (
+                    <span className="flex items-center justify-center">
+                      <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Saving Schedule...
+                    </span>
+                  ) : (
+                    <span className="flex items-center justify-center">
+                      <span className="mr-2">💾</span>
+                      Save Schedule for {selectedCustomers.length} Customer{selectedCustomers.length !== 1 ? 's' : ''}
+                    </span>
                   )}
-                </div>
-              </form>
+                </button>
+               
+                {selectedCustomers.length === 0 && (
+                  <div className="text-center sm:text-left">
+                    <p className="text-sm text-gray-500 flex items-center">
+                      <span className="mr-2">ℹ️</span>
+                      Please select at least one customer to continue
+                    </p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

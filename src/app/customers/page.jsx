@@ -1214,9 +1214,22 @@ function CustomersPage() {
                             Previous
                           </button>
                           <div className="flex space-x-1">
-                            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                              const pageNum = i + 1;
-                              return (
+                            {(() => {
+                              const maxVisiblePages = 5;
+                              let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+                              let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+                              
+                              // Adjust startPage if we're near the end
+                              if (endPage - startPage + 1 < maxVisiblePages) {
+                                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+                              }
+                              
+                              const pages = [];
+                              for (let i = startPage; i <= endPage; i++) {
+                                pages.push(i);
+                              }
+                              
+                              return pages.map((pageNum) => (
                                 <button
                                   key={pageNum}
                                   onClick={() => setCurrentPage(pageNum)}
@@ -1227,8 +1240,8 @@ function CustomersPage() {
                                 >
                                   {pageNum}
                                 </button>
-                              );
-                            })}
+                              ));
+                            })()}
                           </div>
                           <button
                             onClick={() => setCurrentPage(p => Math.min(p + 1, totalPages))}

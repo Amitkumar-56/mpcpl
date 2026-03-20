@@ -19,6 +19,7 @@ function EditUserContent() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [testResult, setTestResult] = useState('');
 
   useEffect(() => {
     const fetchData = async () => {
@@ -28,11 +29,55 @@ function EditUserContent() {
           setLoading(false);
           return;
         }
-        const res = await fetch(`/api/cst/add-user?id=${id}`);
+
+        // Get com_id from logged-in user for authentication
+        const savedUser = typeof window !== 'undefined' ? 
+          localStorage.getItem("customer") || sessionStorage.getItem("customer") : null;
+        
+        let comId = null;
+        if (savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            if (userData.com_id) {
+              comId = userData.com_id; // Sub-user
+            } else if (userData.id) {
+              comId = userData.id; // Main customer
+            }
+          } catch (e) {
+            console.error('Error parsing user data:', e);
+          }
+        }
+
+        if (!comId) {
+          setError('User not authenticated');
+          setLoading(false);
+          return;
+        }
+
+        console.log('🔍 Loading user data - User ID:', id, 'Com ID:', comId);
+        
+        // Add authentication headers
+        const headers = {};
+        if (savedUser) {
+          try {
+            const userData = JSON.parse(savedUser);
+            headers['x-customer-id'] = userData.id.toString();
+          } catch (e) {
+            console.error('Error parsing user data:', e);
+          }
+        }
+
+        const res = await fetch(`/api/cst/add-user?id=${id}&com_id=${comId}`, {
+          headers
+        });
+        
         const data = await res.json();
+        console.log('📦 User data response:', data);
+        
         if (!res.ok || !data.success) {
           throw new Error(data.error || 'Failed to load user');
         }
+        
         setFormData(prev => ({
           ...prev,
           name: data.customer?.name || '',
@@ -40,6 +85,7 @@ function EditUserContent() {
           phone: data.customer?.phone || ''
         }));
       } catch (e) {
+        console.error('❌ Error loading user data:', e);
         setError(e.message);
       } finally {
         setLoading(false);
@@ -51,6 +97,39 @@ function EditUserContent() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const testAuth = async () => {
+    try {
+      console.log('🧪 Testing authentication...');
+      
+      const savedUser = typeof window !== 'undefined' ? 
+        localStorage.getItem("customer") || sessionStorage.getItem("customer") : null;
+      
+      const headers = {};
+      
+      if (savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          headers['x-customer-id'] = userData.id.toString();
+          console.log('👤 Test request with customer ID:', userData.id);
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+      } else {
+        console.log('⚠️ No user session found for test');
+      }
+      
+      const res = await fetch('/api/cst/test-auth', { headers });
+      const data = await res.json();
+      
+      console.log('🧪 Test result:', data);
+      setTestResult(JSON.stringify(data, null, 2));
+      
+    } catch (e) {
+      console.error('❌ Test error:', e);
+      setTestResult('Error: ' + e.message);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -84,19 +163,50 @@ function EditUserContent() {
       };
       if (formData.password) {
         payload.password = formData.password;
+        console.log('🔐 Sending password update request');
+      } else {
+        console.log('📝 Sending user info update request (no password)');
       }
+      
+      // Get current user from session
+      const savedUser = typeof window !== 'undefined' ? 
+        localStorage.getItem("customer") || sessionStorage.getItem("customer") : null;
+      
+      const headers = { 'Content-Type': 'application/json' };
+      
+      if (savedUser) {
+        try {
+          const userData = JSON.parse(savedUser);
+          headers['x-customer-id'] = userData.id.toString();
+          console.log('👤 Sending request with customer ID:', userData.id);
+        } catch (e) {
+          console.error('Error parsing user data:', e);
+        }
+      } else {
+        console.log('⚠️ No user session found');
+      }
+      
+      console.log('📡 Sending request to API...');
       const res = await fetch('/api/cst/add-user', {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify(payload)
       });
+      
+      console.log('📡 Response status:', res.status);
       const data = await res.json();
+      console.log('📦 Response data:', data);
+      
       if (!res.ok || !data.success) {
+        console.error('❌ API Error:', data);
         throw new Error(data.error || 'Failed to update user');
       }
-      alert('User updated successfully');
+      
+      console.log('✅ User updated successfully');
+      alert('User updated successfully' + (formData.password ? ' (Password changed)' : ''));
       router.push('/cst/user');
     } catch (e) {
+      console.error('❌ Submit Error:', e);
       setError(e.message);
     } finally {
       setSaving(false);
@@ -224,6 +334,13 @@ function EditUserContent() {
 
               <div className="flex space-x-4 pt-4">
                 <button
+                  type="button"
+                  onClick={testAuth}
+                  className="px-4 py-2 bg-yellow-500 text-white rounded-md hover:bg-yellow-600 focus:outline-none focus:ring-2 focus:ring-yellow-500 focus:ring-offset-2"
+                >
+                  Test Auth
+                </button>
+                <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-600 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
@@ -238,6 +355,15 @@ function EditUserContent() {
                   Cancel
                 </Link>
               </div>
+              
+              {testResult && (
+                <div className="mt-4 p-4 bg-gray-100 rounded">
+                  <h4 className="font-semibold mb-2">Auth Test Result:</h4>
+                  <pre className="text-xs overflow-auto bg-white p-2 rounded">
+                    {testResult}
+                  </pre>
+                </div>
+              )}
             </form>
           </div>
         </section>

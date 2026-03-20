@@ -662,7 +662,7 @@ export default function CustomerDashboardPage() {
               <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-4 text-gray-800">Quick Actions</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                  {user?.roleid === 1 && (
+                  {(user?.roleid === 1 || (user?.roleid === 2 && user?.com_id)) && (
                     <button
                       onClick={redirectToMyUsers}
                       className="p-4 border border-gray-200 rounded-lg hover:bg-gray-50 flex items-center gap-3"

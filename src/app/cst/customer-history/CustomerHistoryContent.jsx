@@ -246,8 +246,8 @@ export default function CustomerHistoryContent() {
 
           <div className="bg-white overflow-hidden shadow rounded-lg">
             <div className="px-4 py-5 sm:p-6">
-              {/* Balance Summary - 5 columns */}
-              <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
+              {/* Balance Summary - 4 columns */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-blue-50 p-4 rounded-lg text-center border border-blue-200">
                   <p className="text-sm text-gray-600">Current Balance</p>
                   <p className="text-2xl font-bold text-blue-600">₹{formatCurrency(balance)}</p>
@@ -255,10 +255,6 @@ export default function CustomerHistoryContent() {
                 <div className="bg-green-50 p-4 rounded-lg text-center border border-green-200">
                   <p className="text-sm text-gray-600">Opening Balance</p>
                   <p className="text-2xl font-bold text-green-600">₹{formatCurrency(openingBalance)}</p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg text-center border border-purple-200">
-                  <p className="text-sm text-gray-600">Amount Limit</p>
-                  <p className="text-2xl font-bold text-purple-600">₹{formatCurrency(amtLimit)}</p>
                 </div>
                 <div className="bg-orange-50 p-4 rounded-lg text-center border border-orange-200">
                   <p className="text-sm text-gray-600">Yesterday Outstanding</p>

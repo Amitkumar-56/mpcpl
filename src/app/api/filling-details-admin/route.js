@@ -1485,7 +1485,7 @@ async function handleCancelStatus(data) {
   `;
 
   await executeQuery(updateRequestQuery, [
-    now, userId, remarks, doc1Base64, doc2Base64, doc3Base64, userId, now, id, rid
+    now, userId, remarks, doc1Base64 || null, doc2Base64 || null, doc3Base64 || null, userId, now, id, rid
   ]);
 
   console.log(` Request ${rid} cancelled successfully`);
