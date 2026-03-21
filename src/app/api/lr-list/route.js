@@ -1,3 +1,4 @@
+
 import { getCurrentUser } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
@@ -5,12 +6,6 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
-    // Get pagination parameters from URL
-    const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
-    const offset = (page - 1) * limit;
-
     // ✅ FIX: Get actual logged-in user
     let userId = null;
     let userRole = null;
@@ -139,12 +134,7 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    // Get total count for pagination
-    const countQuery = `SELECT COUNT(*) as total FROM shipment s`;
-    const countResult = await executeQuery(countQuery);
-    const total = countResult[0]?.total || 0;
-
-    // Fetch shipments data with pagination (removed audit logs for faster loading)
+    // Fetch shipments data with all fields needed by client export (Creator/Editor names from Audit Logs)
     const shipmentQuery = `
       SELECT 
         s.id,
@@ -171,20 +161,17 @@ export async function GET(request) {
         s.email,
         s.pan,
         s.gst,
-        s.remarks
+        s.remarks,
+        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_by_name,
+        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_at,
+        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_by_name,
+        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_at
       FROM shipment s
       ORDER BY s.id DESC
-      LIMIT ? OFFSET ?
     `;
-    
-    // Ensure parameters are proper integers
-    const limitInt = parseInt(limit) || 10;
-    const offsetInt = parseInt(offset) || 0;
-    console.log(' Query params:', { limit: limitInt, offset: offsetInt, page });
-    
-    const shipments = await executeQuery(shipmentQuery, [limitInt, offsetInt]);
+    const shipments = await executeQuery(shipmentQuery);
 
-    // Ensure permissions are returned as numbers (0 or 1) for consistency
+    // ✅ Ensure permissions are returned as numbers (0 or 1) for consistency
     const formattedPermissions = {
       can_view: permissionData.can_view === 1 || permissionData.can_view === true ? 1 : 0,
       can_edit: permissionData.can_edit === 1 || permissionData.can_edit === true ? 1 : 0,
@@ -194,15 +181,7 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       shipments: shipments || [],
-      permissions: formattedPermissions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: page < Math.ceil(total / limit),
-        hasPrev: page > 1
-      }
+      permissions: formattedPermissions
     });
 
   } catch (error) {
@@ -211,4 +190,3 @@ export async function GET(request) {
   }
 }
 
-// DELETE endpoint tamamen kaldırıldı
