@@ -40,7 +40,7 @@ export async function GET(request) {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
 
     // Query with customer and station name joins
-    const sql = `
+    let sql = `
       SELECT 
         ofr.id,
         ofr.rid as request_id,
@@ -60,13 +60,16 @@ export async function GET(request) {
       LEFT JOIN filling_stations fs ON ofr.fs_id = fs.id
       ${whereClause}
       ORDER BY ofr.id DESC
-      ${exportMode ? '' : `LIMIT ? OFFSET ?`}
     `;
+    
+    // Add LIMIT and OFFSET only if not in export mode
+    if (!exportMode) {
+      sql += ` LIMIT ${actualLimit} OFFSET ${offset}`;
+    }
 
     console.log('Fetching records with filters:', { fromDate, toDate, page, limit, exportMode });
     
-    const queryParamsWithLimit = exportMode ? queryParams : [...queryParams, actualLimit, offset];
-    const results = await executeQuery(sql, queryParamsWithLimit);
+    const results = await executeQuery(sql, queryParams);
     console.log(`Found ${results.length} records`);
 
     // Get total count for pagination
