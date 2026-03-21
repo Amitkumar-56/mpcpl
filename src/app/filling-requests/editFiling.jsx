@@ -1406,7 +1406,7 @@ const SearchBar = ({ onSearch, initialValue = "" }) => {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search by RID, Vehicle, Client, Station..."
+        placeholder="Search by Request ID, Product, Loading Station, Vehicle No, Client Name..."
         className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10 md:pr-12"
       />
       <button
@@ -1714,9 +1714,13 @@ export default function FillingRequests() {
 
   const handleSearch = useCallback((searchTerm) => {
     const params = new URLSearchParams(searchParams);
-    if (searchTerm) params.set("search", searchTerm);
-    else params.delete("search");
-    params.set("page", "1");
+    if (searchTerm) {
+      params.set("search", searchTerm);
+      params.delete("page");
+      params.delete("records_per_page");
+    } else {
+      params.delete("search");
+    }
     router.push(`/filling-requests?${params.toString()}`);
   }, [router, searchParams]);
 

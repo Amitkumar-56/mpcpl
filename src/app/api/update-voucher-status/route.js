@@ -44,6 +44,11 @@ export async function GET(request) {
       );
     }
 
+    console.log('=== Update Voucher Status API Called ===');
+    console.log('Voucher ID:', voucher_id);
+    console.log('New Status:', status);
+    console.log('Current User:', current_user);
+
     let sql, params;
     let actionType = '';
     let remarks = '';
@@ -62,7 +67,20 @@ export async function GET(request) {
       remarks = `Rejected by ${current_user.name}`;
     }
 
-    await executeQuery(sql, params);
+    console.log('SQL Query:', sql);
+    console.log('Parameters:', params);
+
+    try {
+      const result = await executeQuery(sql, params);
+      console.log('Update Result:', result);
+      console.log(`Voucher ${voucher_id} ${actionType}d successfully`);
+    } catch (updateError) {
+      console.error('Error updating voucher:', updateError);
+      return NextResponse.json({ 
+        error: `Failed to update voucher: ${updateError.message}`, 
+        success: false 
+      }, { status: 500 });
+    }
 
     // Log the action in audit log
     try {

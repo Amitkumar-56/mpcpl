@@ -574,20 +574,18 @@ Are you sure you want to ${action} it again?`;
                               <span className="ml-1">Reject</span>
                             </button>
 
-                            {/* Print - Show only if voucher is approved */}
-                            {voucher.status == 1 && (
-                              <Link
-                                href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                                target="_blank"
-                                className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                                title="Print"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                                </svg>
-                                <span className="ml-1">Print</span>
-                              </Link>
-                            )}
+                            {/* Print - Always Show */}
+                            <Link
+                              href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                              target="_blank"
+                              className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                              title="Print"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                              </svg>
+                              <span className="ml-1">Print</span>
+                            </Link>
                             
 
                             {/* Logs */}
@@ -747,19 +745,17 @@ Are you sure you want to ${action} it again?`;
                           Reject
                         </button>
                         
-                        {/* Print - Show only if voucher is approved */}
-                        {voucher.status == 1 && (
-                          <Link
-                            href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                            target="_blank"
-                            className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
-                          >
-                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                            </svg>
-                            Print
-                          </Link>
-                        )}
+                        {/* Print - Always Show */}
+                        <Link
+                          href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                          target="_blank"
+                          className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                          </svg>
+                          Print
+                        </Link>
                         
                         {/* Logs */}
                         <button

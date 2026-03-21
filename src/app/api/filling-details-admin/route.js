@@ -1243,6 +1243,52 @@ async function handleCompletedStatus(data) {
   // Handle non-billing stocks if needed
   if (billing_type == 2) {
     await handleNonBillingStocks(fs_id, product_id, aqty, userId);
+    
+    // ✅ Insert into nb_stock_history for non-billing customers
+    try {
+      console.log('🔄 Adding to nb_stock_history for non-billing customer...');
+      
+      // Get customer name, station name, and product name
+      const detailsQuery = `
+        SELECT c.name as customer_name, fs.station_name, p.pname as product_name
+        FROM filling_requests fr
+        LEFT JOIN customers c ON fr.cid = c.id
+        LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+        LEFT JOIN products p ON fr.product = p.id
+        WHERE fr.id = ?
+      `;
+      const detailsResult = await executeQuery(detailsQuery, [id]);
+      
+      if (detailsResult.length > 0) {
+        const details = detailsResult[0];
+        
+        const insertNbHistoryQuery = `
+          INSERT INTO nb_stock_history 
+          (customer_name, station_name, product_name, quantity, request_id, completion_date)
+          VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        
+        await executeQuery(insertNbHistoryQuery, [
+          details.customer_name,
+          details.station_name,
+          details.product_name,
+          aqty,
+          id, // request_id
+          now  // completion_date
+        ]);
+        
+        console.log('✅ Added to nb_stock_history:', {
+          customer_name: details.customer_name,
+          station_name: details.station_name,
+          product_name: details.product_name,
+          quantity: aqty,
+          request_id: id
+        });
+      }
+    } catch (nbHistoryError) {
+      console.error('⚠️ Error adding to nb_stock_history (non-critical):', nbHistoryError);
+      // Don't fail the main operation if nb_stock_history fails
+    }
   }
 
   // Update wallet history

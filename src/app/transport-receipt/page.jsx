@@ -1,9 +1,10 @@
+// src/app/transport-receipt/page.jsx
 'use client';
 
-import { useSearchParams } from 'next/navigation';
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { useSearchParams } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 
 // Helper functions
 const formatDate = (dateString) => {
@@ -83,65 +84,130 @@ function TransportReceiptContent() {
     try {
       setDownloading(true);
 
-      // Create a clone to capture full content without viewport/scroll constraints
+      // Create a clone with proper styling
       const clone = element.cloneNode(true);
-
-      // Style the clone to ensure full visibility
+      
+      // Get actual dimensions
+      const originalRect = element.getBoundingClientRect();
+      
+      // Style clone for capture
       clone.style.position = 'fixed';
-      clone.style.left = '-9999px'; // Move off-screen
+      clone.style.left = '-9999px';
       clone.style.top = '0';
-      clone.style.width = '1100px'; // Force a fixed, wide width for layout stability
+      clone.style.width = `${originalRect.width}px`;
       clone.style.height = 'auto';
       clone.style.zIndex = '-1';
       clone.style.padding = '20px';
       clone.style.background = 'white';
-
-      // Append to body to render full size
+      clone.style.boxSizing = 'border-box';
+      
+      // Ensure all grid layouts maintain structure
+      clone.style.display = 'block';
+      
+      // Force proper grid display
+      const gridContainers = clone.querySelectorAll('.grid');
+      gridContainers.forEach(container => {
+        container.style.display = 'grid';
+        container.style.width = '100%';
+      });
+      
+      // Fix stamp size - make it larger
+      const stampImage = clone.querySelector('img');
+      if (stampImage) {
+        stampImage.style.width = 'auto';
+        stampImage.style.height = '80px'; // Increased height
+        stampImage.style.maxHeight = '80px';
+        stampImage.style.objectFit = 'contain';
+      }
+      
+      // Fix signature container
+      const signatureContainer = clone.querySelector('.signature-container');
+      if (signatureContainer) {
+        signatureContainer.style.height = 'auto';
+        signatureContainer.style.minHeight = '100px';
+      }
+      
+      // Remove all height constraints
+      const heightElements = clone.querySelectorAll('[class*="h-"], [class*="min-h"]');
+      heightElements.forEach(el => {
+        el.style.height = 'auto';
+        el.style.minHeight = 'auto';
+      });
+      
+      // Ensure proper text wrapping
+      const allElements = clone.querySelectorAll('*');
+      allElements.forEach(el => {
+        el.style.overflow = 'visible';
+        el.style.textOverflow = 'clip';
+        el.style.whiteSpace = 'normal';
+        el.style.wordWrap = 'break-word';
+      });
+      
       document.body.appendChild(clone);
-
-      // Load images inside the clone
+      
+      // Wait for images to load
       const images = clone.querySelectorAll('img');
-      const loadPromises = Array.from(images).map(img => {
+      await Promise.all(Array.from(images).map(img => {
         if (img.complete) return Promise.resolve();
-        return new Promise(resolve => {
+        return new Promise((resolve) => {
           img.onload = resolve;
           img.onerror = resolve;
         });
-      });
-      await Promise.all(loadPromises);
-      await new Promise(r => setTimeout(r, 500)); // Layout settle
-
+      }));
+      
+      await new Promise(r => setTimeout(r, 500));
+      
+      const cloneRect = clone.getBoundingClientRect();
+      
+      // Capture with high quality
       const canvas = await html2canvas(clone, {
-        scale: 2,
+        scale: 3,
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
-        windowWidth: 1200, // Simulate wide window
+        windowWidth: cloneRect.width,
+        windowHeight: cloneRect.height,
+        onclone: (clonedDoc) => {
+          // Fix stamp in cloned document
+          const clonedStamp = clonedDoc.querySelector('img');
+          if (clonedStamp) {
+            clonedStamp.style.height = '80px';
+            clonedStamp.style.width = 'auto';
+          }
+          
+          // Fix all containers
+          const containers = clonedDoc.querySelectorAll('.print-container, .grid, div');
+          containers.forEach(container => {
+            container.style.height = 'auto';
+            container.style.overflow = 'visible';
+          });
+        }
       });
-
-      // Remove the clone
+      
       document.body.removeChild(clone);
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      
+      // Create PDF
+      const imgData = canvas.toDataURL('image/png', 1.0);
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
         format: 'a4'
       });
-
+      
       const pdfWidth = pdf.internal.pageSize.getWidth();
       const pdfHeight = pdf.internal.pageSize.getHeight();
       const margin = 5;
-
+      
       const availableWidth = pdfWidth - (margin * 2);
       const availableHeight = pdfHeight - (margin * 2);
-
-      const imgProps = pdf.getImageProperties(imgData);
-      const imgRatio = imgProps.width / imgProps.height;
+      
+      const imgWidth = canvas.width;
+      const imgHeight = canvas.height;
+      const imgRatio = imgWidth / imgHeight;
       const pageRatio = availableWidth / availableHeight;
-
+      
       let finalWidth, finalHeight;
-
+      
       if (imgRatio > pageRatio) {
         finalWidth = availableWidth;
         finalHeight = availableWidth / imgRatio;
@@ -149,17 +215,16 @@ function TransportReceiptContent() {
         finalHeight = availableHeight;
         finalWidth = availableHeight * imgRatio;
       }
-
-      // Center
+      
       const xPos = (pdfWidth - finalWidth) / 2;
       const yPos = (pdfHeight - finalHeight) / 2;
-
-      pdf.addImage(imgData, 'JPEG', xPos, yPos, finalWidth, finalHeight);
+      
+      pdf.addImage(imgData, 'PNG', xPos, yPos, finalWidth, finalHeight);
       pdf.save(`Transport-Receipt-${id}.pdf`);
-
+      
     } catch (err) {
-      console.error('PDF Download failed', err);
-      alert('Failed to generate PDF. Please try printing explicitly.');
+      console.error('PDF Download failed:', err);
+      alert('Failed to generate PDF. Please try printing.');
     } finally {
       setDownloading(false);
     }
@@ -245,10 +310,66 @@ function TransportReceiptContent() {
             width: 100% !important;
             border: 2px solid black !important;
             font-size: 10px !important;
+            height: auto !important;
+            overflow: visible !important;
           }
           .print-small-text {
-             font-size: 9px !important; 
+            font-size: 9px !important;
           }
+          .grid {
+            height: auto !important;
+            overflow: visible !important;
+          }
+          [class*="h-"] {
+            height: auto !important;
+            min-height: auto !important;
+          }
+          .truncate {
+            overflow: visible !important;
+            white-space: normal !important;
+          }
+          .break-words {
+            word-wrap: break-word !important;
+          }
+          /* Fix stamp in print */
+          img {
+            height: 80px !important;
+            width: auto !important;
+            max-height: 80px !important;
+          }
+        }
+        
+        /* Screen styles */
+        .print-container {
+          width: 100%;
+          max-width: 280mm;
+          margin: 0 auto;
+        }
+        
+        .grid {
+          display: grid;
+        }
+        
+        .break-words {
+          word-wrap: break-word;
+          overflow-wrap: break-word;
+        }
+        
+        /* Fix stamp container */
+        .signature-container {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          min-height: 100px;
+        }
+        
+        /* Ensure stamp is properly sized */
+        .stamp-image {
+          height: 80px;
+          width: auto;
+          max-width: 100%;
+          object-fit: contain;
         }
       `}</style>
 
@@ -285,7 +406,7 @@ function TransportReceiptContent() {
           </button>
         </div>
 
-        {/* Receipt Container - Matches the Rabrakha Layout - More Padding */}
+        {/* Receipt Container */}
         <div ref={receiptRef} className="print-container border-2 border-black m-0 text-black font-sans text-[11px] leading-relaxed pb-2">
 
           {/* 1. Header Section */}
@@ -341,25 +462,25 @@ function TransportReceiptContent() {
           <div className="grid grid-cols-12 border-t border-black">
             {/* Consignor */}
             <div className="col-span-4 border-r border-black p-2 text-[10px] space-y-0.5">
-              <div className="font-bold mb-0.5 truncate">Consignor: {displayData.consigner || '-'}</div>
-              <div className="flex justify-between mb-0.5">
+              <div className="font-bold mb-0.5 break-words">Consignor: {displayData.consigner || '-'}</div>
+              <div className="flex justify-between mb-0.5 flex-wrap gap-1">
                 <span><span className="font-bold">GST No:</span> {displayData.gst || '-'}</span>
                 <span><span className="font-bold">Mobile:</span> {displayData.mobile_1 || '-'}</span>
               </div>
-              <div className="mb-0.5 leading-tight"><span className="font-bold">Address:</span> {displayData.address_1 || '-'}</div>
-              <div className="mb-0.5"><span className="font-bold">E-Way Bill:</span> {displayData.gp_no || '-'}</div>
+              <div className="mb-0.5 leading-tight break-words"><span className="font-bold">Address:</span> {displayData.address_1 || '-'}</div>
+              <div className="mb-0.5 break-words"><span className="font-bold">E-Way Bill:</span> {displayData.gp_no || '-'}</div>
               <div className="mb-0.5"><span className="font-bold">Generated on:</span> {formatDate(displayData.created_at || new Date())}</div>
               <div className="mb-0.5"><span className="font-bold">Invoice:</span> {displayData.invoice_no || '-'}</div>
             </div>
 
             {/* Consignee */}
             <div className="col-span-5 border-r border-black p-2 text-[10px] space-y-0.5">
-              <div className="font-bold mb-0.5 truncate">Consignee: {displayData.consignee || '-'}</div>
-              <div className="flex justify-between mb-0.5">
+              <div className="font-bold mb-0.5 break-words">Consignee: {displayData.consignee || '-'}</div>
+              <div className="flex justify-between mb-0.5 flex-wrap gap-1">
                 <span><span className="font-bold">GST No:</span> {displayData.gst_no || '-'}</span>
                 <span><span className="font-bold">Mobile:</span> {displayData.mobile_2 || '-'}</span>
               </div>
-              <div className="mb-0.5 leading-tight"><span className="font-bold">Address:</span> {displayData.address_2 || '-'}</div>
+              <div className="mb-0.5 leading-tight break-words"><span className="font-bold">Address:</span> {displayData.address_2 || '-'}</div>
             </div>
 
             {/* Insurance */}
@@ -371,7 +492,7 @@ function TransportReceiptContent() {
           {/* 4. Main Table Section */}
           <div className="grid grid-cols-12 border-t border-black">
 
-            {/* LEFT: Goods Table (approx 70% width -> 8 cols) */}
+            {/* LEFT: Goods Table */}
             <div className="col-span-8 border-r border-black flex flex-col">
               {/* Header */}
               <div className="grid grid-cols-12 border-b border-black text-center font-bold text-[10px] bg-gray-50">
@@ -385,106 +506,109 @@ function TransportReceiptContent() {
                 <div className="col-span-1 py-2 text-[9px] leading-tight">Freight Rate</div>
               </div>
 
-              {/* Rows - fixed height to ensure layout consistency */}
-              <div className="flex-grow">
+              {/* Rows */}
+              <div>
                 {goods.map((item, i) => (
-                  <div key={i} className="grid grid-cols-12 text-center text-[10px] h-24">
-                    <div className="col-span-1 border-r border-black py-2">{item.sr}</div>
-                    <div className="col-span-3 border-r border-black py-2 font-bold px-1">{item.desc}</div>
-                    <div className="col-span-2 border-r border-black py-2">{item.pkgType}</div>
-                    <div className="col-span-2 border-r border-black py-2">{item.hsn}</div>
-                    <div className="col-span-1 border-r border-black py-2">{item.pkgs}</div>
-                    <div className="col-span-1 border-r border-black py-2">
-                      {item.actualWt}<br /><span className="text-[9px]">{item.unit}</span>
+                  <div key={i} className="grid grid-cols-12 text-center text-[10px] py-3 border-b border-black">
+                    <div className="col-span-1 border-r border-black px-1 flex items-center justify-center">{item.sr}</div>
+                    <div className="col-span-3 border-r border-black font-bold px-1 break-words text-left flex items-center">{item.desc}</div>
+                    <div className="col-span-2 border-r border-black px-1 break-words flex items-center justify-center">{item.pkgType}</div>
+                    <div className="col-span-2 border-r border-black px-1 flex items-center justify-center">{item.hsn}</div>
+                    <div className="col-span-1 border-r border-black px-1 flex items-center justify-center">{item.pkgs}</div>
+                    <div className="col-span-1 border-r border-black px-1 flex flex-col items-center justify-center">
+                      <span>{item.actualWt}</span>
+                      <span className="text-[9px]">{item.unit}</span>
                     </div>
-                    <div className="col-span-1 border-r border-black py-2">
-                      {item.chargedWt}<br /><span className="text-[9px]">{item.unit}</span>
+                    <div className="col-span-1 border-r border-black px-1 flex flex-col items-center justify-center">
+                      <span>{item.chargedWt}</span>
+                      <span className="text-[9px]">{item.unit}</span>
                     </div>
-                    <div className="col-span-1 py-2">-</div>
+                    <div className="col-span-1 px-1 flex items-center justify-center">-</div>
                   </div>
                 ))}
-                {/* Empty space filler could go here if needed */}
               </div>
 
-              {/* Goods Footer: Guarantee & Totals */}
+              {/* Goods Footer */}
               <div className="grid grid-cols-12 border-t border-black text-[10px]">
-                <div className="col-span-8 border-r border-black p-2 font-bold">
+                <div className="col-span-8 border-r border-black p-2 font-bold break-words">
                   WEIGHT GUARANTEE: {goods[0].actualWt} {goods[0].unit}
                 </div>
-                <div className="col-span-1 border-r border-black p-2 text-center flex flex-col justify-center">
+                <div className="col-span-1 border-r border-black p-2 text-center flex items-center justify-center">
                   <span className="font-bold">Total:</span> 0
                 </div>
-                <div className="col-span-1 border-r border-black p-2 text-center font-bold flex flex-col justify-between">
+                <div className="col-span-1 border-r border-black p-2 text-center font-bold flex flex-col items-center justify-center">
                   <span>Total:</span>
                   <span>{goods[0].actualWt}<br />{goods[0].unit}</span>
                 </div>
-                <div className="col-span-1 border-r border-black p-2 text-center font-bold flex flex-col justify-between">
+                <div className="col-span-1 border-r border-black p-2 text-center font-bold flex flex-col items-center justify-center">
                   <span>Total:</span>
                   <span>{goods[0].chargedWt}<br />{goods[0].unit}</span>
                 </div>
                 <div className="col-span-1 bg-gray-50"></div>
               </div>
 
-              <div className="border-t border-black p-2 min-h-[30px] font-bold text-[10px]">
+              <div className="border-t border-black p-2 font-bold text-[10px] break-words">
                 Other Remark: {displayData.remarks || ''}
               </div>
             </div>
 
-            {/* RIGHT: Freight Details (approx 30% width -> 4 cols) */}
+            {/* RIGHT: Freight Details */}
             <div className="col-span-4 flex flex-col text-[10px]">
               {/* Total Highlight */}
-              <div className="flex justify-between border-b border-black px-2 py-2 font-bold bg-gray-100">
-                <span className="text-right flex-1 pr-2">Total Freight</span>
-                <span className="w-12 text-right">0</span>
+              <div className="flex justify-between border-b border-black px-3 py-2 font-bold bg-gray-100">
+                <span className="text-right flex-1">Total Freight</span>
+                <span className="w-16 text-right">0</span>
               </div>
 
-              <div className="flex justify-between border-b border-black px-2 py-1">
-                <span className="text-right flex-1 pr-2">Advance Paid</span>
-                <span className="font-bold w-12 text-right">0</span>
+              <div className="flex justify-between border-b border-black px-3 py-2">
+                <span className="text-right flex-1">Advance Paid</span>
+                <span className="font-bold w-16 text-right">0</span>
               </div>
 
-              <div className="flex justify-between border-b border-black px-2 py-2 font-bold bg-gray-100 mb-2">
-                <span className="text-right flex-1 pr-2">Remaining Payable Amount</span>
-                <span className="w-12 text-right">0</span>
+              <div className="flex justify-between border-b border-black px-3 py-2 font-bold bg-gray-100">
+                <span className="text-right flex-1">Remaining Payable Amount</span>
+                <span className="w-16 text-right">0</span>
               </div>
 
               {/* Payable By Section */}
-              <div className="px-2 space-y-1 font-bold border-b border-black pb-2">
-                <div>GST Payable by: Consignee</div>
-                <div>Remaining Amount to be paid by: Consignor</div>
+              <div className="px-3 py-2 space-y-1 font-bold border-b border-black">
+                <div className="break-words">GST Payable by: Consignee</div>
+                <div className="break-words">Remaining Amount to be paid by: Consignor</div>
               </div>
 
-              {/* Signature */}
-              <div className="mt-auto text-center px-2 pb-4">
-                <div className="text-[9px] mb-2">For GYANTI MULTISERVICES PVT. LTD</div>
-                <div className="h-20 flex items-center justify-center">
-                  <img src="/mpcl_stamp.jpg" alt="Stamp" className="h-full object-contain" />
+              {/* Signature with larger stamp */}
+              <div className="signature-container mt-auto text-center px-3 py-4">
+                <div className="text-[10px] mb-3 font-semibold">For GYANTI MULTISERVICES PVT. LTD</div>
+                <div className="flex items-center justify-center min-h-[100px]">
+                  <img 
+                    src="/mpcl_stamp.jpg" 
+                    alt="Company Stamp" 
+                    className="stamp-image"
+                    style={{ height: '80px', width: 'auto', objectFit: 'contain' }}
+                  />
                 </div>
-                <div className="border-t border-black w-3/4 mx-auto mt-1"></div>
-                <div className="text-[9px]">Authorized Signatory</div>
+                <div className="border-t border-black w-2/3 mx-auto mt-3"></div>
+                <div className="text-[10px] mt-1 font-medium">Authorized Signatory</div>
               </div>
             </div>
           </div>
 
           {/* 5. Bottom Section: Disclaimer | Demurrage */}
           <div className="grid grid-cols-12 border-t border-black text-[10px]">
-            {/* Disclaimer */}
             <div className="col-span-6 border-r border-black p-2 flex items-center justify-center text-center italic">
-              <div>
+              <div className="break-words">
                 "Total amount of goods as per the invoice"<br />
                 This is computer generated LR/ Bilty.
               </div>
             </div>
-
-            {/* Demurrage */}
             <div className="col-span-6 p-2 text-center">
-              <div className="font-bold border-b border-black w-max mx-auto mb-1">Schedule of demurrage charges</div>
+              <div className="font-bold border-b border-black w-max mx-auto mb-1 px-2">Schedule of demurrage charges</div>
               <div>Demurrage charges applicable from reporting time after: <span className="font-bold">1 Hour</span></div>
               <div>Applicable Charge : <span className="font-bold">₹ 0 Per Hour</span></div>
             </div>
           </div>
 
-          {/* 6. Footer: Service Area */}
+          {/* 6. Footer */}
           <div className="border-t border-black p-2 text-[10px] font-bold">
             Service Area: All India
             <div className="mt-4 border-t border-black w-1/3 pt-1">
