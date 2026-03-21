@@ -176,9 +176,15 @@ export async function GET(request) {
       ORDER BY s.id DESC
       LIMIT ? OFFSET ?
     `;
-    const shipments = await executeQuery(shipmentQuery, [limit, offset]);
+    
+    // Ensure parameters are proper integers
+    const limitInt = parseInt(limit) || 10;
+    const offsetInt = parseInt(offset) || 0;
+    console.log(' Query params:', { limit: limitInt, offset: offsetInt, page });
+    
+    const shipments = await executeQuery(shipmentQuery, [limitInt, offsetInt]);
 
-    // ✅ Ensure permissions are returned as numbers (0 or 1) for consistency
+    // Ensure permissions are returned as numbers (0 or 1) for consistency
     const formattedPermissions = {
       can_view: permissionData.can_view === 1 || permissionData.can_view === true ? 1 : 0,
       can_edit: permissionData.can_edit === 1 || permissionData.can_edit === true ? 1 : 0,
