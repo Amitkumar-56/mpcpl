@@ -579,6 +579,7 @@ function LRManagementContent() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consigner</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Consignee</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">From</th>
+                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker No</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
@@ -646,7 +647,7 @@ function LRManagementContent() {
                       {/* Expandable Logs Row */}
                       {expandedShipments[shipment.id] && (
                         <tr className="bg-gray-50">
-                          <td colSpan="9" className="px-3 py-3">
+                          <td colSpan="8" className="px-3 py-3">
                             <div className="max-w-4xl">
                               <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for LR #{shipment.lr_id}</h3>
                               <ShipmentLogs shipmentId={shipment.id} />
@@ -658,7 +659,7 @@ function LRManagementContent() {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="9" className="px-6 py-12 text-center">
+                    <td colSpan="8" className="px-6 py-12 text-center">
                       <div className="text-gray-500">
                         <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

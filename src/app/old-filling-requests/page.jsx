@@ -14,6 +14,46 @@ function LoadingFallback() {
       <div className="text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
         <p className="text-gray-600">Loading old filling requests...</p>
+        <p className="text-sm text-gray-500 mt-2">Optimizing performance with pagination</p>
+      </div>
+    </div>
+  );
+}
+
+// Skeleton Loading Component for Table
+function TableSkeleton() {
+  return (
+    <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+      <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
+        <div className="h-6 bg-gray-200 rounded animate-pulse"></div>
+      </div>
+      <div className="hidden lg:block overflow-x-auto">
+        <table className="w-full min-w-full">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Station</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle No</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filling Qty</th>
+              <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed Date</th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {[...Array(5)].map((_, i) => (
+              <tr key={i}>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+                <td className="px-3 py-3"><div className="h-4 bg-gray-200 rounded animate-pulse"></div></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -69,7 +109,17 @@ function OldFillingRequestsContent() {
   const { user, loading: authLoading } = useSession();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
   const [error, setError] = useState('');
+  const [pagination, setPagination] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [filters, setFilters] = useState({
+    fromDate: '',
+    toDate: '',
+    loadingStation: ''
+  });
+  const [stations, setStations] = useState([]);
+  const [exporting, setExporting] = useState(false);
 
   // Check authentication and fetch data
   useEffect(() => {
@@ -89,14 +139,61 @@ function OldFillingRequestsContent() {
     }
 
     fetchRequests();
+    fetchStations();
   }, [authLoading, user]);
 
-  const fetchRequests = async () => {
+  const fetchStations = async () => {
     try {
-      setLoading(true);
+      const response = await fetch('/api/stations', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        cache: 'no-store'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success) {
+          setStations(data.stations || []);
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching stations:', err);
+    }
+  };
+
+  const fetchRequests = async (page = 1, exportMode = false) => {
+    try {
+      if (!exportMode) {
+        if (initialLoading) {
+          setInitialLoading(false);
+        }
+        setLoading(true);
+      } else {
+        setExporting(true);
+      }
       setError('');
 
-      const response = await fetch('/api/old-filling-requests', {
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: '50'
+      });
+
+      if (filters.fromDate) {
+        params.append('from_date', filters.fromDate);
+      }
+      if (filters.toDate) {
+        params.append('to_date', filters.toDate);
+      }
+      if (filters.loadingStation) {
+        params.append('loading_station', filters.loadingStation);
+      }
+      if (exportMode) {
+        params.append('export', 'true');
+      }
+
+      const response = await fetch(`/api/old-filling-requests?${params}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -126,17 +223,76 @@ function OldFillingRequestsContent() {
       }
 
       setRequests(data.requests || []);
+      setPagination(data.pagination);
+      
+      if (exportMode) {
+        exportToCSV(data.requests);
+      }
+      
       console.log(`✅ Loaded ${data.requests?.length || 0} old filling requests`);
 
     } catch (err) {
       console.error('❌ Error fetching requests:', err);
       setError(err.message || 'Failed to load requests. Please try again.');
     } finally {
-      setLoading(false);
+      if (!exportMode) {
+        setLoading(false);
+      } else {
+        setExporting(false);
+      }
     }
   };
 
-  if (authLoading || loading) {
+  const exportToCSV = (data) => {
+    const csv = [
+      ['Request ID', 'Product', 'Loading Station', 'Vehicle No', 'Client Name', 'Filling Qty', 'Completed Date', 'Status', 'Remarks'],
+      ...data.map(request => [
+        request.request_id,
+        request.product,
+        request.loading_station,
+        request.vehicle_no,
+        request.client_name,
+        request.filling_qty,
+        request.completed_date,
+        request.status,
+        request.remark
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `old-filling-requests-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const handleFilterChange = (field, value) => {
+    setFilters(prev => ({ ...prev, [field]: value }));
+  };
+
+  const applyFilters = () => {
+    setCurrentPage(1);
+    fetchRequests(1);
+  };
+
+  const resetFilters = () => {
+    setFilters({ fromDate: '', toDate: '', loadingStation: '' });
+    setCurrentPage(1);
+    fetchRequests(1);
+  };
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
+    fetchRequests(newPage);
+  };
+
+  const handleExport = () => {
+    fetchRequests(1, true);
+  };
+
+  if (authLoading || initialLoading) {
     return <LoadingFallback />;
   }
 
@@ -167,14 +323,14 @@ function OldFillingRequestsContent() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Old Filling Requests</h1>
               <p className="text-gray-600 mt-1">
-                Total {requests.length} request{requests.length !== 1 ? 's' : ''}
+                Total {pagination?.total || requests.length} request{(pagination?.total || requests.length) !== 1 ? 's' : ''}
               </p>
             </div>
 
             {/* Action Buttons */}
             <div className="flex flex-col sm:flex-row gap-3">
               <button
-                onClick={fetchRequests}
+                onClick={() => fetchRequests(currentPage)}
                 className="inline-flex items-center justify-center bg-green-600 hover:bg-green-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm"
               >
                 <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -182,6 +338,79 @@ function OldFillingRequestsContent() {
                 </svg>
                 Refresh
               </button>
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="inline-flex items-center justify-center bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200 shadow-sm disabled:opacity-50"
+              >
+                {exporting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Exporting...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Export CSV
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+
+          {/* Filters Section */}
+          <div className="bg-white rounded-lg shadow-sm border p-4 mb-6">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">Filter Requests</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">From Date</label>
+                <input
+                  type="date"
+                  value={filters.fromDate}
+                  onChange={(e) => handleFilterChange('fromDate', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">To Date</label>
+                <input
+                  type="date"
+                  value={filters.toDate}
+                  onChange={(e) => handleFilterChange('toDate', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Loading Station</label>
+                <select
+                  value={filters.loadingStation}
+                  onChange={(e) => handleFilterChange('loadingStation', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="">All Stations</option>
+                  {stations.map((station) => (
+                    <option key={station.id} value={station.id}>
+                      {station.station_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex items-end gap-2">
+                <button
+                  onClick={applyFilters}
+                  className="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-medium px-4 py-2 rounded-lg transition duration-200"
+                >
+                  Apply Filters
+                </button>
+                <button
+                  onClick={resetFilters}
+                  className="flex-1 bg-gray-500 hover:bg-gray-600 text-white font-medium px-4 py-2 rounded-lg transition duration-200"
+                >
+                  Reset
+                </button>
+              </div>
             </div>
           </div>
 
@@ -212,49 +441,91 @@ function OldFillingRequestsContent() {
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-gray-200 bg-gray-50">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-lg font-semibold text-gray-900">Old Filling Requests List</h2>
+              {loading && (
+                <div className="flex items-center text-sm text-blue-600">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-2"></div>
+                  Refreshing...
+                </div>
+              )}
             </div>
           </div>
 
-          <div className="hidden lg:block overflow-x-auto">
-            <table className="w-full min-w-full">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Station</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle No</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed Date</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {requests.length > 0 ? (
-                  requests.map((request, index) => (
-                    <tr key={`${request.request_id}-${index}`} className="hover:bg-gray-50 transition duration-150">
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.request_id}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.product}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.loading_station}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.vehicle_no}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.client_name}</td>
-                      <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.completed_date || '-'}</td>
-                    </tr>
-                  ))
-                ) : (
+          {loading && !initialLoading ? (
+            <TableSkeleton />
+          ) : (
+            <div className="hidden lg:block overflow-x-auto">
+              <table className="w-full min-w-full">
+                <thead className="bg-gray-50">
                   <tr>
-                    <td colSpan="6" className="px-6 py-12 text-center">
-                      <div className="text-gray-500">
-                        <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        <p className="text-lg font-medium">No old filling requests found</p>
-                        <p className="text-sm mt-1">Requests will appear here when available</p>
-                      </div>
-                    </td>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Request ID</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Loading Station</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle No</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Client Name</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Filling Qty</th>
+                    <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Completed Date</th>
                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {requests.length > 0 ? (
+                    requests.map((request, index) => (
+                      <tr key={`${request.request_id}-${index}`} className="hover:bg-gray-50 transition duration-150">
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.request_id}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.product}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.loading_station}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.vehicle_no}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.client_name}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.filling_qty}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{request.completed_date || '-'}</td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan="7" className="px-6 py-12 text-center">
+                        <div className="text-gray-500">
+                          <svg className="w-12 h-12 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          <p className="text-lg font-medium">No old filling requests found</p>
+                          <p className="text-sm mt-1">Requests will appear here when available</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Pagination Controls */}
+          {pagination && pagination.totalPages > 1 && (
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-gray-200 bg-gray-50">
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="text-sm text-gray-700">
+                  Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
+                </div>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handlePageChange(pagination.page - 1)}
+                    disabled={!pagination.hasPrev}
+                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Previous
+                  </button>
+                  <span className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md">
+                    {pagination.page}
+                  </span>
+                  <button
+                    onClick={() => handlePageChange(pagination.page + 1)}
+                    disabled={!pagination.hasNext}
+                    className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Mobile Cards View */}
@@ -294,7 +565,11 @@ function OldFillingRequestsContent() {
                       <span className="font-medium">Loading Station:</span>
                       <p className="text-gray-700">{request.loading_station}</p>
                     </div>
-                    <div className="col-span-2">
+                    <div>
+                      <span className="font-medium">Filling Qty:</span>
+                      <p className="text-gray-700">{request.filling_qty}</p>
+                    </div>
+                    <div>
                       <span className="font-medium">Completed Date:</span>
                       <p className="text-gray-700">{request.completed_date || 'Not completed'}</p>
                     </div>
@@ -304,6 +579,36 @@ function OldFillingRequestsContent() {
             ))
           )}
         </div>
+
+        {/* Mobile Pagination Controls */}
+        {pagination && pagination.totalPages > 1 && (
+          <div className="lg:hidden mt-4 bg-white rounded-lg shadow-sm border p-4">
+            <div className="flex flex-col items-center gap-3">
+              <div className="text-sm text-gray-700">
+                Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} results
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => handlePageChange(pagination.page - 1)}
+                  disabled={!pagination.hasPrev}
+                  className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                <span className="px-3 py-1 text-sm bg-blue-600 text-white rounded-md">
+                  {pagination.page}
+                </span>
+                <button
+                  onClick={() => handlePageChange(pagination.page + 1)}
+                  disabled={!pagination.hasNext}
+                  className="px-3 py-1 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

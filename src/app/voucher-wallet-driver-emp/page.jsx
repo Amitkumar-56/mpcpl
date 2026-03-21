@@ -39,10 +39,16 @@ function VoucherWalletEmpError({ error, onRetry, onGoBack }) {
 // Main Content Component
 function VoucherWalletDriverEmpContent() {
   const [vouchers, setVouchers] = useState([]);
-  const [permissions, setPermissions] = useState(null);
-  const [driverName, setDriverName] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [permissions, setPermissions] = useState({});
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [driverName, setDriverName] = useState('');
+  const [currentUser, setCurrentUser] = useState(null);
+  const [voucherPermissions, setVoucherPermissions] = useState({
+    canApproveReject: false,
+    canEdit: false,
+    canView: false
+  });
   const [modalData, setModalData] = useState({
     showCash: false,
     showAdvance: false,
@@ -61,7 +67,57 @@ function VoucherWalletDriverEmpContent() {
       return;
     }
     fetchVouchers();
+    checkVoucherPermissions();
   }, [emp_id]);
+
+  const checkVoucherPermissions = async () => {
+    try {
+      if (!currentUser?.employee_profile?.id) return;
+      
+      const employeeId = currentUser.employee_profile.id;
+      console.log('🔍 Checking voucher permissions for employee:', employeeId);
+      
+      // Check approve/reject permissions
+      const approveResponse = await fetch(`/api/check-permissions?employee_id=${employeeId}&module_name=vouchers&action=can_edit`);
+      const approveData = await approveResponse.json();
+      
+      // Check edit permissions
+      const editResponse = await fetch(`/api/check-permissions?employee_id=${employeeId}&module_name=vouchers&action=can_edit`);
+      const editData = await editResponse.json();
+      
+      // Check view permissions
+      const viewResponse = await fetch(`/api/check-permissions?employee_id=${employeeId}&module_name=vouchers&action=can_view`);
+      const viewData = await viewResponse.json();
+      
+      const permissions = {
+        canApproveReject: approveData.success || approveData.allowed,
+        canEdit: editData.success || editData.allowed,
+        canView: viewData.success || viewData.allowed
+      };
+      
+      setVoucherPermissions(permissions);
+      
+      console.log('📊 Permission check results:', {
+        approveReject: permissions.canApproveReject,
+        edit: permissions.canEdit,
+        view: permissions.canView
+      });
+      
+    } catch (error) {
+      console.error('Error checking voucher permissions:', error);
+      setVoucherPermissions({
+        canApproveReject: false,
+        canEdit: false,
+        canView: false
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (currentUser) {
+      checkVoucherPermissions();
+    }
+  }, [currentUser]);
 
   const fetchVouchers = async () => {
     try {
@@ -493,67 +549,76 @@ function VoucherWalletDriverEmpContent() {
                               <span className="ml-1">Add Advance</span>
                             </button>
                             
-                            {/* Edit */}
-                            <Link
-                              href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                              className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                              title="Edit"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                              </svg>
-                              <span className="ml-1">Edit</span>
-                            </Link>
+                            {/* Edit - Only show if user has edit permission */}
+                            {voucherPermissions.canEdit && (
+                              <Link
+                                href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                className="bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                title="Edit"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <span className="ml-1">Edit</span>
+                              </Link>
+                            )}
                             
-                            {/* View */}
-                            <Link
-                              href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                              className="bg-cyan-500 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                              title="View"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                              </svg>
-                              <span className="ml-1">View</span>
-                            </Link>
+                            {/* View - Only show if user has view permission */}
+                            {voucherPermissions.canView && (
+                              <Link
+                                href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                className="bg-cyan-500 hover:bg-cyan-600 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                title="View"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                                </svg>
+                                <span className="ml-1">View</span>
+                              </Link>
+                            )}
 
-                            {/* Approve */}
-                            <button
-                              onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                              className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                              title="Approve"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              <span className="ml-1">Approve</span>
-                            </button>
-                            
-                            {/* Reject */}
-                            <button
-                              onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                              className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                              title="Reject"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                              <span className="ml-1">Reject</span>
-                            </button>
+                            {/* Approve/Reject - Only show if user has permission and voucher is pending */}
+                            {voucherPermissions.canApproveReject && voucher.status == 0 && (
+                              <>
+                                <button
+                                  onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                                  className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                  title="Approve"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                  <span className="ml-1">Approve</span>
+                                </button>
+                                
+                                <button
+                                  onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                                  className="bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                  title="Reject"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                  </svg>
+                                  <span className="ml-1">Reject</span>
+                                </button>
+                              </>
+                            )}
 
-                            {/* Print */}
-                            <Link
-                              href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                              target="_blank"
-                              className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
-                              title="Print"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                              </svg>
-                              <span className="ml-1">Print</span>
-                            </Link>
+                            {/* Print - Show if voucher is approved */}
+                            {voucher.status == 1 && (
+                              <Link
+                                href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                target="_blank"
+                                className="bg-yellow-600 hover:bg-yellow-700 text-white px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center"
+                                title="Print"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                                </svg>
+                                <span className="ml-1">Print</span>
+                              </Link>
+                            )}
                             
                             {/* Logs */}
                             <button
@@ -659,60 +724,72 @@ function VoucherWalletDriverEmpContent() {
                           Add Advance
                         </button>
                         
-                        <Link
-                          href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                          className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                          </svg>
-                          Edit
-                        </Link>
+                        {/* Edit - Only show if user has edit permission */}
+                        {voucherPermissions.canEdit && (
+                          <Link
+                            href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                            className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                            Edit
+                          </Link>
+                        )}
                         
-                        <Link
-                          href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                          className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </svg>
-                          View
-                        </Link>
+                        {/* View - Only show if user has view permission */}
+                        {voucherPermissions.canView && (
+                          <Link
+                            href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                            className="flex-1 bg-cyan-500 hover:bg-cyan-600 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            View
+                          </Link>
+                        )}
                         
-                        {/* Approve */}
-                        <button
-                          onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          Approve
-                        </button>
+                        {voucherPermissions.canApproveReject && voucher.status == 0 && (
+                          <>
+                            {voucher.status == 0 && (
+                              <button
+                                onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                                Approve
+                              </button>
+                            )}
+                            {voucher.status == 0 && (
+                              <button
+                                onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                              >
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                                Reject
+                              </button>
+                            )}
+                          </>
+                        )}
                         
-                        {/* Reject */}
-                        <button
-                          onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                          className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Reject
-                        </button>
-                        
-                        {/* Print */}
-                        <Link
-                          href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                          target="_blank"
-                          className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-                          </svg>
-                          Print
-                        </Link>
+                        {voucher.status == 1 && (
+                          <Link
+                            href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                            target="_blank"
+                            className="flex-1 bg-yellow-600 hover:bg-yellow-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[60px]"
+                          >
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                            </svg>
+                            Print
+                          </Link>
+                        )}
                         
                         <button
                           onClick={() => openLogModal(voucher)}
