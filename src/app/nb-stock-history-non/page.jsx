@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Footer from '@/components/Footer';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 
-export default function NbStockHistoryNon() {
+// Separate component that uses client-side features
+function NbStockHistoryNonContent() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -463,5 +464,30 @@ export default function NbStockHistoryNon() {
         <Footer />
       </div>
     </div>
+  );
+}
+
+// Loading fallback component
+function LoadingFallback() {
+  return (
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      <Sidebar />
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto p-6 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        </main>
+        <Footer />
+      </div>
+    </div>
+  );
+}
+
+// Main component with Suspense
+export default function NbStockHistoryNon() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <NbStockHistoryNonContent />
+    </Suspense>
   );
 }
