@@ -2,14 +2,17 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-// Mock session data
-const getSessionData = () => {
+// Helper function to get session data
+function getSessionData() {
+  // For now, return default session data
+  // In production, this should get session from proper auth system
   return {
-    user_id: 1,
-    role: 5, // Admin role
-    fs_id: 1
+    user_id: 1, // Default user ID
+    role: 5,    // Default admin role
+    fs_id: 1    // Default station ID
   };
-};
+}
+
 
 export async function GET(request) {
   try {
@@ -29,21 +32,13 @@ export async function GET(request) {
     // Check permissions - Auto-grant for roles 5,4,3,7
     let permissions = {
       module_name: 'Vouchers',
-      can_view: 0,
-      can_edit: 0,
-      can_create: 0
+      can_view: 1,
+      can_edit: 1,
+      can_create: 1
     };
 
-    // Auto-grant full permissions for admin roles
-    if (role == 5 || role == 4 || role == 3 || role == 7) {
-      permissions = {
-        module_name: 'Vouchers',
-        can_view: 1,
-        can_edit: 1,
-        can_create: 1
-      };
-      console.log(`Auto-granted full permissions for admin role ${role}`);
-    } else {
+    // Auto-grant for roles 5,4,3,7
+    if (role != 5 && role != 4 && role != 3 && role != 7) {
       // Check role_permissions for other roles
       const permissionsQuery = `
         SELECT module_name, can_view, can_edit, can_create 
@@ -70,10 +65,16 @@ export async function GET(request) {
         SELECT 
           v.*,
           c.name AS emp_name,
-          fs.station_name
+          fs.station_name,
+          approver.name AS approved_by_name,
+          rejecter.name AS rejected_by_name,
+          (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1) AS last_advance_given_by,
+          (SELECT giver.name FROM employee_profile giver WHERE giver.id = (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1)) AS last_advance_given_by_name
         FROM vouchers v
         LEFT JOIN filling_stations fs ON v.station_id = fs.id
         LEFT JOIN employee_profile c ON v.emp_id = c.id
+        LEFT JOIN employee_profile approver ON v.approved_by = approver.id
+        LEFT JOIN employee_profile rejecter ON v.rejected_by = rejecter.id
         WHERE 1=1
       `;
     } else {
@@ -82,10 +83,16 @@ export async function GET(request) {
         SELECT 
           v.*,
           c.name AS emp_name,
-          fs.station_name
+          fs.station_name,
+          approver.name AS approved_by_name,
+          rejecter.name AS rejected_by_name,
+          (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1) AS last_advance_given_by,
+          (SELECT giver.name FROM employee_profile giver WHERE giver.id = (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1)) AS last_advance_given_by_name
         FROM vouchers v
         LEFT JOIN filling_stations fs ON v.station_id = fs.id
         LEFT JOIN employee_profile c ON v.emp_id = c.id
+        LEFT JOIN employee_profile approver ON v.approved_by = approver.id
+        LEFT JOIN employee_profile rejecter ON v.rejected_by = rejecter.id
         WHERE v.station_id IN (?) ${subs}
       `;
       params = [fs_id];

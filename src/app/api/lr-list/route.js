@@ -5,6 +5,12 @@ import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
+    // Get pagination parameters from URL
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 10;
+    const offset = (page - 1) * limit;
+
     // ✅ FIX: Get actual logged-in user
     let userId = null;
     let userRole = null;
@@ -133,7 +139,12 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    // Fetch shipments data with all fields needed by client export (Creator/Editor names from Audit Logs)
+    // Get total count for pagination
+    const countQuery = `SELECT COUNT(*) as total FROM shipment s`;
+    const countResult = await executeQuery(countQuery);
+    const total = countResult[0]?.total || 0;
+
+    // Fetch shipments data with pagination (removed audit logs for faster loading)
     const shipmentQuery = `
       SELECT 
         s.id,
@@ -160,15 +171,12 @@ export async function GET(request) {
         s.email,
         s.pan,
         s.gst,
-        s.remarks,
-        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_by_name,
-        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_at,
-        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_by_name,
-        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_at
+        s.remarks
       FROM shipment s
       ORDER BY s.id DESC
+      LIMIT ? OFFSET ?
     `;
-    const shipments = await executeQuery(shipmentQuery);
+    const shipments = await executeQuery(shipmentQuery, [limit, offset]);
 
     // ✅ Ensure permissions are returned as numbers (0 or 1) for consistency
     const formattedPermissions = {
@@ -180,7 +188,15 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       shipments: shipments || [],
-      permissions: formattedPermissions
+      permissions: formattedPermissions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit),
+        hasNext: page < Math.ceil(total / limit),
+        hasPrev: page > 1
+      }
     });
 
   } catch (error) {

@@ -9,76 +9,6 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
 import * as XLSX from 'xlsx'; // Excel export के लिए
 
-// Component to fetch and display shipment logs
-function ShipmentLogs({ shipmentId }) {
-  const [logs, setLogs] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchLogs = async () => {
-      try {
-        setLoading(true);
-        // Fetch audit logs for this shipment
-        const response = await fetch(`/api/audit-logs?record_type=lr&record_id=${shipmentId}`);
-        const result = await response.json();
-        if (result.success) {
-          const logsData = Array.isArray(result.logs) ? result.logs : (result.data || []);
-          setLogs(logsData);
-        }
-      } catch (error) {
-        console.error('Error fetching shipment logs:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (shipmentId) {
-      fetchLogs();
-    }
-  }, [shipmentId]);
-
-  if (loading) {
-    return <div className="text-sm text-gray-500 p-4">Loading logs...</div>;
-  }
-
-  if (logs.length === 0) {
-    return (
-      <div className="text-sm text-gray-500 p-4 bg-white rounded border">
-        No activity logs found for this shipment.
-      </div>
-    );
-  }
-
-  // Helper to format action text
-  const formatActionType = (action) => {
-    if (!action) return 'Action';
-    const lowerAction = action.toLowerCase();
-    if (lowerAction === 'add' || lowerAction === 'create') return 'Created By';
-    if (lowerAction === 'edit' || lowerAction === 'update') return 'Edited By';
-    return action.charAt(0).toUpperCase() + action.slice(1);
-  };
-
-  return (
-    <div className="space-y-2">
-      {logs.map((log, idx) => (
-        <div key={idx} className="bg-white rounded border p-3 text-sm">
-          <div className="flex justify-between items-start">
-            <div>
-              <span className="font-medium text-gray-700">{formatActionType(log.action)}:</span>
-              <span className="ml-2 text-gray-900 font-semibold">{log.user_name || log.userName || 'Unknown User'}</span>
-            </div>
-            <span className="text-xs text-gray-500">
-              {log.created_at ? new Date(log.created_at).toLocaleString('en-IN') : ''}
-            </span>
-          </div>
-          {log.remarks && (
-            <p className="text-xs text-gray-600 mt-1">{log.remarks}</p>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 // Loading Component
 function LoadingFallback() {
   return (
@@ -143,16 +73,16 @@ function LRManagementContent() {
   const [permissions, setPermissions] = useState({ can_view: 0, can_edit: 0, can_create: 0 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [expandedShipments, setExpandedShipments] = useState({});
   const [exporting, setExporting] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0,
+    totalPages: 0,
+    hasNext: false,
+    hasPrev: false
+  });
   const searchParams = useSearchParams();
-
-  const toggleShipmentLogs = (shipmentId) => {
-    setExpandedShipments(prev => ({
-      ...prev,
-      [shipmentId]: !prev[shipmentId]
-    }));
-  };
 
   // Export to Excel Function
   const exportToExcel = () => {
@@ -381,7 +311,7 @@ function LRManagementContent() {
     fetchShipments();
   }, [authLoading, user]);
 
-  const fetchShipments = async () => {
+  const fetchShipments = async (page = 1, limit = 10) => {
     if (!user) {
       setLoading(false);
       setError('Please login to access this page.');
@@ -395,7 +325,7 @@ function LRManagementContent() {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 20000);
 
-      const response = await fetch('/api/lr-list', {
+      const response = await fetch(`/api/lr-list?page=${page}&limit=${limit}`, {
         signal: controller.signal,
         credentials: 'include',
         cache: 'no-store'
@@ -428,6 +358,11 @@ function LRManagementContent() {
         setShipments(data.shipments || []);
         const loadedPermissions = data.permissions || { can_view: 0, can_edit: 0, can_create: 0 };
         setPermissions(loadedPermissions);
+        
+        // Update pagination state
+        if (data.pagination) {
+          setPagination(data.pagination);
+        }
 
         console.log('✅ [LR List] Permissions loaded:', loadedPermissions);
         console.log('✅ [LR List] can_create value:', loadedPermissions.can_create, 'Type:', typeof loadedPermissions.can_create);
@@ -476,7 +411,7 @@ function LRManagementContent() {
             <div>
               <h1 className="text-2xl font-bold text-gray-900">LR Management</h1>
               <p className="text-gray-600 mt-1">
-                Total {shipments.length} shipment{shipments.length !== 1 ? 's' : ''}
+                Showing {shipments.length} of {pagination.total} shipment{pagination.total !== 1 ? 's' : ''}
               </p>
               <div className="mt-3">
                 <Link
@@ -582,7 +517,6 @@ function LRManagementContent() {
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">To</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tanker No</th>
                   <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                  <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -632,37 +566,7 @@ function LRManagementContent() {
                             )}
                           </div>
                         </td>
-                        <td className="px-3 py-3 whitespace-nowrap">
-                          <button
-                            onClick={() => toggleShipmentLogs(shipment.id)}
-                            className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                            title="View Activity Logs"
-                          >
-                            {expandedShipments[shipment.id] ? (
-                              <>
-                                <BiChevronUp size={16} />
-                                <span className="ml-1 text-xs">Hide</span>
-                              </>
-                            ) : (
-                              <>
-                                <BiChevronDown size={16} />
-                                <span className="ml-1 text-xs">Logs</span>
-                              </>
-                            )}
-                          </button>
-                        </td>
                       </tr>
-                      {/* Expandable Logs Row */}
-                      {expandedShipments[shipment.id] && (
-                        <tr className="bg-gray-50">
-                          <td colSpan="8" className="px-3 py-3">
-                            <div className="max-w-4xl">
-                              <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for LR #{shipment.lr_id}</h3>
-                              <ShipmentLogs shipmentId={shipment.id} />
-                            </div>
-                          </td>
-                        </tr>
-                      )}
                     </React.Fragment>
                   ))
                 ) : (
@@ -751,31 +655,74 @@ function LRManagementContent() {
                       <p>{shipment.tanker_no}</p>
                     </div>
                   </div>
-
-                  {/* Mobile Logs Section */}
-                  <div className="mt-3 pt-3 border-t border-gray-200">
-                    <button
-                      onClick={() => toggleShipmentLogs(shipment.id)}
-                      className="w-full flex items-center justify-between text-blue-600 hover:text-blue-800 transition-colors py-2"
-                    >
-                      <span className="text-sm font-medium">Activity Logs</span>
-                      {expandedShipments[shipment.id] ? (
-                        <BiChevronUp size={20} />
-                      ) : (
-                        <BiChevronDown size={20} />
-                      )}
-                    </button>
-                    {expandedShipments[shipment.id] && (
-                      <div className="mt-3 pt-3 border-t border-gray-200">
-                        <ShipmentLogs shipmentId={shipment.id} />
-                      </div>
-                    )}
-                  </div>
                 </div>
               </div>
             ))
           )}
         </div>
+
+        {/* Pagination Controls */}
+        {pagination.totalPages > 1 && (
+          <div className="mt-6 bg-white rounded-lg shadow-sm border p-4">
+            <div className="flex items-center justify-between">
+              <div className="text-sm text-gray-700">
+                Page {pagination.page} of {pagination.totalPages} ({pagination.total} total records)
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => fetchShipments(pagination.page - 1, pagination.limit)}
+                  disabled={!pagination.hasPrev || loading}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Previous
+                </button>
+                
+                {/* Page Numbers */}
+                <div className="flex items-center space-x-1">
+                  {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                    const pageNum = i + 1;
+                    const isActive = pageNum === pagination.page;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => fetchShipments(pageNum, pagination.limit)}
+                        disabled={loading}
+                        className={`px-3 py-1 text-sm border rounded-md ${
+                          isActive
+                            ? 'bg-blue-600 text-white border-blue-600'
+                            : 'border-gray-300 hover:bg-gray-50'
+                        } disabled:opacity-50`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  
+                  {pagination.totalPages > 5 && (
+                    <>
+                      <span className="px-2 text-gray-500">...</span>
+                      <button
+                        onClick={() => fetchShipments(pagination.totalPages, pagination.limit)}
+                        disabled={loading}
+                        className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                      >
+                        {pagination.totalPages}
+                      </button>
+                    </>
+                  )}
+                </div>
+                
+                <button
+                  onClick={() => fetchShipments(pagination.page + 1, pagination.limit)}
+                  disabled={!pagination.hasNext || loading}
+                  className="px-3 py-1 text-sm border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
     </div>
   );

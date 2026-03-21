@@ -61,13 +61,6 @@ function VoucherWalletDriverEmpContent() {
     fetchVouchers();
   }, [emp_id]);
 
-  useEffect(() => {
-    const intervalId = setInterval(() => {
-      fetchVouchers();
-    }, 30000); // 30 seconds
-    return () => clearInterval(intervalId);
-  }, [emp_id]);
-
   const fetchVouchers = async () => {
     try {
       setLoading(true);
@@ -188,34 +181,15 @@ function VoucherWalletDriverEmpContent() {
   };
 
   const handleStatusUpdate = async (voucher_id, status) => {
-    const action = status === 1 ? 'approve' : 'reject';
-    const currentVoucher = vouchers.find(v => v.voucher_id === voucher_id);
-    
-    // If already approved/rejected, confirm before changing
-    if (currentVoucher && currentVoucher.status !== 0) {
-      const confirmMsg = `This voucher is already ${currentVoucher.status === 1 ? 'APPROVED' : 'REJECTED'}. 
-Are you sure you want to ${action} it again?`;
-      if (!confirm(confirmMsg)) {
-        return;
-      }
-    } else {
-      if (!confirm(`Are you sure you want to ${action} this voucher?`)) {
-        return;
-      }
-    }
-    
     try {
       const response = await fetch(`/api/update-voucher-status?voucher_id=${voucher_id}&status=${status}`);
       const data = await response.json();
       
       if (data.success) {
-        alert(`Voucher ${action}d successfully!`);
         fetchVouchers();
-      } else {
-        alert('Error: ' + data.error);
       }
     } catch (error) {
-      alert('Error updating status: ' + error.message);
+      console.error('Error updating status:', error.message);
     }
   };
 
@@ -558,22 +532,6 @@ Are you sure you want to ${action} it again?`;
                               <span className="ml-1">Approve</span>
                             </button>
                             
-                            {/* Reject Button - Always Show */}
-                            <button
-                              onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                              className={`px-2 py-1 rounded text-xs whitespace-nowrap inline-flex items-center ${
-                                voucher.status == 2 
-                                  ? 'bg-red-100 text-red-800 border border-red-300 cursor-pointer hover:bg-red-200'
-                                  : 'bg-red-600 hover:bg-red-700 text-white'
-                              }`}
-                              title="Reject"
-                            >
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                              <span className="ml-1">Reject</span>
-                            </button>
-
                             {/* Print - Always Show */}
                             <Link
                               href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
@@ -728,21 +686,6 @@ Are you sure you want to ${action} it again?`;
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                           </svg>
                           Approve
-                        </button>
-                        
-                        {/* Reject Button - Always Show */}
-                        <button
-                          onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                          className={`flex-1 py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px] ${
-                            voucher.status == 2 
-                              ? 'bg-red-100 text-red-800 border border-red-300'
-                              : 'bg-red-600 hover:bg-red-700 text-white'
-                          }`}
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                          Reject
                         </button>
                         
                         {/* Print - Always Show */}

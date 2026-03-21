@@ -11,6 +11,14 @@ export async function GET(request) {
     const voucher_id = searchParams.get('voucher_id');
     const status = searchParams.get('status');
 
+    // Only allow approve (status = 1), reject is not allowed
+    if (status != 1) {
+      return NextResponse.json(
+        { error: 'Reject functionality is disabled' },
+        { status: 400 }
+      );
+    }
+
     // Get current user from token - ALWAYS fetch from employee_profile
     let current_user = { id: null, name: null };
     try {
@@ -49,23 +57,11 @@ export async function GET(request) {
     console.log('New Status:', status);
     console.log('Current User:', current_user);
 
-    let sql, params;
-    let actionType = '';
-    let remarks = '';
-
-    if (status == 1) {
-      // Approve: store approver's id
-      sql = 'UPDATE vouchers SET status = 1, approved_by = ?, approved_date = NOW() WHERE voucher_id = ?';
-      params = [current_user.id, voucher_id];
-      actionType = 'approve';
-      remarks = `Approved by ${current_user.name}`;
-    } else {
-      // Reject: store rejector's id
-      sql = 'UPDATE vouchers SET status = 2, rejected_by = ?, rejected_date = NOW() WHERE voucher_id = ?';
-      params = [current_user.id, voucher_id];
-      actionType = 'reject';
-      remarks = `Rejected by ${current_user.name}`;
-    }
+    // Approve: store approver's id
+    const sql = 'UPDATE vouchers SET status = 1, approved_by = ?, approved_date = NOW() WHERE voucher_id = ?';
+    const params = [current_user.id, voucher_id];
+    const actionType = 'approve';
+    const remarks = `Approved by ${current_user.name}`;
 
     console.log('SQL Query:', sql);
     console.log('Parameters:', params);
@@ -116,8 +112,8 @@ export async function GET(request) {
         userName: current_user.name,
         action: actionType,
         remarks: remarks,
-        oldValue: { status: status == 1 ? 0 : 1 },
-        newValue: { status: status == 1 ? 1 : 2 },
+        oldValue: { status: 0 },
+        newValue: { status: 1 },
         recordType: 'voucher',
         recordId: parseInt(voucher_id)
       });
@@ -127,7 +123,7 @@ export async function GET(request) {
 
     return NextResponse.json({ 
       success: true, 
-      message: `Voucher ${status == 1 ? 'approved' : 'rejected'} successfully` 
+      message: 'Voucher approved successfully' 
     });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

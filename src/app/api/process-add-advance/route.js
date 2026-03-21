@@ -3,6 +3,8 @@ import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/auditLog';
 import { getCurrentUser } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function POST(request) {
   try {
@@ -10,7 +12,33 @@ export async function POST(request) {
     const voucher_id = formData.get('voucher_id');
     const voucher_no = formData.get('voucher_no');
     const advance_amount = formData.get('advance_amount');
-    const user_id = formData.get('user_id');
+
+    // Get current user info
+    let currentUserId = null;
+    let currentUserName = null;
+    
+    try {
+      // Get user from session/token
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          currentUserId = decoded.userId || decoded.id;
+          // Get user name from employee_profile
+          const users = await executeQuery(
+            `SELECT id, name FROM employee_profile WHERE id = ?`,
+            [currentUserId]
+          );
+          if (users.length > 0 && users[0].name) {
+            currentUserId = users[0].id;
+            currentUserName = users[0].name;
+          }
+        }
+      }
+    } catch (authError) {
+      console.error('Error getting user info:', authError);
+    }
 
     // Insert into vouchers_items table
     const insertItemSql = `
@@ -30,14 +58,14 @@ export async function POST(request) {
     const updateSql = 'UPDATE vouchers SET advance = ?, remaining_amount = ?, updated_at = NOW() WHERE voucher_id = ?';
     await executeQuery(updateSql, [newAdvance, newRemaining, voucher_id]);
 
-    // Record history (who added advance) - allow NULL user if not provided
+    // Record history (who added advance)
     const historySql = `
       INSERT INTO voucher_history (row_id, user_id, amount, created_at)
       VALUES (?, ?, ?, NOW())
     `;
-    await executeQuery(historySql, [voucher_id, user_id ? parseInt(user_id) : null, advance_amount]);
+    await executeQuery(historySql, [voucher_id, currentUserId, advance_amount]);
 
-    // Insert into advance_history
+    // Insert into advance_history with proper user info
     const advanceHistorySql = `
       INSERT INTO advance_history 
       (voucher_id, amount, given_date, given_by, created_at) 
@@ -46,29 +74,8 @@ export async function POST(request) {
     await executeQuery(advanceHistorySql, [
       voucher_id,
       advance_amount,
-      user_id ? parseInt(user_id) : 0
+      currentUserId || 0
     ]);
-
-    // Get current user for audit log
-    let userId = user_id ? parseInt(user_id) : null;
-    let userName = null;
-    try {
-      const currentUser = await getCurrentUser();
-      userId = currentUser?.userId || userId;
-      userName = currentUser?.userName || null;
-
-      if (!userName && userId) {
-        const users = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
-          [userId]
-        );
-        if (users.length > 0) {
-          userName = users[0].name;
-        }
-      }
-    } catch (userError) {
-      console.error('Error getting user info:', userError);
-    }
 
     // Create audit log
     try {
@@ -76,10 +83,10 @@ export async function POST(request) {
         page: 'Vouchers',
         uniqueCode: voucher_id.toString(),
         section: 'Add Advance',
-        userId: userId,
-        userName: userName,
+        userId: currentUserId,
+        userName: currentUserName,
         action: 'update',
-        remarks: `Advance added: ₹${advance_amount}. New advance: ₹${newAdvance}, Remaining: ₹${newRemaining}`,
+        remarks: `Advance added: ₹${advance_amount} by ${currentUserName || 'Unknown'}. New advance: ₹${newAdvance}, Remaining: ₹${newRemaining}`,
         oldValue: { advance: current.advance, remaining_amount: current.advance - current.total_expense },
         newValue: { advance: newAdvance, remaining_amount: newRemaining },
         recordType: 'voucher',
@@ -89,7 +96,13 @@ export async function POST(request) {
       console.error('Error creating audit log:', auditError);
     }
 
-    return NextResponse.json({ success: true, message: 'Advance added successfully', advance: newAdvance, remaining_amount: newRemaining });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'Advance added successfully', 
+      advance: newAdvance, 
+      remaining_amount: newRemaining,
+      given_by_name: currentUserName 
+    });
   } catch (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
