@@ -44,8 +44,8 @@ function VoucherWalletDriverEmpContent() {
   const [error, setError] = useState(null);
   const [driverName, setDriverName] = useState('');
   const [currentUser, setCurrentUser] = useState(null);
+  const [employeeFilter, setEmployeeFilter] = useState('');
   const [voucherPermissions, setVoucherPermissions] = useState({
-    canApproveReject: false,
     canEdit: false,
     canView: false
   });
@@ -70,43 +70,62 @@ function VoucherWalletDriverEmpContent() {
     checkVoucherPermissions();
   }, [emp_id]);
 
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      fetchVouchers();
+    }, 30000); // 30 seconds
+    return () => clearInterval(intervalId);
+  }, [emp_id]);
+
+  useEffect(() => {
+    if (currentUser) {
+      checkVoucherPermissions();
+    }
+  }, [currentUser]);
+
   const checkVoucherPermissions = async () => {
     try {
-      if (!currentUser?.employee_profile?.id) return;
+      if (!currentUser?.employee_profile?.id) {
+        console.log('❌ No current user or employee profile found');
+        console.log('Current user:', currentUser);
+        return;
+      }
       
       const employeeId = currentUser.employee_profile.id;
       console.log('🔍 Checking voucher permissions for employee:', employeeId);
+      console.log('🔍 Current user data:', JSON.stringify(currentUser, null, 2));
       
-      // Check approve/reject permissions
-      const approveResponse = await fetch(`/api/check-permissions?employee_id=${employeeId}&module_name=vouchers&action=can_edit`);
-      const approveData = await approveResponse.json();
+      // Use the same API as voucher-wallet-driver-emp
+      const url = `/api/voucher-wallet-driver-emp?emp_id=${emp_id}`;
+      const response = await fetch(url);
+      const data = await response.json();
       
-      // Check edit permissions
-      const editResponse = await fetch(`/api/check-permissions?employee_id=${employeeId}&module_name=vouchers&action=can_edit`);
-      const editData = await editResponse.json();
-      
-      // Check view permissions
-      const viewResponse = await fetch(`/api/check-permissions?employee_id=${employeeId}&module_name=vouchers&action=can_view`);
-      const viewData = await viewResponse.json();
-      
-      const permissions = {
-        canApproveReject: approveData.success || approveData.allowed,
-        canEdit: editData.success || editData.allowed,
-        canView: viewData.success || viewData.allowed
-      };
-      
-      setVoucherPermissions(permissions);
-      
-      console.log('📊 Permission check results:', {
-        approveReject: permissions.canApproveReject,
-        edit: permissions.canEdit,
-        view: permissions.canView
-      });
+      if (data.success && data.permissions) {
+        const permissions = {
+          canEdit: data.permissions.can_edit === 1,
+          canView: data.permissions.can_view === 1
+        };
+        
+        console.log('🎯 Final permissions object:', permissions);
+        setVoucherPermissions(permissions);
+        
+        console.log('✅ Permission check completed:', {
+          employeeId,
+          edit: permissions.canEdit,
+          view: permissions.canView,
+          apiPermissions: data.permissions
+        });
+      } else {
+        console.log('❌ No permissions found in API response');
+        setVoucherPermissions({
+          canEdit: false,
+          canView: false
+        });
+      }
       
     } catch (error) {
-      console.error('Error checking voucher permissions:', error);
+      console.error('❌ Error checking voucher permissions:', error);
       setVoucherPermissions({
-        canApproveReject: false,
         canEdit: false,
         canView: false
       });
@@ -123,7 +142,7 @@ function VoucherWalletDriverEmpContent() {
     try {
       setError(null);
       
-      const url = `/api/voucher-wallet-driver-emp?emp_id=${emp_id}`;
+      const url = `/api/voucher-wallet-driver-emp?emp_id=${emp_id}${employeeFilter ? `&employee_name=${encodeURIComponent(employeeFilter)}` : ''}`;
       
       console.log('Fetching staff vouchers from:', url);
       
@@ -424,7 +443,6 @@ function VoucherWalletDriverEmpContent() {
               </div>
             </div>
 
-            {/* Error Message */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
                 <div className="flex items-center justify-between">
@@ -578,8 +596,8 @@ function VoucherWalletDriverEmpContent() {
                               </Link>
                             )}
 
-                            {/* Approve/Reject - Only show if user has permission and voucher is pending */}
-                            {voucherPermissions.canApproveReject && voucher.status == 0 && (
+                            {/* Approve/Reject - Show for pending vouchers */}
+                            {voucher.status == 0 && (
                               <>
                                 <button
                                   onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
@@ -751,30 +769,26 @@ function VoucherWalletDriverEmpContent() {
                           </Link>
                         )}
                         
-                        {voucherPermissions.canApproveReject && voucher.status == 0 && (
+                        {voucher.status == 0 && (
                           <>
-                            {voucher.status == 0 && (
-                              <button
-                                onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                                className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                                </svg>
-                                Approve
-                              </button>
-                            )}
-                            {voucher.status == 0 && (
-                              <button
-                                onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
-                                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
-                              >
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                                </svg>
-                                Reject
-                              </button>
-                            )}
+                            <button
+                              onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                              className="flex-1 bg-green-600 hover:bg-green-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleStatusUpdate(voucher.voucher_id, 2)}
+                              className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2 rounded text-xs flex items-center justify-center gap-1 min-w-[70px]"
+                            >
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                              Reject
+                            </button>
                           </>
                         )}
                         

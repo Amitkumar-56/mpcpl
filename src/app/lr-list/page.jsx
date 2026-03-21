@@ -602,8 +602,16 @@ function LRManagementContent() {
                             {shipment.consignee && shipment.consignee.length > 20 ? shipment.consignee.substring(0, 20) + '...' : shipment.consignee}
                           </div>
                         </td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.from_location}</td>
-                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.to_location}</td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                          <div className="max-w-[120px] truncate" title={shipment.from_location}>
+                            {shipment.from_location && shipment.from_location.length > 15 ? shipment.from_location.substring(0, 15) + '...' : shipment.from_location}
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">
+                          <div className="max-w-[120px] truncate" title={shipment.to_location}>
+                            {shipment.to_location && shipment.to_location.length > 15 ? shipment.to_location.substring(0, 15) + '...' : shipment.to_location}
+                          </div>
+                        </td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
                           <div className="flex items-center space-x-2">
@@ -728,11 +736,15 @@ function LRManagementContent() {
                     </div>
                     <div>
                       <span className="font-medium">From:</span>
-                      <p>{shipment.from_location}</p>
+                      <p className="truncate max-w-[120px]" title={shipment.from_location}>
+                        {shipment.from_location && shipment.from_location.length > 15 ? shipment.from_location.substring(0, 15) + '...' : shipment.from_location}
+                      </p>
                     </div>
                     <div>
                       <span className="font-medium">To:</span>
-                      <p>{shipment.to_location}</p>
+                      <p className="truncate max-w-[120px]" title={shipment.to_location}>
+                        {shipment.to_location && shipment.to_location.length > 15 ? shipment.to_location.substring(0, 15) + '...' : shipment.to_location}
+                      </p>
                     </div>
                     <div className="col-span-2">
                       <span className="font-medium">Tanker No:</span>

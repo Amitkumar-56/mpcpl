@@ -73,7 +73,9 @@ export async function GET(request) {
     let countSql = `
       SELECT COUNT(*) as total
       FROM old_filling_requests ofr
-      ${whereConditions.length > 0 ? whereClause.replace('ofr.', '') : ''}
+      LEFT JOIN customers c ON ofr.cid = c.id
+      LEFT JOIN filling_stations fs ON ofr.fs_id = fs.id
+      ${whereClause}
     `;
     
     const countResult = await executeQuery(countSql, queryParams);

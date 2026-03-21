@@ -168,7 +168,7 @@ export async function POST(request) {
     if (exportData) {
       const csvHeaders = [
         'ID', 'Date', 'Station', 'Client', 'Product', 'Quantity (Ltr)', 'Amount', 'Status', 
-        'Checked', 'Checked By', 'Invoiced', 'Invoiced By'
+        'Vehicle Number', 'Checked', 'Checked By', 'Invoiced', 'Invoiced By'
       ];
       
       const csvData = records.map(record => [
@@ -188,6 +188,7 @@ export async function POST(request) {
         record.aqty || record.qty || 0,
         record.amount || 0,
         record.status,
+        record.vehicle_number || '-',
         record.is_checked ? 'Yes' : 'No',
         record.checked_by_name || '-',
         record.is_invoiced ? 'Yes' : 'No',

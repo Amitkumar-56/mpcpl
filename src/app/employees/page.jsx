@@ -13,6 +13,8 @@ import EntityLogs from "@/components/EntityLogs";
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
+  const [filteredEmployees, setFilteredEmployees] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [updatingStatus, setUpdatingStatus] = useState({});
   const [expandedEmployees, setExpandedEmployees] = useState({});
@@ -127,6 +129,7 @@ export default function EmployeeHistory() {
       }
       const data = await res.json();
       setEmployees(data);
+      setFilteredEmployees(data);
     } catch (err) {
       console.error('Error fetching employees:', err);
       alert('Failed to load employees. Please try again.');
@@ -134,6 +137,21 @@ export default function EmployeeHistory() {
       setLoading(false);
     }
   };
+
+  // Filter employees based on search term
+  useEffect(() => {
+    if (!searchTerm.trim()) {
+      setFilteredEmployees(employees);
+    } else {
+      const filtered = employees.filter(emp => 
+        emp.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.emp_code?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.phone?.toLowerCase().includes(searchTerm.toLowerCase())
+      );
+      setFilteredEmployees(filtered);
+    }
+  }, [searchTerm, employees]);
 
 
   const handleStatusToggle = async (employeeId, currentStatus) => {
@@ -347,6 +365,39 @@ export default function EmployeeHistory() {
               </div>
             </div>
 
+            {/* Search Box */}
+            <div className="mb-6">
+              <div className="relative max-w-md">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  placeholder="Search by name, email, employee code, or phone..."
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                />
+                {searchTerm && (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  >
+                    <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {searchTerm && (
+                <p className="mt-2 text-sm text-gray-600">
+                  Found {filteredEmployees.length} of {employees.length} employees
+                </p>
+              )}
+            </div>
+
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
               <div className="bg-white border rounded-lg p-4 shadow-sm">
@@ -413,7 +464,7 @@ export default function EmployeeHistory() {
               <div className="p-4 border-b bg-gray-50">
                 <h2 className="text-lg font-semibold text-gray-900">Employee List</h2>
                 <p className="text-sm text-gray-600">
-                  Showing {employees.length} employees
+                  Showing {filteredEmployees.length} {searchTerm ? 'filtered' : ''} employees
                 </p>
               </div>
               
@@ -424,7 +475,7 @@ export default function EmployeeHistory() {
                     <p className="text-gray-600">Loading employees...</p>
                   </div>
                 </div>
-              ) : employees.length === 0 ? (
+              ) : filteredEmployees.length === 0 ? (
                 <div className="text-center py-12">
                   <div className="text-gray-400 mb-4">
                     <svg className="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -447,7 +498,7 @@ export default function EmployeeHistory() {
                 <>
                   {/* Mobile Card View */}
                   <div className="md:hidden space-y-4">
-                    {employees.map((emp, idx) => (
+                    {filteredEmployees.map((emp, idx) => (
                       <div key={emp.id} className={`bg-white border rounded-lg shadow-sm p-4 ${emp.status === 0 ? 'bg-red-50 border-red-200' : ''}`}>
                         <div className="flex items-start justify-between mb-3">
                           <div className="flex items-center space-x-3 flex-1">
@@ -612,7 +663,7 @@ export default function EmployeeHistory() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-200">
-                        {employees.map((emp, idx) => (
+                        {filteredEmployees.map((emp, idx) => (
                           <React.Fragment key={emp.id}>
                           <tr className={`hover:bg-gray-50 ${emp.status === 0 ? 'bg-red-50' : ''}`}>
                             <td className="p-3 border-b">

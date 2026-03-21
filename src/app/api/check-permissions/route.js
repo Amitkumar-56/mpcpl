@@ -56,7 +56,7 @@ export async function GET(req) {
     console.log(`✅ Employee found: ${userName} (ID=${employee_id}, Role=${userRole}, Status=${userStatus})`);
 
     // 2. Admin (role 5) always has full access
-    if (Number(userRole) === 5) {
+    if (userRole === '5' || Number(userRole) === 5) {
       console.log(`✅ Admin (role 5) has full access - automatically allowed`);
       return NextResponse.json({ 
         allowed: true,
@@ -70,19 +70,55 @@ export async function GET(req) {
       });
     }
 
-    // 3. Accountant (role 4) has full access to LR management
-    if (Number(userRole) === 4 && (module_name.toLowerCase().includes('lr') || module_name.toLowerCase().includes('shipment'))) {
-      console.log(`✅ Accountant (role 4) has full access to LR management - automatically allowed`);
-      return NextResponse.json({ 
-        allowed: true,
-        userRole,
-        userName,
-        checkType: 'accountant_lr_access',
-        employee_id,
-        module_name,
-        action,
-        message: "Accountant has full access to LR management"
-      });
+    // 3. Accountant (role 4) has full access to LR management and vouchers
+    if (userRole === '4' || Number(userRole) === 4) {
+      if (module_name.toLowerCase().includes('lr') || module_name.toLowerCase().includes('shipment') || module_name.toLowerCase().includes('voucher')) {
+        console.log(`✅ Accountant (role 4) has full access to ${module_name} - automatically allowed`);
+        return NextResponse.json({ 
+          allowed: true,
+          userRole,
+          userName,
+          checkType: 'accountant_full_access',
+          employee_id,
+          module_name,
+          action,
+          message: "Accountant has full access"
+        });
+      }
+    }
+
+    // 4. Manager/Team Leader (role 3) has full access to vouchers
+    if (userRole === '3' || Number(userRole) === 3) {
+      if (module_name.toLowerCase().includes('voucher') || module_name.toLowerCase() === 'vouchers') {
+        console.log(`✅ Manager/Team Leader (role 3) has full access to ${module_name} - automatically allowed`);
+        return NextResponse.json({ 
+          allowed: true,
+          userRole,
+          userName,
+          checkType: 'manager_full_access',
+          employee_id,
+          module_name,
+          action,
+          message: "Manager/Team Leader has full access"
+        });
+      }
+    }
+
+    // 5. Supervisor/Hard Operation (role 7) has full access to vouchers
+    if (userRole === '7' || Number(userRole) === 7) {
+      if (module_name.toLowerCase().includes('voucher') || module_name.toLowerCase() === 'vouchers') {
+        console.log(`✅ Supervisor/Hard Operation (role 7) has full access to ${module_name} - automatically allowed`);
+        return NextResponse.json({ 
+          allowed: true,
+          userRole,
+          userName,
+          checkType: 'supervisor_full_access',
+          employee_id,
+          module_name,
+          action,
+          message: "Supervisor/Hard Operation has full access"
+        });
+      }
     }
 
     // Check if employee is active
