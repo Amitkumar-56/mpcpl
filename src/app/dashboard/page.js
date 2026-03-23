@@ -16,11 +16,13 @@ import {
   BiGroup,
   BiHide,
   BiMessageRounded,
+  BiMoney,
   BiPackage,
   BiRefresh,
   BiSend,
   BiShoppingBag,
   BiShow,
+  BiUser,
   BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
@@ -722,6 +724,109 @@ export default function DashboardPage() {
                       value={stats.totalStockHistory || 0}
                       icon={<BiPackage />}
                       color="indigo"
+                    />
+                  </a>
+                  {/* Salary Management Cards */}
+                  {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3) && (
+                    <>
+                      <a href="/salary-management" className="block">
+                        <InfoCard
+                          title="Salary Management"
+                          value="Manage"
+                          icon={<BiMoney />}
+                          color="green"
+                        />
+                      </a>
+                      <a href="/manual-salary" className="block">
+                        <InfoCard
+                          title="Manual Salary"
+                          value="Add Payment"
+                          icon={<BiMoney />}
+                          color="purple"
+                        />
+                      </a>
+                      <a href="/advances" className="block">
+                        <InfoCard
+                          title="Advances"
+                          value="Manage"
+                          icon={<BiMoney />}
+                          color="yellow"
+                        />
+                      </a>
+                      <a href="/payment-release" className="block">
+                        <InfoCard
+                          title="Payment Release"
+                          value="Bulk Pay"
+                          icon={<BiMoney />}
+                          color="red"
+                        />
+                      </a>
+                    </>
+                  )}
+                  {/* Attendance & Leave Cards */}
+                  {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3) && (
+                    <>
+                      <a href="/attendance" className="block">
+                        <InfoCard
+                          title="Attendance"
+                          value="Mark"
+                          icon={<BiCheckCircle />}
+                          color="green"
+                        />
+                      </a>
+                      <a href="/attendance/monthly-summary" className="block">
+                        <InfoCard
+                          title="Attendance Summary"
+                          value="View"
+                          icon={<BiCalendar />}
+                          color="blue"
+                        />
+                      </a>
+                      <a href="/leave" className="block">
+                        <InfoCard
+                          title="Leave Management"
+                          value="Manage"
+                          icon={<BiCalendar />}
+                          color="purple"
+                        />
+                      </a>
+                      <a href="/hr-letters" className="block">
+                        <InfoCard
+                          title="HR Letters"
+                          value="Generate"
+                          icon={<BiSend />}
+                          color="indigo"
+                        />
+                      </a>
+                    </>
+                  )}
+                  {/* Staff can view their own attendance and leave */}
+                  {sessionUser?.role === 1 && (
+                    <>
+                      <a href="/attendance/monthly-summary" className="block">
+                        <InfoCard
+                          title="My Attendance"
+                          value="View"
+                          icon={<BiCalendar />}
+                          color="blue"
+                        />
+                      </a>
+                      <a href="/leave" className="block">
+                        <InfoCard
+                          title="My Leave"
+                          value="Apply"
+                          icon={<BiCalendar />}
+                          color="purple"
+                        />
+                      </a>
+                    </>
+                  )}
+                  <a href="/my-salary" className="block">
+                    <InfoCard
+                      title="My Salary"
+                      value="View"
+                      icon={<BiUser />}
+                      color="blue"
                     />
                   </a>
                   <InfoCard
