@@ -726,79 +726,16 @@ export default function DashboardPage() {
                       color="indigo"
                     />
                   </a>
-                  {/* Salary Management Cards */}
+                  {/* HR Dashboard Link */}
                   {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3) && (
-                    <>
-                      <a href="/salary-management" className="block">
-                        <InfoCard
-                          title="Salary Management"
-                          value="Manage"
-                          icon={<BiMoney />}
-                          color="green"
-                        />
-                      </a>
-                      <a href="/manual-salary" className="block">
-                        <InfoCard
-                          title="Manual Salary"
-                          value="Add Payment"
-                          icon={<BiMoney />}
-                          color="purple"
-                        />
-                      </a>
-                      <a href="/advances" className="block">
-                        <InfoCard
-                          title="Advances"
-                          value="Manage"
-                          icon={<BiMoney />}
-                          color="yellow"
-                        />
-                      </a>
-                      <a href="/payment-release" className="block">
-                        <InfoCard
-                          title="Payment Release"
-                          value="Bulk Pay"
-                          icon={<BiMoney />}
-                          color="red"
-                        />
-                      </a>
-                    </>
-                  )}
-                  {/* Attendance & Leave Cards */}
-                  {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3) && (
-                    <>
-                      <a href="/attendance" className="block">
-                        <InfoCard
-                          title="Attendance"
-                          value="Mark"
-                          icon={<BiCheckCircle />}
-                          color="green"
-                        />
-                      </a>
-                      <a href="/attendance/monthly-summary" className="block">
-                        <InfoCard
-                          title="Attendance Summary"
-                          value="View"
-                          icon={<BiCalendar />}
-                          color="blue"
-                        />
-                      </a>
-                      <a href="/leave" className="block">
-                        <InfoCard
-                          title="Leave Management"
-                          value="Manage"
-                          icon={<BiCalendar />}
-                          color="purple"
-                        />
-                      </a>
-                      <a href="/hr-letters" className="block">
-                        <InfoCard
-                          title="HR Letters"
-                          value="Generate"
-                          icon={<BiSend />}
-                          color="indigo"
-                        />
-                      </a>
-                    </>
+                    <a href="/hr-dashboard" className="block">
+                      <InfoCard
+                        title="HR Dashboard"
+                        value="Access"
+                        icon={<BiGroup />}
+                        color="green"
+                      />
+                    </a>
                   )}
                   {/* Staff can view their own attendance and leave */}
                   {sessionUser?.role === 1 && (
@@ -821,15 +758,7 @@ export default function DashboardPage() {
                       </a>
                     </>
                   )}
-                  <a href="/my-salary" className="block">
-                    <InfoCard
-                      title="My Salary"
-                      value="View"
-                      icon={<BiUser />}
-                      color="blue"
-                    />
-                  </a>
-                  <InfoCard
+                                    <InfoCard
                     title="Pending"
                     value={stats.pendingPayments}
                     icon={<BiError />}
