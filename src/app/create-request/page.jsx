@@ -44,10 +44,10 @@ export default function CreateRequestPage() {
 
   // Product configuration based on product_id
   const productConfig = {
-    2: { name: "Industrial Oil 40", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
-    3: { name: "Industrial Oil 60", type: "liter", min: 1, barrelSize: 200, maxQuantity: 5000 },
-    4: { name: "DEF Lose", type: "liter", min: 1, maxQuantity: 10000 },
-    5: { name: "DEF Bucket", type: "bucket", bucketSize: 20, min: 1, maxQuantity: 100 },
+    2: { name: "Industrial Oil 40", type: "liter", min: 1, barrelSize: 200 },
+    3: { name: "Industrial Oil 60", type: "liter", min: 1, barrelSize: 200 },
+    4: { name: "DEF Lose", type: "liter", min: 1 },
+    5: { name: "DEF Bucket", type: "bucket", bucketSize: 20, min: 1 },
   };
 
   useEffect(() => {
@@ -473,13 +473,6 @@ export default function CreateRequestPage() {
         const minUnit = (selectedProduct.min || 1) === 1 ? 'liter' : 'liters';
         return alert(`Minimum quantity for this product is ${selectedProduct.min} ${minUnit}.`);
       }
-    }
-
-    // Only validate maxQuantity for non-bucket products
-    // For bucket products, allow any number of buckets
-    if (selectedProduct.maxQuantity && selectedProduct.type !== 'bucket' && quantity > selectedProduct.maxQuantity) {
-      const maxUnit = selectedProduct.maxQuantity === 1 ? 'liter' : 'liters';
-      return alert(`Maximum quantity for this product is ${selectedProduct.maxQuantity} ${maxUnit}.`);
     }
 
     setShowConfirmation(true);
