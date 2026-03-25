@@ -6,318 +6,755 @@ import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 
-export default function HRLetters() {
-  const router = useRouter();
-  const { user, loading: authLoading } = useSession();
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [selectedEmployee, setSelectedEmployee] = useState("");
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-  const [letterPreview, setLetterPreview] = useState(null);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+const LETTER_TYPES = [
+  {
+    id: "offer",
+    name: "Offer Letter",
+    description: "Job offer for new candidates",
+    icon: "📄",
+    color: "#1a3c5e",
+    bg: "#e8f0f7",
+    border: "#b8cfe0",
+  },
+  {
+    id: "appointment",
+    name: "Appointment Letter",
+    description: "Confirmation of employment",
+    icon: "✅",
+    color: "#1a3c5e",
+    bg: "#e8f0f7",
+    border: "#b8cfe0",
+  },
+  {
+    id: "joining",
+    name: "Joining Letter",
+    description: "Welcome letter for new joinee",
+    icon: "🎉",
+    color: "#1e4d2b",
+    bg: "#eaf3ec",
+    border: "#b5d8bb",
+  },
+  {
+    id: "agreement",
+    name: "Employment Agreement",
+    description: "Terms and conditions of employment",
+    icon: "📋",
+    color: "#3d1a6e",
+    bg: "#f0ebf8",
+    border: "#c5b0e0",
+  },
+  {
+    id: "salary",
+    name: "Salary Slip",
+    description: "Monthly salary statement",
+    icon: "💰",
+    color: "#7b3f00",
+    bg: "#fdf0e6",
+    border: "#e8c9a8",
+    requiresMonth: true,
+  },
+  {
+    id: "termination",
+    name: "Termination Letter",
+    description: "Employment termination notice",
+    icon: "❌",
+    color: "#7a1010",
+    bg: "#fde8e8",
+    border: "#f0b5b5",
+  },
+  {
+    id: "relieving",
+    name: "Relieving Letter",
+    description: "Experience & relieving certificate",
+    icon: "🎓",
+    color: "#1a3c5e",
+    bg: "#e8f0f7",
+    border: "#b8cfe0",
+  },
+];
 
-  const letterTypes = [
-    { id: 'offer', name: 'Offer Letter', description: 'Job offer for new candidates' },
-    { id: 'appointment', name: 'Appointment Letter', description: 'Confirmation of employment' },
-    { id: 'joining', name: 'Joining Letter', description: 'Welcome letter for new employees' },
-    { id: 'agreement', name: 'Employment Agreement', description: 'Terms and conditions of employment' },
-    { id: 'salary', name: 'Salary Slip', description: 'Monthly salary statement', requiresMonth: true },
-    { id: 'termination', name: 'Termination Letter', description: 'Employment termination notice' },
-    { id: 'relieving', name: 'Relieving Letter', description: 'Experience and relieving certificate' }
-  ];
+const MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
 
-  useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-      return;
-    }
-
-    if (user) {
-      // Check if user has access
-      if (![3, 4, 5].includes(user.role)) {
-        router.push("/dashboard");
-        return;
-      }
-      fetchEmployees();
-    }
-  }, [user, authLoading, router]);
-
-  const fetchEmployees = async () => {
-    try {
-      console.log('🔍 Fetching employees for HR Letters...');
-      const response = await fetch('/api/employees');
-      console.log('📦 Response status:', response.status);
-      
-      const data = await response.json();
-      console.log('📊 Employees API Response:', data);
-      
-      if (data.success) {
-        setEmployees(data.data || []);
-      } else {
-        console.error('❌ API Error:', data.error);
-      }
-    } catch (error) {
-      console.error('❌ Error fetching employees:', error);
-    }
-  };
-
-  const handleGenerateLetter = async (letterType) => {
-    if (!selectedEmployee) {
-      setError("Please select an employee");
-      return;
-    }
-
-    if (letterType === 'salary' && (!selectedMonth || !selectedYear)) {
-      setError("Please select month and year for salary slip");
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError("");
-
-      let url = `/api/hr-letters?type=${letterType}&employee_id=${selectedEmployee}`;
-      if (letterType === 'salary') {
-        url += `&month=${selectedMonth}&year=${selectedYear}`;
-      }
-
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (data.success) {
-        setLetterPreview(data.data);
-        setShowPreviewModal(true);
-      } else {
-        setError(data.error || "Failed to generate letter");
-      }
-    } catch (error) {
-      console.error('Error generating letter:', error);
-      setError("Failed to generate letter");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDownloadPDF = () => {
-    if (!letterPreview) return;
-
-    // Create a new window with the letter content
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(letterPreview.content);
-    printWindow.document.close();
-    
-    // Wait for content to load, then print
-    printWindow.onload = () => {
-      printWindow.print();
-    };
-  };
-
-  const getMonthName = (month) => {
-    const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                   'July', 'August', 'September', 'October', 'November', 'December'];
-    return months[month - 1];
-  };
-
-  const getLetterIcon = (letterType) => {
-    const icons = {
-      'offer': '📄',
-      'appointment': '✅',
-      'joining': '🎉',
-      'agreement': '📋',
-      'salary': '💰',
-      'termination': '❌',
-      'relieving': '🎓'
-    };
-    return icons[letterType] || '📄';
-  };
-
+// Loading fallback component
+function HRLettersLoading() {
   return (
     <div className="flex min-h-screen bg-gray-50">
       <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
       </div>
       <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
-        <div className="flex-shrink-0">
-          <Header />
-        </div>
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
-            <div className="flex items-center gap-3 mb-4">
-              <button
-                onClick={() => router.back()}
-                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
-                title="Go Back"
-              >
-                ←
-              </button>
+        <div className="flex-shrink-0"><Header /></div>
+        <main className="flex-1 overflow-y-auto hr-page">
+          <div className="container mx-auto px-4 py-0 max-w-6xl">
+            <div className="page-hero">
+              <div className="hero-title">HR Letters Generator</div>
+              <div className="hero-subtitle">Loading...</div>
             </div>
-            
-            <div className="mb-4 sm:mb-6">
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
-                HR Letters Generator
-              </h1>
-              <p className="text-gray-600 mt-1 text-xs sm:text-sm lg:text-base">
-                Generate professional HR documents with PDF download
-              </p>
-            </div>
-
-            {/* Employee Selection */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-4">Select Employee</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Employee <span className="text-red-500">*</span>
-                  </label>
-                  <select
-                    value={selectedEmployee}
-                    onChange={(e) => setSelectedEmployee(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">Select Employee</option>
-                    {employees.map((emp) => (
-                      <option key={emp.id} value={emp.id}>
-                        {emp.name} ({emp.emp_code})
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Month (for Salary Slip)
-                  </label>
-                  <select
-                    value={selectedMonth}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {Array.from({length: 12}, (_, i) => (
-                      <option key={i + 1} value={i + 1}>
-                        {getMonthName(i + 1)}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Year (for Salary Slip)
-                  </label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {Array.from({length: 5}, (_, i) => (
-                      <option key={new Date().getFullYear() - i} value={new Date().getFullYear() - i}>
-                        {new Date().getFullYear() - i}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div className="selection-card">
+              <div className="card-heading">Loading employee data...</div>
+              <div className="flex justify-center py-8">
+                <div className="spinner"></div>
               </div>
-            </div>
-
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-                {error}
-              </div>
-            )}
-
-            {/* Letter Types Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {letterTypes.map((letter) => (
-                <div
-                  key={letter.id}
-                  className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow"
-                >
-                  <div className="flex items-start gap-4">
-                    <div className="text-4xl">{getLetterIcon(letter.id)}</div>
-                    <div className="flex-1">
-                      <h3 className="text-lg font-bold text-gray-900 mb-2">{letter.name}</h3>
-                      <p className="text-sm text-gray-600 mb-4">{letter.description}</p>
-                      {letter.requiresMonth && (
-                        <div className="text-xs bg-blue-50 text-blue-700 px-2 py-1 rounded mb-3">
-                          Requires month and year selection
-                        </div>
-                      )}
-                      <button
-                        onClick={() => handleGenerateLetter(letter.id)}
-                        disabled={loading || !selectedEmployee}
-                        className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-400 disabled:cursor-not-allowed"
-                      >
-                        {loading ? 'Generating...' : 'Generate Letter'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Instructions */}
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-6 mt-6">
-              <h3 className="text-lg font-bold text-blue-900 mb-3">How to Use</h3>
-              <ol className="space-y-2 text-sm text-blue-800">
-                <li>1. Select an employee from the dropdown list</li>
-                <li>2. For salary slips, also select the month and year</li>
-                <li>3. Click on the desired letter type to generate</li>
-                <li>4. Preview the generated letter in the modal</li>
-                <li>5. Download as PDF using the print function</li>
-              </ol>
             </div>
           </div>
         </main>
+        <div className="flex-shrink-0"><Footer /></div>
+      </div>
+    </div>
+  );
+}
 
-        <div className="flex-shrink-0">
-          <Footer />
+// Main component content
+function HRLettersContent() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
+
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [generatingId, setGeneratingId] = useState(null);
+  const [error, setError] = useState("");
+  const [selectedEmployee, setSelectedEmployee] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [letterPreview, setLetterPreview] = useState(null);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewTitle, setPreviewTitle] = useState("");
+
+  useEffect(() => {
+    if (!authLoading && !user) { router.push("/login"); return; }
+    if (user) {
+      if (![3, 4, 5].includes(user.role)) { router.push("/dashboard"); return; }
+      fetchEmployees();
+    }
+  }, [user, authLoading, router]);
+
+  const fetchEmployees = async () => {
+    try {
+      const res = await fetch("/api/employees");
+      const data = await res.json();
+      if (data.success) {
+        setEmployees(Array.isArray(data.data) ? data.data : []);
+      } else {
+        console.error('API Error:', data.error);
+        setEmployees([]);
+      }
+    } catch (e) { 
+      console.error('Fetch error:', e);
+      setEmployees([]);
+    }
+  };
+
+  const handleGenerateLetter = async (letter) => {
+    if (!selectedEmployee) { setError("Please select an employee first."); return; }
+    if (letter.requiresMonth && (!selectedMonth || !selectedYear)) {
+      setError("Please select month and year for salary slip."); return;
+    }
+    try {
+      setLoading(true);
+      setGeneratingId(letter.id);
+      setError("");
+
+      let url = `/api/hr-letters?type=${letter.id}&employee_id=${selectedEmployee}`;
+      if (letter.requiresMonth) url += `&month=${selectedMonth}&year=${selectedYear}`;
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      if (data.success) {
+        setLetterPreview(data.data);
+        setPreviewTitle(letter.name);
+        setShowPreviewModal(true);
+      } else {
+        setError(data.error || "Failed to generate letter.");
+      }
+    } catch (e) {
+      setError("Failed to generate letter.");
+    } finally {
+      setLoading(false);
+      setGeneratingId(null);
+    }
+  };
+
+  const handleDownloadPDF = () => {
+    if (!letterPreview) return;
+    const win = window.open("", "_blank");
+    win.document.write(letterPreview.content);
+    win.document.close();
+    win.onload = () => win.print();
+  };
+
+  const currentYear = new Date().getFullYear();
+
+  return (
+    <>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+        .hr-page * { box-sizing: border-box; }
+
+        .hr-page {
+          font-family: 'DM Sans', sans-serif;
+          min-height: 100vh;
+          background: #f4f6f9;
+          color: #1a1a2e;
+        }
+
+        /* ── Page header ── */
+        .page-hero {
+          background: linear-gradient(135deg, #0f2447 0%, #1a3c6e 60%, #2a5298 100%);
+          padding: 28px 32px 32px;
+          border-radius: 0 0 24px 24px;
+          margin-bottom: 28px;
+          position: relative;
+          overflow: hidden;
+        }
+        .page-hero::before {
+          content: '';
+          position: absolute;
+          top: -40px; right: -40px;
+          width: 200px; height: 200px;
+          background: rgba(255,255,255,0.04);
+          border-radius: 50%;
+        }
+        .page-hero::after {
+          content: '';
+          position: absolute;
+          bottom: -60px; left: 40%;
+          width: 300px; height: 300px;
+          background: rgba(255,255,255,0.03);
+          border-radius: 50%;
+        }
+        .back-btn {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          color: rgba(255,255,255,0.65);
+          font-size: 13px;
+          font-weight: 500;
+          cursor: pointer;
+          margin-bottom: 16px;
+          background: none;
+          border: none;
+          padding: 0;
+          transition: color 0.2s;
+        }
+        .back-btn:hover { color: #fff; }
+        .hero-title {
+          font-family: 'Instrument Serif', serif;
+          font-size: 32px;
+          color: #fff;
+          font-weight: 400;
+          letter-spacing: -0.5px;
+          margin-bottom: 4px;
+          position: relative;
+          z-index: 1;
+        }
+        .hero-subtitle {
+          font-size: 13px;
+          color: rgba(255,255,255,0.55);
+          font-weight: 300;
+          position: relative;
+          z-index: 1;
+        }
+
+        /* ── Selection card ── */
+        .selection-card {
+          background: #fff;
+          border-radius: 16px;
+          padding: 24px 28px;
+          margin-bottom: 24px;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+          border: 1px solid #eaecf0;
+        }
+        .card-heading {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          color: #9ca3af;
+          margin-bottom: 16px;
+        }
+        .fields-row {
+          display: grid;
+          grid-template-columns: 2fr 1fr 1fr;
+          gap: 16px;
+        }
+        @media (max-width: 768px) { .fields-row { grid-template-columns: 1fr; } }
+
+        .field-group label {
+          display: block;
+          font-size: 12px;
+          font-weight: 600;
+          color: #374151;
+          margin-bottom: 6px;
+        }
+        .field-group label span { color: #e53e3e; }
+        .field-select {
+          width: 100%;
+          border: 1.5px solid #e5e7eb;
+          border-radius: 10px;
+          padding: 10px 14px;
+          font-size: 13.5px;
+          color: #111;
+          background: #fafafa;
+          outline: none;
+          font-family: inherit;
+          transition: border-color 0.2s, box-shadow 0.2s;
+          appearance: none;
+          background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b7280' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+          background-repeat: no-repeat;
+          background-position: right 12px center;
+          padding-right: 36px;
+        }
+        .field-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); background: #fff; }
+
+        /* ── Error banner ── */
+        .error-banner {
+          background: #fef2f2;
+          border: 1px solid #fecaca;
+          color: #dc2626;
+          border-radius: 10px;
+          padding: 12px 16px;
+          font-size: 13px;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        /* ── Letters grid ── */
+        .section-label {
+          font-size: 11px;
+          font-weight: 600;
+          letter-spacing: 1.2px;
+          text-transform: uppercase;
+          color: #9ca3af;
+          margin-bottom: 16px;
+        }
+        .letters-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+          gap: 16px;
+          margin-bottom: 28px;
+        }
+
+        .letter-card {
+          background: #fff;
+          border-radius: 16px;
+          padding: 20px;
+          border: 1.5px solid #eaecf0;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+          transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s;
+          cursor: default;
+        }
+        .letter-card:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 6px 24px rgba(0,0,0,0.1);
+        }
+
+        .letter-card-top {
+          display: flex;
+          align-items: flex-start;
+          gap: 14px;
+          margin-bottom: 14px;
+        }
+        .letter-icon {
+          width: 44px;
+          height: 44px;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 20px;
+          flex-shrink: 0;
+        }
+        .letter-info { flex: 1; min-width: 0; }
+        .letter-name {
+          font-size: 14.5px;
+          font-weight: 600;
+          color: #111827;
+          margin-bottom: 3px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .letter-desc { font-size: 12px; color: #9ca3af; line-height: 1.4; }
+
+        .month-tag {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          font-size: 11px;
+          font-weight: 500;
+          border-radius: 6px;
+          padding: 3px 8px;
+          margin-bottom: 10px;
+        }
+
+        .gen-btn {
+          width: 100%;
+          border: none;
+          border-radius: 10px;
+          padding: 10px 16px;
+          font-size: 13px;
+          font-weight: 600;
+          font-family: inherit;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 7px;
+          transition: opacity 0.2s, transform 0.15s;
+        }
+        .gen-btn:hover:not(:disabled) { opacity: 0.88; transform: scale(0.99); }
+        .gen-btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+        .gen-btn .spinner {
+          width: 14px; height: 14px;
+          border: 2px solid rgba(255,255,255,0.4);
+          border-top-color: #fff;
+          border-radius: 50%;
+          animation: spin 0.7s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── How-to card ── */
+        .how-to-card {
+          background: linear-gradient(135deg, #eff6ff 0%, #f0f9ff 100%);
+          border: 1px solid #bfdbfe;
+          border-radius: 16px;
+          padding: 20px 24px;
+        }
+        .how-to-title {
+          font-family: 'Instrument Serif', serif;
+          font-size: 17px;
+          color: #1d4ed8;
+          margin-bottom: 12px;
+        }
+        .how-to-steps { list-style: none; padding: 0; margin: 0; }
+        .how-to-steps li {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+          margin-bottom: 8px;
+          font-size: 13px;
+          color: #1e40af;
+        }
+        .step-num {
+          width: 20px; height: 20px;
+          background: #1d4ed8;
+          color: #fff;
+          border-radius: 50%;
+          font-size: 11px;
+          font-weight: 700;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+          margin-top: 1px;
+        }
+
+        /* ── Modal ── */
+        .modal-overlay {
+          position: fixed; inset: 0;
+          background: rgba(0,0,0,0.55);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 16px;
+          animation: fadeIn 0.18s ease;
+        }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        .modal-box {
+          background: #fff;
+          border-radius: 20px;
+          box-shadow: 0 24px 80px rgba(0,0,0,0.25);
+          max-width: 900px;
+          width: 100%;
+          max-height: 90vh;
+          overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          animation: slideUp 0.22s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+
+        .modal-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 18px 24px;
+          border-bottom: 1px solid #f0f0f0;
+          flex-shrink: 0;
+        }
+        .modal-title {
+          font-family: 'Instrument Serif', serif;
+          font-size: 20px;
+          color: #111;
+        }
+        .modal-actions { display: flex; gap: 10px; align-items: center; }
+
+        .btn-download {
+          background: linear-gradient(135deg, #1a3c5e, #2a6099);
+          color: #fff;
+          border: none;
+          border-radius: 10px;
+          padding: 9px 18px;
+          font-size: 13px;
+          font-weight: 600;
+          font-family: inherit;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          transition: opacity 0.18s;
+        }
+        .btn-download:hover { opacity: 0.88; }
+
+        .btn-close {
+          width: 34px; height: 34px;
+          border-radius: 50%;
+          border: 1.5px solid #e5e7eb;
+          background: #f9fafb;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          color: #6b7280;
+          transition: background 0.15s;
+        }
+        .btn-close:hover { background: #f3f4f6; color: #111; }
+
+        .modal-preview {
+          overflow-y: auto;
+          flex: 1;
+          background: #f8f9fa;
+        }
+        .modal-preview-inner {
+          padding: 24px;
+        }
+        .preview-frame {
+          background: #fff;
+          border-radius: 8px;
+          box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+          overflow: hidden;
+        }
+
+        /* Loading spinner */
+        .spinner {
+          width: 32px;
+          height: 32px;
+          border: 3px solid #e5e7eb;
+          border-top-color: #1a3c5e;
+          border-radius: 50%;
+          animation: spin 0.8s linear infinite;
+        }
+      `}</style>
+
+      <div className="flex min-h-screen bg-gray-50">
+        <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+          <Sidebar />
+        </div>
+        <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+          <div className="flex-shrink-0"><Header /></div>
+
+          <main className="flex-1 overflow-y-auto hr-page">
+            <div className="container mx-auto px-4 py-0 max-w-6xl">
+
+              {/* Hero */}
+              <div className="page-hero">
+                <button className="back-btn" onClick={() => router.back()}>
+                  ← Back
+                </button>
+                <div className="hero-title">HR Letters Generator</div>
+                <div className="hero-subtitle">
+                  Generate professional, print-ready HR documents in seconds
+                </div>
+              </div>
+
+              {/* Selection card */}
+              <div className="selection-card">
+                <div className="card-heading">Step 1 — Select Employee & Period</div>
+                <div className="fields-row">
+                  <div className="field-group">
+                    <label>Employee <span>*</span></label>
+                    <select
+                      className="field-select"
+                      value={selectedEmployee}
+                      onChange={(e) => { setSelectedEmployee(e.target.value); setError(""); }}
+                    >
+                      <option value="">— Choose Employee —</option>
+                      {employees.map((emp) => (
+                        <option key={emp.id} value={emp.id}>
+                          {emp.name} ({emp.emp_code})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field-group">
+                    <label>Month <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Salary Slip)</span></label>
+                    <select
+                      className="field-select"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                    >
+                      {MONTHS.map((m, i) => (
+                        <option key={i + 1} value={i + 1}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="field-group">
+                    <label>Year <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Salary Slip)</span></label>
+                    <select
+                      className="field-select"
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    >
+                      {Array.from({ length: 5 }, (_, i) => currentYear - i).map((y) => (
+                        <option key={y} value={y}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="error-banner">
+                  <span>⚠️</span> {error}
+                </div>
+              )}
+
+              {/* Letters grid */}
+              <div className="section-label">Step 2 — Choose Letter Type</div>
+              <div className="letters-grid">
+                {LETTER_TYPES.map((letter) => {
+                  const isGenerating = generatingId === letter.id && loading;
+                  return (
+                    <div
+                      key={letter.id}
+                      className="letter-card"
+                      style={{ borderColor: selectedEmployee ? letter.border : "#eaecf0" }}
+                    >
+                      <div className="letter-card-top">
+                        <div
+                          className="letter-icon"
+                          style={{ background: letter.bg }}
+                        >
+                          {letter.icon}
+                        </div>
+                        <div className="letter-info">
+                          <div className="letter-name">{letter.name}</div>
+                          <div className="letter-desc">{letter.description}</div>
+                        </div>
+                      </div>
+
+                      {letter.requiresMonth && (
+                        <div
+                          className="month-tag"
+                          style={{ background: letter.bg, color: letter.color }}
+                        >
+                          🗓 Requires month & year
+                        </div>
+                      )}
+
+                      <button
+                        className="gen-btn"
+                        style={{
+                          background: selectedEmployee
+                            ? `linear-gradient(135deg, ${letter.color}, ${letter.color}cc)`
+                            : "#e5e7eb",
+                          color: selectedEmployee ? "#fff" : "#9ca3af",
+                        }}
+                        onClick={() => handleGenerateLetter(letter)}
+                        disabled={loading || !selectedEmployee}
+                      >
+                        {isGenerating ? (
+                          <>
+                            <div className="spinner" />
+                            Generating…
+                          </>
+                        ) : (
+                          <>
+                            <span>⚡</span>
+                            Generate Letter
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* How to use */}
+              <div className="how-to-card">
+                <div className="how-to-title">How to Use</div>
+                <ul className="how-to-steps">
+                  {[
+                    "Select an employee from the dropdown",
+                    "For salary slips, also pick the month and year",
+                    "Click Generate on the desired letter type",
+                    "Preview the letter in the modal window",
+                    "Use Download PDF to print or save the document",
+                  ].map((step, i) => (
+                    <li key={i}>
+                      <div className="step-num">{i + 1}</div>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div style={{ height: 32 }} />
+            </div>
+          </main>
+
+          <div className="flex-shrink-0"><Footer /></div>
         </div>
       </div>
 
-      {/* Letter Preview Modal */}
+      {/* Preview Modal */}
       {showPreviewModal && letterPreview && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-6xl w-full max-h-[90vh] overflow-hidden">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex justify-between items-center">
-                <h2 className="text-xl font-bold text-gray-900">Letter Preview</h2>
-                <div className="flex gap-3">
-                  <button
-                    onClick={handleDownloadPDF}
-                    className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors font-medium"
-                  >
-                    Download PDF
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowPreviewModal(false);
-                      setLetterPreview(null);
-                    }}
-                    className="text-gray-400 hover:text-gray-600"
-                  >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
+        <div className="modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) { setShowPreviewModal(false); setLetterPreview(null); } }}>
+          <div className="modal-box">
+            <div className="modal-header">
+              <div className="modal-title">📄 {previewTitle}</div>
+              <div className="modal-actions">
+                <button className="btn-download" onClick={handleDownloadPDF}>
+                  ⬇️ Download PDF
+                </button>
+                <button className="btn-close" onClick={() => { setShowPreviewModal(false); setLetterPreview(null); }}>
+                  ✕
+                </button>
               </div>
             </div>
-            
-            <div className="overflow-y-auto" style={{ maxHeight: 'calc(90vh - 120px)' }}>
-              <div 
-                className="p-8"
-                dangerouslySetInnerHTML={{ __html: letterPreview.content }}
-              />
+            <div className="modal-preview">
+              <div className="modal-preview-inner">
+                <div className="preview-frame">
+                  <div dangerouslySetInnerHTML={{ __html: letterPreview.content }} />
+                </div>
+              </div>
             </div>
           </div>
         </div>
       )}
-    </div>
+    </>
+  );
+}
+
+// Main exported component with Suspense boundary
+export default function HRLetters() {
+  return (
+    <Suspense fallback={<HRLettersLoading />}>
+      <HRLettersContent />
+    </Suspense>
   );
 }

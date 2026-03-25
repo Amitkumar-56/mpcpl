@@ -17,6 +17,8 @@ export default function AddCustomer() {
   const [stations, setStations] = useState([]);
   const [clientType, setClientType] = useState("1"); // 1: Prepaid, 2: Postpaid, 3: Day Limit
   const [loading, setLoading] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
   const [permissions, setPermissions] = useState({
     dashboard: { can_view: true, can_edit: false },
     filling_requests: { can_view: false, can_edit: false },
@@ -112,7 +114,7 @@ export default function AddCustomer() {
 
   const fetchData = () => {
     fetch("/api/products").then((res) => res.json()).then(setProducts);
-    fetch("/api/stations").then((res) => res.json()).then(setStations);
+    fetch("/api/stations").then((res) => res.json()).then(data => setStations(data.stations || []));
   };
 
   if (checkingPermission || authLoading) {
@@ -174,6 +176,8 @@ export default function AddCustomer() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
+    setSuccessMessage("");
+    setErrorMessage("");
 
     try {
       const form = new FormData(e.target);
@@ -193,14 +197,16 @@ export default function AddCustomer() {
       console.log("🟡 API Response:", data);
 
       if (res.ok && data.success) {
-        alert("Customer added successfully!");
-        router.push("/customers");
+        setSuccessMessage("Customer added successfully!");
+        setTimeout(() => {
+          router.push("/customers");
+        }, 2000); // Redirect after 2 seconds
       } else {
-        alert(`Error: ${data.message || 'Failed to add customer'}`);
+        setErrorMessage(`Error: ${data.message || 'Failed to add customer'}`);
       }
     } catch (err) {
       console.error("🔴 Frontend Error:", err);
-      alert("Something went wrong while saving the customer.");
+      setErrorMessage("Something went wrong while saving the customer.");
     } finally {
       setLoading(false);
     }
@@ -227,6 +233,22 @@ export default function AddCustomer() {
               <span className="bg-blue-100 text-blue-600 p-2 rounded-lg text-xl">👤</span>
               Add New Customer
             </h1>
+
+            {/* Success Message */}
+            {successMessage && (
+              <div className="mb-6 p-4 bg-green-100 border border-green-400 text-green-700 rounded-lg flex items-center gap-3">
+                <span className="text-xl">✅</span>
+                <span className="font-medium">{successMessage}</span>
+              </div>
+            )}
+
+            {/* Error Message */}
+            {errorMessage && (
+              <div className="mb-6 p-4 bg-red-100 border border-red-400 text-red-700 rounded-lg flex items-center gap-3">
+                <span className="text-xl">❌</span>
+                <span className="font-medium">{errorMessage}</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Basic Information */}
