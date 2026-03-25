@@ -33,9 +33,6 @@ export default function FillingDetailsAdmin() {
   });
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelRemarks, setCancelRemarks] = useState('');
-  const [showLimitModal, setShowLimitModal] = useState(false);
-  const [limitMessage, setLimitMessage] = useState('');
-  const [limitTitle, setLimitTitle] = useState('Credit Limit Overdue');
   const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
   const [hasPermission, setHasPermission] = useState(false);
   const [imageModalSrc, setImageModalSrc] = useState(null);
@@ -298,30 +295,6 @@ export default function FillingDetailsAdmin() {
       console.log('⚠️ Staff/Incharge proceeding with 0 price');
     }
 
-    // Pre-check credit/day/daily limit before Processing/Completed
-    if ((formData.status === 'Processing' || formData.status === 'Completed') && !isStaffOrIncharge) {
-      const requiredAmount = currentPrice * aqtyValue;
-      const availAmt = parseFloat(requestData.available_balance || 0);
-      const holdBal = parseFloat(requestData.hold_balance || 0);
-      
-      if (formData.status === 'Processing') {
-        if (availAmt <= 0 || availAmt < requiredAmount) {
-          setLimitTitle('Credit Limit Overdue');
-          setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${availAmt.toFixed(2)}. Please increase limit or reduce quantity.`);
-          setShowLimitModal(true);
-          return;
-        }
-      } else {
-        const combined = availAmt + holdBal;
-        if (combined <= 0 || combined < requiredAmount) {
-          setLimitTitle('Credit Limit Overdue');
-          setLimitMessage(`Required: ₹${requiredAmount.toFixed(2)}, Available: ₹${combined.toFixed(2)}. Please increase limit or reduce quantity.`);
-          setShowLimitModal(true);
-          return;
-        }
-      }
-    }
-
     setSubmitting(true);
 
     try {
@@ -388,13 +361,6 @@ export default function FillingDetailsAdmin() {
       console.log('✅ Submit result:', result);
 
       if (result.success) {
-        if (result.limitOverdue) {
-          setLimitMessage(result.message || 'Your limit is over. Please recharge your account.');
-          setLimitTitle(result.limitTitle || 'Credit Limit Overdue');
-          setShowLimitModal(true);
-          setSubmitting(false);
-          return;
-        }
 
         // Custom success messages based on status
         let successMessage = '';
@@ -436,7 +402,14 @@ export default function FillingDetailsAdmin() {
         }
 
       } else {
-        throw new Error(result.error || result.message || 'Unknown error');
+        // Handle different types of errors
+        if (result.limitOverdue) {
+          // Special handling for balance/limit issues
+          alert(result.error || 'Insufficient balance to complete this request.');
+        } else {
+          // General error
+          throw new Error(result.error || result.message || 'Unknown error');
+        }
       }
     } catch (err) {
       console.error('❌ Submit error:', err);
@@ -542,10 +515,6 @@ export default function FillingDetailsAdmin() {
     } finally {
       setSubmitting(false);
     }
-  };
-
-  const handleRenewLimit = () => {
-    router.push(`/credit-limit?id=${requestData.cid}`);
   };
 
   const calculateAvailableBalance = () => {
@@ -1052,7 +1021,7 @@ export default function FillingDetailsAdmin() {
                             <div className="flex flex-col sm:flex-row flex-wrap gap-4 md:gap-6">
                               {[1, 2, 3].map((docNum) => (
                                 <div key={docNum} className="text-center">
-                                  <label className="block text-sm font-medium text-gray-500 mb-2">
+                                  <label className="block text-sm font-medium text-gray-700">
                                     Document {docNum}
                                   </label>
                                   {requestData[`doc${docNum}`] ? (
@@ -1559,7 +1528,9 @@ export default function FillingDetailsAdmin() {
                       )}
                       {(requestData.status === 'Cancel' || requestData.status === 'Cancelled') && (
                         <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          <svg className="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                          </svg>
                         </svg>
                       )}
                     </div>
@@ -1625,30 +1596,6 @@ export default function FillingDetailsAdmin() {
                         disabled={submitting}
                       >
                         {submitting ? 'Cancelling...' : 'Confirm Cancel'}
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Limit Overdue Modal - Hide for Staff/Incharge */}
-              {showLimitModal && !isStaffOrIncharge && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                  <div className="bg-white rounded-lg p-6 w-96">
-                    <h3 className="text-lg font-semibold mb-4 text-red-600">{limitTitle}</h3>
-                    <p className="mb-6 text-gray-700">{limitMessage}</p>
-                    <div className="flex justify-end space-x-3">
-                      <button
-                        onClick={() => setShowLimitModal(false)}
-                        className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors"
-                      >
-                        Close
-                      </button>
-                      <button
-                        onClick={handleRenewLimit}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
-                      >
-                        Renew Limit
                       </button>
                     </div>
                   </div>

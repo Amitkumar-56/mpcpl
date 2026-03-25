@@ -2,9 +2,38 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/auditLog";
+import { verifyToken } from "@/lib/auth";
+import { cookies } from "next/headers";
 
 export async function POST(req) {
   try {
+    // ✅ Get current employee from token
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value || null;
+    let currentEmployeeId = null;
+    let currentEmployeeName = null;
+    
+    if (token) {
+      try {
+        const decoded = verifyToken(token);
+        if (decoded && decoded.userId) {
+          currentEmployeeId = decoded.userId;
+          
+          // Get employee name from employee_profile table
+          const employeeInfo = await executeQuery(
+            "SELECT id, name FROM employee_profile WHERE id = ? LIMIT 1",
+            [currentEmployeeId]
+          );
+          
+          if (employeeInfo.length > 0) {
+            currentEmployeeName = employeeInfo[0].name;
+          }
+        }
+      } catch (tokenError) {
+        console.error('Token verification error:', tokenError);
+      }
+    }
+
     const body = await req.json();
     const {
       customer,       
@@ -205,13 +234,13 @@ export async function POST(req) {
         // Continue even if audit log fails
       }
 
-      // Also create entry in filling_logs - use customer ID
+      // Also create entry in filling_logs - use employee ID (not name) for proper database joins
       try {
         await executeQuery(
           `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`,
-          [nextRID, parseInt(customer), currentDate]
+          [nextRID, currentEmployeeId, currentDate]
         );
-        console.log('✅ Filling logs entry created with customer ID:', customer);
+        console.log('✅ Filling logs entry created with employee ID:', currentEmployeeId);
       } catch (logError) {
         console.error('⚠️ Error creating filling logs:', logError);
       }

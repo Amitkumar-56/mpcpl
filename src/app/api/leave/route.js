@@ -343,7 +343,6 @@ export async function PUT(request) {
       UPDATE leave_requests SET
         status = ?,
         approved_by = ?,
-        approved_date = NOW(),
         rejection_reason = ?,
         updated_at = NOW()
       WHERE id = ?

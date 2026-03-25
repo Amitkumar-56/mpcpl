@@ -345,14 +345,34 @@ export async function POST(request) {
       const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
 
       if (!balanceCheck.sufficient) {
+        console.log('❌ Balance check failed - blocking completion');
         return NextResponse.json({
-          success: true,
+          success: false,
+          error: balanceCheck.message || 'Insufficient balance to complete this request.',
           limitOverdue: true,
           limitTitle: balanceCheck.title || 'Credit Limit Overdue',
           isDayLimitExpired: balanceCheck.isDayLimitExpired || false,
+          totalUnpaidAmount: balanceCheck.totalUnpaidAmount || 0
+        }, { status: 400 }); // Return 400 to indicate client error
+      }
+    }
+
+    // ✅ Also check balance for Processing status to prevent issues later
+    if (status === 'Processing') {
+      const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
+
+      if (!balanceCheck.sufficient) {
+        console.log('❌ Balance check failed for Processing - warning only');
+        // For Processing, we allow but warn about future issues
+        return NextResponse.json({
+          success: false,
+          error: balanceCheck.message || 'Warning: This request may not be completed due to insufficient balance.',
+          limitOverdue: true,
+          limitTitle: balanceCheck.title || 'Credit Limit Warning',
+          isDayLimitExpired: balanceCheck.isDayLimitExpired || false,
           totalUnpaidAmount: balanceCheck.totalUnpaidAmount || 0,
-          message: balanceCheck.message || 'Balance/limit check failed.'
-        });
+          isWarning: true // Different flag for processing
+        }, { status: 400 });
       }
     }
 

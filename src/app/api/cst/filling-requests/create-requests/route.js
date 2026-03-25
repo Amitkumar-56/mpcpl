@@ -101,7 +101,11 @@ export async function POST(request) {
           [parseInt(customer_id)]
         );
         const unpaidDistinctDays = Array.isArray(unpaidDays) ? unpaidDays.map(r => (r.day_date instanceof Date ? r.day_date.toISOString().slice(0,10) : String(r.day_date))) : [];
-        const todayStr = new Date().toISOString().slice(0,10);
+        // Use Indian Standard Time for today's date
+        const now = new Date();
+        const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+        const istTime = new Date(now.getTime() + istOffset);
+        const todayStr = istTime.toISOString().slice(0,10);
         if (unpaidDistinctDays.length >= dayLimitVal) {
           const isSameDayAllowed = unpaidDistinctDays.includes(todayStr);
           if (!isSameDayAllowed) {
@@ -134,7 +138,11 @@ export async function POST(request) {
 
     // Generate OTP
     const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const currentDate = new Date().toISOString().slice(0, 19).replace('T', ' ');
+    // Use Indian Standard Time (IST) - UTC+5:30
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000; // 5.5 hours in milliseconds
+    const istTime = new Date(now.getTime() + istOffset);
+    const currentDate = istTime.toISOString().slice(0, 19).replace('T', ' ');
 
     let chosenSubProductId = sub_product_id ? parseInt(sub_product_id) : null;
     let productData = null;

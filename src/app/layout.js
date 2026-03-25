@@ -1,9 +1,9 @@
 // src/app/layout.js
+import DynamicManifest from '@/components/DynamicManifest';
+import PWARegister from '@/components/PWARegister';
+import SidebarController from '@/components/SidebarController';
 import { SessionProvider } from '@/context/SessionContext';
 import { SidebarProvider } from '@/context/SidebarContext';
-import SidebarController from '@/components/SidebarController';
-import PWARegister from '@/components/PWARegister';
-import DynamicManifest from '@/components/DynamicManifest';
 import './globals.css';
 
 export const metadata = {
