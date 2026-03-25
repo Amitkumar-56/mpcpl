@@ -103,9 +103,9 @@ export async function GET(request) {
       FROM old_filling_history ofh
       ${whereClause}
       ORDER BY ofh.filling_date DESC 
-      LIMIT ? OFFSET ?
+      LIMIT ${limit} OFFSET ${offset}
     `;
-    const result = await executeQuery(query, [...queryParams, limit, offset]);
+    const result = await executeQuery(query, queryParams);
     
     console.log('✅ Old filling history records:', result.length);
     console.log('📊 Total records:', totalCount);
