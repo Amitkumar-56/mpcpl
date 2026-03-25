@@ -35,6 +35,43 @@ export async function GET(request) {
     const customerId = customerResult[0].id;
     console.log('✅ Customer found, ID:', customerId);
     
+    // Check if old_filling_history table exists
+    let tableExists = false;
+    try {
+      const checkTableQuery = `
+        SELECT COUNT(*) as count 
+        FROM information_schema.tables 
+        WHERE table_schema = DATABASE() AND table_name = 'old_filling_history'
+      `;
+      const tableResult = await executeQuery(checkTableQuery);
+      tableExists = tableResult[0].count > 0;
+      console.log('📋 Table exists:', tableExists);
+    } catch (error) {
+      console.error('❌ Error checking table existence:', error);
+    }
+    
+    if (!tableExists) {
+      console.log('⚠️ old_filling_history table does not exist');
+      return NextResponse.json({
+        success: true,
+        history: [],
+        customerInfo: { 
+          id: customerId, 
+          name: customerResult[0].name,
+          email: email 
+        },
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalCount: 0,
+          limit: limit,
+          hasNextPage: false,
+          hasPrevPage: false
+        },
+        message: 'Old filling history table not found. This feature may not be available yet.'
+      });
+    }
+    
     // Build search conditions
     let whereClause = `WHERE ofh.cl_id = ?`;
     let queryParams = [customerId];

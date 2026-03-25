@@ -24,6 +24,7 @@ function OldFillingHistoryContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [customerInfo, setCustomerInfo] = useState(null);
+  const [infoMessage, setInfoMessage] = useState(null);
 
   // Fetch old filling history
   const fetchOldFillingHistory = async () => {
@@ -75,6 +76,7 @@ function OldFillingHistoryContent() {
       setHistoryData(data.history || []);
       setCustomerInfo(data.customerInfo || null);
       setTotalPages(data.pagination?.totalPages || 1);
+      setInfoMessage(data.message || null);
       
     } catch (error) {
       console.error('❌ Error fetching old filling history:', error);
@@ -322,6 +324,11 @@ function OldFillingHistoryContent() {
             <div className="text-center py-8">
               <BiCalendar className="mx-auto text-gray-400 text-4xl mb-4" />
               <p className="text-gray-500">No old filling history records found</p>
+              {infoMessage && (
+                <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800">{infoMessage}</p>
+                </div>
+              )}
               <p className="text-sm text-gray-400 mt-2">
                 This shows data from old filling history system only
               </p>
