@@ -8,8 +8,14 @@ export async function GET(request) {
     
     const { searchParams } = new URL(request.url);
     const email = searchParams.get('email');
+    const page = parseInt(searchParams.get('page')) || 1;
+    const search = searchParams.get('search') || '';
+    const limit = 10; // 10 records per page as requested
+    const offset = (page - 1) * limit;
     
     console.log('📧 Request Email:', email);
+    console.log('📄 Page:', page);
+    console.log('🔍 Search:', search);
 
     if (!email) {
       return NextResponse.json(
@@ -19,7 +25,7 @@ export async function GET(request) {
     }
 
     // Get customer info first
-    const customerQuery = `SELECT id FROM customers WHERE email = ? LIMIT 1`;
+    const customerQuery = `SELECT id, name FROM customers WHERE email = ? LIMIT 1`;
     const customerResult = await executeQuery(customerQuery, [email]);
     
     if (customerResult.length === 0) {
@@ -29,39 +35,77 @@ export async function GET(request) {
     const customerId = customerResult[0].id;
     console.log('✅ Customer found, ID:', customerId);
     
-    // Simple query to get old filling history with vehicle number
+    // Build search conditions
+    let whereClause = `WHERE ofh.cl_id = ?`;
+    let queryParams = [customerId];
+    
+    if (search) {
+      whereClause += ` AND (
+        ofh.pname LIKE ? OR 
+        ofh.amount LIKE ? OR 
+        ofh.filling_date LIKE ?
+      )`;
+      const searchParam = `%${search}%`;
+      queryParams.push(searchParam, searchParam, searchParam);
+    }
+    
+    // Get total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) as total
+      FROM old_filling_history ofh
+      ${whereClause}
+    `;
+    const countResult = await executeQuery(countQuery, queryParams);
+    const totalCount = countResult[0].total;
+    const totalPages = Math.ceil(totalCount / limit);
+    
+    // Get paginated data - simplified query to avoid join issues
     const query = `
       SELECT 
-        ofh.*,
-        ofr.vehicle_number
+        ofh.*
       FROM old_filling_history ofh
-      LEFT JOIN old_filling_requests ofr ON ofh.rid = ofr.rid
-      WHERE ofh.cl_id = ? 
+      ${whereClause}
       ORDER BY ofh.filling_date DESC 
-      LIMIT 50
+      LIMIT ? OFFSET ?
     `;
-    const result = await executeQuery(query, [customerId]);
+    const result = await executeQuery(query, [...queryParams, limit, offset]);
     
     console.log('✅ Old filling history records:', result.length);
+    console.log('📊 Total records:', totalCount);
+    console.log('📄 Total pages:', totalPages);
     
     return NextResponse.json({
       success: true,
       history: result,
-      customerInfo: { id: customerId, email: email },
+      customerInfo: { 
+        id: customerId, 
+        name: customerResult[0].name,
+        email: email 
+      },
       pagination: {
-        currentPage: 1,
-        totalPages: 1,
-        totalCount: result.length,
-        limit: 50
+        currentPage: page,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        limit: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1
       }
     });
 
   } catch (error) {
     console.error('❌ Old Filling History API Error:', error);
+    console.error('❌ Error Stack:', error.stack);
+    
+    // Log more details about the error
+    if (error.message && error.message.includes('Table')) {
+      console.error('❌ Table not found error - checking database schema');
+    }
+    
     return NextResponse.json(
       { 
         success: false,
-        error: 'Failed to fetch old filling history: ' + error.message 
+        error: 'Failed to fetch old filling history: ' + error.message,
+        details: process.env.NODE_ENV === 'development' ? error.stack : undefined
       },
       { status: 500 }
     );

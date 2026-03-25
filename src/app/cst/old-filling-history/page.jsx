@@ -67,7 +67,7 @@ function OldFillingHistoryContent() {
       const data = await response.json();
       
       if (!data.success) {
-        throw new Error(data.error || 'Failed to fetch old filling history');
+        throw new Error(data.error || data.details || 'Failed to fetch old filling history');
       }
 
       console.log('📊 Old Filling History Data:', data);
@@ -331,21 +331,101 @@ function OldFillingHistoryContent() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="mt-6 flex justify-center">
-            <div className="flex gap-2">
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
-                <button
-                  key={page}
-                  onClick={() => handlePageChange(page)}
-                  className={`px-3 py-2 rounded ${
-                    currentPage === page
-                      ? 'bg-orange-600 text-white'
-                      : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                  }`}
-                >
-                  {page}
-                </button>
-              ))}
+          <div className="mt-6 flex flex-col items-center gap-4">
+            <div className="text-sm text-gray-600">
+              Showing page {currentPage} of {totalPages} ({historyData.length} records)
+            </div>
+            <div className="flex items-center gap-2">
+              {/* Previous Button */}
+              <button
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className={`px-3 py-2 rounded ${
+                  currentPage === 1
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Previous
+              </button>
+
+              {/* Page Numbers */}
+              <div className="flex gap-1">
+                {(() => {
+                  const pages = [];
+                  const maxVisiblePages = 5;
+                  
+                  if (totalPages <= maxVisiblePages) {
+                    // Show all pages if total pages is less than or equal to max visible
+                    for (let i = 1; i <= totalPages; i++) {
+                      pages.push(i);
+                    }
+                  } else {
+                    // Show smart pagination
+                    if (currentPage <= 3) {
+                      // Show first 5 pages
+                      for (let i = 1; i <= 5; i++) {
+                        pages.push(i);
+                      }
+                      pages.push('...');
+                      pages.push(totalPages);
+                    } else if (currentPage >= totalPages - 2) {
+                      // Show last 5 pages
+                      pages.push(1);
+                      pages.push('...');
+                      for (let i = totalPages - 4; i <= totalPages; i++) {
+                        pages.push(i);
+                      }
+                    } else {
+                      // Show pages around current page
+                      pages.push(1);
+                      pages.push('...');
+                      for (let i = currentPage - 1; i <= currentPage + 1; i++) {
+                        pages.push(i);
+                      }
+                      pages.push('...');
+                      pages.push(totalPages);
+                    }
+                  }
+                  
+                  return pages.map((page, index) => {
+                    if (page === '...') {
+                      return (
+                        <span key={`ellipsis-${index}`} className="px-3 py-2 text-gray-500">
+                          ...
+                        </span>
+                      );
+                    }
+                    
+                    return (
+                      <button
+                        key={page}
+                        onClick={() => handlePageChange(page)}
+                        className={`px-3 py-2 rounded ${
+                          currentPage === page
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                        }`}
+                      >
+                        {page}
+                      </button>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Next Button */}
+              <button
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className={`px-3 py-2 rounded ${
+                  currentPage === totalPages
+                    ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                    : 'bg-white border border-gray-300 text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                Next
+              </button>
             </div>
           </div>
         )}
