@@ -1,3 +1,4 @@
+// src/app/api/salary-payslip-simple/route.js
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 

@@ -1,7 +1,8 @@
-import { NextResponse } from 'next/server';
-import { executeQuery } from '@/lib/db';
+// src/app/api/payment-release/route.js
 import { verifyToken } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
 import { cookies } from 'next/headers';
+import { NextResponse } from 'next/server';
 
 export async function GET(request) {
   try {
@@ -12,7 +13,7 @@ export async function GET(request) {
     // Get current user
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -45,7 +46,7 @@ export async function GET(request) {
 
     const userRole = parseInt(userInfo[0].role) || 0;
 
-    // Only Admin, Accountant, Team Leader can release payments
+    // Only Admin (5), Accountant (4), Team Leader (3) can release payments
     if (![5, 4, 3].includes(userRole)) {
       return NextResponse.json(
         { success: false, error: 'Access denied' },
@@ -57,7 +58,7 @@ export async function GET(request) {
     let query = `
       SELECT 
         sr.*,
-        ep.name as employee_name,
+        ep.name AS employee_name,
         ep.emp_code,
         ep.phone,
         ep.email,
@@ -71,31 +72,56 @@ export async function GET(request) {
 
     if (month) {
       query += ' AND sr.month = ?';
-      params.push(month);
+      params.push(parseInt(month));
     }
 
     if (year) {
       query += ' AND sr.year = ?';
-      params.push(year);
+      params.push(parseInt(year));
     }
 
     query += ' ORDER BY ep.name ASC';
 
     const salaryRecords = await executeQuery(query, params);
-    
-    // Get advances for these employees
-    const employeeIds = salaryRecords.map(s => s.employee_id);
-    let advances = [];
-    
-    if (employeeIds.length > 0) {
-      const advancesQuery = `
-        SELECT * FROM advances 
-        WHERE employee_id IN (${employeeIds.join(',')}) 
-        AND status = 'approved'
-        ORDER BY employee_id
-      `;
-      advances = await executeQuery(advancesQuery);
+
+    if (salaryRecords.length === 0) {
+      return NextResponse.json({
+        success: true,
+        data: [],
+        stats: {
+          totalEmployees: 0,
+          totalNetSalary: 0,
+          totalAdvances: 0,
+          finalTotal: 0
+        },
+        count: 0
+      });
     }
+
+    // Get advances for these employees using placeholders (fix SQL injection)
+    const employeeIds = salaryRecords.map(s => s.employee_id);
+    const placeholders = employeeIds.map(() => '?').join(',');
+
+    // FIX: Also filter advances by month/year so only relevant advances are deducted
+    let advancesQuery = `
+      SELECT * FROM advances 
+      WHERE employee_id IN (${placeholders}) 
+      AND status = 'approved'
+    `;
+    const advancesParams = [...employeeIds];
+
+    if (month) {
+      advancesQuery += ' AND MONTH(created_at) = ?';
+      advancesParams.push(parseInt(month));
+    }
+    if (year) {
+      advancesQuery += ' AND YEAR(created_at) = ?';
+      advancesParams.push(parseInt(year));
+    }
+
+    advancesQuery += ' ORDER BY employee_id';
+
+    const advances = await executeQuery(advancesQuery, advancesParams);
 
     // Group advances by employee
     const advancesByEmployee = {};
@@ -107,15 +133,20 @@ export async function GET(request) {
     });
 
     // Combine salary records data with advances
-    const combinedData = salaryRecords.map(payment => ({
-      ...payment,
-      advances: advancesByEmployee[payment.employee_id] || [],
-      totalAdvanceAmount: (advancesByEmployee[payment.employee_id] || [])
-        .reduce((sum, advance) => sum + parseFloat(advance.amount || 0), 0),
-      finalNetSalary: parseFloat(payment.net_salary || 0) - 
-        (advancesByEmployee[payment.employee_id] || [])
-          .reduce((sum, advance) => sum + parseFloat(advance.amount || 0), 0)
-    }));
+    const combinedData = salaryRecords.map(payment => {
+      const empAdvances = advancesByEmployee[payment.employee_id] || [];
+      const totalAdvanceAmount = empAdvances.reduce(
+        (sum, advance) => sum + parseFloat(advance.amount || 0),
+        0
+      );
+      const netSalary = parseFloat(payment.net_salary || 0);
+      return {
+        ...payment,
+        advances: empAdvances,
+        totalAdvanceAmount,
+        finalNetSalary: netSalary - totalAdvanceAmount
+      };
+    });
 
     const stats = {
       totalEmployees: combinedData.length,
@@ -130,7 +161,7 @@ export async function GET(request) {
       stats,
       count: combinedData.length
     });
-    
+
   } catch (error) {
     console.error('Error fetching payment release data:', error);
     return NextResponse.json(
@@ -143,8 +174,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { 
-      month, 
+    const {
+      month,
       year,
       payment_date,
       payment_method,
@@ -162,7 +193,7 @@ export async function POST(request) {
     // Get current user
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -195,7 +226,7 @@ export async function POST(request) {
 
     const userRole = parseInt(userInfo[0].role) || 0;
 
-    // Only Admin, Accountant, Team Leader can release payments
+    // Only Admin (5), Accountant (4), Team Leader (3) can release payments
     if (![5, 4, 3].includes(userRole)) {
       return NextResponse.json(
         { success: false, error: 'Access denied' },
@@ -203,18 +234,20 @@ export async function POST(request) {
       );
     }
 
-    // Get selected salaries or all pending salaries
+    // Build query with proper parameterized placeholders
     let query = `
-      SELECT sr.*, ep.name as employee_name
+      SELECT sr.*, ep.name AS employee_name
       FROM salary_records sr
       JOIN employee_profile ep ON sr.employee_id = ep.id
       WHERE sr.status = 'pending' AND sr.month = ? AND sr.year = ?
     `;
+    const params = [parseInt(month), parseInt(year)];
 
-    const params = [month, year];
-
+    // FIX: Use parameterized placeholders for selected_employees
     if (selected_employees && selected_employees.length > 0) {
-      query += ` AND sr.employee_id IN (${selected_employees.join(',')})`;
+      const empPlaceholders = selected_employees.map(() => '?').join(',');
+      query += ` AND sr.employee_id IN (${empPlaceholders})`;
+      params.push(...selected_employees);
     }
 
     const salariesToRelease = await executeQuery(query, params);
@@ -226,7 +259,7 @@ export async function POST(request) {
       );
     }
 
-    // Update all selected salaries
+    // Update salary records one-by-one with parameterized queries
     const updateQuery = `
       UPDATE salary_records SET
         status = 'released',
@@ -235,26 +268,26 @@ export async function POST(request) {
       WHERE id = ?
     `;
 
-    const releasePromises = salariesToRelease.map(salary => 
+    const releasePromises = salariesToRelease.map(salary =>
       executeQuery(updateQuery, [payment_date, salary.id])
     );
-
     await Promise.all(releasePromises);
 
-    // Mark advances as repaid
+    // FIX: Mark advances as repaid using parameterized placeholders
     const employeeIds = salariesToRelease.map(s => s.employee_id);
     if (employeeIds.length > 0) {
+      const empPlaceholders = employeeIds.map(() => '?').join(',');
       const updateAdvancesQuery = `
         UPDATE advances SET
           status = 'repaid',
           repayment_date = ?,
           updated_at = NOW()
-        WHERE employee_id IN (${employeeIds.join(',')}) AND status = 'approved'
+        WHERE employee_id IN (${empPlaceholders}) AND status = 'approved'
       `;
-      await executeQuery(updateAdvancesQuery, [payment_date]);
+      await executeQuery(updateAdvancesQuery, [payment_date, ...employeeIds]);
     }
 
-    // Create payment release record
+    // Create payment release summary record (optional: persist to DB if table exists)
     const releaseRecord = {
       month,
       year,
@@ -262,20 +295,23 @@ export async function POST(request) {
       payment_method: payment_method || 'bank',
       remarks: remarks || '',
       total_employees: salariesToRelease.length,
-      total_amount: salariesToRelease.reduce((sum, s) => sum + parseFloat(s.net_salary || 0), 0),
+      total_amount: salariesToRelease.reduce(
+        (sum, s) => sum + parseFloat(s.net_salary || 0),
+        0
+      ),
       created_by: currentUserId
     };
 
-    // Log the release
     console.log('Payment release completed:', releaseRecord);
 
     return NextResponse.json({
       success: true,
-      message: `Successfully released payments for ${salariesToRelease.length} employees`,
+      message: `Successfully released payments for ${salariesToRelease.length} employee${salariesToRelease.length > 1 ? 's' : ''}`,
       data: {
         releaseRecord,
         releasedEmployees: salariesToRelease.map(s => ({
           id: s.id,
+          employee_id: s.employee_id,
           employee_name: s.employee_name,
           net_salary: s.net_salary
         }))

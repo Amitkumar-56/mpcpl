@@ -1,4 +1,3 @@
-// src/app/leave/page.jsx
 "use client";
 
 import Footer from "@/components/Footer";
@@ -6,633 +5,406 @@ import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
-// Loading component for Suspense fallback
-function LeaveManagementSkeleton() {
-  return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
-        <Sidebar />
-      </div>
-      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
-        <div className="flex-shrink-0">
-          <Header />
-        </div>
-
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
-            <div className="mb-4 sm:mb-6 flex justify-between items-center">
-              <div>
-                <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-64 bg-gray-200 rounded mt-2 animate-pulse"></div>
-              </div>
-              <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
-            </div>
-
-            {/* Filters Skeleton */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {[1, 2, 3].map((i) => (
-                  <div key={i}>
-                    <div className="h-4 w-16 bg-gray-200 rounded mb-2 animate-pulse"></div>
-                    <div className="h-10 w-full bg-gray-200 rounded animate-pulse"></div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Table Skeleton */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="p-8">
-                <div className="space-y-4">
-                  {[1, 2, 3, 4, 5].map((i) => (
-                    <div key={i} className="flex space-x-4">
-                      <div className="h-12 w-1/6 bg-gray-200 rounded animate-pulse"></div>
-                      <div className="h-12 w-1/6 bg-gray-200 rounded animate-pulse"></div>
-                      <div className="h-12 w-1/6 bg-gray-200 rounded animate-pulse"></div>
-                      <div className="h-12 w-1/6 bg-gray-200 rounded animate-pulse"></div>
-                      <div className="h-12 w-1/6 bg-gray-200 rounded animate-pulse"></div>
-                      <div className="h-12 w-1/6 bg-gray-200 rounded animate-pulse"></div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        </main>
-
-        <div className="flex-shrink-0">
-          <Footer />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Main component with Suspense
-export default function LeaveManagement() {
-  return (
-    <Suspense fallback={<LeaveManagementSkeleton />}>
-      <LeaveManagementContent />
-    </Suspense>
-  );
-}
-
-// Actual content component
-function LeaveManagementContent() {
+export default function LeaveApplicationForm() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
-  const [leaveRequests, setLeaveRequests] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const printRef = useRef(null);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState("");
-  const [showApplyModal, setShowApplyModal] = useState(false);
-  const [selectedStatus, setSelectedStatus] = useState("");
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const today = new Date().toISOString().split("T")[0];
+
+  // Only the 4 fields that existing POST /api/leave accepts
   const [formData, setFormData] = useState({
     leave_type: "Sick Leave",
     from_date: "",
     to_date: "",
-    reason: ""
+    reason: "",
   });
 
   useEffect(() => {
-    if (!authLoading && !user) {
-      router.push("/login");
-      return;
-    }
+    if (!authLoading && !user) router.push("/login");
+  }, [user, authLoading]);
 
-    if (user) {
-      fetchLeaveRequests();
-    }
-  }, [user, authLoading, selectedStatus, selectedYear]);
-
-  const fetchLeaveRequests = async () => {
-    try {
-      setLoading(true);
-      setError("");
-      let url = `/api/leave?year=${selectedYear}`;
-      
-      if (selectedStatus) {
-        url += `&status=${selectedStatus}`;
-      }
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (data.success) {
-        setLeaveRequests(data.data || []);
-      } else {
-        setError(data.error || "Failed to fetch leave requests");
-      }
-    } catch (error) {
-      console.error('Error fetching leave requests:', error);
-      setError("Failed to load leave requests");
-    } finally {
-      setLoading(false);
-    }
+  const totalDays = () => {
+    if (!formData.from_date || !formData.to_date) return 0;
+    const from = new Date(formData.from_date);
+    const to   = new Date(formData.to_date);
+    const diff = Math.ceil((to - from) / (1000 * 60 * 60 * 24)) + 1;
+    return diff > 0 ? diff : 0;
   };
 
-  const handleApplyLeave = async (e) => {
+  const days = totalDays();
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      setError("");
-      const response = await fetch('/api/leave', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(formData),
-      });
+    if (!formData.leave_type) { setError("Please select a leave type."); return; }
+    if (!formData.from_date || !formData.to_date) { setError("Please select dates."); return; }
+    if (days <= 0) { setError("To Date must be on or after From Date."); return; }
+    if (!formData.reason.trim()) { setError("Please provide a reason."); return; }
 
-      const data = await response.json();
-      
-      if (data.success) {
-        setShowApplyModal(false);
-        setFormData({
-          leave_type: "Sick Leave",
-          from_date: "",
-          to_date: "",
-          reason: ""
-        });
-        fetchLeaveRequests();
-      } else {
-        setError(data.error || "Failed to submit leave request");
-      }
-    } catch (error) {
-      console.error('Error submitting leave request:', error);
-      setError("Failed to submit leave request");
-    }
-  };
-
-  const handleUpdateStatus = async (id, status, rejectionReason = "") => {
     try {
+      setSubmitting(true);
       setError("");
-      const response = await fetch('/api/leave', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+      // Exact same payload as the original apply modal
+      const res = await fetch("/api/leave", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          id,
-          status,
-          rejection_reason: rejectionReason
+          leave_type: formData.leave_type,
+          from_date:  formData.from_date,
+          to_date:    formData.to_date,
+          reason:     formData.reason,
         }),
       });
-
-      const data = await response.json();
-      
+      const data = await res.json();
       if (data.success) {
-        fetchLeaveRequests();
+        setSubmitted(true);
       } else {
-        setError(data.error || "Failed to update leave request");
+        setError(data.error || "Submission failed.");
       }
-    } catch (error) {
-      console.error('Error updating leave request:', error);
-      setError("Failed to update leave request");
+    } catch {
+      setError("Network error. Please try again.");
+    } finally {
+      setSubmitting(false);
     }
   };
 
-  const getStatusBadge = (status) => {
-    const badges = {
-      'Pending': 'bg-yellow-100 text-yellow-800',
-      'Approved': 'bg-green-100 text-green-800',
-      'Rejected': 'bg-red-100 text-red-800',
-      'Cancelled': 'bg-gray-100 text-gray-800'
-    };
-    return badges[status] || 'bg-gray-100 text-gray-800';
+  const handlePrint = () => window.print();
+
+  const handleReset = () => {
+    setFormData({ leave_type: "Sick Leave", from_date: "", to_date: "", reason: "" });
+    setSubmitted(false);
+    setError("");
   };
 
-  const getLeaveTypeColor = (type) => {
-    const colors = {
-      'Sick Leave': 'text-red-600',
-      'Casual Leave': 'text-blue-600',
-      'Annual Leave': 'text-green-600',
-      'Maternity Leave': 'text-purple-600',
-      'Paternity Leave': 'text-indigo-600',
-      'Unpaid Leave': 'text-gray-600'
-    };
-    return colors[type] || 'text-gray-600';
-  };
+  if (authLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-emerald-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-700" />
+      </div>
+    );
+  }
 
-  const calculateDays = (fromDate, toDate) => {
-    const from = new Date(fromDate);
-    const to = new Date(toDate);
-    const timeDiff = to - from;
-    return Math.ceil(timeDiff / (1000 * 60 * 60 * 24)) + 1;
-  };
-
-  const canApproveReject = () => {
-    return user && [3, 4, 5].includes(user.role);
-  };
+  const leaveTypes = [
+    { value: "Sick Leave",      code: "SL", color: "red"    },
+    { value: "Casual Leave",    code: "CL", color: "blue"   },
+    { value: "Annual Leave",    code: "AL", color: "green"  },
+    { value: "Maternity Leave", code: "ML", color: "purple" },
+    { value: "Paternity Leave", code: "PL", color: "indigo" },
+    { value: "Unpaid Leave",    code: "UL", color: "gray"   },
+  ];
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-stone-50">
       <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
       </div>
+
       <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 no-print">
           <Header />
         </div>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
-            <div className="flex items-center gap-3 mb-4">
-              <button
-                onClick={() => router.back()}
-                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
-                title="Go Back"
-              >
-                ←
-              </button>
-            </div>
-            
-            <div className="mb-4 sm:mb-6 flex justify-between items-center">
+        <main className="flex-1 py-6 px-4 sm:px-6 lg:px-10">
+          {/* Back */}
+          <button
+            onClick={() => router.back()}
+            className="no-print mb-5 flex items-center gap-1.5 text-emerald-700 hover:text-emerald-900 text-sm font-medium transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+            Back to Leave Management
+          </button>
+
+          {/* ── Printable Form ── */}
+          <div
+            ref={printRef}
+            className="max-w-3xl mx-auto bg-white rounded-2xl shadow-md border border-emerald-100 overflow-hidden"
+          >
+
+            {/* Company Header */}
+            <div className="bg-gradient-to-r from-emerald-900 via-emerald-800 to-teal-700 px-8 py-7 flex items-center gap-6">
+              <div className="w-16 h-16 rounded-full bg-white flex items-center justify-center shadow-lg flex-shrink-0">
+                <svg viewBox="0 0 60 60" className="w-11 h-11" fill="none">
+                  <circle cx="30" cy="30" r="28" fill="#d1fae5" />
+                  <path d="M30 12 C30 12,14 28,14 38 a16 16 0 0 0 32 0 C46 28 30 12 30 12Z" fill="#059669" opacity="0.9"/>
+                  <path d="M30 22 C30 22,22 33,22 39 a8 8 0 0 0 16 0 C38 33 30 22 30 22Z" fill="#d1fae5" opacity="0.7"/>
+                </svg>
+              </div>
               <div>
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
-                  Leave Management
-                </h1>
-                <p className="text-gray-600 mt-1 text-xs sm:text-sm lg:text-base">
-                  Apply and manage leave requests
+                <h1 className="text-white text-2xl font-bold tracking-wide">Gyanti Multiservices Pvt Ltd</h1>
+                <p className="text-emerald-200 text-xs mt-1 tracking-widest uppercase">
+                  NAKHA NO 1, MOHARIPUR, GORAKHPUR – 273001 &nbsp;|&nbsp; State: Uttar Pradesh
                 </p>
               </div>
-              <button
-                onClick={() => setShowApplyModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
-              >
-                Apply for Leave
-              </button>
             </div>
 
-            {/* Filters */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Status
-                  </label>
-                  <select
-                    value={selectedStatus}
-                    onChange={(e) => setSelectedStatus(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="">All Status</option>
-                    <option value="Pending">Pending</option>
-                    <option value="Approved">Approved</option>
-                    <option value="Rejected">Rejected</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Year
-                  </label>
-                  <select
-                    value={selectedYear}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {Array.from({length: 5}, (_, i) => (
-                      <option key={new Date().getFullYear() - i} value={new Date().getFullYear() - i}>
-                        {new Date().getFullYear() - i}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    onClick={fetchLeaveRequests}
-                    disabled={loading}
-                    className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors font-medium disabled:bg-gray-400"
-                  >
-                    {loading ? 'Loading...' : 'Filter'}
-                  </button>
-                </div>
-              </div>
+            {/* Title Strip */}
+            <div className="bg-emerald-50 border-b border-emerald-200 py-3 text-center">
+              <span className="text-emerald-800 font-semibold tracking-[0.2em] uppercase text-sm">
+                ◆ &nbsp; Leave Application Form &nbsp; ◆
+              </span>
             </div>
 
-            {/* Error Message */}
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
-                {error}
+            {/* Success Banner */}
+            {submitted && (
+              <div className="mx-6 mt-6 bg-emerald-50 border border-emerald-300 rounded-xl px-5 py-4 flex items-start gap-3">
+                <div className="w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <div>
+                  <p className="font-semibold text-emerald-800">Leave request submitted successfully!</p>
+                  <p className="text-emerald-600 text-sm mt-0.5">Pending approval. You can print this form now.</p>
+                </div>
               </div>
             )}
 
-            {/* Leave Requests Table */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              {loading ? (
-                <div className="p-8 text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                  <p className="mt-4 text-gray-600">Loading leave requests...</p>
-                </div>
-              ) : leaveRequests.length === 0 ? (
-                <div className="p-8 text-center text-gray-500">
-                  <p>No leave requests found.</p>
-                </div>
-              ) : (
-                <>
-                  {/* Desktop Table View */}
-                  <div className="hidden lg:block overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="bg-gray-50">
-                        <tr>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Employee
-                          </th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Leave Type
-                          </th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Period
-                          </th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Days
-                          </th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Reason
-                          </th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Status
-                          </th>
-                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
-                            Applied On
-                          </th>
-                          <th className="px-4 py-3 text-center text-sm font-semibold text-gray-700 border-b">
-                            Actions
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-200">
-                        {leaveRequests.map((request) => (
-                          <tr key={request.id} className="hover:bg-gray-50">
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              <div>
-                                <div className="font-medium">{request.employee_name}</div>
-                                <div className="text-xs text-gray-500">{request.emp_code}</div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm">
-                              <span className={`font-medium ${getLeaveTypeColor(request.leave_type)}`}>
-                                {request.leave_type}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              <div>
-                                <div>{new Date(request.from_date).toLocaleDateString('en-IN')}</div>
-                                <div className="text-xs text-gray-500">to {new Date(request.to_date).toLocaleDateString('en-IN')}</div>
-                              </div>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900 font-medium">
-                              {request.total_days} {request.total_days === 1 ? 'day' : 'days'}
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              <div className="max-w-xs truncate" title={request.reason}>
-                                {request.reason}
-                              </div>
-                            </td>
-                            <td className="px-4 py-3">
-                              <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(request.status)}`}>
-                                {request.status}
-                              </span>
-                            </td>
-                            <td className="px-4 py-3 text-sm text-gray-900">
-                              {new Date(request.created_at).toLocaleDateString('en-IN')}
-                            </td>
-                            <td className="px-4 py-3 text-center">
-                              <div className="flex items-center justify-center gap-2">
-                                {request.status === 'Pending' && canApproveReject() && (
-                                  <>
-                                    <button
-                                      onClick={() => handleUpdateStatus(request.id, 'Approved')}
-                                      className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
-                                    >
-                                      Approve
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        const reason = prompt('Enter rejection reason:');
-                                        if (reason) {
-                                          handleUpdateStatus(request.id, 'Rejected', reason);
-                                        }
-                                      }}
-                                      className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
-                                    >
-                                      Reject
-                                    </button>
-                                  </>
-                                )}
-                                {request.status === 'Pending' && request.employee_id === user?.id && (
-                                  <button
-                                    onClick={() => handleUpdateStatus(request.id, 'Cancelled')}
-                                    className="px-3 py-1 bg-gray-600 text-white text-xs rounded hover:bg-gray-700 transition-colors"
-                                  >
-                                    Cancel
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+            <form onSubmit={handleSubmit} className="px-6 sm:px-10 py-8 space-y-8">
 
-                  {/* Mobile Card View */}
-                  <div className="lg:hidden space-y-4 p-4">
-                    {leaveRequests.map((request) => (
-                      <div key={request.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <div className="font-semibold text-base text-gray-900">{request.employee_name}</div>
-                            <div className="text-xs text-gray-500">{request.emp_code}</div>
-                          </div>
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(request.status)}`}>
-                            {request.status}
-                          </span>
+              {/* ── 1. Employee Info ── */}
+              <Section title="Employee Information">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-5">
+                  <Field label="Employee Name">
+                    <UnderlineInput readOnly value={user?.name || ""} placeholder="Full Name" />
+                  </Field>
+                  <Field label="Employee ID">
+                    <UnderlineInput readOnly value={user?.emp_code || ""} placeholder="EMP-XXXX" />
+                  </Field>
+                  <Field label="Department / Designation">
+                    <UnderlineInput readOnly value={user?.department || user?.designation || ""} placeholder="Department / Designation" />
+                  </Field>
+                  <Field label="Reporting Manager">
+                    <UnderlineInput readOnly value={user?.manager_name || ""} placeholder="Manager Name" />
+                  </Field>
+                </div>
+              </Section>
+
+              {/* ── 2. Leave Type ── */}
+              <Section title="Type of Leave — Select One ✓">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {leaveTypes.map(({ value, code }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => handleChange("leave_type", value)}
+                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 text-left transition-all ${
+                        formData.leave_type === value
+                          ? "border-emerald-500 bg-emerald-50 shadow-sm"
+                          : "border-gray-200 bg-white hover:border-emerald-300"
+                      }`}
+                    >
+                      <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                        formData.leave_type === value ? "border-emerald-500 bg-emerald-500" : "border-gray-300"
+                      }`}>
+                        {formData.leave_type === value && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                      </div>
+                      <div>
+                        <div className={`font-bold text-base leading-none ${formData.leave_type === value ? "text-emerald-700" : "text-gray-700"}`}>
+                          {code}
                         </div>
-                        
-                        <div className="space-y-2 mb-3 text-sm">
-                          <div>
-                            <span className={`font-medium ${getLeaveTypeColor(request.leave_type)}`}>
-                              {request.leave_type}
-                            </span>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Period</div>
-                            <div className="font-medium">
-                              {new Date(request.from_date).toLocaleDateString('en-IN')} - {new Date(request.to_date).toLocaleDateString('en-IN')}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Duration</div>
-                            <div className="font-medium">{request.total_days} {request.total_days === 1 ? 'day' : 'days'}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Reason</div>
-                            <div className="text-sm text-gray-700">{request.reason}</div>
-                          </div>
-                          <div>
-                            <div className="text-xs text-gray-500">Applied On</div>
-                            <div className="font-medium">{new Date(request.created_at).toLocaleDateString('en-IN')}</div>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-2 pt-3 border-t">
-                          {request.status === 'Pending' && canApproveReject() && (
-                            <>
-                              <button
-                                onClick={() => handleUpdateStatus(request.id, 'Approved')}
-                                className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
-                              >
-                                Approve
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const reason = prompt('Enter rejection reason:');
-                                  if (reason) {
-                                    handleUpdateStatus(request.id, 'Rejected', reason);
-                                  }
-                                }}
-                                className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
-                              >
-                                Reject
-                              </button>
-                            </>
-                          )}
-                          {request.status === 'Pending' && request.employee_id === user?.id && (
-                            <button
-                              onClick={() => handleUpdateStatus(request.id, 'Cancelled')}
-                              className="w-full px-3 py-2 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 transition-colors"
-                            >
-                              Cancel
-                            </button>
-                          )}
-                        </div>
+                        <div className="text-[11px] text-gray-400 mt-0.5 leading-tight">{value}</div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </Section>
+
+              {/* ── 3. Leave Dates ── */}
+              <Section title="Leave Period">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-8 gap-y-5 items-end">
+                  <Field label="From Date *">
+                    <UnderlineInput
+                      type="date"
+                      value={formData.from_date}
+                      onChange={v => handleChange("from_date", v)}
+                      min={today}
+                      required
+                    />
+                  </Field>
+                  <Field label="To Date *">
+                    <UnderlineInput
+                      type="date"
+                      value={formData.to_date}
+                      onChange={v => handleChange("to_date", v)}
+                      min={formData.from_date || today}
+                      required
+                    />
+                  </Field>
+                  <Field label="No. of Days">
+                    <div className="border-b-2 border-emerald-400 py-2 text-center text-xl font-bold text-emerald-700 bg-emerald-50/50 rounded-t-lg">
+                      {days > 0 ? `${days} ${days === 1 ? "Day" : "Days"}` : "Auto"}
+                    </div>
+                  </Field>
+                </div>
+              </Section>
+
+              {/* ── 4. Reason ── */}
+              <Section title="Reason for Leave">
+                <Field label="Please describe the reason *">
+                  <textarea
+                    value={formData.reason}
+                    onChange={e => handleChange("reason", e.target.value)}
+                    required
+                    rows={4}
+                    placeholder="Please describe the reason for your leave request..."
+                    className="w-full border border-emerald-200 rounded-xl px-4 py-3 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-emerald-50/20 placeholder-gray-300 resize-none transition"
+                  />
+                </Field>
+              </Section>
+
+              {/* ── 5. Signatures ── */}
+              <Section title="Declaration & Signatures">
+                <div className="space-y-5">
+                  <div className="max-w-xs">
+                    <Field label="Application Date">
+                      <UnderlineInput
+                        type="date"
+                        value={today}
+                        readOnly
+                      />
+                    </Field>
+                  </div>
+                  <div className="grid grid-cols-3 gap-6 pt-2">
+                    {["Employee Signature", "HR / Admin Signature", "Manager Approval"].map(sig => (
+                      <div key={sig} className="flex flex-col items-center gap-2">
+                        <div className="w-full h-14 border-b-2 border-dashed border-gray-300" />
+                        <span className="text-[10px] font-semibold uppercase tracking-widest text-gray-400 text-center leading-tight">
+                          {sig}
+                        </span>
                       </div>
                     ))}
                   </div>
-                </>
+                </div>
+              </Section>
+
+              {/* Error */}
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm flex items-center gap-2">
+                  <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {error}
+                </div>
               )}
+
+              {/* Buttons */}
+              <div className="flex flex-col sm:flex-row gap-3 pt-2 no-print border-t border-gray-100">
+                <button
+                  type="button"
+                  onClick={handleReset}
+                  className="sm:flex-none px-5 py-2.5 border-2 border-gray-200 text-gray-600 rounded-xl font-medium hover:bg-gray-50 transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  Reset
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  className="sm:flex-none px-5 py-2.5 border-2 border-gray-700 text-gray-700 rounded-xl font-medium hover:bg-gray-800 hover:text-white transition-colors text-sm flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  Print / Save PDF
+                </button>
+
+                {!submitted && (
+                  <button
+                    type="submit"
+                    disabled={submitting}
+                    className="flex-1 px-6 py-2.5 bg-emerald-700 text-white rounded-xl font-semibold hover:bg-emerald-800 transition-colors text-sm flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+                  >
+                    {submitting ? (
+                      <><div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Submitting...</>
+                    ) : (
+                      <><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                      </svg> Submit Request</>
+                    )}
+                  </button>
+                )}
+              </div>
+            </form>
+
+            {/* Footer */}
+            <div className="bg-gray-50 border-t border-gray-100 py-3 px-8 text-center text-xs text-gray-400">
+              Gyanti Multiservices Pvt Ltd &nbsp;|&nbsp; NAKHA NO 1, MOHARIPUR, GORAKHPUR-273001, UP
             </div>
           </div>
         </main>
 
-        <div className="flex-shrink-0">
+        <div className="flex-shrink-0 no-print">
           <Footer />
         </div>
       </div>
 
-      {/* Apply Leave Modal */}
-      {showApplyModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3 sm:p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-bold text-gray-900">Apply for Leave</h2>
-                <button
-                  onClick={() => {
-                    setShowApplyModal(false);
-                    setError("");
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-
-              <form onSubmit={handleApplyLeave}>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Leave Type <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={formData.leave_type}
-                      onChange={(e) => setFormData({ ...formData, leave_type: e.target.value })}
-                      required
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    >
-                      <option value="Sick Leave">Sick Leave</option>
-                      <option value="Casual Leave">Casual Leave</option>
-                      <option value="Annual Leave">Annual Leave</option>
-                      <option value="Maternity Leave">Maternity Leave</option>
-                      <option value="Paternity Leave">Paternity Leave</option>
-                      <option value="Unpaid Leave">Unpaid Leave</option>
-                    </select>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        From Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.from_date}
-                        onChange={(e) => setFormData({ ...formData, from_date: e.target.value })}
-                        required
-                        min={new Date().toISOString().split('T')[0]}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-semibold text-gray-700 mb-2">
-                        To Date <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="date"
-                        value={formData.to_date}
-                        onChange={(e) => setFormData({ ...formData, to_date: e.target.value })}
-                        required
-                        min={formData.from_date || new Date().toISOString().split('T')[0]}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Reason <span className="text-red-500">*</span>
-                    </label>
-                    <textarea
-                      value={formData.reason}
-                      onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                      required
-                      rows={4}
-                      placeholder="Please provide a reason for your leave request..."
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 mt-6">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowApplyModal(false);
-                      setError("");
-                    }}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors font-medium"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
-                  >
-                    Submit Request
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        </div>
-      )}
+      <style jsx global>{`
+        @media print {
+          .no-print { display: none !important; }
+          body { background: white !important; }
+          .shadow-md, .shadow-lg { box-shadow: none !important; }
+        }
+      `}</style>
     </div>
+  );
+}
+
+/* ─── Reusable Sub-components ─── */
+
+function Section({ title, children }) {
+  return (
+    <div>
+      <div className="flex items-center gap-3 mb-5">
+        <div className="h-px flex-1 bg-emerald-100" />
+        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-600 whitespace-nowrap px-1">
+          {title}
+        </span>
+        <div className="h-px flex-1 bg-emerald-100" />
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-[10px] font-bold uppercase tracking-[0.15em] text-gray-400">{label}</label>
+      {children}
+    </div>
+  );
+}
+
+function UnderlineInput({ value, onChange, readOnly, placeholder, type = "text", min, required }) {
+  return (
+    <input
+      type={type}
+      value={value}
+      onChange={onChange ? e => onChange(e.target.value) : undefined}
+      readOnly={readOnly}
+      placeholder={placeholder}
+      min={min}
+      required={required}
+      className={`w-full border-0 border-b-2 py-2 px-0 text-sm focus:outline-none transition-colors bg-transparent
+        ${readOnly
+          ? "border-gray-200 text-gray-500 cursor-default"
+          : "border-emerald-200 text-gray-800 focus:border-emerald-500"
+        } placeholder-gray-300`}
+    />
   );
 }

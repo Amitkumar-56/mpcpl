@@ -1,3 +1,4 @@
+// src/app/api/salary-payment-connected/route.js
 import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 import { verifyToken } from '@/lib/auth';
