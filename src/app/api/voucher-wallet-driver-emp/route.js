@@ -67,14 +67,12 @@ export async function GET(request) {
           c.name AS emp_name,
           fs.station_name,
           approver.name AS approved_by_name,
-          rejecter.name AS rejected_by_name,
           (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1) AS last_advance_given_by,
           (SELECT giver.name FROM employee_profile giver WHERE giver.id = (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1)) AS last_advance_given_by_name
         FROM vouchers v
         LEFT JOIN filling_stations fs ON v.station_id = fs.id
         LEFT JOIN employee_profile c ON v.emp_id = c.id
         LEFT JOIN employee_profile approver ON v.approved_by = approver.id
-        LEFT JOIN employee_profile rejecter ON v.rejected_by = rejecter.id
         WHERE 1=1
       `;
     } else {
@@ -85,14 +83,12 @@ export async function GET(request) {
           c.name AS emp_name,
           fs.station_name,
           approver.name AS approved_by_name,
-          rejecter.name AS rejected_by_name,
           (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1) AS last_advance_given_by,
           (SELECT giver.name FROM employee_profile giver WHERE giver.id = (SELECT ah.given_by FROM advance_history ah WHERE ah.voucher_id = v.voucher_id ORDER BY ah.id DESC LIMIT 1)) AS last_advance_given_by_name
         FROM vouchers v
         LEFT JOIN filling_stations fs ON v.station_id = fs.id
         LEFT JOIN employee_profile c ON v.emp_id = c.id
         LEFT JOIN employee_profile approver ON v.approved_by = approver.id
-        LEFT JOIN employee_profile rejecter ON v.rejected_by = rejecter.id
         WHERE v.station_id IN (?) ${subs}
       `;
       params = [fs_id];

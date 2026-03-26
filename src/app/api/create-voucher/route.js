@@ -1,7 +1,7 @@
 import { createAuditLog } from '@/lib/auditLog';
 import { verifyToken } from '@/lib/auth';
 import { executeQuery } from '@/lib/db';
-import { createEntityLog } from '@/lib/entityLogs';
+// import { createEntityLog } from '@/lib/entityLogs';
 import { cookies } from 'next/headers';
 import { NextResponse } from 'next/server';
 
@@ -92,18 +92,10 @@ export async function POST(request) {
       );
     }
 
-    // Get arrays of items
+    // Get arrays of items (optional now)
     const item_details = formData.getAll('item_details[]');
     const amounts = formData.getAll('amount[]');
     const images = formData.getAll('image[]');
-
-    // Validate items
-    if (item_details.length === 0) {
-      return NextResponse.json(
-        { error: 'At least one voucher item is required' },
-        { status: 400 }
-      );
-    }
 
     // Calculate remaining amount (pending) = total_expense - advance
     const remaining_amount = total_expense - advance;
@@ -156,24 +148,26 @@ export async function POST(request) {
 
     const voucherId = voucherResult.insertId;
 
-    // Insert voucher items
-    const itemQuery = `
-      INSERT INTO vouchers_items 
-      (voucher_id, item_details, amount, image, created_at) 
-      VALUES (?, ?, ?, ?, NOW())
-    `;
+    // Insert voucher items only if they exist and have valid data
+    if (item_details.length > 0 && item_details[0] && item_details[0].trim() !== '') {
+      const itemQuery = `
+        INSERT INTO vouchers_items 
+        (voucher_id, item_details, amount, image, created_at) 
+        VALUES (?, ?, ?, ?, NOW())
+      `;
 
-    for (let i = 0; i < item_details.length; i++) {
-      const itemDetail = item_details[i];
-      const amount = parseFloat(amounts[i]) || 0;
-      const image = images[i];
+      for (let i = 0; i < item_details.length; i++) {
+        const itemDetail = item_details[i];
+        const amount = parseFloat(amounts[i]) || 0;
+        const image = images[i];
 
-      let imageData = null;
-      if (image && image.size > 0) {
-        imageData = image.name;
+        let imageData = null;
+        if (image && image.size > 0) {
+          imageData = image.name;
+        }
+
+        await executeQuery(itemQuery, [voucherId, itemDetail, amount, imageData]);
       }
-
-      await executeQuery(itemQuery, [voucherId, itemDetail, amount, imageData]);
     }
 
     // Insert into voucher_history
@@ -273,27 +267,6 @@ export async function POST(request) {
       });
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
-    }
-
-    // ✅ Create entity-specific log (similar to filling_logs)
-    try {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      const currentDateTime = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
-
-      await createEntityLog({
-        entityType: 'voucher',
-        entityId: voucherId,
-        createdBy: userId || parseInt(user_id),
-        createdDate: currentDateTime
-      });
-    } catch (logError) {
-      console.error('⚠️ Error creating voucher log:', logError);
     }
 
     // Return the stored voucher_no (formatted code) in response for UI

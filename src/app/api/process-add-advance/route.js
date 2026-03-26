@@ -40,13 +40,6 @@ export async function POST(request) {
       console.error('Error getting user info:', authError);
     }
 
-    // Insert into vouchers_items table
-    const insertItemSql = `
-      INSERT INTO vouchers_items (voucher_id, item_details, amount, created_at) 
-      VALUES (?, ?, ?, NOW())
-    `;
-    await executeQuery(insertItemSql, [voucher_id, 'Advance Payment', advance_amount]);
-
     // Update voucher advance amount and recalculate remaining_amount = advance - total_expense
     // Fetch current totals
     const selectSql = 'SELECT total_expense, advance FROM vouchers WHERE voucher_id = ? LIMIT 1';

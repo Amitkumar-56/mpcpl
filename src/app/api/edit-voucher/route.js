@@ -1,7 +1,8 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/auditLog';
-import { getCurrentUser } from '@/lib/auth';
+import { verifyToken } from '@/lib/auth';
+import { cookies } from 'next/headers';
 
 export async function GET(request) {
   try {
@@ -63,8 +64,8 @@ export async function PUT(request) {
     );
     const oldValues = oldVoucher.length > 0 ? oldVoucher[0] : { total_expense: 0, advance: 0, remaining_amount: 0 };
 
-    // Calculate remaining amount: remaining = advance - total_expense
-    const remaining = parseFloat(advance || 0) - parseFloat(total_expense || 0);
+    // Calculate remaining amount: remaining = total_expense - advance (with 2 decimal precision)
+    const remaining = (parseFloat(total_expense || 0) - parseFloat(advance || 0)).toFixed(2);
 
     // Update voucher
     const updateQuery = `
@@ -78,17 +79,19 @@ export async function PUT(request) {
     let userId = null;
     let userName = null;
     try {
-      const currentUser = await getCurrentUser();
-      userId = currentUser?.userId || null;
-      userName = currentUser?.userName || null;
-      
-      if (!userName && userId) {
-        const users = await executeQuery(
-          `SELECT name FROM employee_profile WHERE id = ?`,
-          [userId]
-        );
-        if (users.length > 0) {
-          userName = users[0].name;
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          userId = decoded.userId || decoded.id;
+          const users = await executeQuery(
+            `SELECT name FROM employee_profile WHERE id = ?`,
+            [userId]
+          );
+          if (users.length > 0) {
+            userName = users[0].name;
+          }
         }
       }
     } catch (userError) {

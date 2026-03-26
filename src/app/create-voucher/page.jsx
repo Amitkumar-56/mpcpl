@@ -22,9 +22,6 @@ function CreateVoucherContent() {
     total_expense: '0'
   });
 
-  const [voucherItems, setVoucherItems] = useState([
-    { item_details: '', amount: '0', image: null }
-  ]);
 
   const [stations, setStations] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -143,33 +140,20 @@ function CreateVoucherContent() {
       ...prev,
       [name]: value
     }));
-  };
 
-  const handleItemChange = (index, field, value) => {
-    const updatedItems = [...voucherItems];
-    updatedItems[index][field] = value;
-    setVoucherItems(updatedItems);
-  };
-
-  const addVoucherItem = () => {
-    setVoucherItems(prev => [
-      ...prev,
-      { item_details: '', amount: '0', image: null }
-    ]);
-  };
-
-  const removeVoucherItem = (index) => {
-    if (voucherItems.length > 1) {
-      const updatedItems = voucherItems.filter((_, i) => i !== index);
-      setVoucherItems(updatedItems);
-    } else {
-      alert("At least one item is required.");
+    // Auto-populate driver phone when employee is selected
+    if (name === 'employee_id' && value) {
+      const selectedEmployee = employees.find(emp => emp.id === value);
+      if (selectedEmployee && selectedEmployee.phone) {
+        setFormData(prev => ({
+          ...prev,
+          employee_id: value,
+          driver_phone: selectedEmployee.phone
+        }));
+      }
     }
   };
 
-  const handleImageChange = (index, file) => {
-    handleItemChange(index, 'image', file);
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -196,16 +180,10 @@ function CreateVoucherContent() {
         throw new Error('User not authenticated');
       }
 
-      // Add voucher items
-      voucherItems.forEach((item, index) => {
-        submitData.append('item_details[]', item.item_details);
-        submitData.append('amount[]', item.amount);
-        if (item.image) {
-          submitData.append('image[]', item.image);
-        } else {
-          submitData.append('image[]', '');
-        }
-      });
+      // Add voucher items (empty since we removed this section)
+      submitData.append('item_details[]', '');
+      submitData.append('amount[]', '0');
+      submitData.append('image[]', '');
 
       const response = await fetch('/api/create-voucher', {
         method: 'POST',
@@ -230,9 +208,6 @@ function CreateVoucherContent() {
           total_expense: '0'
         });
         
-        setVoucherItems([
-          { item_details: '', amount: '0', image: null }
-        ]);
         
         // Redirect to driver voucher wallet page after success
         setTimeout(() => {
@@ -436,8 +411,10 @@ function CreateVoucherContent() {
                           onChange={handleInputChange}
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           required
-                          placeholder="Enter driver phone number"
+                          placeholder="Auto-populated from employee"
+                          readOnly
                         />
+                        <p className="mt-1 text-xs text-gray-500">Auto-populated when employee is selected</p>
                       </div>
 
                       {/* Vehicle Number */}
@@ -514,78 +491,6 @@ function CreateVoucherContent() {
                       </div>
                     </div>
 
-                    <hr className="my-8" />
-
-                    {/* Voucher Items */}
-                    <div>
-                      <h3 className="text-lg font-medium text-gray-900 mb-4">Voucher Items </h3>
-                      
-                      {voucherItems.map((item, index) => (
-                        <div key={index} className="bg-gray-50 p-3 sm:p-4 rounded-lg mb-3 sm:mb-4">
-                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 sm:gap-4 items-end">
-                            <div className="sm:col-span-5">
-                              <label className="block text-sm font-medium text-gray-700">
-                                Item Details 
-                              </label>
-                              <input
-                                type="text"
-                                value={item.item_details}
-                                onChange={(e) => handleItemChange(index, 'item_details', e.target.value)}
-                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                                placeholder="Enter item details"
-                          
-                              />
-                            </div>
-
-                            <div className="sm:col-span-3">
-                              <label className="block text-sm font-medium text-gray-700">
-                                Amount 
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                value={item.amount}
-                                onChange={(e) => handleItemChange(index, 'amount', e.target.value)}
-                                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-sm sm:text-base"
-                                placeholder="Enter amount"
-                              
-                              />
-                            </div>
-
-                            <div className="sm:col-span-3">
-                              <label className="block text-sm font-medium text-gray-700">
-                                Item Image
-                              </label>
-                              <input
-                                type="file"
-                                accept="image/*"
-                                onChange={(e) => handleImageChange(index, e.target.files[0])}
-                                className="mt-1 block w-full text-xs sm:text-sm text-gray-500 file:mr-2 sm:file:mr-4 file:py-1.5 sm:file:py-2 file:px-2 sm:file:px-4 file:rounded-full file:border-0 file:text-xs sm:file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                              />
-                            </div>
-
-                            <div className="sm:col-span-1">
-                              <button
-                                type="button"
-                                onClick={() => removeVoucherItem(index)}
-                                disabled={voucherItems.length === 1}
-                                className="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 disabled:bg-gray-400 disabled:cursor-not-allowed"
-                              >
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-
-                      <button
-                        type="button"
-                        onClick={addVoucherItem}
-                        className="bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
-                      >
-                        Add More Items
-                      </button>
-                    </div>
 
                     <div className="flex justify-end space-x-4 pt-6">
                       <button

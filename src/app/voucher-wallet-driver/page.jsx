@@ -103,11 +103,13 @@ function VoucherWalletLoading() {
 // Main Content Component
 function VoucherWalletDriverContent() {
   const [vouchers, setVouchers] = useState([]);
+  const [filteredVouchers, setFilteredVouchers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState(null);
   const [driverName, setDriverName] = useState(null);
   const [error, setError] = useState(null);
   const [expandedVouchers, setExpandedVouchers] = useState({});
+  const [searchQuery, setSearchQuery] = useState('');
   
   const searchParams = useSearchParams();
   const emp_id = searchParams.get('emp_id');
@@ -122,6 +124,21 @@ function VoucherWalletDriverContent() {
   useEffect(() => {
     fetchVouchers();
   }, [emp_id]);
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      setFilteredVouchers(vouchers);
+    } else {
+      const query = searchQuery.toLowerCase().trim();
+      const filtered = vouchers.filter(voucher => 
+        (voucher.voucher_no && voucher.voucher_no.toLowerCase().includes(query)) ||
+        (voucher.vehicle_no && voucher.vehicle_no.toLowerCase().includes(query)) ||
+        (voucher.emp_name && voucher.emp_name.toLowerCase().includes(query)) ||
+        (voucher.phone && voucher.phone.includes(query))
+      );
+      setFilteredVouchers(filtered);
+    }
+  }, [vouchers, searchQuery]);
 
   const fetchVouchers = async () => {
     try {
@@ -260,6 +277,39 @@ function VoucherWalletDriverContent() {
               </div>
             )}
 
+            {/* Search Bar */}
+            <div className="mb-6">
+              <div className="relative max-w-md">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </div>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search by voucher number, vehicle number, or name..."
+                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery('')}
+                    className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                  >
+                    <svg className="h-5 w-5 text-gray-400 hover:text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+              {searchQuery && (
+                <div className="mt-2 text-sm text-gray-600">
+                  Found {filteredVouchers.length} {filteredVouchers.length === 1 ? 'voucher' : 'vouchers'} matching "{searchQuery}"
+                </div>
+              )}
+            </div>
+
             {/* Summary Cards */}
             {vouchers.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
@@ -289,13 +339,13 @@ function VoucherWalletDriverContent() {
                 <div className="flex justify-between items-center">
                   <h2 className="font-bold text-gray-800">Vouchers List</h2>
                   <span className="text-sm text-gray-600">
-                    {vouchers.length} vouchers
+                    {searchQuery ? `${filteredVouchers.length} of ${vouchers.length} vouchers` : `${vouchers.length} vouchers`}
                   </span>
                 </div>
               </div>
 
               {/* Desktop Table */}
-              {vouchers.length > 0 ? (
+              {filteredVouchers.length > 0 ? (
                 <div className="hidden md:block overflow-x-auto">
                   <table className="w-full min-w-[900px]">
                     <thead className="bg-gray-100">
@@ -315,7 +365,7 @@ function VoucherWalletDriverContent() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
-                      {vouchers.map((voucher, idx) => (
+                      {filteredVouchers.map((voucher, idx) => (
                         <React.Fragment key={voucher.voucher_id || idx}>
                         <tr className="hover:bg-gray-50">
                           <td className="px-4 py-3 text-sm text-gray-900">{idx + 1}</td>
@@ -408,9 +458,9 @@ function VoucherWalletDriverContent() {
               ) : null}
 
               {/* Mobile Cards View */}
-              {vouchers.length > 0 ? (
+              {filteredVouchers.length > 0 ? (
                 <div className="block md:hidden space-y-4">
-                  {vouchers.map((voucher, idx) => (
+                  {filteredVouchers.map((voucher, idx) => (
                     <div key={voucher.voucher_id || idx} className="bg-white rounded-lg border border-gray-200 p-4 shadow-sm">
                       <div className="flex justify-between items-start mb-3">
                         <div>
@@ -512,13 +562,34 @@ function VoucherWalletDriverContent() {
                 </div>
               ) : (
                 <div className="text-center py-12">
-                  <div className="text-gray-500 text-lg mb-4">No vouchers found</div>
-                  <button
-                    onClick={fetchVouchers}
-                    className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
-                  >
-                    Refresh
-                  </button>
+                  {searchQuery ? (
+                    <>
+                      <div className="text-gray-500 text-lg mb-4">No vouchers found matching "{searchQuery}"</div>
+                      <div className="text-gray-400 text-sm mb-4">Try searching with different terms</div>
+                      <button
+                        onClick={() => setSearchQuery('')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mr-2"
+                      >
+                        Clear Search
+                      </button>
+                      <button
+                        onClick={fetchVouchers}
+                        className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
+                      >
+                        Refresh
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-gray-500 text-lg mb-4">No vouchers found</div>
+                      <button
+                        onClick={fetchVouchers}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+                      >
+                        Refresh
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>

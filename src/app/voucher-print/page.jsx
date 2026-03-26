@@ -143,8 +143,20 @@ function VoucherContent() {
   const itemsTotal = Array.isArray(items)
     ? items.reduce((sum, i) => sum + (parseFloat(i?.amount || 0) || 0), 0)
     : 0;
-  const displayTotal = (itemsTotal > 0 ? itemsTotal : (parseFloat(total_amount || 0) || parseFloat(voucher?.total_expense || 0) || 0));
-  const remaining_amount = parseFloat(voucher?.advance || 0) - displayTotal;
+  
+  // Total Amount = Sum of voucher items (total_expense)
+  const totalAmount = itemsTotal || parseFloat(total_amount || 0) || parseFloat(voucher?.total_expense || 0) || 0;
+  
+  // Advance Paid = Sum of all advances from history
+  const advancePaid = Array.isArray(advance_history)
+    ? advance_history.reduce((sum, adv) => sum + (parseFloat(adv?.amount || 0) || 0), 0)
+    : parseFloat(voucher?.advance || 0);
+  
+  // Remaining Amount = Total Amount - Advance Paid
+  // When advance > expenses: negative (minus)
+  // When expenses > advance: positive (plus)
+  const remaining_amount = totalAmount - advancePaid;
+  
   const formatINR = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(n || 0));
 
   return (
@@ -252,12 +264,12 @@ function VoucherContent() {
                   {/* Summary Rows */}
                   <tr className="font-bold bg-gray-50">
                     <td colSpan="2" className="p-2 print:p-1 border border-gray-300 text-right">Total Amount</td>
-                    <td className="p-2 print:p-1 border border-gray-300">{formatINR(displayTotal)}</td>
+                    <td className="p-2 print:p-1 border border-gray-300">{formatINR(totalAmount)}</td>
                   </tr>
                   <tr className="font-bold bg-green-50">
                     <td colSpan="2" className="p-2 print:p-1 border border-gray-300 text-right">Advance Paid</td>
                     <td className="p-2 print:p-1 border border-gray-300 text-green-700">
-                      {formatINR(voucher?.advance)}
+                      {formatINR(advancePaid)}
                     </td>
                   </tr>
                   <tr className={`font-bold ${remaining_amount < 0 ? 'bg-red-50' : 'bg-blue-50'}`}>
