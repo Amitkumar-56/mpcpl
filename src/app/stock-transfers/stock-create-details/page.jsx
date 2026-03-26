@@ -75,22 +75,32 @@ function StockCreateDetailsContent() {
     try {
       setLoading(true);
       const response = await fetch(`/api/stock-transfers/stock-create-details?id=${id}`);
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
+      }
+      
       const data = await response.json();
       
-      if (response.ok) {
-        setTransfer(data.transfer);
-        setStations(data.stations);
-        setProducts(data.products);
+      if (!data.success && data.error) {
+        throw new Error(data.error);
+      }
+      
+      if (data.transfer) {
+        setTransfer(data.transfer || {});
+        setStations(data.stations || []);
+        setProducts(data.products || []);
         setLogs(data.logs || []);
         
         setFormData({
-          station_from: data.transfer.station_from,
-          station_to: data.transfer.station_to,
-          driver_id: data.transfer.driver_id,
-          vehicle_id: data.transfer.vehicle_id,
-          transfer_quantity: data.transfer.transfer_quantity,
-          status: data.transfer.status.toString(),
-          product: data.transfer.product,
+          station_from: data.transfer.station_from || '',
+          station_to: data.transfer.station_to || '',
+          driver_id: data.transfer.driver_id || '',
+          vehicle_id: data.transfer.vehicle_id || '',
+          transfer_quantity: data.transfer.transfer_quantity || '',
+          status: (data.transfer.status || '1').toString(),
+          product: data.transfer.product || '',
           slip: null
         });
         
@@ -98,13 +108,11 @@ function StockCreateDetailsContent() {
           setPreviewImage(data.transfer.slip);
         }
       } else {
-        setError(data.error || 'Failed to fetch transfer details');
-        alert(`Error: ${data.error || 'Failed to fetch transfer details'}`);
+        throw new Error('No transfer data received');
       }
     } catch (error) {
       console.error('Error fetching transfer details:', error);
-      setError('Error fetching transfer details. Please try again.');
-      alert('Error fetching transfer details. Please try again.');
+      setError(error.message || 'Error fetching transfer details. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -381,7 +389,7 @@ function StockCreateDetailsContent() {
               <div>
                 <p className="text-sm text-gray-600">From Station</p>
                 <p className="text-lg font-bold text-gray-800">
-                  {transfer.from_station_name || 'N/A'}
+                  {transfer?.from_station_name || 'N/A'}
                 </p>
               </div>
             </div>
@@ -395,7 +403,7 @@ function StockCreateDetailsContent() {
               <div>
                 <p className="text-sm text-gray-600">To Station</p>
                 <p className="text-lg font-bold text-gray-800">
-                  {transfer.to_station_name || 'N/A'}
+                  {transfer?.to_station_name || 'N/A'}
                 </p>
               </div>
             </div>
@@ -409,9 +417,9 @@ function StockCreateDetailsContent() {
               <div>
                 <p className="text-sm text-gray-600">Quantity</p>
                 <p className="text-lg font-bold text-gray-800">
-                  {transfer.transfer_quantity} L
+                  {transfer?.transfer_quantity || '0'} L
                   <span className="text-sm font-normal text-gray-600 ml-2">
-                    ({transfer.product_name})
+                    ({transfer?.product_name || 'N/A'})
                   </span>
                 </p>
               </div>
@@ -426,7 +434,7 @@ function StockCreateDetailsContent() {
               <div>
                 <p className="text-sm text-gray-600">Last Updated</p>
                 <p className="text-lg font-bold text-gray-800">
-                  {transfer.updated_at ? formatDate(transfer.updated_at) : 'N/A'}
+                  {transfer?.updated_at ? formatDate(transfer.updated_at) : 'N/A'}
                 </p>
               </div>
             </div>
@@ -468,11 +476,22 @@ function StockCreateDetailsContent() {
                             </div>
                             {log.changes && (
                               <div className="mt-2 ml-6">
-                                {JSON.parse(log.changes).map((change, idx) => (
-                                  <p key={idx} className="text-sm text-gray-600">
-                                    • {change}
-                                  </p>
-                                ))}
+                                {(() => {
+                                  try {
+                                    const changes = JSON.parse(log.changes);
+                                    return changes.map((change, idx) => (
+                                      <p key={idx} className="text-sm text-gray-600">
+                                        • {change}
+                                      </p>
+                                    ));
+                                  } catch (error) {
+                                    return (
+                                      <p className="text-sm text-gray-600">
+                                        • {log.changes}
+                                      </p>
+                                    );
+                                  }
+                                })()}
                               </div>
                             )}
                           </div>
