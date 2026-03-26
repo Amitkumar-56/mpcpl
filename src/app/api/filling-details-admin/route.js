@@ -1159,87 +1159,6 @@ async function handleCompletedStatus(data) {
   const lastNewAmountRows = await executeQuery(getLastNewAmountQuery, [cl_id]);
   const previous_new_amount = lastNewAmountRows.length > 0 ? parseFloat(lastNewAmountRows[0].new_amount) || 0 : 0;
 
-  try {
-    const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
-    const colSet = new Set(colsInfo.map(r => r.Field));
-
-    const baseCols = [
-      'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'amount',
-      'available_stock', 'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 'remaining_limit',
-      'payment_status'
-    ];
-    const baseVals = [
-      rid, fs_id, product_id, chosenSubProduct || null, 'Outward', oldstock, aqty, calculatedAmount,
-      newStock, now, cl_id, userId,
-      old_used_amount,
-      new_used_amount,
-      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // total available
-      paymentStatus
-    ];
-
-    // Only add day limit columns for day limit customers
-    if (isDayLimitCustomer) {
-      const elapsedDays = 0;
-      const remainingDayLimit = customerDayLimit > 0 ? Math.max(0, customerDayLimit - elapsedDays) : null;
-      const dayValidityDays = customerDayLimit > 0 ? customerDayLimit : null;
-
-      if (colSet.has('remaining_day_limit')) {
-        baseCols.push('remaining_day_limit');
-        baseVals.push(remainingDayLimit);
-      }
-      if (colSet.has('day_limit_validity_days')) {
-        baseCols.push('day_limit_validity_days');
-        baseVals.push(dayValidityDays);
-      }
-    }
-
-    const placeholders = baseCols.map(() => '?').join(', ');
-    const insertSql = `INSERT INTO filling_history (${baseCols.join(',')}) VALUES (${placeholders})`;
-    await executeQuery(insertSql, baseVals);
-  } catch (e) {
-    console.log('Using fallback filling_history insert');
-    const insertHistoryQuery = `
-      INSERT INTO filling_history 
-      (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
-       available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit,
-       payment_status) 
-      VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    await executeQuery(insertHistoryQuery, [
-      rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
-      newStock, now, cl_id, userId,
-      old_used_amount,
-      new_used_amount,
-      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
-      paymentStatus
-    ]);
-  }
-
-  // Get user info for audit log
-  let userName = 'System';
-  try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('token')?.value;
-    if (token) {
-      const decoded = verifyToken(token);
-      if (decoded) {
-        const userResult = await executeQuery(
-          `SELECT id, name FROM employee_profile WHERE id = ?`,
-          [userId]
-        );
-        if (userResult.length > 0) {
-          userName = userResult[0].name;
-        }
-      }
-    }
-  } catch (userError) {
-    console.error('Error getting user info:', userError);
-  }
-
-  // Update station stock
-  const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
-  await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
-
   // Handle non-billing stocks if needed
   if (billing_type == 2) {
     await handleNonBillingStocks(fs_id, product_id, aqty, userId);
@@ -1290,6 +1209,127 @@ async function handleCompletedStatus(data) {
       // Don't fail the main operation if nb_stock_history fails
     }
   }
+
+  // ✅ IMPORTANT: filling_history insert for ALL customers (both billing and non-billing)
+  // This should happen AFTER the nb_stock_history for non-billing customers
+  console.log('🔄 Inserting into filling_history for customer type:', billing_type === 2 ? 'NON-BILLING' : 'BILLING');
+  
+  try {
+    const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+    const colSet = new Set(colsInfo.map(r => r.Field));
+
+    const baseCols = [
+      'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'amount',
+      'available_stock', 'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 'remaining_limit',
+      'payment_status'
+    ];
+    const baseVals = [
+      rid, fs_id, product_id, chosenSubProduct || null, 'Outward', oldstock, aqty, calculatedAmount,
+      newStock, now, cl_id, userId,
+      old_used_amount,
+      new_used_amount,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // total available
+      isDayLimitCustomer ? 0 : 1 // payment_status: 0 for day limit, 1 for credit limit (including non-billing)
+    ];
+
+    // Only add day limit columns for day limit customers
+    if (isDayLimitCustomer) {
+      const elapsedDays = 0;
+      const remainingDayLimit = customerDayLimit > 0 ? Math.max(0, customerDayLimit - elapsedDays) : null;
+      const dayValidityDays = customerDayLimit > 0 ? customerDayLimit : null;
+
+      if (colSet.has('remaining_day_limit')) {
+        baseCols.push('remaining_day_limit');
+        baseVals.push(remainingDayLimit);
+      }
+      if (colSet.has('day_limit_validity_days')) {
+        baseCols.push('day_limit_validity_days');
+        baseVals.push(dayValidityDays);
+      }
+    }
+
+    const placeholders = baseCols.map(() => '?').join(', ');
+    const insertSql = `INSERT INTO filling_history (${baseCols.join(',')}) VALUES (${placeholders})`;
+    
+    console.log('🔄 Inserting into filling_history:', {
+      sql: insertSql,
+      values: baseVals,
+      cols: baseCols,
+      billing_type: billing_type,
+      isNonBilling: billing_type === 2
+    });
+    
+    const result = await executeQuery(insertSql, baseVals);
+    console.log('✅ Successfully inserted into filling_history:', result);
+  } catch (e) {
+    console.error('❌ ERROR inserting into filling_history:', e);
+    console.error('❌ Error details:', {
+      message: e.message,
+      stack: e.stack,
+      rid: rid,
+      cl_id: cl_id,
+      amount: calculatedAmount,
+      billing_type: billing_type
+    });
+    
+    // Try fallback insert with basic columns only
+    try {
+      console.log('🔄 Using fallback filling_history insert');
+      const insertHistoryQuery = `
+        INSERT INTO filling_history 
+        (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
+         available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit,
+         payment_status) 
+        VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `;
+      
+      const fallbackVals = [
+        rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
+        newStock, now, cl_id, userId,
+        old_used_amount,
+        new_used_amount,
+        isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
+        isDayLimitCustomer ? 0 : 1 // payment_status: 0 for day limit, 1 for others
+      ];
+      
+      console.log('🔄 Fallback insert values:', fallbackVals);
+      
+      const fallbackResult = await executeQuery(insertHistoryQuery, fallbackVals);
+      console.log('✅ Fallback insert successful:', fallbackResult);
+    } catch (fallbackError) {
+      console.error('❌ CRITICAL: Both primary and fallback filling_history inserts failed:', fallbackError);
+      console.error('❌ This means the filling_history record was NOT created!');
+      
+      // Don't throw error to avoid breaking the main completion process,
+      // but log clearly for debugging
+      throw new Error(`FILLING_HISTORY_INSERT_FAILED: ${fallbackError.message}`);
+    }
+  }
+
+  // Get user info for audit log
+  let userName = 'System';
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value;
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded) {
+        const userResult = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (userResult.length > 0) {
+          userName = userResult[0].name;
+        }
+      }
+    }
+  } catch (userError) {
+    console.error('Error getting user info:', userError);
+  }
+
+  // Update station stock
+  const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
+  await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
 
   // Update wallet history
   await updateWalletHistory(cl_id, rid, calculatedAmount,
