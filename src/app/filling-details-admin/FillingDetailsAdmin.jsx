@@ -380,15 +380,15 @@ export default function FillingDetailsAdmin() {
 
         alert(successMessage);
 
-        // IMMEDIATELY update local state to show new status
-        setRequestData(prev => ({
-          ...prev,
-          status: formData.status
-        }));
+        // ✅ Only update local state AFTER successful server response
+        // setRequestData(prev => ({
+        //   ...prev,
+        //   status: formData.status
+        // }));
 
-        console.log('🔄 Local state updated to:', formData.status);
+        console.log('🔄 Server confirmed status update to:', formData.status);
 
-        // Refresh data from server to confirm
+        // Refresh data from server to get actual status
         await fetchRequestDetails();
 
         // ✅✅✅ Redirect ONLY for Completed and Cancelled status
@@ -489,11 +489,11 @@ export default function FillingDetailsAdmin() {
       if (result.success) {
         alert('Request cancelled successfully! Hold balance restored to amtlimit.');
         
-        // Immediately update local state
-        setRequestData(prev => ({
-          ...prev,
-          status: 'Cancel'
-        }));
+        // ✅ Only update local state AFTER successful server response
+        // setRequestData(prev => ({
+        //   ...prev,
+        //   status: 'Cancel'
+        // }));
 
         setShowCancelModal(false);
         setCancelRemarks('');
@@ -515,6 +515,12 @@ export default function FillingDetailsAdmin() {
     } finally {
       setSubmitting(false);
     }
+  };
+
+  const handleRenewLimit = () => {
+    // Close the price modal and show simple message
+    setShowPriceModal(false);
+    alert('Please contact Admin to update deal price and renew limits.');
   };
 
   const calculateAvailableBalance = () => {

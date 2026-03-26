@@ -1185,54 +1185,76 @@ async function handleCompletedStatus(data) {
 
     const baseCols = [
       'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'amount',
-      'available_stock', 'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 'remaining_limit',
-      'payment_status'
+      'credit', 'in_amount', 'd_amount', 'limit_type', 'credit_date', 'available_stock', 'old_amount', 'new_amount', 
+      'remaining_limit', 'filling_date', 'cl_id', 'created_by', 'validity_days', 'expiry_date', 
+      'day_limit_amount', 'remaining_day_limit', 'day_limit_validity_days', 'payment_status'
     ];
+    
+    // Calculate values for all fields
+    const creditAmount = isDayLimitCustomer ? 0 : calculatedAmount;
+    const inAmount = isDayLimitCustomer ? calculatedAmount : 0;
+    const dAmount = 0; // Debit amount
+    const limitType = isDayLimitCustomer ? 'day' : 'credit';
+    const creditDate = isDayLimitCustomer ? null : now;
+    const validityDays = isDayLimitCustomer ? customerDayLimit : null;
+    const expiryDate = isDayLimitCustomer ? null : null;
+    const dayLimitAmount = isDayLimitCustomer ? customerDayLimit : 0;
+    const remainingDayLimit = isDayLimitCustomer ? Math.max(0, customerDayLimit) : 0;
+    
     const baseVals = [
       rid, fs_id, product_id, chosenSubProduct || null, 'Outward', oldstock, aqty, calculatedAmount,
-      newStock, now, cl_id, userId,
-      old_used_amount,
-      new_used_amount,
-      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // total available
+      creditAmount, inAmount, dAmount, limitType, creditDate, newStock, old_used_amount, new_used_amount,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // remaining_limit
+      now, cl_id, userId, validityDays, expiryDate, dayLimitAmount, remainingDayLimit, 
+      isDayLimitCustomer ? customerDayLimit : null, // day_limit_validity_days
       paymentStatus
     ];
-
-    // Only add day limit columns for day limit customers
-    if (isDayLimitCustomer) {
-      const elapsedDays = 0;
-      const remainingDayLimit = customerDayLimit > 0 ? Math.max(0, customerDayLimit - elapsedDays) : null;
-      const dayValidityDays = customerDayLimit > 0 ? customerDayLimit : null;
-
-      if (colSet.has('remaining_day_limit')) {
-        baseCols.push('remaining_day_limit');
-        baseVals.push(remainingDayLimit);
-      }
-      if (colSet.has('day_limit_validity_days')) {
-        baseCols.push('day_limit_validity_days');
-        baseVals.push(dayValidityDays);
-      }
-    }
 
     const placeholders = baseCols.map(() => '?').join(', ');
     const insertSql = `INSERT INTO filling_history (${baseCols.join(',')}) VALUES (${placeholders})`;
-    await executeQuery(insertSql, baseVals);
-  } catch (e) {
-    console.log('Using fallback filling_history insert');
-    const insertHistoryQuery = `
-      INSERT INTO filling_history 
-      (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
-       available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit,
-       payment_status) 
-      VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `;
-    await executeQuery(insertHistoryQuery, [
-      rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
-      newStock, now, cl_id, userId,
-      old_used_amount,
-      new_used_amount,
-      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
-      paymentStatus
-    ]);
+    
+    try {
+      const historyResult = await executeQuery(insertSql, baseVals);
+      console.log('✅ filling_history record inserted successfully:', {
+        insertId: historyResult.insertId,
+        rid,
+        calculatedAmount,
+        paymentStatus
+      });
+    } catch (insertError) {
+      console.error('❌ Primary filling_history insert failed:', insertError);
+      
+      // Try fallback insert with minimal required fields
+      try {
+        console.log('🔄 Trying fallback filling_history insert...');
+        const insertHistoryQuery = `
+          INSERT INTO filling_history 
+          (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
+           available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit,
+           payment_status) 
+          VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        const fallbackResult = await executeQuery(insertHistoryQuery, [
+          rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
+          newStock, now, cl_id, userId,
+          old_used_amount,
+          new_used_amount,
+          isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
+          paymentStatus
+        ]);
+        
+        console.log('✅ Fallback filling_history insert successful:', {
+          insertId: fallbackResult.insertId,
+          rid,
+          calculatedAmount
+        });
+      } catch (fallbackError) {
+        console.error('❌ Both filling_history inserts failed:', fallbackError);
+        // Don't throw error - stock and balance updates are more important
+      }
+    }
+  } catch (historyError) {
+    console.error('⚠️ Error in filling_history process:', historyError);
   }
 
   // Get user info for audit log
@@ -1260,11 +1282,11 @@ async function handleCompletedStatus(data) {
   const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
   await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
 
-  // Handle non-billing stocks if needed
+  // Handle non-billing stocks if needed (ADDITIONAL to filling_history)
   if (billing_type == 2) {
     await handleNonBillingStocks(fs_id, product_id, aqty, userId);
     
-    // ✅ Insert into nb_stock_history for non-billing customers
+    // ✅ Also insert into nb_stock_history for non-billing customers (ADDITIONAL record)
     try {
       console.log('🔄 Adding to nb_stock_history for non-billing customer...');
       
@@ -1297,7 +1319,7 @@ async function handleCompletedStatus(data) {
           now  // completion_date
         ]);
         
-        console.log('✅ Added to nb_stock_history:', {
+        console.log('✅ Added to nb_stock_history (ADDITIONAL to filling_history):', {
           customer_name: details.customer_name,
           station_name: details.station_name,
           product_name: details.product_name,
