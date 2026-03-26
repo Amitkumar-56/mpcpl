@@ -328,7 +328,7 @@ export async function POST(request) {
     const remarks = formData.get('remarks');
 
     console.log('🎯 CRITICAL FIELDS FOR PROCESSING:', {
-      id, rid, status, aqty, cl_id, billing_type
+      id, rid, status, aqty, cl_id
     });
 
     // Validate required fields
@@ -345,33 +345,14 @@ export async function POST(request) {
       const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
 
       if (!balanceCheck.sufficient) {
-        console.log('❌ Balance check failed - blocking completion');
         return NextResponse.json({
-          success: false,
-          error: balanceCheck.message || 'Insufficient balance to complete this request.',
+          success: true,
           limitOverdue: true,
           limitTitle: balanceCheck.title || 'Credit Limit Overdue',
           isDayLimitExpired: balanceCheck.isDayLimitExpired || false,
-          totalUnpaidAmount: balanceCheck.totalUnpaidAmount || 0
-        }, { status: 400 });
-      }
-    }
-
-    // ✅ Also check balance for Processing status to prevent issues later
-    if (status === 'Processing') {
-      const balanceCheck = await checkBalanceLimit(cl_id, aqty, price, fs_id, product_id, sub_product_id);
-
-      if (!balanceCheck.sufficient) {
-        console.log('❌ Balance check failed for Processing - warning only');
-        return NextResponse.json({
-          success: false,
-          error: balanceCheck.message || 'Warning: This request may not be completed due to insufficient balance.',
-          limitOverdue: true,
-          limitTitle: balanceCheck.title || 'Credit Limit Warning',
-          isDayLimitExpired: balanceCheck.isDayLimitExpired || false,
           totalUnpaidAmount: balanceCheck.totalUnpaidAmount || 0,
-          isWarning: true
-        }, { status: 400 });
+          message: balanceCheck.message || 'Balance/limit check failed.'
+        });
       }
     }
 
@@ -388,13 +369,13 @@ export async function POST(request) {
       doc3: doc3File ? `${doc3File.name} (${doc3File.size} bytes)` : 'No file'
     });
 
-    if (doc1File && doc1File.size > 0 && doc1File.name !== 'empty.txt') {
+    if (doc1File && doc1File.size > 0) {
       doc1Path = await handleFileUpload(doc1File, rid, 'doc1');
     }
-    if (doc2File && doc2File.size > 0 && doc2File.name !== 'empty.txt') {
+    if (doc2File && doc2File.size > 0) {
       doc2Path = await handleFileUpload(doc2File, rid, 'doc2');
     }
-    if (doc3File && doc3File.size > 0 && doc3File.name !== 'empty.txt') {
+    if (doc3File && doc3File.size > 0) {
       doc3Path = await handleFileUpload(doc3File, rid, 'doc3');
     }
 
@@ -610,7 +591,10 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     const clientType = customerData.client_type;
     const rawAvailableBalance = parseFloat(customerData.raw_available_balance) || 0;
     const holdBalance = parseFloat(customerData.hold_balance) || 0;
+
+    // ✅ Calculate available balance = raw_available_balance + hold_balance
     const availableBalance = rawAvailableBalance + holdBalance;
+
     const creditLimit = parseFloat(customerData.credit_limit) || 0;
     const dayLimit = parseInt(customerData.day_limit) || 0;
 
@@ -708,6 +692,7 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     if (clientType === "1" || clientType === "2") {
       console.log('💰 Customer Type 1/2 - Checking available balance...');
 
+      // Check against available_balance (raw + hold)
       if (availableBalance <= 0 || availableBalance < requestedAmount) {
         return {
           sufficient: false,
@@ -886,6 +871,7 @@ async function handleProcessingStatus(data) {
   });
 
   try {
+    // Check balance for processing
     const balanceInfo = (await executeQuery(
       `SELECT amtlimit as raw_available_balance, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
       [cl_id]
@@ -893,6 +879,7 @@ async function handleProcessingStatus(data) {
 
     const currentRawBalance = parseFloat(balanceInfo.raw_available_balance) || 0;
 
+    // Get current request details to compute hold amount
     const reqRows = await executeQuery(
       `SELECT fs_id, product, sub_product_id, aqty, price FROM filling_requests WHERE id = ? AND rid = ? LIMIT 1`,
       [id, rid]
@@ -903,6 +890,7 @@ async function handleProcessingStatus(data) {
     const req = reqRows[0];
     const aqtyNum = parseFloat(req.aqty) || 0;
 
+    // Resolve price from deal_price
     let finalPrice = await getFuelPrice(req.fs_id, req.product, req.sub_product_id, cl_id, req.price || 0);
 
     const holdAmount = (finalPrice || 0) * aqtyNum;
@@ -910,12 +898,14 @@ async function handleProcessingStatus(data) {
       throw new Error('INVALID_HOLD_AMOUNT');
     }
 
+    // Calculate available balance (AmtLimit only)
     const availableBalance = currentRawBalance;
 
     if (availableBalance < holdAmount) {
       throw new Error('INSUFFICIENT_LIMIT');
     }
 
+    // Move amount from raw_available_balance to hold_balance
     await executeQuery(
       `UPDATE customer_balances 
        SET amtlimit = amtlimit - ?, hold_balance = hold_balance + ?, updated_at = ? 
@@ -937,9 +927,20 @@ async function handleProcessingStatus(data) {
       WHERE id = ? AND rid = ?
     `;
 
+    console.log('🔧 Executing Processing Update Query:', updateRequestQuery);
+    console.log('📋 Query Parameters:', [
+      now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
+    ]);
+
     const result = await executeQuery(updateRequestQuery, [
       now, userId, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, id, rid
     ]);
+
+    console.log('✅ Processing status update result:', {
+      affectedRows: result.affectedRows,
+      message: result.message,
+      changedRows: result.changedRows
+    });
 
     if (result.affectedRows === 0) {
       throw new Error('No rows updated - request not found or already processed');
@@ -949,6 +950,9 @@ async function handleProcessingStatus(data) {
 
   } catch (error) {
     console.error('❌ Error in handleProcessingStatus:', error);
+    if (error?.message === 'CONCURRENT_REQUEST_BLOCKED') {
+      throw new Error('Another request is already processing or hold balance is active for this customer. Please complete or cancel existing process.');
+    }
     if (error?.message === 'INSUFFICIENT_LIMIT') {
       throw new Error('Insufficient limit. Only Admin can increase limit. Please contact Admin to update your limit.');
     }
@@ -993,16 +997,7 @@ async function handleCompletedStatus(data) {
   // Get final price
   let finalPrice = await getFuelPrice(fs_id, product_id, chosenSubProduct, cl_id, price);
   const calculatedAmount = finalPrice * aqty;
-  
-  // ✅ Stock is deducted from filling_station_stocks for BOTH billing and non-billing
   const newStock = oldstock - aqty;
-  
-  console.log('📊 Stock Calculation:', {
-    oldstock,
-    aqty,
-    newStock,
-    billing_type: billing_type == 2 ? 'NON-BILLING' : 'BILLING'
-  });
 
   // Get current balance data BEFORE any update
   const getLatestAmountQuery = `
@@ -1036,21 +1031,25 @@ async function handleCompletedStatus(data) {
     old_used_amount,
     total_available_before: initial_raw_available_balance + initial_hold_balance,
     calculatedAmount,
-    isDayLimitCustomer,
-    billing_type
+    isDayLimitCustomer
   });
 
   const now = getIndianTime();
 
-  // Calculate new values
+  // Calculate new values based on the logic
   let new_raw_available_balance = 0;
   let new_hold_balance = 0;
   let new_used_amount = old_used_amount + calculatedAmount;
 
   if (isDayLimitCustomer) {
+    // Day limit customer logic
     console.log('📅 Processing Day Limit Customer...');
+
+    // For day limit customers, just move from hold_balance to balance
+    // Use from hold_balance if available
     const amountFromHold = Math.min(calculatedAmount, initial_hold_balance);
 
+    // Update customer balances
     await executeQuery(
       `UPDATE customer_balances 
        SET balance = balance + ?,
@@ -1060,6 +1059,7 @@ async function handleCompletedStatus(data) {
       [calculatedAmount, amountFromHold, now, cl_id]
     );
 
+    // Get updated values for logging
     const updatedBalances = await executeQuery(
       `SELECT amtlimit as raw_available_balance, hold_balance, balance FROM customer_balances WHERE com_id = ?`,
       [cl_id]
@@ -1070,17 +1070,41 @@ async function handleCompletedStatus(data) {
       new_hold_balance = parseFloat(updatedBalances[0].hold_balance) || 0;
       new_used_amount = parseFloat(updatedBalances[0].balance) || 0;
     }
+
+    console.log('✅ Day limit customer - Hold balance settled:', {
+      amountFromHold,
+      calculatedAmount,
+      new_raw_available_balance,
+      new_hold_balance,
+      new_used_amount
+    });
+
   } else {
+    // Credit limit customer logic - Your 3 conditions logic
     console.log('💰 Processing Credit Limit Customer...');
+
+    // Calculate total available before (raw + hold)
     const total_available_before = initial_raw_available_balance + initial_hold_balance;
 
+    // Check if sufficient balance exists
     if (total_available_before < calculatedAmount) {
       throw new Error('INSUFFICIENT_LIMIT_ON_COMPLETE');
     }
 
+    // Calculate new raw_available_balance and hold_balance
+    // Formula: new_raw_available_balance = total_available_before - calculatedAmount
+    // Formula: new_hold_balance = 0 (all hold balance is cleared)
     new_raw_available_balance = total_available_before - calculatedAmount;
     new_hold_balance = 0;
 
+    console.log('🧮 CALCULATION FOR CREDIT LIMIT CUSTOMER:', {
+      total_available_before,
+      calculatedAmount,
+      new_raw_available_balance,
+      new_hold_balance
+    });
+
+    // Update customer balances
     await executeQuery(
       `UPDATE customer_balances 
        SET amtlimit = ?,
@@ -1090,9 +1114,15 @@ async function handleCompletedStatus(data) {
        WHERE com_id = ?`,
       [new_raw_available_balance, new_hold_balance, calculatedAmount, now, cl_id]
     );
+
+    console.log('✅ Credit limit customer - Updated balances:', {
+      new_raw_available_balance,
+      new_hold_balance,
+      calculatedAmount
+    });
   }
 
-  // Update filling request
+  // ✅ Update filling request with payment_status
   const updateRequestQuery = `
     UPDATE filling_requests 
     SET status = 'Completed', 
@@ -1118,123 +1148,7 @@ async function handleCompletedStatus(data) {
     chosenSubProduct, finalPrice, calculatedAmount, paymentStatus, id, rid
   ]);
 
-  // ✅ Update station stock - DEDUCT from filling_station_stocks for ALL customers
-  const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
-  await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
-  console.log(`✅ Stock deducted from filling_station_stocks: ${oldstock} → ${newStock}`);
-
-  // ✅ For NON-BILLING customers (billing_type = 2), ADD to non_billing_stocks
-  if (billing_type == 2) {
-    await handleNonBillingStocks(fs_id, product_id, aqty, userId);
-    console.log(`✅ Added to non_billing_stocks: +${aqty}L for station ${fs_id}, product ${product_id}`);
-  }
-
-  // ✅✅✅ INSERT INTO filling_history FOR BOTH BILLING AND NON-BILLING ✅✅✅
-  try {
-    const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
-    const colSet = new Set(colsInfo.map(r => r.Field));
-    
-    console.log('📊 Available columns in filling_history:', Array.from(colSet));
-    console.log('📝 Inserting for:', billing_type == 2 ? 'NON-BILLING customer' : 'BILLING customer');
-    
-    // Get station and product names for reference
-    const detailsQuery = `
-      SELECT fs.station_name, p.pname as product_name
-      FROM filling_stations fs, products p
-      WHERE fs.id = ? AND p.id = ?
-      LIMIT 1
-    `;
-    let stationName = null;
-    let productName = null;
-    try {
-      const detailsResult = await executeQuery(detailsQuery, [fs_id, product_id]);
-      if (detailsResult.length > 0) {
-        stationName = detailsResult[0].station_name;
-        productName = detailsResult[0].product_name;
-      }
-    } catch { }
-    
-    // Base columns
-    const baseCols = [
-      'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 
-      'current_stock', 'filling_qty', 'amount', 'available_stock', 
-      'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 
-      'remaining_limit', 'payment_status'
-    ];
-    
-    const baseVals = [
-      rid, fs_id, product_id, chosenSubProduct || null, 'Outward', 
-      oldstock, aqty, calculatedAmount, newStock, now, cl_id, userId,
-      old_used_amount, new_used_amount,
-      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
-      paymentStatus
-    ];
-    
-    // Add optional columns
-    if (colSet.has('credit')) { baseCols.push('credit'); baseVals.push(0); }
-    if (colSet.has('in_amount')) { baseCols.push('in_amount'); baseVals.push(0); }
-    if (colSet.has('d_amount')) { baseCols.push('d_amount'); baseVals.push(calculatedAmount); }
-    if (colSet.has('limit_type')) { baseCols.push('limit_type'); baseVals.push(isDayLimitCustomer ? 'day_limit' : 'credit_limit'); }
-    if (colSet.has('credit_date')) { baseCols.push('credit_date'); baseVals.push(now); }
-    if (colSet.has('created_at')) { baseCols.push('created_at'); baseVals.push(now); }
-    if (colSet.has('updated_at')) { baseCols.push('updated_at'); baseVals.push(now); }
-    if (colSet.has('station_name')) { baseCols.push('station_name'); baseVals.push(stationName); }
-    if (colSet.has('product_name')) { baseCols.push('product_name'); baseVals.push(productName); }
-    if (colSet.has('billing_type')) { baseCols.push('billing_type'); baseVals.push(billing_type); }
-    
-    if (colSet.has('day_limit_amount')) {
-      baseCols.push('day_limit_amount');
-      baseVals.push(isDayLimitCustomer ? parseFloat(customerDayLimit) || null : null);
-    }
-    
-    if (isDayLimitCustomer) {
-      const remainingDayLimit = customerDayLimit > 0 ? customerDayLimit : null;
-      if (colSet.has('remaining_day_limit') && !baseCols.includes('remaining_day_limit')) {
-        baseCols.push('remaining_day_limit');
-        baseVals.push(remainingDayLimit);
-      }
-      if (colSet.has('day_limit_validity_days') && !baseCols.includes('day_limit_validity_days')) {
-        baseCols.push('day_limit_validity_days');
-        baseVals.push(remainingDayLimit);
-      }
-    }
-    
-    const placeholders = baseCols.map(() => '?').join(', ');
-    const insertSql = `INSERT INTO filling_history (${baseCols.join(', ')}) VALUES (${placeholders})`;
-    
-    console.log('📝 Inserting into filling_history:', {
-      billing_type: billing_type == 2 ? 'NON-BILLING' : 'BILLING',
-      columns: baseCols,
-      values: baseVals
-    });
-    
-    await executeQuery(insertSql, baseVals);
-    console.log(`✅ filling_history inserted successfully for ${billing_type == 2 ? 'NON-BILLING' : 'BILLING'} customer`);
-    
-  } catch (error) {
-    console.error('❌ Error inserting into filling_history:', error);
-    
-    try {
-      console.log('🔄 Trying fallback insert with minimal columns...');
-      const fallbackSql = `
-        INSERT INTO filling_history 
-        (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, 
-         filling_qty, amount, available_stock, filling_date, cl_id, created_by,
-         old_amount, new_amount, payment_status, billing_type) 
-        VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `;
-      await executeQuery(fallbackSql, [
-        rid, fs_id, product_id, chosenSubProduct || null,
-        oldstock, aqty, calculatedAmount, newStock, now, cl_id, userId,
-        old_used_amount, new_used_amount, paymentStatus, billing_type
-      ]);
-      console.log(`✅ Fallback insert successful for ${billing_type == 2 ? 'NON-BILLING' : 'BILLING'} customer`);
-    } catch (fallbackError) {
-      console.error('❌ Fallback insert also failed:', fallbackError);
-    }
-  }
-
-  // Get last new_amount for wallet history
+  // Get last new_amount from filling_history for this customer
   const getLastNewAmountQuery = `
     SELECT new_amount 
     FROM filling_history 
@@ -1245,9 +1159,96 @@ async function handleCompletedStatus(data) {
   const lastNewAmountRows = await executeQuery(getLastNewAmountQuery, [cl_id]);
   const previous_new_amount = lastNewAmountRows.length > 0 ? parseFloat(lastNewAmountRows[0].new_amount) || 0 : 0;
 
-  // For NON-BILLING customers, also add to nb_stock_history
+  try {
+    const colsInfo = await executeQuery('SHOW COLUMNS FROM filling_history');
+    const colSet = new Set(colsInfo.map(r => r.Field));
+
+    const baseCols = [
+      'rid', 'fs_id', 'product_id', 'sub_product_id', 'trans_type', 'current_stock', 'filling_qty', 'amount',
+      'available_stock', 'filling_date', 'cl_id', 'created_by', 'old_amount', 'new_amount', 'remaining_limit',
+      'payment_status'
+    ];
+    const baseVals = [
+      rid, fs_id, product_id, chosenSubProduct || null, 'Outward', oldstock, aqty, calculatedAmount,
+      newStock, now, cl_id, userId,
+      old_used_amount,
+      new_used_amount,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance), // total available
+      paymentStatus
+    ];
+
+    // Only add day limit columns for day limit customers
+    if (isDayLimitCustomer) {
+      const elapsedDays = 0;
+      const remainingDayLimit = customerDayLimit > 0 ? Math.max(0, customerDayLimit - elapsedDays) : null;
+      const dayValidityDays = customerDayLimit > 0 ? customerDayLimit : null;
+
+      if (colSet.has('remaining_day_limit')) {
+        baseCols.push('remaining_day_limit');
+        baseVals.push(remainingDayLimit);
+      }
+      if (colSet.has('day_limit_validity_days')) {
+        baseCols.push('day_limit_validity_days');
+        baseVals.push(dayValidityDays);
+      }
+    }
+
+    const placeholders = baseCols.map(() => '?').join(', ');
+    const insertSql = `INSERT INTO filling_history (${baseCols.join(',')}) VALUES (${placeholders})`;
+    await executeQuery(insertSql, baseVals);
+  } catch (e) {
+    console.log('Using fallback filling_history insert');
+    const insertHistoryQuery = `
+      INSERT INTO filling_history 
+      (rid, fs_id, product_id, sub_product_id, trans_type, current_stock, filling_qty, amount, 
+       available_stock, filling_date, cl_id, created_by, old_amount, new_amount, remaining_limit,
+       payment_status) 
+      VALUES (?, ?, ?, ?, 'Outward', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await executeQuery(insertHistoryQuery, [
+      rid, fs_id, product_id, chosenSubProduct || null, oldstock, aqty, calculatedAmount,
+      newStock, now, cl_id, userId,
+      old_used_amount,
+      new_used_amount,
+      isDayLimitCustomer ? null : (new_raw_available_balance + new_hold_balance),
+      paymentStatus
+    ]);
+  }
+
+  // Get user info for audit log
+  let userName = 'System';
+  try {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value;
+    if (token) {
+      const decoded = verifyToken(token);
+      if (decoded) {
+        const userResult = await executeQuery(
+          `SELECT id, name FROM employee_profile WHERE id = ?`,
+          [userId]
+        );
+        if (userResult.length > 0) {
+          userName = userResult[0].name;
+        }
+      }
+    }
+  } catch (userError) {
+    console.error('Error getting user info:', userError);
+  }
+
+  // Update station stock
+  const updateStockQuery = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`;
+  await executeQuery(updateStockQuery, [newStock, fs_id, product_id]);
+
+  // Handle non-billing stocks if needed
   if (billing_type == 2) {
+    await handleNonBillingStocks(fs_id, product_id, aqty, userId);
+    
+    // ✅ Insert into nb_stock_history for non-billing customers
     try {
+      console.log('🔄 Adding to nb_stock_history for non-billing customer...');
+      
+      // Get customer name, station name, and product name
       const detailsQuery = `
         SELECT c.name as customer_name, fs.station_name, p.pname as product_name
         FROM filling_requests fr
@@ -1260,178 +1261,289 @@ async function handleCompletedStatus(data) {
       
       if (detailsResult.length > 0) {
         const details = detailsResult[0];
+        
         const insertNbHistoryQuery = `
           INSERT INTO nb_stock_history 
           (customer_name, station_name, product_name, quantity, request_id, completion_date)
           VALUES (?, ?, ?, ?, ?, ?)
         `;
+        
         await executeQuery(insertNbHistoryQuery, [
           details.customer_name,
           details.station_name,
           details.product_name,
           aqty,
-          id,
-          now
+          id, // request_id
+          now  // completion_date
         ]);
-        console.log('✅ Added to nb_stock_history for non-billing customer');
+        
+        console.log('✅ Added to nb_stock_history:', {
+          customer_name: details.customer_name,
+          station_name: details.station_name,
+          product_name: details.product_name,
+          quantity: aqty,
+          request_id: id
+        });
       }
     } catch (nbHistoryError) {
-      console.error('⚠️ Error adding to nb_stock_history:', nbHistoryError);
+      console.error('⚠️ Error adding to nb_stock_history (non-critical):', nbHistoryError);
+      // Don't fail the main operation if nb_stock_history fails
     }
   }
 
-  // Update wallet history ONLY for billing customers
-  if (billing_type != 2) {
-    await updateWalletHistory(cl_id, rid, calculatedAmount,
-      previous_new_amount || 0,
-      previous_new_amount + calculatedAmount
-    );
-    console.log('✅ Wallet history updated for billing customer');
-  } else {
-    console.log('ℹ️ Skipping wallet history for non-billing customer');
-  }
+  // Update wallet history
+  await updateWalletHistory(cl_id, rid, calculatedAmount,
+    previous_new_amount || 0,
+    previous_new_amount + calculatedAmount
+  );
 
   console.log('✅ FINAL BALANCES AFTER COMPLETION:', {
     new_raw_available_balance,
     new_hold_balance,
     new_used_amount,
     total_available_after: new_raw_available_balance + new_hold_balance,
-    calculatedAmount,
-    billing_type: billing_type == 2 ? 'NON-BILLING' : 'BILLING',
-    stock_after: newStock
+    calculatedAmount
   });
 
   return 'Request Completed Successfully';
 }
 
 async function getFuelPrice(station_id, product_id, sub_product_id, com_id, defaultPrice = 0) {
+  let finalPrice = defaultPrice;
+
   const sId = parseInt(sub_product_id);
   const hasSubProduct = !isNaN(sId) && sId > 0;
 
   console.log('💲 getFuelPrice Check:', { station_id, product_id, sub_product_id, com_id, hasSubProduct });
 
+  // 1. Exact Match: Customer + Station + Product + SubProduct
   if (hasSubProduct) {
     const exactPriceQuery = `
-      SELECT price FROM deal_price 
-      WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND com_id = ? AND is_active = 1 
-      ORDER BY updated_date DESC LIMIT 1
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND com_id = ? 
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
     `;
     const exactPriceRows = await executeQuery(exactPriceQuery, [station_id, product_id, sub_product_id, com_id]);
-    if (exactPriceRows.length > 0) return parseFloat(exactPriceRows[0].price);
 
-    const stationPriceQuery = `
-      SELECT price FROM deal_price 
-      WHERE station_id = ? AND product_id = ? AND sub_product_id = ? AND (com_id IS NULL OR com_id = 0) AND is_active = 1 
-      ORDER BY updated_date DESC LIMIT 1
-    `;
-    const stationPriceRows = await executeQuery(stationPriceQuery, [station_id, product_id, sub_product_id]);
-    if (stationPriceRows.length > 0) return parseFloat(stationPriceRows[0].price);
+    if (exactPriceRows.length > 0) {
+      console.log('💲 Found Exact Price:', exactPriceRows[0].price);
+      return parseFloat(exactPriceRows[0].price);
+    }
   }
 
+  // 2. Station Default for SubProduct
+  if (hasSubProduct) {
+    const stationPriceQuery = `
+      SELECT price 
+      FROM deal_price 
+      WHERE station_id = ? 
+        AND product_id = ? 
+        AND sub_product_id = ? 
+        AND (com_id IS NULL OR com_id = 0)
+        AND is_active = 1 
+      ORDER BY updated_date DESC 
+      LIMIT 1
+    `;
+    const stationPriceRows = await executeQuery(stationPriceQuery, [station_id, product_id, sub_product_id]);
+
+    if (stationPriceRows.length > 0) {
+      console.log('💲 Found Station SubProduct Price:', stationPriceRows[0].price);
+      return parseFloat(stationPriceRows[0].price);
+    }
+  }
+
+  // 3. General Customer Price
   const customerGeneralQuery = `
-    SELECT price FROM deal_price 
-    WHERE station_id = ? AND product_id = ? AND com_id = ? AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '') AND is_active = 1 
-    ORDER BY updated_date DESC LIMIT 1
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND com_id = ? 
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
   `;
   const customerGeneralRows = await executeQuery(customerGeneralQuery, [station_id, product_id, com_id]);
-  if (customerGeneralRows.length > 0) return parseFloat(customerGeneralRows[0].price);
 
+  if (customerGeneralRows.length > 0) {
+    console.log('💲 Found Customer General Price:', customerGeneralRows[0].price);
+    return parseFloat(customerGeneralRows[0].price);
+  }
+
+  // 4. General Station Price
   const productGeneralQuery = `
-    SELECT price FROM deal_price 
-    WHERE station_id = ? AND product_id = ? AND (com_id IS NULL OR com_id = 0) AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '') AND is_active = 1 
-    ORDER BY updated_date DESC LIMIT 1
+    SELECT price 
+    FROM deal_price 
+    WHERE station_id = ? 
+      AND product_id = ? 
+      AND (com_id IS NULL OR com_id = 0)
+      AND (sub_product_id IS NULL OR sub_product_id = 0 OR sub_product_id = '')
+      AND is_active = 1 
+    ORDER BY updated_date DESC 
+    LIMIT 1
   `;
   const productGeneralRows = await executeQuery(productGeneralQuery, [station_id, product_id]);
-  if (productGeneralRows.length > 0) return parseFloat(productGeneralRows[0].price);
 
+  if (productGeneralRows.length > 0) {
+    console.log('💲 Found Station General Price:', productGeneralRows[0].price);
+    return parseFloat(productGeneralRows[0].price);
+  }
+
+  console.log('💲 No price found, returning default:', defaultPrice);
   return defaultPrice;
 }
 
 async function handleCancelStatus(data) {
-  const { id, rid, remarks, doc1Path, doc2Path, doc3Path, userId } = data;
+  const { id, rid, remarks, doc1Base64, doc2Base64, doc3Base64, userId } = data;
+
   const now = getIndianTime();
 
+  // First, get the request details including customer ID
   const reqRows = await executeQuery(
     `SELECT cid, status, fs_id, product, aqty, price, totalamt, payment_status 
-     FROM filling_requests WHERE id = ? AND rid = ? LIMIT 1`,
+     FROM filling_requests 
+     WHERE id = ? AND rid = ? 
+     LIMIT 1`,
     [id, rid]
   );
 
-  if (!reqRows || reqRows.length === 0) throw new Error('Request not found');
+  if (!reqRows || reqRows.length === 0) {
+    throw new Error('Request not found');
+  }
 
   const req = reqRows[0];
   const customerId = req.cid;
 
-  console.log('🔄 Cancelling request:', { rid, customerId, currentStatus: req.status });
+  console.log('🔄 Cancelling request:', {
+    rid,
+    customerId,
+    currentStatus: req.status,
+    payment_status: req.payment_status
+  });
 
+  // ✅ Check if request was in Processing status
   if (req.status === 'Processing') {
+    console.log('✅ Request was in Processing status - checking hold_balance...');
+
+    // Get current customer balance including hold_balance
     const balanceRows = await executeQuery(
-      `SELECT amtlimit as raw_available_balance, hold_balance FROM customer_balances WHERE com_id = ? LIMIT 1`,
+      `SELECT amtlimit as raw_available_balance, hold_balance 
+       FROM customer_balances 
+       WHERE com_id = ? 
+       LIMIT 1`,
       [customerId]
     );
 
     if (balanceRows.length > 0) {
+      const currentRawBalance = parseFloat(balanceRows[0].raw_available_balance) || 0;
       const currentHoldBalance = parseFloat(balanceRows[0].hold_balance) || 0;
+
+      console.log('💰 Current balances:', {
+        customerId,
+        raw_available_balance: currentRawBalance,
+        hold_balance: currentHoldBalance
+      });
+
       if (currentHoldBalance > 0) {
-        await executeQuery(
-          `UPDATE customer_balances 
-           SET amtlimit = amtlimit + ?, hold_balance = 0, updated_at = ? 
-           WHERE com_id = ?`,
-          [currentHoldBalance, now, customerId]
-        );
-        console.log(`✅ Restored hold_balance: ₹${currentHoldBalance}`);
+        // ✅ RESTORE hold_balance to raw_available_balance
+        const restoreQuery = `
+          UPDATE customer_balances 
+          SET amtlimit = amtlimit + ?, 
+              hold_balance = 0,
+              updated_at = ? 
+          WHERE com_id = ?
+        `;
+
+        await executeQuery(restoreQuery, [currentHoldBalance, now, customerId]);
+
+        console.log(`✅ Restored hold_balance: ₹${currentHoldBalance} to raw_available_balance for customer: ${customerId}`);
+      } else {
+        console.log(`ℹ️ No hold_balance to restore for customer: ${customerId}`);
       }
+    } else {
+      console.log(`⚠️ No customer balance record found for customer: ${customerId}`);
     }
   }
 
+  // If request was completed, we need to handle stock and balance reversal differently
   if (req.status === 'Completed') {
     const amount = parseFloat(req.totalamt || (req.price * req.aqty)) || 0;
 
-    // Revert stock - ADD back to filling_station_stocks
+    console.log('🔄 Reverting completed request:', { amount });
+
+    // Revert stock
     try {
       const stockRows = await executeQuery(
         `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND product = ?`,
         [req.fs_id, req.product]
       );
-      if (stockRows.length > 0) {
+
+      if (stockRows && stockRows.length > 0) {
         const currentStock = parseFloat(stockRows[0].stock) || 0;
+        const returnedQty = parseFloat(req.aqty) || 0;
+
         await executeQuery(
           `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND product = ?`,
-          [currentStock + parseFloat(req.aqty || 0), req.fs_id, req.product]
+          [currentStock + returnedQty, req.fs_id, req.product]
         );
-        console.log(`✅ Stock reverted: Added ${parseFloat(req.aqty || 0)}L back to filling_station_stocks`);
+
+        console.log(`✅ Stock reverted: Added ${returnedQty}L back to station`);
       }
     } catch (stockError) {
       console.error('❌ Error reverting stock:', stockError);
     }
 
+    // For credit limit customers (payment_status = 1), revert the deduction
     if (parseInt(req.payment_status) === 1 && amount > 0) {
       await executeQuery(
         `UPDATE customer_balances 
-         SET amtlimit = amtlimit + ?, balance = GREATEST(0, balance - ?), updated_at = ? 
+         SET amtlimit = amtlimit + ?, 
+             balance = GREATEST(0, balance - ?), 
+             updated_at = ? 
          WHERE com_id = ?`,
         [amount, amount, now, customerId]
       );
-      console.log(`✅ Balance reverted for completed request: Added ₹${amount}`);
+
+      console.log(`✅ Balance reverted for completed request: Added ₹${amount} to raw_available_balance`);
     }
   }
 
+  // Now update the request status to Cancel
   const updateRequestQuery = `
     UPDATE filling_requests 
-    SET status = 'Cancelled', cdate = ?, ccid = ?, cancel_remark = ?, 
-        doc1 = ?, doc2 = ?, doc3 = ?, status_updated_by = ?, updated_at = ?
+    SET status = 'Cancelled', 
+        cdate = ?, 
+        ccid = ?, 
+        cancel_remark = ?, 
+        doc1 = ?, 
+        doc2 = ?, 
+        doc3 = ?, 
+        status_updated_by = ?,
+        updated_at = ?
     WHERE id = ? AND rid = ?
   `;
 
   await executeQuery(updateRequestQuery, [
-    now, userId, remarks, doc1Path || null, doc2Path || null, doc3Path || null, userId, now, id, rid
+    now, userId, remarks, doc1Base64 || null, doc2Base64 || null, doc3Base64 || null, userId, now, id, rid
   ]);
+
+  console.log(` Request ${rid} cancelled successfully`);
 
   return 'Request Cancelled Successfully';
 }
 
 async function updateFillingRequest(data) {
-  const { id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id } = data;
+  const {
+    id, aqty, status, remarks, doc1Base64, doc2Base64, doc3Base64, userId, sub_product_id
+  } = data;
+
   const now = getIndianTime();
 
   let updateQuery = '';
@@ -1440,19 +1552,33 @@ async function updateFillingRequest(data) {
   if (status === 'Processing') {
     updateQuery = `
       UPDATE filling_requests 
-      SET doc1 = ?, doc2 = ?, doc3 = ?, aqty = ?, status = ?, remark = ?, 
-          sub_product_id = ?, pdate = ?, pcid = ?, status_updated_by = ?
+      SET doc1 = ?, 
+          doc2 = ?, 
+          doc3 = ?, 
+          aqty = ?, 
+          status = ?, 
+          remark = ?, 
+          sub_product_id = ?,
+          pdate = ?,
+          pcid = ?,
+          status_updated_by = ?
       WHERE id = ?
     `;
-    queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, now, userId, userId, id];
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, now, userId, userId, id];
   } else {
     updateQuery = `
       UPDATE filling_requests 
-      SET doc1 = ?, doc2 = ?, doc3 = ?, aqty = ?, status = ?, remark = ?, 
-          sub_product_id = ?, status_updated_by = ?
+      SET doc1 = ?, 
+          doc2 = ?, 
+          doc3 = ?, 
+          aqty = ?, 
+          status = ?, 
+          remark = ?, 
+          sub_product_id = ?,
+          status_updated_by = ?
       WHERE id = ?
     `;
-    queryParams = [doc1Path, doc2Path, doc3Path, aqty, status, remarks, sub_product_id, userId, id];
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, userId, id];
   }
 
   await executeQuery(updateQuery, queryParams);
@@ -1462,6 +1588,14 @@ async function updateFillingRequest(data) {
 async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBalance) {
   try {
     const description = 'Fuel Purchase';
+
+    console.log('💰 Wallet History Update:', {
+      oldBalance,
+      deductedAmount,
+      newBalance,
+      description
+    });
+
     const checkQuery = `SELECT id FROM wallet_history WHERE rid = ? LIMIT 1`;
     const existingRecord = await executeQuery(checkQuery, [rid]);
 
@@ -1472,14 +1606,15 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
          WHERE rid = ?`,
         [oldBalance, deductedAmount, newBalance, description, rid]
       );
+      console.log('✅ Wallet history updated for rid:', rid);
     } else {
       await executeQuery(
         `INSERT INTO wallet_history (cl_id, rid, old_balance, deducted, c_balance, d_date, type, description) 
          VALUES (?, ?, ?, ?, ?, NOW(), 4, ?)`,
         [cl_id, rid, oldBalance, deductedAmount, newBalance, description]
       );
+      console.log('✅ Wallet history inserted for rid:', rid);
     }
-    console.log('✅ Wallet history updated for rid:', rid);
   } catch (error) {
     console.error('❌ Error in updateWalletHistory:', error);
   }
@@ -1487,25 +1622,41 @@ async function updateWalletHistory(cl_id, rid, deductedAmount, oldBalance, newBa
 
 async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) {
   try {
-    console.log('📦 Adding to non_billing_stocks for station:', station_id, 'product:', product_id, 'aqty:', aqty);
+    console.log('📦 Processing non-billing stock for station:', station_id, 'product:', product_id, 'aqty:', aqty);
 
-    const checkQuery = `SELECT id, stock FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
+    const checkQuery = `SELECT COUNT(*) as count FROM non_billing_stocks WHERE station_id = ? AND product_id = ?`;
     const checkResult = await executeQuery(checkQuery, [station_id, product_id]);
-    
-    if (checkResult.length > 0) {
-      // Update existing record - ADD stock for non-billing customers
+    const exists = checkResult[0].count > 0;
+
+    console.log('Record exists?', exists);
+
+    if (exists) {
       const updateQuery = `UPDATE non_billing_stocks SET stock = stock + ?, updated_at = NOW(), updated_by = ? WHERE station_id = ? AND product_id = ?`;
       await executeQuery(updateQuery, [aqty, userId, station_id, product_id]);
-      console.log('✅ Updated non_billing_stocks, added:', aqty, 'new total:', (parseFloat(checkResult[0].stock) + aqty));
+      console.log('✅ Updated existing record, added:', aqty);
     } else {
-      // Insert new record
       const insertQuery = `INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at, created_by) VALUES (?, ?, ?, NOW(), ?)`;
       await executeQuery(insertQuery, [station_id, product_id, aqty, userId]);
-      console.log('✅ Inserted new record in non_billing_stocks with stock:', aqty);
+      console.log('✅ Inserted new record with stock:', aqty);
     }
+
     return true;
+
   } catch (error) {
-    console.error('❌ Error in handleNonBillingStocks:', error);
+    console.error('❌ SIMPLEST method error:', error);
+
+    try {
+      const directInsert = `
+        INSERT IGNORE INTO non_billing_stocks 
+        (station_id, product_id, stock, created_at, created_by)
+        VALUES (?, ?, ?, NOW(), ?)
+      `;
+      await executeQuery(directInsert, [station_id, product_id, aqty, userId]);
+      console.log('✅ Direct INSERT attempted');
+    } catch (finalError) {
+      console.error('❌ Everything failed:', finalError);
+    }
+
     return false;
   }
 }
