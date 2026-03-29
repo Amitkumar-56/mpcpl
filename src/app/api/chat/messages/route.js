@@ -13,7 +13,10 @@ export async function GET(request) {
     }
 
     const messages = await executeQuery(
-      `SELECT * FROM messages WHERE customer_id = ? ORDER BY timestamp ASC`,
+      `SELECT m.*, ep.name as employee_name 
+         FROM messages m 
+         LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
+         WHERE m.customer_id = ? ORDER BY m.timestamp ASC`,
       [customerId]
     );
 

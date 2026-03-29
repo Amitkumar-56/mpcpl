@@ -69,10 +69,25 @@ export default function PurchaseContent() {
 
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
-    setPurchaseData(prev => ({
-      ...prev,
-      [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value
-    }));
+    
+    setPurchaseData(prev => {
+      const updatedData = {
+        ...prev,
+        [name]: type === 'number' ? (value === '' ? '' : parseFloat(value)) : value
+      };
+      
+      // Calculate Quantity in Ltr when Density or Quantity in Kg changes
+      if (name === 'density' || name === 'quantityInKg') {
+        const density = parseFloat(updatedData.density) || 0;
+        const quantityInKg = parseFloat(updatedData.quantityInKg) || 0;
+        
+        if (density > 0 && quantityInKg > 0) {
+          updatedData.quantityInLtr = (quantityInKg / density).toFixed(2);
+        }
+      }
+      
+      return updatedData;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -80,7 +95,7 @@ export default function PurchaseContent() {
     setLoading(true);
     
     // Validate required fields
-    const requiredFields = ['transporter_id', 'supplier_id', 'product_id', 'fs_id', 'invoiceNumber', 'invoiceDate', 'invoiceAmount'];
+    const requiredFields = ['supplier_id', 'product_id', 'fs_id', 'invoiceNumber', 'invoiceDate', 'invoiceAmount'];
     const missingFields = requiredFields.filter(field => !purchaseData[field]);
     
     if (missingFields.length > 0) {
@@ -205,22 +220,6 @@ export default function PurchaseContent() {
           {/* Purchase Form */}
           <form onSubmit={handleSubmit} className="bg-white p-6 rounded-xl shadow-lg border border-gray-200">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {/* Transporter Dropdown */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Select Transporter</label>
-                <select
-                  name="transporter_id"
-                  value={purchaseData.transporter_id}
-                  onChange={handleInputChange}
-                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
-                >
-                  <option value="">Select Transporter</option>
-                  {formData.transporters.map(t => (
-                    <option key={t.id} value={t.id}>{t.transporter_name}</option>
-                  ))}
-                </select>
-              </div>
-
               {/* Supplier Dropdown */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Select Supplier *</label>
@@ -396,6 +395,37 @@ export default function PurchaseContent() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Invoice Amount *
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  name="invoiceAmount"
+                  value={purchaseData.invoiceAmount}
+                  onChange={handleInputChange}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  required
+                />
+              </div>
+
+              {/* Transporter Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Select Transporter (Optional)</label>
+                <select
+                  name="transporter_id"
+                  value={purchaseData.transporter_id}
+                  onChange={handleInputChange}
+                  className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-purple-600"
+                >
+                  <option value="">Select Transporter</option>
+                  {formData.transporters.map(t => (
+                    <option key={t.id} value={t.id}>{t.transporter_name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
                   Transport Number
                 </label>
                 <input
@@ -451,66 +481,49 @@ export default function PurchaseContent() {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Invoice Amount *
+              {/* Status Section */}
+              <div className="mt-8 p-4 bg-gray-50 rounded-lg">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Status
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  name="invoiceAmount"
-                  value={purchaseData.invoiceAmount}
-                  onChange={handleInputChange}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  required
-                />
+                <select 
+                  value={status}
+                  onChange={(e) => setStatus(e.target.value)}
+                  className="w-full md:w-1/3 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                >
+                  <option value="on_the_way">On the Way</option>
+                  <option value="reported">Reported</option>
+                  <option value="unloaded">Unloaded</option>
+                </select>
               </div>
 
-      
-            </div>
-
-            {/* Status Section */}
-            <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-              <label className="block text-sm font-medium text-gray-700 mb-3">
-                Status
-              </label>
-              <select 
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                className="w-full md:w-1/3 px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-              >
-                <option value="on_the_way">On the Way</option>
-                <option value="reported">Reported</option>
-                <option value="unloaded">Unloaded</option>
-              </select>
-            </div>
-
-            {/* Quantity Change Check */}
-            <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-              <label className="flex items-center mb-3">
-                <input 
-                  type="checkbox" 
-                  checked={quantityChanged}
-                  onChange={(e) => setQuantityChanged(e.target.checked)}
-                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-5 h-5" 
-                />
-                <span className="ml-3 text-sm font-medium text-gray-700">Is there any change in quantity?</span>
-              </label>
-              
-              {quantityChanged && (
-                <div className="mt-3">
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Quantity Change Reason
-                  </label>
-                  <input
-                    type="text"
-                    value={quantityChangeReason}
-                    onChange={(e) => setQuantityChangeReason(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    placeholder="Reason for quantity change"
+              {/* Quantity Change Check */}
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg">
+                <label className="flex items-center mb-3">
+                  <input 
+                    type="checkbox" 
+                    checked={quantityChanged}
+                    onChange={(e) => setQuantityChanged(e.target.checked)}
+                    className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 w-5 h-5" 
                   />
-                </div>
-              )}
+                  <span className="ml-3 text-sm font-medium text-gray-700">Is there any change in quantity?</span>
+                </label>
+                
+                {quantityChanged && (
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Quantity Change Reason
+                    </label>
+                    <input
+                      type="text"
+                      value={quantityChangeReason}
+                      onChange={(e) => setQuantityChangeReason(e.target.value)}
+                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      placeholder="Reason for quantity change"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Action Buttons */}

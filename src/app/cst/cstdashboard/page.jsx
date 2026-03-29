@@ -207,8 +207,8 @@ export default function CustomerDashboardPage() {
       try {
         await fetch('/api/socket');
         newSocket = io({
-          path: '/api/socket/io',
-          addTrailingSlash: false,
+          path: '/api/socket',
+          transports: ['websocket', 'polling'],
         });
 
         newSocket.on('connect', () => {
@@ -375,7 +375,7 @@ export default function CustomerDashboardPage() {
       tempId,
       text: messageText,
       sender: 'customer',
-      customer_id: user.id,
+      customer_id: user.com_id || user.id,
       status: 'sending',
       timestamp: new Date().toISOString(),
     };
@@ -386,7 +386,7 @@ export default function CustomerDashboardPage() {
 
     try {
       socket.emit('customer_message', {
-        customerId: user.id.toString(),
+        customerId: (user.com_id || user.id).toString(),
         text: messageText,
         customerName: user.name || 'Customer',
         tempId: tempId

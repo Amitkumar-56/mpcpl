@@ -13,28 +13,46 @@ export async function POST(request) {
       }, { status: 400 });
     }
 
-    // चेक करो कि ये चैट पहले से किसी ने accept की है या नहीं
-    const [existing] = await executeQuery(
-      "SELECT employee_id FROM chat_sessions WHERE customer_id = ? AND status = 'active'",
-      [customerId]
+    // Atomic update: Only assign if not already assigned
+    const result = await executeQuery(
+      "UPDATE chat_sessions SET employee_id = ?, status = 'active' WHERE customer_id = ? AND (employee_id IS NULL OR employee_id = '')",
+      [employeeId, customerId]
     );
 
-    if (existing && existing.employee_id) {
+    // Check if update was successful (affectedRows > 0)
+    if (result.affectedRows === 0) {
+      // Chat was already assigned to someone else
+      const [existing] = await executeQuery(
+        "SELECT employee_id FROM chat_sessions WHERE customer_id = ?",
+        [customerId]
+      );
+
       return NextResponse.json({
         success: false,
         message: "Chat already accepted by another employee",
+        alreadyAssigned: true,
+        assignedTo: existing?.employee_id
       });
     }
 
-    // Accept करने वाले employee को assign करो
-    await executeQuery(
-      "UPDATE chat_sessions SET employee_id = ?, status = 'active' WHERE customer_id = ?",
-      [employeeId, customerId]
-    );
+    // Broadcast chat assignment to all employees
+    try {
+      const globalSocket = global._io;
+      if (globalSocket) {
+        globalSocket.to("employees").emit("chat_assigned", {
+          customerId,
+          employeeId,
+          employeeName: null, // Will be updated by client
+        });
+      }
+    } catch (socketError) {
+      console.error("Socket broadcast error:", socketError);
+    }
 
     return NextResponse.json({
       success: true,
       message: "Chat accepted successfully",
+      assignedTo: employeeId
     });
 
   } catch (error) {

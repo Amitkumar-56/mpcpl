@@ -108,6 +108,7 @@ export async function POST(request) {
   try {
     const body = await request.json();
     const { 
+      employee_id,
       leave_type, 
       from_date, 
       to_date, 
@@ -162,7 +163,7 @@ export async function POST(request) {
        WHERE employee_id = ? 
        AND status IN ('Pending', 'Approved')
        AND ((from_date <= ? AND to_date >= ?) OR (from_date <= ? AND to_date >= ?))`,
-      [currentUserId, from_date, from_date, to_date, to_date]
+      [employee_id, from_date, from_date, to_date, to_date]
     );
 
     if (overlapping && overlapping.length > 0) {
@@ -188,7 +189,7 @@ export async function POST(request) {
     `;
 
     const result = await executeQuery(insertQuery, [
-      currentUserId,
+      employee_id,
       leave_type,
       from_date,
       to_date,

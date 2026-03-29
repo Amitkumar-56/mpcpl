@@ -3,6 +3,18 @@ import { NextResponse } from "next/server";
 
 export async function GET(request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const employeeRole = searchParams.get('employeeRole'); // Get employee role from query params
+
+    // If driver (role 6), return empty sessions - no customer chat access
+    if (employeeRole === '6') {
+      return NextResponse.json({ 
+        success: true, 
+        sessions: [],
+        message: "Drivers cannot access customer chats"
+      });
+    }
+
     const sessions = await executeQuery(`
       SELECT 
         cs.*,
