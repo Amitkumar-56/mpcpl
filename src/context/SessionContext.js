@@ -15,6 +15,64 @@ export function SessionProvider({ children }) {
   const lastPathnameRef = useRef(pathname); // Track pathname changes
   const redirectTimeoutRef = useRef(null); // Track redirect timeout
 
+  // ✅ Check for deactivated user
+  const checkUserStatus = useCallback(async () => {
+    if (!user || !user.id || loading) return;
+
+    try {
+      // Skip check on login page, deactivated page, or public pages
+      const publicPages = ['/login', '/deactivated', '/', '/register'];
+      const isPublicPage = publicPages.includes(pathname) || 
+                          pathname.startsWith('/cst/') || 
+                          pathname.startsWith('/agent/') || 
+                          pathname.startsWith('/supplier/');
+      
+      if (isPublicPage) return;
+
+      const response = await fetch('/api/check-status', {
+        method: 'GET',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        
+        // If user is deactivated, log them out immediately WITHOUT any permission check
+        if (data.isDeactivated || !data.success) {
+          console.log(`🚫 User ${data.user.name} (ID: ${data.user.id}) is DEACTIVATED - Automatic logout triggered!`);
+          
+          // Clear all storage and redirect to deactivated page
+          if (typeof window !== 'undefined') {
+            // NO POPUP/ALERT - Direct logout
+            console.error('USER DEACTIVATED - ID:', data.user.id, 'Status: Deactivated');
+            
+            // Clear all storage immediately
+            localStorage.clear();
+            sessionStorage.clear();
+            
+            // Force redirect to deactivated page without any popup
+            window.location.href = '/deactivated';
+          }
+        }
+      } else if (response.status === 403) {
+        // Handle 403 status (deactivated user)
+        const data = await response.json();
+        console.log(`🚫 403 Response - User ${data.user?.id} is deactivated`);
+        
+        if (typeof window !== 'undefined') {
+          // NO POPUP/ALERT - Direct logout
+          console.error('USER DEACTIVATED - ID:', data.user?.id, 'Status: Deactivated');
+          localStorage.clear();
+          sessionStorage.clear();
+          window.location.href = '/deactivated';
+        }
+      }
+    } catch (error) {
+      console.error('Status check failed:', error);
+      // Don't log out on API failure, just log error
+    }
+  }, [user, loading, pathname]);
+
   // ✅ Simplified auth check - only check cache, no background verification
   const checkAuth = useCallback(async () => {
     try {
@@ -194,13 +252,26 @@ export function SessionProvider({ children }) {
     }
   }, [pathname]);
 
-  // ✅ Simplified useEffect - only run on mount
+  // ✅ Simplified useEffect - only run on mount and when user changes
   useEffect(() => {
     // Only check auth on initial load
     if (!user && loading) {
       checkAuth();
     }
   }, []); // Empty dependency array - only run once on mount
+
+  // ✅ Check user status when authenticated
+  useEffect(() => {
+    if (user && !loading) {
+      // Check status immediately when user is loaded
+      checkUserStatus();
+      
+      // Also check status periodically (every 30 seconds)
+      const statusInterval = setInterval(checkUserStatus, 30000);
+      
+      return () => clearInterval(statusInterval);
+    }
+  }, [user, loading, checkUserStatus]);
 
   // ✅ Simplified redirection logic
   useEffect(() => {

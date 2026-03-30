@@ -156,9 +156,9 @@ export default function SocketHandler(req, res) {
 
                 `INSERT INTO chat_sessions (customer_id, last_message_at, status) 
 
-                 VALUES (?, NOW(), 'awaiting') 
+                 VALUES (?, NOW(), 'active') 
 
-                 ON DUPLICATE KEY UPDATE last_message_at = NOW(), status = 'awaiting'`,
+                 ON DUPLICATE KEY UPDATE last_message_at = NOW(), status = 'active'`,
 
                 [customerId]
 

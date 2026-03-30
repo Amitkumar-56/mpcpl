@@ -30,13 +30,76 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
   const [loadingMessages, setLoadingMessages] = useState(false);
 
-  const [notifCount, setNotifCount] = useState(0);
+  const [notifCount, setNotifCount] = useState(() => {
+    // Load notification count from localStorage on initial load
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('chatNotifCount');
+      return saved ? parseInt(saved, 10) : 0;
+    }
+    return 0;
+  });
 
-  const [chatMinimized, setChatMinimized] = useState(false);
+  // Calculate actual unread message count from active chats
+  const calculateActualNotifCount = () => {
+    const actualCount = activeChats.filter(chat => chat.unread).length;
+    updateNotifCount(actualCount);
+  };
+
+  // Save notification count to localStorage whenever it changes
+  const updateNotifCount = (newCount) => {
+    setNotifCount(newCount);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('chatNotifCount', newCount.toString());
+      // Dispatch custom event to notify other components
+      window.dispatchEvent(new CustomEvent('chatNotificationUpdate', { 
+        detail: { count: newCount } 
+      }));
+    }
+  };
+
+  // Request notification permission on component mount
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'default') {
+        Notification.requestPermission().then(permission => {
+          console.log('Notification permission:', permission);
+        });
+      }
+    }
+  }, []);
+
+  // Show browser notification for new messages
+  const showBrowserNotification = (customerName, message) => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+      // Don't show notification if page is visible and chat is open
+      if (!document.hidden && showChat && !chatMinimized) return;
+      
+      const notification = new Notification(`New message from ${customerName}`, {
+        body: message,
+        icon: '/favicon.png',
+        badge: '/favicon.png',
+        tag: `chat-${customerName}`, // Prevent duplicate notifications
+        requireInteraction: true // Keep notification until user interacts
+      });
+      
+      notification.onclick = () => {
+        window.focus();
+        setShowChat(true);
+        notification.close();
+      };
+      
+      // Auto-close after 5 seconds
+      setTimeout(() => {
+        notification.close();
+      }, 5000);
+    }
+  };
 
   const messagesEndRef = useRef(null);
 
   const ringIntervalRef = useRef(null);
+
+  const [chatMinimized, setChatMinimized] = useState(false);
 
 
 
@@ -160,8 +223,16 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
             if (!isCurrentChat) {
 
-              setNotifCount(prev => prev + 1);
+              updateNotifCount(prev => prev + 1);
 
+            }
+
+            // Show browser notification for new messages
+            if (!isCurrentChat) {
+              showBrowserNotification(
+                data.customerName || `Customer ${data.customerId}`,
+                data.message
+              );
             }
 
             if ((!showChat || chatMinimized) && !ringIntervalRef.current) {
@@ -296,7 +367,7 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
                 markMessagesAsRead(data.customerId);
 
-                setNotifCount(prev => Math.max(0, prev - 1));
+                updateNotifCount(prev => Math.max(0, prev - 1));
 
               } catch (error) {
 
@@ -466,6 +537,10 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
           setActiveChats(deduplicated);
 
+          // Sync notification count with actual unread chats
+          const actualCount = deduplicated.filter(chat => chat.unread).length;
+          updateNotifCount(actualCount);
+
           console.log('ChatWidget: Loaded active chat sessions:', deduplicated.length);
 
         }
@@ -610,7 +685,7 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
               markMessagesAsRead(selectedCustomer.customerId);
 
-              setNotifCount(prev => Math.max(0, prev - 1));
+              updateNotifCount(prev => Math.max(0, prev - 1));
 
               setActiveChats(prev => 
 
@@ -676,7 +751,7 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
     markMessagesAsRead(chat.customerId);
 
-    setNotifCount(prev => Math.max(0, prev - 1));
+    updateNotifCount(prev => Math.max(0, prev - 1));
 
     setActiveChats(prev => 
 

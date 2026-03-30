@@ -34,6 +34,12 @@ export default function LoginPage() {
       if (!res.ok) {
         // Handle HTTP errors
         if (res.status === 401 || res.status === 403) {
+          // Check if account is deactivated
+          if (data.message === "ACCOUNT_DEACTIVATED") {
+            // Redirect to deactivated page
+            window.location.href = data.redirectUrl || "/deactivated";
+            return;
+          }
           setError(data.message || "Invalid credentials or account deactivated");
         } else if (res.status === 500) {
           setError(data.message || "Server error. Please try again later.");

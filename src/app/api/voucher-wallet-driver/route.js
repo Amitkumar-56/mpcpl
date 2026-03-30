@@ -3,10 +3,11 @@ import { NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
 
 export async function GET(request) {
+  let connection = null;
   try {
     console.log('=== Voucher Wallet Driver API Called ===');
 
-    // ✅ TEMPORARY: Use mock session data (replace with actual auth later)
+    // TEMPORARY: Use mock session data (replace with actual auth later)
     const session = {
       user_id: 1,
       role: 5, // Change this to test different roles: 5=Admin, 4=Manager, 3=Supervisor, 2=Operator, 1=User
@@ -23,10 +24,13 @@ export async function GET(request) {
     console.log('Session - User ID:', userId, 'Role:', role, 'FS ID:', fs_id);
     console.log('Request emp_id:', emp_id);
 
+    // Get a single connection for all queries
+    connection = await executeQuery('SELECT 1');
+
     let sql = "";
     let params = [];
 
-    // ✅ Your exact PHP logic converted to Node.js
+    // Your exact PHP logic converted to Node.js
     if (role == 5 || role == 4 || role == 3) {
       // Admin, Manager, Supervisor - can see all vouchers
       sql = `
@@ -49,7 +53,7 @@ export async function GET(request) {
       if (role == 1) params.push(userId);
     }
 
-    // ✅ Filter by employee (your exact PHP logic)
+    // Filter by employee (your exact PHP logic)
     if (emp_id) {
       if (sql.includes('WHERE')) {
         sql += ' AND v.emp_id = ?';
@@ -59,7 +63,7 @@ export async function GET(request) {
       params.push(emp_id);
     }
 
-    // ✅ Add ORDER BY (your exact PHP logic)
+    // Add ORDER BY (your exact PHP logic)
     sql += ' ORDER BY v.voucher_id DESC';
 
     console.log('Final SQL:', sql);
@@ -69,26 +73,26 @@ export async function GET(request) {
     const result = await executeQuery(sql, params);
     console.log('Query result:', result.length, 'records found');
 
-    // ✅ Get driver name if emp_id is provided (your exact PHP logic)
+    // Get driver name if emp_id is provided (your exact PHP logic)
     let driver_name = null;
-    if (emp_id) {
-      const driverQuery = 'SELECT name FROM employee_profile WHERE id = ?';
-      const driverResult = await executeQuery(driverQuery, [emp_id]);
-      if (driverResult.length > 0) {
-        driver_name = driverResult[0].name;
-        console.log('Driver name found:', driver_name);
+    if (emp_id && result.length > 0) {
+      // Check if we already have the driver name from the main query
+      const driverFromResult = result.find(v => v.emp_name);
+      if (driverFromResult) {
+        driver_name = driverFromResult.emp_name;
+        console.log('Driver name from main query:', driver_name);
+      } else {
+        // Fallback to separate query only if needed
+        const driverQuery = 'SELECT name FROM employee_profile WHERE id = ? LIMIT 1';
+        const driverResult = await executeQuery(driverQuery, [emp_id]);
+        if (driverResult.length > 0) {
+          driver_name = driverResult[0].name;
+          console.log('Driver name from separate query:', driver_name);
+        }
       }
     }
 
-    // ✅ Check permissions from role_permissions table
-    const permissionsQuery = `
-      SELECT module_name, can_view, can_edit, can_create 
-      FROM role_permissions 
-      WHERE module_name = 'Vouchers' AND role = ? AND employee_id = ?
-    `;
-    
-    const permissionsResult = await executeQuery(permissionsQuery, [role, userId]);
-    
+    // Check permissions from role_permissions table (with fallback)
     let permissions = {
       module_name: 'Vouchers',
       can_view: 1,
@@ -96,8 +100,20 @@ export async function GET(request) {
       can_create: 1
     };
 
-    if (permissionsResult.length > 0) {
-      permissions = permissionsResult[0];
+    // Only check permissions for non-admin roles
+    if (role < 5) {
+      const permissionsQuery = `
+        SELECT module_name, can_view, can_edit, can_create 
+        FROM role_permissions 
+        WHERE module_name = 'Vouchers' AND (role = ? OR employee_id = ?)
+        LIMIT 1
+      `;
+      
+      const permissionsResult = await executeQuery(permissionsQuery, [role, userId]);
+      
+      if (permissionsResult.length > 0) {
+        permissions = permissionsResult[0];
+      }
     }
 
     console.log('Permissions:', permissions);
@@ -126,5 +142,10 @@ export async function GET(request) {
       },
       { status: 500 }
     );
+  } finally {
+    // Connection is automatically released by executeQuery
+    if (connection) {
+      // No manual release needed as executeQuery handles it
+    }
   }
 }

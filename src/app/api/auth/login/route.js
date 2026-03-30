@@ -28,7 +28,8 @@ export async function POST(request) {
     if (userStatus !== 1) {
       return NextResponse.json({ 
         success: false, 
-        message: "Your account has been deactivated by admin. Please contact administrator." 
+        message: "ACCOUNT_DEACTIVATED",
+        redirectUrl: "/deactivated"
       }, { status: 403 });
     }
 

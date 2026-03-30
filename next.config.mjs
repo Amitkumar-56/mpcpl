@@ -5,7 +5,7 @@ const nextConfig = {
   // Your Next.js config options here
   // WebSocket configuration for development
   experimental: {
-    serverComponentsExternalPackages: ['socket.io', 'socket.io-client'],
+    serverExternalPackages: ['socket.io', 'socket.io-client'],
   },
   // Handle WebSocket issues in development
   webpack: (config, { dev, isServer }) => {

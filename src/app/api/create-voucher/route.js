@@ -102,16 +102,16 @@ export async function POST(request) {
     const paid_amount = 0;
     const status = 'pending';
 
-    // Determine next sequence by extracting the numeric sequence part from existing
+    // Determine next sequence by extracting numeric sequence part from existing
     // `voucher_no` values of the form 'V{seq}{last4}'. We assume seq is stored
-    // immediately after 'V' and is numeric (pad to 2 digits).
+    // immediately after 'V' and is numeric (pad to 3 digits starting from 101).
     const seqResult = await executeQuery(
-      `SELECT COALESCE(MAX(CAST(SUBSTRING(voucher_no, 2, 2) AS UNSIGNED)), 0) + 1 as next_seq
+      `SELECT COALESCE(MAX(CAST(SUBSTRING(voucher_no, 2, 3) AS UNSIGNED)), 100) + 1 as next_seq
        FROM vouchers
        WHERE voucher_no LIKE 'V%'
       `
     );
-    const nextSeq = seqResult[0]?.next_seq || 1;
+    const nextSeq = seqResult[0]?.next_seq || 101;
 
     // Insert voucher (voucher_no ही voucher_code है)
     const voucherQuery = `
@@ -122,7 +122,7 @@ export async function POST(request) {
     `;
 
     // Build display voucher code using the computed sequence and vehicle last-4
-    const seqStrForInsert = String(nextSeq).padStart(2, '0');
+    const seqStrForInsert = String(nextSeq).padStart(3, '0');
     const digitsOnlyForInsert = (vehicle_no || '').toString().replace(/\D/g, '');
     let last4ForInsert = digitsOnlyForInsert.slice(-4);
     if (last4ForInsert.length < 4) {
