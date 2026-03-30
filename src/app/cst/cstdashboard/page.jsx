@@ -20,6 +20,7 @@ import {
   BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
+import { playBeep } from "@/utils/sound";
 // SSOSync component removed - no longer needed
 
 export default function CustomerDashboardPage() {
@@ -281,6 +282,10 @@ export default function CustomerDashboardPage() {
         newSocket.on('new_message', (data) => {
           const { message } = data;
           setMessages(prev => mergeMessages(prev, message));
+          
+          // Play notification sound
+          playBeep();
+          
           if (!showChat) {
             setUnreadCount(prev => prev + 1);
           }
@@ -646,12 +651,21 @@ export default function CustomerDashboardPage() {
                     </div>
                     <div className="ml-3">
                       <h4 className="text-sm text-gray-500">Live Support</h4>
+                      <div className="flex items-center gap-2">
+                      <button
+                        onClick={playBeep}
+                        className="text-sm text-green-600 hover:text-green-700"
+                        title="Test Sound"
+                      >
+                        🔊
+                      </button>
                       <button
                         onClick={toggleChat}
                         className="text-sm text-green-600 hover:text-green-700"
                       >
                         {showChat ? 'Close Chat' : 'Start Chat'}
                       </button>
+                    </div>
                     </div>
                   </div>
                 </div>
@@ -795,6 +809,13 @@ export default function CustomerDashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               <button
+                onClick={(e) => { e.stopPropagation(); playBeep(); }}
+                className="hover:bg-blue-700 p-1 rounded"
+                title="Test Sound"
+              >
+                🔊
+              </button>
+              <button
                 onClick={(e) => { e.stopPropagation(); minimizeChat(); }}
                 className="hover:bg-blue-700 p-1 rounded"
               >
@@ -827,6 +848,10 @@ export default function CustomerDashboardPage() {
                           : 'bg-white text-gray-800 border'
                           }`}
                       >
+                        {/* Show employee name for employee messages */}
+                        {msg.sender === 'employee' && msg.employee_name && (
+                          <p className="text-xs font-semibold text-blue-600 mb-1">{msg.employee_name}</p>
+                        )}
                         <p className="text-sm">{msg.text}</p>
                         <div className="flex items-center justify-end gap-1 mt-1 text-xs text-gray-500">
                           <span>{formatTime(msg.timestamp)}</span>

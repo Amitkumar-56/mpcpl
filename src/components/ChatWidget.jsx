@@ -10,6 +10,8 @@ import { BiMessageRounded, BiSend, BiX, BiMinus } from 'react-icons/bi';
 
 import { io } from 'socket.io-client';
 
+import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
+
 
 
 export default function ChatWidget({ showChat, setShowChat }) {
@@ -57,6 +59,31 @@ export default function ChatWidget({ showChat, setShowChat }) {
     }
   };
 
+  // Initialize audio on component mount and user interactions
+  useEffect(() => {
+    // Force initialize audio on first user interaction
+    const handleUserInteraction = () => {
+      forceInitializeAudio();
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('scroll', handleUserInteraction);
+      document.removeEventListener('mousemove', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('scroll', handleUserInteraction);
+    document.addEventListener('mousemove', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('scroll', handleUserInteraction);
+      document.removeEventListener('mousemove', handleUserInteraction);
+    };
+  }, []);
+
   // Request notification permission on component mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
@@ -71,8 +98,8 @@ export default function ChatWidget({ showChat, setShowChat }) {
   // Show browser notification for new messages
   const showBrowserNotification = (customerName, message) => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      // Don't show notification if page is visible and chat is open
-      if (!document.hidden && showChat && !chatMinimized) return;
+      // Show notification even if page is visible, but not if actively viewing this chat
+      if (selectedCustomer && selectedCustomer.customerName === customerName && showChat && !chatMinimized) return;
       
       const notification = new Notification(`New message from ${customerName}`, {
         body: message,
@@ -99,15 +126,131 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
   const ringIntervalRef = useRef(null);
 
+  const audioContextRef = useRef(null);
+
   const [chatMinimized, setChatMinimized] = useState(false);
 
+  
+
+  // Initialize audio context on first user interaction
+
+  const initAudioContext = () => {
+
+    if (!audioContextRef.current) {
+
+      try {
+
+        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+
+      } catch (error) {
+
+        console.log('Audio context initialization failed:', error);
+
+      }
+
+    }
+
+  };
+
+  
+
+  // Play notification sound
+
+  const playNotificationSound = () => {
+
+    try {
+
+      // Try using the imported utility first
+
+      playBeep();
+
+      
+
+      // Also try with audio context if available
+
+      if (audioContextRef.current && audioContextRef.current.state === 'running') {
+
+        const oscillator = audioContextRef.current.createOscillator();
+
+        const gainNode = audioContextRef.current.createGain();
+
+        
+
+        oscillator.connect(gainNode);
+
+        gainNode.connect(audioContextRef.current.destination);
+
+        
+
+        oscillator.frequency.value = 800;
+
+        oscillator.type = 'sine';
+
+        
+
+        gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
+
+        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.2);
+
+        
+
+        oscillator.start();
+
+        oscillator.stop(audioContextRef.current.currentTime + 0.2);
+
+      }
+
+    } catch (error) {
+
+      console.log('Sound play error:', error);
+
+    }
+
+  };
 
 
-  // Load active chats when chat is opened
+
+  // Initialize audio context on first user interaction
 
   useEffect(() => {
 
-    if (showChat && sessionUser?.id) {
+    const handleUserInteraction = () => {
+
+      initAudioContext();
+
+      // Remove event listeners after first interaction
+
+      document.removeEventListener('click', handleUserInteraction);
+
+      document.removeEventListener('keydown', handleUserInteraction);
+
+    };
+
+    
+
+    document.addEventListener('click', handleUserInteraction);
+
+    document.addEventListener('keydown', handleUserInteraction);
+
+    
+
+    return () => {
+
+      document.removeEventListener('click', handleUserInteraction);
+
+      document.removeEventListener('keydown', handleUserInteraction);
+
+    };
+
+  }, []);
+
+  
+
+  // Load active chats periodically and when chat is opened
+
+  useEffect(() => {
+
+    if (sessionUser?.id) {
 
       loadActiveChatSessions();
 
@@ -115,13 +258,35 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
   }, [showChat, sessionUser?.id]);
 
+  
+
+  // Refresh chat sessions every 30 seconds
+
+  useEffect(() => {
+
+    if (!sessionUser?.id) return;
+
+    
+
+    const interval = setInterval(() => {
+
+      loadActiveChatSessions();
+
+    }, 30000);
+
+    
+
+    return () => clearInterval(interval);
+
+  }, [sessionUser?.id]);
+
 
 
   // Socket connection setup
 
   useEffect(() => {
 
-    if (!sessionUser?.id || !showChat) return;
+    if (!sessionUser?.id) return;
 
 
 
@@ -235,42 +400,21 @@ export default function ChatWidget({ showChat, setShowChat }) {
               );
             }
 
-            if ((!showChat || chatMinimized) && !ringIntervalRef.current) {
-
-              ringIntervalRef.current = setInterval(() => {
-
-                try {
-
-                  const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-                  const oscillator = audioContext.createOscillator();
-
-                  const gainNode = audioContext.createGain();
-
-                  oscillator.connect(gainNode);
-
-                  gainNode.connect(audioContext.destination);
-
-                  oscillator.frequency.value = 800;
-
-                  oscillator.type = 'sine';
-
-                  gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-
-                  gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-
-                  oscillator.start();
-
-                  oscillator.stop(audioContext.currentTime + 0.2);
-
-                } catch (soundError) {
-
-                  // Silently ignore sound errors
-
-                }
-
-              }, 2000);
-
+            // Always play sound for new messages (unless actively viewing this chat)
+            if (!selectedCustomer || selectedCustomer.customerName !== data.customerName || !showChat || chatMinimized) {
+              // Play sound immediately
+              playNotificationSound();
+              
+              // Voice announcement
+              speakMessage("नया मैसेज आया है", "hi-IN");
+              
+              // Set up ringing interval
+              if (!ringIntervalRef.current) {
+                ringIntervalRef.current = setInterval(() => {
+                  playNotificationSound();
+                  speakMessage("नया मैसेज आया है", "hi-IN");
+                }, 4000); // Every 4 seconds for voice
+              }
             }
 
             
@@ -489,7 +633,7 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
     };
 
-  }, [sessionUser, selectedCustomer, showChat]);
+  }, [sessionUser]);
 
 
 
@@ -1106,29 +1250,35 @@ export default function ChatWidget({ showChat, setShowChat }) {
         <h3 className="font-bold text-sm">Support Chat</h3>
 
         <div className="flex items-center space-x-2">
-
-          {socketConnected ? (
-
-            <span className="w-2 h-2 bg-green-400 rounded-full" title="Connected"></span>
-
-          ) : (
-
-            <span className="w-2 h-2 bg-red-400 rounded-full" title="Disconnected"></span>
-
-          )}
-
+          {/* Test voice button */}
           <button 
-
-            onClick={() => setShowChat(false)}
-
+            onClick={() => speakMessage("नया मैसेज आया है", "hi-IN")}
             className="hover:bg-purple-700 rounded p-1"
-
+            title="Test Voice"
           >
-
-            <BiX size={16} />
-
+            🗣️
           </button>
-
+          
+          {/* Test sound button */}
+          <button 
+            onClick={playNotificationSound}
+            className="hover:bg-purple-700 rounded p-1"
+            title="Test Sound"
+          >
+            🔊
+          </button>
+          
+          {socketConnected ? (
+            <span className="w-2 h-2 bg-green-400 rounded-full" title="Connected"></span>
+          ) : (
+            <span className="w-2 h-2 bg-red-400 rounded-full" title="Disconnected"></span>
+          )}
+          <button 
+            onClick={() => setShowChat(false)}
+            className="hover:bg-purple-700 rounded p-1"
+          >
+            <BiX size={16} />
+          </button>
         </div>
 
       </div>

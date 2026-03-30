@@ -220,8 +220,8 @@ export default function Header({ onMenuToggle }) {
                   {notifications.length === 0 ? (
                     <div className="px-4 py-6 text-center text-gray-500">No notifications</div>
                   ) : (
-                    notifications.map((n) => (
-                      <div key={n.id} className="px-4 py-3 border-b border-gray-100">
+                    notifications.map((n, index) => (
+                      <div key={`notification-${n.id}-${index}`} className="px-4 py-3 border-b border-gray-100">
                         <p className="text-sm font-medium text-gray-800">{n.customerName || 'Customer'} • #{n.customerId}</p>
                         <p className="text-xs text-gray-600 mt-1">{n.text}</p>
                         <div className="mt-2 flex items-center justify-between">

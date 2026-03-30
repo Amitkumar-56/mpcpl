@@ -26,6 +26,7 @@ import {
   BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
+import { playBeep, forceInitializeAudio, speakMessage } from "@/utils/sound";
 
 // Indian Rupee formatting function
 const formatIndianRupees = (amount) => {
@@ -126,6 +127,31 @@ function DashboardContent() {
   const [showDetailedView, setShowDetailedView] = useState(false);
   const [error, setError] = useState(null);
   const [balance, setBalance] = useState(0);
+
+  // Initialize audio on component mount and user interactions
+  useEffect(() => {
+    // Force initialize audio on first user interaction
+    const handleUserInteraction = () => {
+      forceInitializeAudio();
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('scroll', handleUserInteraction);
+      document.removeEventListener('mousemove', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('scroll', handleUserInteraction);
+    document.addEventListener('mousemove', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('scroll', handleUserInteraction);
+      document.removeEventListener('mousemove', handleUserInteraction);
+    };
+  }, []);
 
   // Real-time Chat States
   const [socket, setSocket] = useState(null);
@@ -410,25 +436,23 @@ function DashboardContent() {
 
           // Only increment notification if chat is not currently selected
           const isCurrentChat = selectedCustomer && selectedCustomer.customerId === data.customerId;
+          
           if (!isCurrentChat) {
             setNotifCount(prev => prev + 1);
           }
+
+          // Play notification sound and voice
+          if (!isCurrentChat) {
+            playBeep();
+            speakMessage("नया मैसेज आया है", "hi-IN");
+          }
+
+          // Set up ringing for unread messages
           if (!showChat && !ringIntervalRef.current) {
             ringIntervalRef.current = setInterval(() => {
-              try {
-                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                const oscillator = audioContext.createOscillator();
-                const gainNode = audioContext.createGain();
-                oscillator.connect(gainNode);
-                gainNode.connect(audioContext.destination);
-                oscillator.frequency.value = 800;
-                oscillator.type = 'sine';
-                gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-                gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-                oscillator.start();
-                oscillator.stop(audioContext.currentTime + 0.2);
-              } catch { }
-            }, 2000);
+              playBeep();
+              speakMessage("नया मैसेज आया है", "hi-IN");
+            }, 4000); // Every 4 seconds for voice
           }
 
           // Update active chats
@@ -442,7 +466,7 @@ function DashboardContent() {
                 timestamp: data.timestamp || new Date().toISOString(),
                 sender: 'customer'
               },
-              unread: !isCurrentChat // Only mark as unread if not current chat
+              unread: !isCurrentChat
             };
 
             if (existingChatIndex >= 0) {
@@ -453,7 +477,8 @@ function DashboardContent() {
               return deduplicateChats([newChatItem, ...prev]);
             }
           });
-          // Update messages if this customer is selected
+
+          // Update messages for current chat
           if (selectedCustomer && selectedCustomer.customerId === data.customerId) {
             setEmployeeMessages(prev => {
               const currentMessages = prev[data.customerId] || [];
@@ -462,7 +487,7 @@ function DashboardContent() {
                 [data.customerId]: [
                   ...currentMessages,
                   {
-                    id: `msg-${Date.now()}-${Math.random()}`,
+                    id: `msg-${Date.now()}`,
                     text: data.message,
                     sender: 'customer',
                     timestamp: data.timestamp || new Date().toISOString(),
@@ -472,15 +497,11 @@ function DashboardContent() {
               };
             });
 
-            // Mark as read automatically when viewing
             markMessagesAsRead(data.customerId);
-
-            // Don't increment notification count if viewing the chat
             setNotifCount(prev => Math.max(0, prev - 1));
           }
         });
 
-        // Also handle server broadcast for employees
         socketInstance.on('customer_message_notification', (data) => {
           console.log('Dashboard: Received customer_message_notification:', data);
           
@@ -731,6 +752,21 @@ function DashboardContent() {
               </div>
 
               <div className="flex items-center space-x-2 mt-3 lg:mt-0">
+                <button
+                  onClick={() => speakMessage("नया मैसेज आया है", "hi-IN")}
+                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  title="Test Voice"
+                >
+                  🗣️
+                </button>
+                <button
+                  onClick={playBeep}
+                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  title="Test Sound"
+                >
+                  🔊
+                </button>
+                
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}

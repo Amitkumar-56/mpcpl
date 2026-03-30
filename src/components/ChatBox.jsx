@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { BiChevronDown, BiMessageRounded, BiSend, BiUser, BiX } from 'react-icons/bi';
 import { io } from 'socket.io-client';
+import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
 
 export default function ChatBox({ customerId, customerName, userRole = 'customer' }) {
   const [showChat, setShowChat] = useState(false);
@@ -18,6 +19,31 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
   const audioRef = useRef(null);
   const [ringing, setRinging] = useState(false);
   const ringIntervalRef = useRef(null);
+
+  // Initialize audio on component mount and user interactions
+  useEffect(() => {
+    // Force initialize audio on first user interaction
+    const handleUserInteraction = () => {
+      forceInitializeAudio();
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('scroll', handleUserInteraction);
+      document.removeEventListener('mousemove', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('scroll', handleUserInteraction);
+    document.addEventListener('mousemove', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('scroll', handleUserInteraction);
+      document.removeEventListener('mousemove', handleUserInteraction);
+    };
+  }, []);
 
   // Create notification sound programmatically
   useEffect(() => {
@@ -69,24 +95,12 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
       newSocket.on('new_message', (data) => {
       console.log('📨 New message received:', data);
       
-      // Play notification sound
-      if (audioRef.current?.playBeep) {
-        audioRef.current.playBeep();
-      } else if (audioRef.current) {
-        audioRef.current.play().catch(err => {
-          // Fallback: create simple beep
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          const oscillator = audioContext.createOscillator();
-          const gainNode = audioContext.createGain();
-          oscillator.connect(gainNode);
-          gainNode.connect(audioContext.destination);
-          oscillator.frequency.value = 800;
-          oscillator.type = 'sine';
-          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-          oscillator.start();
-          oscillator.stop(audioContext.currentTime + 0.2);
-        });
+      // Play notification sound using utility
+      playBeep();
+      
+      // Voice announcement - "Message aaya hai"
+      if (!showChat) {
+        speakMessage("नया मैसेज आया है", "hi-IN");
       }
 
       // Add message to state (with deduplication)
@@ -112,12 +126,58 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
           setRinging(true);
           if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
           ringIntervalRef.current = setInterval(() => {
-            if (audioRef.current?.playBeep) {
-              audioRef.current.playBeep();
-            }
-          }, 2000);
+            playBeep();
+            speakMessage("नया मैसेज आया है", "hi-IN");
+          }, 4000); // Every 4 seconds for voice
         }
       }
+
+        scrollToBottom();
+      });
+
+      // Listen for employee messages (for customer side)
+      newSocket.on('employee_message', (data) => {
+        console.log('📨 Employee message received by customer:', data);
+        
+        // Play notification sound for customer
+        playBeep();
+        
+        // Voice announcement for customer
+        if (!showChat) {
+          speakMessage("नया मैसेज आया है", "hi-IN");
+        }
+
+        // Add message to state
+        setMessages(prev => {
+          const message = {
+            id: data.messageId,
+            text: data.message,
+            sender: 'employee',
+            employee_id: data.employeeId,
+            customer_id: data.customerId,
+            timestamp: new Date().toISOString(),
+            status: 'sent'
+          };
+          
+          // Check for duplicate
+          const exists = prev.some(m => m.id === message.id);
+          if (exists) return prev;
+          
+          return [...prev, message];
+        });
+
+        // Update unread count if chat is closed
+        if (!showChat) {
+          setUnreadCount(prev => prev + 1);
+          if (!ringing) {
+            setRinging(true);
+            if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
+            ringIntervalRef.current = setInterval(() => {
+              playBeep();
+              speakMessage("नया मैसेज आया है", "hi-IN");
+            }, 4000);
+          }
+        }
 
         scrollToBottom();
       });
@@ -342,6 +402,18 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
                 : msg
             )
           );
+          
+          // Emit socket event for employee message to notify customer
+          if (socket) {
+            socket.emit('employee_message', {
+              customerId,
+              message: messageText,
+              employeeId: selectedEmployee.id,
+              employeeName: selectedEmployee.name,
+              messageId: data.messageId
+            });
+            console.log('📨 Employee message sent via socket:', messageText);
+          }
         } else {
           throw new Error(data.error || 'Failed to send message');
         }
@@ -408,12 +480,28 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
                 )}
               </div>
             </div>
-            <button
-              onClick={() => setShowChat(false)}
-              className="hover:bg-blue-800 rounded-full p-1 transition"
-            >
-              <BiX className="w-5 h-5" />
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => speakMessage("नया मैसेज आया है", "hi-IN")}
+                className="hover:bg-blue-800 rounded-full p-1 transition"
+                title="Test Voice"
+              >
+                🗣️
+              </button>
+              <button
+                onClick={playBeep}
+                className="hover:bg-blue-800 rounded-full p-1 transition"
+                title="Test Sound"
+              >
+                🔊
+              </button>
+              <button
+                onClick={() => setShowChat(false)}
+                className="hover:bg-blue-800 rounded-full p-1 transition"
+              >
+                <BiX className="w-5 h-5" />
+              </button>
+            </div>
           </div>
 
           {/* Employee Selection Dropdown */}
