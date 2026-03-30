@@ -487,92 +487,49 @@ export default function DashboardPage() {
 
 
   // Load active chat sessions
-
   const loadActiveChatSessions = useCallback(async () => {
-
+    if (!sessionUser?.id) return;
+    
     try {
-
-      // Pass employee role to filter sessions for drivers
-
-      const roleParam = sessionUser?.role ? `?employeeRole=${sessionUser.role}` : '';
-
-      const response = await fetch(`/api/chat/sessions${roleParam}`);
-
+      const response = await fetch(`/api/chat/sessions?employeeRole=${sessionUser.role}`);
       if (response.ok) {
-
         const data = await response.json();
-
-        if (data.success) {
-
+        if (data.success && data.sessions) {
           const deduplicated = deduplicateChats(data.sessions || []);
-
           setActiveChats(deduplicated);
-
-          
-
-          // Driver-specific logging
-
-          if (sessionUser?.role === 6) {
-
-            console.log('🚛 Driver chat sessions loaded (should be empty):', deduplicated.length);
-
-          } else {
-
-            console.log('Loaded active chat sessions:', deduplicated.length);
-
-          }
-
+          console.log('Dashboard: Loaded active chat sessions:', deduplicated.length);
         }
-
       }
-
     } catch (error) {
-
       console.error('Error loading chat sessions:', error);
-
     }
-
   }, [deduplicateChats, sessionUser?.role]);
 
-
-
   // Mark messages as read
-
   const markMessagesAsRead = useCallback(async (customerId) => {
-
     try {
-
       await fetch('/api/chat/mark-read', {
-
         method: 'POST',
-
         headers: {
-
           'Content-Type': 'application/json',
-
         },
-
         body: JSON.stringify({
-
           customerId: customerId,
-
           userId: sessionUser?.id,
-
           userType: 'employee'
-
         })
-
       });
-
     } catch (error) {
-
       console.error('Error marking messages as read:', error);
-
     }
-
   }, [sessionUser]);
 
-
+  // Scroll to bottom when messages change
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [employeeMessages, selectedCustomer]);
 
   // Socket Connection Setup
 
@@ -804,62 +761,34 @@ export default function DashboardPage() {
 
           });
 
-
-
           // Update messages if this customer is selected
-
           if (selectedCustomer && selectedCustomer.customerId === data.customerId) {
-
             setEmployeeMessages(prev => {
-
               const currentMessages = prev[data.customerId] || [];
-
               return {
-
                 ...prev,
-
                 [data.customerId]: [
-
                   ...currentMessages,
-
                   {
-
-                    id: `msg-${Date.now()}`,
-
+                    id: `msg-${Date.now()}-${Math.random()}`,
                     text: data.message,
-
                     sender: 'customer',
-
                     timestamp: data.timestamp || new Date().toISOString(),
-
                     customer_id: data.customerId
-
                   }
-
                 ]
-
               };
-
             });
 
-
-
             // Mark as read automatically when viewing
-
             markMessagesAsRead(data.customerId);
 
             // Don't increment notification count if viewing the chat
-
             setNotifCount(prev => Math.max(0, prev - 1));
-
           }
-
         });
 
-
-
         // Also handle server broadcast for employees
-
         socketInstance.on('customer_message_notification', (data) => {
 
           console.log('Dashboard: Received customer_message_notification:', data);
@@ -2552,126 +2481,73 @@ const ChatWidget = ({
 
 
 
-      <div className="h-[calc(100vh-12rem)] sm:h-96 overflow-hidden flex flex-col">
+      <div className="h-[400px] sm:h-[450px] overflow-hidden flex flex-col border border-gray-200 rounded-lg shadow-lg">
 
         {/* Chat list */}
 
         <div className="flex-1 flex flex-col sm:flex-row">
 
           <div className="w-full sm:w-1/3 border-r border-gray-200 flex flex-col">
-
-            <div className="p-2 border-b bg-gray-50">
-
+            <div className="p-2 border-b bg-gray-50 flex-shrink-0">
               <h4 className="font-semibold text-xs">Active Chats ({activeChats.length})</h4>
-
             </div>
-
-            <div className="flex-1 overflow-y-auto">
-
+            <div className="flex-1 overflow-y-auto bg-white" style={{ maxHeight: '350px', minHeight: '150px' }}>
               {activeChats.length > 0 ? (
-
                 activeChats.map((chat, index) => (
-
                   <div
-
                     key={`${chat.customerId}-${chat.lastMessage?.timestamp || index}-${index}`}
-
-                    className={`p-2 border-b cursor-pointer text-xs ${selectedCustomer?.customerId === chat.customerId
-
-                      ? 'bg-blue-50 border-blue-200'
-
-                      : 'hover:bg-gray-50'
-
-                      } ${chat.unread ? 'bg-yellow-50' : ''}`}
-
+                    className={`p-3 border-b cursor-pointer text-xs hover:bg-gray-50 transition-colors ${
+                      selectedCustomer?.customerId === chat.customerId
+                        ? 'bg-blue-50 border-blue-200'
+                        : 'hover:bg-gray-50'
+                    } ${chat.unread ? 'bg-yellow-50' : ''}`}
                     onClick={() => handleCustomerSelect(chat)}
-
                   >
-
                     <div className="flex justify-between items-start">
-
-                      <p className="font-medium truncate">{chat.customerName || `Customer ${chat.customerId}`}</p>
-
-                      {chat.unread && (
-
-                        <span className="w-2 h-2 bg-red-500 rounded-full ml-1 flex-shrink-0"></span>
-
-                      )}
-
-                    </div>
-
-                    <p className="text-gray-600 truncate text-xs mt-1">
-
-                      {chat.lastMessage?.text || 'No messages'}
-
-                    </p>
-
-                    {chat.lastMessage?.timestamp && (
-
-                      <p className="text-gray-400 text-xs mt-1">
-
-                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString('en-IN', {
-
-                          hour: '2-digit',
-
-                          minute: '2-digit'
-
-                        })}
-
+                      <p className="font-medium text-xs flex-1 pr-2 break-words font-semibold">
+                        {chat.customerName || `Customer ${chat.customerId}`}
                       </p>
-
+                      {chat.unread && (
+                        <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 animate-pulse"></span>
+                      )}
+                    </div>
+                    <p className="text-gray-600 truncate text-xs mt-1">
+                      {chat.lastMessage?.text || 'No messages'}
+                    </p>
+                    {chat.lastMessage?.timestamp && (
+                      <p className="text-gray-400 text-xs mt-1">
+                        {new Date(chat.lastMessage.timestamp).toLocaleTimeString('en-IN', {
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
                     )}
-
                     {chat.employeeId ? (
-
-                      <div className="mt-1 text-xs">
-
-                        <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
-
+                      <div className="mt-2 text-xs">
+                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
                           👤 {chat.employeeId?.name || 'Employee'}
-
                         </span>
-
                       </div>
-
                     ) : (
-
                       <button
-
                         onClick={(e) => {
-
                           e.stopPropagation();
-
                           acceptChat(chat.customerId);
-
                         }}
-
-                        className="mt-1 w-full bg-green-500 text-white text-xs py-1 rounded hover:bg-green-600"
-
+                        className="mt-2 w-full bg-green-500 text-white text-xs py-2 rounded hover:bg-green-600 transition-colors"
                       >
-
-                        Accept
-
+                        Accept Chat
                       </button>
-
                     )}
-
                   </div>
-
                 ))
-
               ) : (
-
-                <div className="p-4 text-center text-gray-500 text-xs">
-
-                  No active chats
-
+                <div className="p-8 text-center text-gray-500 text-xs">
+                  <div className="mb-2">📭</div>
+                  <div>No active chats</div>
                 </div>
-
               )}
-
             </div>
-
           </div>
 
 
@@ -2724,83 +2600,60 @@ const ChatWidget = ({
 
                 </div>
 
-                <div className="flex-1 p-2 overflow-y-auto" style={{ maxHeight: '280px' }}>
-
+                <div className="flex-1 p-2 overflow-y-auto bg-white" style={{ maxHeight: '300px', minHeight: '200px' }}>
                   {loadingMessages ? (
-
                     <div className="flex items-center justify-center h-full text-gray-500 text-xs">
-
                       Loading messages...
-
                     </div>
-
                   ) : employeeMessages[selectedCustomer.customerId] &&
-
                     employeeMessages[selectedCustomer.customerId].length > 0 ? (
-
-                    <>
-
-                      {employeeMessages[selectedCustomer.customerId].map((msg, idx) => (
-
+                    <div className="space-y-2 flex flex-col">
+                      {employeeMessages[selectedCustomer.customerId]
+                        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+                        .map((msg, idx) => (
                         <div
-
                           key={msg.id || idx}
-
-                          className={`mb-2 p-2 rounded text-sm ${msg.sender === 'employee'
-
-                            ? 'bg-purple-100 ml-auto text-right max-w-[80%]'
-
-                            : 'bg-gray-100 mr-auto max-w-[80%]'
-
-                            }`}
-
+                          className={`flex ${msg.sender === 'employee' ? 'justify-end' : 'justify-start'}`}
                         >
-
-                          <p className="text-xs text-gray-600 mb-1">
-
-                            {msg.sender === 'employee' ? (msg.employee_name || sessionUser?.name || 'You') : (selectedCustomer.customerName || 'Customer')}
-
-                          </p>
-
-                          <p className="text-gray-800 break-words">{msg.text}</p>
-
-                          <p className="text-xs text-gray-500 mt-1">
-
-                            {new Date(msg.timestamp).toLocaleTimeString('en-IN', {
-
-                              hour: '2-digit',
-
-                              minute: '2-digit'
-
-                            })}
-
-                            {msg.status === 'sending' && ' • Sending...'}
-
-                            {msg.status === 'failed' && ' • Failed'}
-
-                          </p>
-
+                          <div
+                            className={`max-w-[75%] rounded-lg px-3 py-2 ${
+                              msg.sender === 'employee'
+                                ? 'bg-purple-600 text-white'
+                                : 'bg-gray-200 text-gray-800'
+                            } ${msg.status === 'failed' ? 'opacity-50' : ''}`}
+                          >
+                            <p className="text-xs font-medium mb-1">
+                              {msg.sender === 'employee' ? (msg.employee_name || sessionUser?.name || 'You') : (selectedCustomer.customerName || 'Customer')}
+                            </p>
+                            <p className="text-sm break-words">{msg.text}</p>
+                            <p className={`text-xs mt-1 ${
+                              msg.sender === 'employee'
+                                ? 'text-purple-200'
+                                : 'text-gray-500'
+                            }`}>
+                              {new Date(msg.timestamp).toLocaleTimeString('en-IN', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                              {msg.status === 'sending' && ' • Sending...'}
+                              {msg.status === 'failed' && ' • Failed'}
+                            </p>
+                          </div>
                         </div>
-
                       ))}
-
                       <div ref={messagesEndRef} />
-
-                    </>
-
-                  ) : (
-
-                    <div className="flex items-center justify-center h-full text-gray-500 text-xs">
-
-                      No messages yet. Start the conversation!
-
                     </div>
-
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500 text-sm py-8">
+                      <div className="text-center">
+                        <div className="mb-2">💬</div>
+                        <div>No messages yet. Start the conversation!</div>
+                      </div>
+                    </div>
                   )}
-
                 </div>
 
-                <div className="p-2 border-t bg-white">
+                <div className="p-2 border-t bg-gray-50 flex-shrink-0">
 
                   <div className="flex space-x-2 items-center">
 

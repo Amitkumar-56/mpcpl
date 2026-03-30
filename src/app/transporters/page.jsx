@@ -31,7 +31,7 @@ function TransportersContent() {
   const [permissions, setPermissions] = useState({
     can_view: false,
     can_edit: false,
-    can_delete: false
+    can_create: false
   });
   const [expandedTransporters, setExpandedTransporters] = useState({});
   
@@ -60,7 +60,7 @@ function TransportersContent() {
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       fetchTransporters();
       return;
     }
@@ -73,7 +73,7 @@ function TransportersContent() {
         setPermissions({
           can_view: transporterPerms.can_view,
           can_edit: transporterPerms.can_edit,
-          can_delete: transporterPerms.can_delete
+          can_create: transporterPerms.can_create
         });
         fetchTransporters();
         return;
@@ -95,22 +95,22 @@ function TransportersContent() {
 
     try {
       const moduleName = 'Transporters';
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`)
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`)
       ]);
 
-      const [viewData, editData, deleteData] = await Promise.all([
+      const [viewData, editData, createData] = await Promise.all([
         viewRes.json(),
         editRes.json(),
-        deleteRes.json()
+        createRes.json()
       ]);
 
       const perms = {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed
+        can_create: createData.allowed
       };
 
       // Cache permissions

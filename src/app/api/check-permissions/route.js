@@ -1,3 +1,4 @@
+//src/
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
@@ -55,7 +56,7 @@ export async function GET(req) {
     
     console.log(`✅ Employee found: ${userName} (ID=${employee_id}, Role=${userRole}, Status=${userStatus})`);
 
-    // 2. Admin (role 5) always has full access
+    // Only Admin (role 5) always has full access - no automatic permissions for other roles
     if (userRole === '5' || Number(userRole) === 5) {
       console.log(`✅ Admin (role 5) has full access - automatically allowed`);
       return NextResponse.json({ 
@@ -68,57 +69,6 @@ export async function GET(req) {
         action,
         message: "Admin has full access"
       });
-    }
-
-    // 3. Accountant (role 4) has full access to LR management and vouchers
-    if (userRole === '4' || Number(userRole) === 4) {
-      if (module_name.toLowerCase().includes('lr') || module_name.toLowerCase().includes('shipment') || module_name.toLowerCase().includes('voucher')) {
-        console.log(`✅ Accountant (role 4) has full access to ${module_name} - automatically allowed`);
-        return NextResponse.json({ 
-          allowed: true,
-          userRole,
-          userName,
-          checkType: 'accountant_full_access',
-          employee_id,
-          module_name,
-          action,
-          message: "Accountant has full access"
-        });
-      }
-    }
-
-    // 4. Manager/Team Leader (role 3) has full access to vouchers
-    if (userRole === '3' || Number(userRole) === 3) {
-      if (module_name.toLowerCase().includes('voucher') || module_name.toLowerCase() === 'vouchers') {
-        console.log(`✅ Manager/Team Leader (role 3) has full access to ${module_name} - automatically allowed`);
-        return NextResponse.json({ 
-          allowed: true,
-          userRole,
-          userName,
-          checkType: 'manager_full_access',
-          employee_id,
-          module_name,
-          action,
-          message: "Manager/Team Leader has full access"
-        });
-      }
-    }
-
-    // 5. Supervisor/Hard Operation (role 7) has full access to vouchers
-    if (userRole === '7' || Number(userRole) === 7) {
-      if (module_name.toLowerCase().includes('voucher') || module_name.toLowerCase() === 'vouchers') {
-        console.log(`✅ Supervisor/Hard Operation (role 7) has full access to ${module_name} - automatically allowed`);
-        return NextResponse.json({ 
-          allowed: true,
-          userRole,
-          userName,
-          checkType: 'supervisor_full_access',
-          employee_id,
-          module_name,
-          action,
-          message: "Supervisor/Hard Operation has full access"
-        });
-      }
     }
 
     // Check if employee is active
@@ -141,50 +91,28 @@ export async function GET(req) {
     let checkType = 'not_found';
     
     // **STRATEGY: Check in this order:**
-    // 1. First: employee_id AND role AND module_name (exact match)
-    // 2. Second: employee_id AND module_name (ignore role)
-    // 3. Third: role AND module_name (role-based for all)
-    // 4. Fourth: module_name only (global permission)
+    // 1. First: employee_id AND module_name (employee-specific, most important)
+    // 2. Second: role AND module_name (role-based for all)
+    // 3. Third: module_name only (global permission)
 
-    // Check 1: employee_id + role + module_name (सबसे specific)
+    // Check 1: employee_id + module_name (employee-specific, most important)
     query = `
       SELECT ${action} as permission_value, employee_id, role, module_name
       FROM role_permissions
       WHERE employee_id = ? 
-        AND role = ? 
         AND module_name = ?
       LIMIT 1
     `;
     
-    console.log(`📝 Query 1: Checking employee_id=${employee_id} AND role=${userRole} AND module=${module_name}`);
-    result = await executeQuery(query, [employee_id, userRole, module_name]);
+    console.log(`📝 Query 1: Checking employee_id=${employee_id} AND module=${module_name} (employee-specific)`);
+    result = await executeQuery(query, [employee_id, module_name]);
     
     if (result.length > 0) {
-      checkType = 'employee_and_role_specific';
-      console.log(`✅ Found specific permission: Employee+Role+Module match`);
+      checkType = 'employee_specific';
+      console.log(`✅ Found employee-specific permission`);
     }
 
-    // Check 2: employee_id + module_name (employee-specific, role ignore)
-    if (result.length === 0) {
-      query = `
-        SELECT ${action} as permission_value, employee_id, role, module_name
-        FROM role_permissions
-        WHERE employee_id = ? 
-          AND module_name = ?
-          AND (role IS NULL OR role = 0 OR role = ?)
-        LIMIT 1
-      `;
-      
-      console.log(`📝 Query 2: Checking employee_id=${employee_id} AND module=${module_name} (role ignored)`);
-      result = await executeQuery(query, [employee_id, module_name, userRole]);
-      
-      if (result.length > 0) {
-        checkType = 'employee_specific';
-        console.log(`✅ Found employee-specific permission`);
-      }
-    }
-
-    // Check 3: role + module_name (role-based for all)
+    // Check 2: role + module_name (role-based for all)
     if (result.length === 0) {
       query = `
         SELECT ${action} as permission_value, role, module_name
@@ -195,7 +123,7 @@ export async function GET(req) {
         LIMIT 1
       `;
       
-      console.log(`📝 Query 3: Checking role=${userRole} AND module=${module_name} (role-based)`);
+      console.log(`📝 Query 2: Checking role=${userRole} AND module=${module_name} (role-based)`);
       result = await executeQuery(query, [userRole, module_name]);
       
       if (result.length > 0) {
@@ -204,7 +132,7 @@ export async function GET(req) {
       }
     }
 
-    // Check 4: module_name only (global permission)
+    // Check 3: module_name only (global permission)
     if (result.length === 0) {
       query = `
         SELECT ${action} as permission_value, module_name
@@ -215,7 +143,7 @@ export async function GET(req) {
         LIMIT 1
       `;
       
-      console.log(`📝 Query 4: Checking module=${module_name} only (global)`);
+      console.log(`📝 Query 3: Checking module=${module_name} only (global)`);
       result = await executeQuery(query, [module_name]);
       
       if (result.length > 0) {

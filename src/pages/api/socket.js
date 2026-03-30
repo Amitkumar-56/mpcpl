@@ -62,7 +62,7 @@ export default function SocketHandler(req, res) {
 
       io.on("connection", (socket) => {
 
-        console.log('New socket connection:', socket.id);
+        console.log('✅ New socket connection:', socket.id);
 
         socket.on("customer_join", async (data) => {
 
@@ -97,6 +97,8 @@ export default function SocketHandler(req, res) {
             });
 
           } catch (error) {
+
+            console.error('Customer join error:', error);
 
             socket.emit("error", { message: "Failed to join chat" });
 
@@ -234,6 +236,8 @@ export default function SocketHandler(req, res) {
 
           } catch (error) {
 
+            console.error('Customer message error:', error);
+
             socket.emit("error", { message: "Failed to send message" });
 
           }
@@ -290,7 +294,7 @@ export default function SocketHandler(req, res) {
 
             
 
-            console.log(`Employee ${employeeName} (${employeeId}) joined successfully - Role: ${role}`);
+            console.log(`👨‍💼 Employee ${employeeName} (${employeeId}) joined successfully - Role: ${role}`);
 
             socket.emit("employee_joined", {
 
@@ -420,6 +424,8 @@ export default function SocketHandler(req, res) {
 
           } catch (error) {
 
+            console.error('Employee message error:', error);
+
             socket.emit("error", { message: "Failed to send message" });
 
           }
@@ -440,8 +446,6 @@ export default function SocketHandler(req, res) {
 
             }
 
-
-
             // Save internal message
 
             const result = await executeQuery(
@@ -451,8 +455,6 @@ export default function SocketHandler(req, res) {
               [senderId, receiverId, text]
 
             );
-
-
 
             // Get saved message with employee names
 
@@ -472,8 +474,6 @@ export default function SocketHandler(req, res) {
 
             );
 
-
-
             const messageData = {
 
               id: savedMessage.id,
@@ -492,8 +492,6 @@ export default function SocketHandler(req, res) {
 
             };
 
-
-
             // Send to receiver
 
             io.to(`employee_${receiverId}`).emit('internal_message', messageData);
@@ -502,9 +500,9 @@ export default function SocketHandler(req, res) {
 
             socket.emit('internal_message_sent', messageData);
 
-
-
           } catch (error) {
+
+            console.error('Internal message error:', error);
 
             socket.emit("error", { message: "Failed to send internal message" });
 
@@ -526,8 +524,6 @@ export default function SocketHandler(req, res) {
 
             }
 
-
-
             // Atomic update: Only assign if not already assigned
 
             const result = await executeQuery(
@@ -537,8 +533,6 @@ export default function SocketHandler(req, res) {
               [employeeId, customerId]
 
             );
-
-
 
             if (result.affectedRows === 0) {
 
@@ -551,8 +545,6 @@ export default function SocketHandler(req, res) {
                 [customerId]
 
               );
-
-              
 
               socket.emit("chat_accept_failed", {
 
@@ -567,8 +559,6 @@ export default function SocketHandler(req, res) {
               return;
 
             }
-
-
 
             // Broadcast successful assignment (excluding drivers)
 
@@ -590,8 +580,6 @@ export default function SocketHandler(req, res) {
 
             });
 
-            
-
             socket.emit("chat_accept_success", {
 
               customerId,
@@ -603,6 +591,8 @@ export default function SocketHandler(req, res) {
             });
 
           } catch (error) {
+
+            console.error('Accept chat error:', error);
 
             socket.emit("error", { message: "Failed to accept chat" });
 
@@ -668,6 +658,8 @@ export default function SocketHandler(req, res) {
 
         socket.on("disconnect", () => {
 
+          console.log('❌ Socket disconnected:', socket.id);
+
           if (socket.customerId) {
 
             socket.leave(`customer_${socket.customerId}`);
@@ -685,6 +677,8 @@ export default function SocketHandler(req, res) {
       });
 
     } catch (e) {
+
+      console.error('Socket server init error:', e);
 
       res.status(500).json({ error: e.message || "Socket server init failed" });
 

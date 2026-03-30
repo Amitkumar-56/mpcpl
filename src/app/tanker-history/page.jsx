@@ -215,7 +215,7 @@ function TankerHistoryContent() {
   const [permissions, setPermissions] = useState({
     can_edit: false,
     can_view: false,
-    can_delete: false
+    can_create: false
   });
   const [hasPermission, setHasPermission] = useState(false);
   const [expandedRows, setExpandedRows] = useState(new Set());
@@ -244,7 +244,7 @@ function TankerHistoryContent() {
     // Admin (role 5) has full access
     if (user.role === 5) {
       setHasPermission(true);
-      setPermissions({ can_view: true, can_edit: true, can_delete: true });
+      setPermissions({ can_view: true, can_edit: true, can_create: true });
       fetchTankerHistory();
       return;
     }
@@ -257,7 +257,7 @@ function TankerHistoryContent() {
         setPermissions({
           can_view: tankerPerms.can_view,
           can_edit: tankerPerms.can_edit,
-          can_delete: tankerPerms.can_delete
+          can_create: tankerPerms.can_create
         });
         fetchTankerHistory();
         return;
@@ -282,45 +282,42 @@ function TankerHistoryContent() {
       const moduleName = 'Tanker History';
       console.log('🔐 Checking permissions for:', { employee_id: user.id, role: user.role, module: moduleName });
       
-      // Add timeout to permission checks
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
       
-      // Fetch all permissions in parallel
-      const [viewRes, editRes, deleteRes] = await Promise.all([
+      const [viewRes, editRes, createRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`, {
           signal: controller.signal
         }),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`, {
           signal: controller.signal
         }),
-        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_delete`, {
+        fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`, {
           signal: controller.signal
         })
       ]);
       
       clearTimeout(timeoutId);
       
-      const [viewData, editData, deleteData] = await Promise.all([
+      const [viewData, editData, createData] = await Promise.all([
         viewRes.json(),
         editRes.json(),
-        deleteRes.json()
+        createRes.json()
       ]);
       
       console.log('🔐 Permission check results:', {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed,
-        errors: { view: viewData.error, edit: editData.error, delete: deleteData.error }
+        can_create: createData.allowed,
+        errors: { view: viewData.error, edit: editData.error, create: createData.error }
       });
       
       const perms = {
         can_view: viewData.allowed,
         can_edit: editData.allowed,
-        can_delete: deleteData.allowed
+        can_create: createData.allowed
       };
       
-      // Cache permissions for 5 minutes
       sessionStorage.setItem(cacheKey, JSON.stringify(perms));
       sessionStorage.setItem(`${cacheKey}_time`, Date.now().toString());
       

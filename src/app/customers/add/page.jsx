@@ -68,31 +68,28 @@ export default function AddCustomer() {
     }
 
     // Check cached permissions
-    if (user.permissions && user.permissions['Customer']) {
-      const customerPerms = user.permissions['Customer'];
-      if (customerPerms.can_create) {
-        setHasPermission(true);
-        setCheckingPermission(false);
-        fetchData();
-        return;
-      }
-    }
-
-    // Check cache
-    const cacheKey = `perms_${user.id}_Customer`;
+    const cacheKey = `all_perms_${user.id}`;
     const cached = sessionStorage.getItem(cacheKey);
     if (cached) {
-      const cachedPerms = JSON.parse(cached);
-      if (cachedPerms.can_create) {
-        setHasPermission(true);
-        setCheckingPermission(false);
-        fetchData();
-        return;
+      const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
+      const fiveMinutes = 5 * 60 * 1000;
+      
+      if (cacheTime && (Date.now() - Number(cacheTime)) < fiveMinutes) {
+        const allPerms = JSON.parse(cached);
+        const customerPerms = allPerms['Customers'] || { can_view: false, can_edit: false, can_create: false };
+        
+        if (customerPerms.can_create) {
+          setHasPermission(true);
+          setCheckingPermission(false);
+          fetchData();
+          return;
+        }
       }
     }
 
     try {
-      const moduleName = 'Customer';
+      // Use check-permissions API to get create permission
+      const moduleName = 'Customers';
       const createRes = await fetch(
         `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_create`
       );
@@ -100,6 +97,7 @@ export default function AddCustomer() {
 
       if (createData.allowed) {
         setHasPermission(true);
+        setCheckingPermission(false);
         fetchData();
       } else {
         setHasPermission(false);
