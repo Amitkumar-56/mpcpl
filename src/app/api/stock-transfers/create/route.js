@@ -203,30 +203,8 @@ export async function POST(request) {
       const updateStockQueryFrom = `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND ${stockQueryUsed} = ?`;
       await connection.execute(updateStockQueryFrom, [new_stock_from, station_from, product]);
       
-      // Check destination stock
-      const [destStockResult] = await connection.execute(
-        `SELECT stock FROM filling_station_stocks WHERE fs_id = ? AND ${stockQueryUsed} = ?`,
-        [station_to, product]
-      );
-      
-      let destCurrentStock = 0;
-      let destNewStock = transferQuantity;
-      
-      if (destStockResult.length > 0) {
-        destCurrentStock = parseFloat(destStockResult[0].stock) || 0;
-        destNewStock = destCurrentStock + transferQuantity;
-        // Update destination stock
-        await connection.execute(
-          `UPDATE filling_station_stocks SET stock = ? WHERE fs_id = ? AND ${stockQueryUsed} = ?`,
-          [destNewStock, station_to, product]
-        );
-      } else {
-        // Insert new stock record for destination
-        await connection.execute(
-          `INSERT INTO filling_station_stocks (fs_id, ${stockQueryUsed}, stock, created_at) VALUES (?, ?, ?, NOW())`,
-          [station_to, product, destNewStock]
-        );
-      }
+      // DON'T update destination stock on create - only when status is completed
+      console.log("⏸️ Destination stock will be updated when status is marked as completed");
 
       // Insert into stock_transfers (product_to removed)
       const insertTransferQuery = `
@@ -354,15 +332,14 @@ export async function POST(request) {
         userName, 
         available_stock_from, 
         new_stock_from,
-        dest_current_stock: destCurrentStock,
-        dest_new_stock: destNewStock,
+        dest_current_stock: 0,
+        dest_new_stock: 0,
         transferQuantity 
       };
     });
 
     // Create audit log after transaction
     await createAuditLog({
-      page: 'Stock Transfers',
       uniqueCode: `TRANSFER-${result.transferResult.insertId}`,
       section: 'Create Transfer',
       userId: result.userId,

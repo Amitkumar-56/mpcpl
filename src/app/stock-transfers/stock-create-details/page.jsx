@@ -380,60 +380,60 @@ function StockCreateDetailsContent() {
 
       <main className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-2xl p-5 shadow-sm">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center">
-              <div className="p-3 bg-blue-500 rounded-xl mr-4">
-                <FiMapPin className="w-6 h-6 text-white" />
+              <div className="p-2 bg-blue-100 rounded-lg mr-3">
+                <FiMapPin className="w-5 h-5 text-blue-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">From Station</p>
-                <p className="text-lg font-bold text-gray-800">
+                <p className="text-xs text-gray-500 font-medium">From Station</p>
+                <p className="text-sm font-bold text-gray-900">
                   {transfer?.from_station_name || 'N/A'}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-2xl p-5 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center">
-              <div className="p-3 bg-green-500 rounded-xl mr-4">
-                <FiMapPin className="w-6 h-6 text-white" />
+              <div className="p-2 bg-green-100 rounded-lg mr-3">
+                <FiMapPin className="w-5 h-5 text-green-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">To Station</p>
-                <p className="text-lg font-bold text-gray-800">
+                <p className="text-xs text-gray-500 font-medium">To Station</p>
+                <p className="text-sm font-bold text-gray-900">
                   {transfer?.to_station_name || 'N/A'}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-2xl p-5 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center">
-              <div className="p-3 bg-purple-500 rounded-xl mr-4">
-                <FiPackage className="w-6 h-6 text-white" />
+              <div className="p-2 bg-purple-100 rounded-lg mr-3">
+                <FiPackage className="w-5 h-5 text-purple-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Quantity</p>
-                <p className="text-lg font-bold text-gray-800">
+                <p className="text-xs text-gray-500 font-medium">Quantity</p>
+                <p className="text-sm font-bold text-gray-900">
                   {transfer?.transfer_quantity || '0'} L
-                  <span className="text-sm font-normal text-gray-600 ml-2">
-                    ({transfer?.product_name || 'N/A'})
-                  </span>
+                </p>
+                <p className="text-xs text-gray-500">
+                  {transfer?.product_name || 'N/A'}
                 </p>
               </div>
             </div>
           </div>
 
-          <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 border border-yellow-200 rounded-2xl p-5 shadow-sm">
+          <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
             <div className="flex items-center">
-              <div className="p-3 bg-yellow-500 rounded-xl mr-4">
-                <FiClock className="w-6 h-6 text-white" />
+              <div className="p-2 bg-yellow-100 rounded-lg mr-3">
+                <FiClock className="w-5 h-5 text-yellow-600" />
               </div>
               <div>
-                <p className="text-sm text-gray-600">Last Updated</p>
-                <p className="text-lg font-bold text-gray-800">
+                <p className="text-xs text-gray-500 font-medium">Last Updated</p>
+                <p className="text-sm font-bold text-gray-900">
                   {transfer?.updated_at ? formatDate(transfer.updated_at) : 'N/A'}
                 </p>
               </div>
@@ -516,38 +516,45 @@ function StockCreateDetailsContent() {
         )}
 
         {/* Main Form Card */}
-        <div className="bg-white rounded-2xl shadow-xl overflow-hidden border border-gray-200">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200">
           {/* Form Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-6">
-            <h2 className="text-xl font-bold text-white flex items-center">
-              <FiEdit2 className="mr-3" />
-              Edit Transfer Details
-            </h2>
-            <p className="text-blue-100 mt-1">
-              Update the stock transfer information below. 
-              <span className="font-semibold ml-1">
-                Status change to "Completed" will update destination stock.
-              </span>
-            </p>
+          <div className="bg-gray-50 px-6 py-4 border-b border-gray-200">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900 flex items-center">
+                  <FiEdit2 className="mr-2 text-blue-600" />
+                  Edit Transfer Details
+                </h2>
+                <p className="text-sm text-gray-600 mt-1">
+                  Update the stock transfer information below. 
+                  <span className="font-medium text-blue-600 ml-1">
+                    Status change to "Completed" will update destination stock.
+                  </span>
+                </p>
+              </div>
+              <div className={`px-3 py-1 text-xs font-medium rounded-full ${getStatusColor(transfer.status)}`}>
+                {getStatusText(transfer.status)}
+              </div>
+            </div>
           </div>
 
           {/* Form Content */}
-          <div className="p-6 md:p-8">
-            <form onSubmit={handleSubmit} className="space-y-8">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="p-6">
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Left Column */}
                 <div className="space-y-6">
                   {/* Station From */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiMapPin className="mr-2 text-blue-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiMapPin className="mr-2 text-blue-500" />
                       Station From *
                     </label>
                     <select
                       name="station_from"
                       value={formData.station_from}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       required
                     >
                       <option value="">Select Source Station</option>
@@ -560,16 +567,16 @@ function StockCreateDetailsContent() {
                   </div>
 
                   {/* Station To */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiMapPin className="mr-2 text-green-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiMapPin className="mr-2 text-green-500" />
                       Station To *
                     </label>
                     <select
                       name="station_to"
                       value={formData.station_to}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       required
                     >
                       <option value="">Select Destination Station</option>
@@ -582,9 +589,9 @@ function StockCreateDetailsContent() {
                   </div>
 
                   {/* Driver ID */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiUser className="mr-2 text-purple-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiUser className="mr-2 text-purple-500" />
                       Driver ID *
                     </label>
                     <input
@@ -592,16 +599,16 @@ function StockCreateDetailsContent() {
                       name="driver_id"
                       value={formData.driver_id}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="Enter Driver ID"
                       required
                     />
                   </div>
 
                   {/* Vehicle ID */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiTruck className="mr-2 text-orange-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiTruck className="mr-2 text-orange-500" />
                       Vehicle ID *
                     </label>
                     <input
@@ -609,7 +616,7 @@ function StockCreateDetailsContent() {
                       name="vehicle_id"
                       value={formData.vehicle_id}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       placeholder="Enter Vehicle ID"
                       required
                     />
@@ -619,9 +626,9 @@ function StockCreateDetailsContent() {
                 {/* Right Column */}
                 <div className="space-y-6">
                   {/* Transfer Quantity */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiPackage className="mr-2 text-yellow-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiPackage className="mr-2 text-yellow-500" />
                       Transfer Quantity (Liters) *
                     </label>
                     <input
@@ -629,7 +636,7 @@ function StockCreateDetailsContent() {
                       name="transfer_quantity"
                       value={formData.transfer_quantity}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       min="0.01"
                       step="0.01"
                       required
@@ -637,21 +644,18 @@ function StockCreateDetailsContent() {
                   </div>
 
                   {/* Status - Important Notice */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiCheck className="mr-2 text-green-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiCheck className="mr-2 text-green-500" />
                       Status *
-                      <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs font-medium rounded">
-                        Important
-                      </span>
                     </label>
-                    <div className="grid grid-cols-3 gap-3 mb-3">
+                    <div className="grid grid-cols-3 gap-2 mb-3">
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({...prev, status: '1'}))}
-                        className={`px-4 py-3 rounded-lg border transition-all text-sm font-medium ${
+                        className={`px-3 py-2 rounded-lg border transition-all text-sm font-medium ${
                           formData.status === '1' 
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                            ? 'bg-blue-600 text-white border-blue-600' 
                             : 'bg-white border-gray-300 hover:bg-blue-50'
                         }`}
                       >
@@ -660,9 +664,9 @@ function StockCreateDetailsContent() {
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({...prev, status: '2'}))}
-                        className={`px-4 py-3 rounded-lg border transition-all text-sm font-medium ${
+                        className={`px-3 py-2 rounded-lg border transition-all text-sm font-medium ${
                           formData.status === '2' 
-                            ? 'bg-yellow-600 text-white border-yellow-600 shadow-md' 
+                            ? 'bg-yellow-600 text-white border-yellow-600' 
                             : 'bg-white border-gray-300 hover:bg-yellow-50'
                         }`}
                       >
@@ -671,9 +675,9 @@ function StockCreateDetailsContent() {
                       <button
                         type="button"
                         onClick={() => setFormData(prev => ({...prev, status: '3'}))}
-                        className={`px-4 py-3 rounded-lg border transition-all text-sm font-medium ${
+                        className={`px-3 py-2 rounded-lg border transition-all text-sm font-medium ${
                           formData.status === '3' 
-                            ? 'bg-green-600 text-white border-green-600 shadow-md' 
+                            ? 'bg-green-600 text-white border-green-600' 
                             : 'bg-white border-gray-300 hover:bg-green-50'
                         }`}
                       >
@@ -688,16 +692,16 @@ function StockCreateDetailsContent() {
                   </div>
 
                   {/* Product */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiPackage className="mr-2 text-red-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiPackage className="mr-2 text-red-500" />
                       Product *
                     </label>
                     <select
                       name="product"
                       value={formData.product}
                       onChange={handleInputChange}
-                      className="w-full px-4 py-3 bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
                       required
                     >
                       <option value="">Select Product</option>
@@ -710,9 +714,9 @@ function StockCreateDetailsContent() {
                   </div>
 
                   {/* Slip Upload */}
-                  <div className="bg-gray-50 p-5 rounded-xl border border-gray-200">
-                    <label className="block text-sm font-semibold text-gray-700 mb-3 flex items-center">
-                      <FiImage className="mr-2 text-indigo-600" />
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 flex items-center">
+                      <FiImage className="mr-2 text-indigo-500" />
                       Slip Image
                     </label>
                     
@@ -755,19 +759,19 @@ function StockCreateDetailsContent() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-8 border-t border-gray-200">
-                <div className="text-sm text-gray-600">
+              <div className="flex items-center justify-between pt-6 border-t border-gray-200">
+                <div className="text-sm text-gray-500">
                   <p className="flex items-center">
-                    <FiAlertCircle className="mr-2 text-yellow-500" />
-                    Fields marked with * are required. All changes will be logged.
+                    <FiAlertCircle className="mr-2 text-gray-400" />
+                    Fields marked with * are required
                   </p>
                 </div>
                 
-                <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex gap-3">
                   <button
                     type="button"
                     onClick={() => router.back()}
-                    className="px-8 py-3.5 bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-xl hover:from-gray-200 hover:to-gray-300 transition-all duration-300 flex items-center justify-center shadow-sm hover:shadow-md font-medium"
+                    className="px-6 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center font-medium"
                   >
                     <FiX className="mr-2" />
                     Cancel
@@ -775,8 +779,8 @@ function StockCreateDetailsContent() {
                   <button
                     type="submit"
                     disabled={submitting}
-                    className={`px-8 py-3.5 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl hover:from-blue-700 hover:to-blue-800 transition-all duration-300 flex items-center justify-center shadow-lg hover:shadow-xl font-medium ${
-                      submitting ? 'opacity-80 cursor-not-allowed' : ''
+                    className={`px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center font-medium ${
+                      submitting ? 'opacity-75 cursor-not-allowed' : ''
                     }`}
                   >
                     {submitting ? (
