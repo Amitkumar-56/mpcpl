@@ -19,7 +19,11 @@ export async function POST(request) {
       qty,
       remarks,
       customer_id,
-      sub_product_id
+      sub_product_id,
+      area_name,
+      customer_lat,
+      customer_lng,
+      created_by
     } = body;
 
     // Validate required fields
@@ -266,8 +270,12 @@ export async function POST(request) {
         created, 
         product, 
         sub_product_id,
-        price
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        price,
+        area_name,
+        customer_lat,
+        customer_lng,
+        created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
 
     const result = await executeQuery(insertQuery, [
@@ -285,7 +293,11 @@ export async function POST(request) {
       currentDate,
       productData.product_id,
       productData.sub_product_id,
-      price
+      price,
+      area_name || null,
+      customer_lat || null,
+      customer_lng || null,
+      created_by || null
     ]);
 
     console.log('✅ Database insert result:', result);

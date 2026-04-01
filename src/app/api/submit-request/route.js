@@ -44,9 +44,12 @@ export async function POST(req) {
       qty,            
       remarks,
       products_codes,
+      area_name,
+      customer_lat,
+      customer_lng,
     } = body;
 
-    console.log('📥 Received data for request creation:', body);
+    console.log(' Received data for request creation:', body);
 
     // Validate required fields
     if (!customer || !products_codes || !station_id || !vehicle_no || !driver_no || !qty) {
@@ -144,33 +147,74 @@ export async function POST(req) {
       driver_no: cleanDriverNo
     });
 
-    // Insert into filling_requests table with CORRECT mapping
-    const result = await executeQuery(
-      `INSERT INTO filling_requests (
-        rid, fs_id, vehicle_number, driver_number, rtype, qty, aqty, 
-        created, cid, status, remark, product, sub_product_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        nextRID,                 
-        parseInt(station_id),     
-        cleanVehicleNo,           // ✅ Use cleaned vehicle number
-        cleanDriverNo,            // ✅ Use cleaned driver number  
-        request_type,             
-        parseFloat(qty),           
-        parseFloat(qty),            
-        currentDate,              
-        parseInt(customer),         
-        'Pending',                  
-        remarks || '', 
-        parseInt(product_id),
-        parseInt(sub_product_id)
-      ]
-    );
+    // Insert into filling_requests table - try with area fields first
+    let result;
+    try {
+      // Try INSERT with area fields (new columns)
+      result = await executeQuery(
+        `INSERT INTO filling_requests (
+          rid, fs_id, vehicle_number, driver_number, rtype, qty, aqty, 
+          created, cid, status, remark, product, sub_product_id,
+          area_name, customer_lat, customer_lng, created_by
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          nextRID,                 
+          parseInt(station_id),     
+          cleanVehicleNo,           
+          cleanDriverNo,            
+          request_type,             
+          parseFloat(qty),           
+          parseFloat(qty),            
+          currentDate,              
+          parseInt(customer),         
+          'Pending',                  
+          remarks || '', 
+          parseInt(product_id),
+          parseInt(sub_product_id),
+          area_name || null,           // Area name from location detection
+          customer_lat || null,       // Customer latitude
+          customer_lng || null,       // Customer longitude
+          currentEmployeeId            // Employee who created request
+        ]
+      );
+      console.log(' INSERT successful (with area fields)');
+    } catch (areaError) {
+      console.log(' Area columns not found, trying without area fields:', areaError.message);
+      
+      // Fallback: Try INSERT without area fields (original columns)
+      try {
+        result = await executeQuery(
+          `INSERT INTO filling_requests (
+            rid, fs_id, vehicle_number, driver_number, rtype, qty, aqty, 
+            created, cid, status, remark, product, sub_product_id
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          [
+            nextRID,                 
+            parseInt(station_id),     
+            cleanVehicleNo,           
+            cleanDriverNo,            
+            request_type,             
+            parseFloat(qty),           
+            parseFloat(qty),            
+            currentDate,              
+            parseInt(customer),         
+            'Pending',                  
+            remarks || '', 
+            parseInt(product_id),
+            parseInt(sub_product_id)
+          ]
+        );
+        console.log(' INSERT successful (without area fields - area data not stored)');
+      } catch (fallbackError) {
+        console.error(' Both INSERT attempts failed:', fallbackError);
+        throw new Error('Failed to insert request: ' + fallbackError.message);
+      }
+    }
 
-    console.log('✅ CORRECTED - Insert result:', result);
+    console.log(' Insert result:', result);
 
     if (result.affectedRows > 0) {
-      // ✅ Get customer name from customers table
+      // Get customer name from customers table
       let customerName = null;
       let customerPermissions = {};
       

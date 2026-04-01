@@ -82,6 +82,12 @@ export async function GET(request) {
         fs.email as station_email,
         fs.manager as station_manager,
         pc.pcode as product_name,
+        fr.area_name,
+        fr.customer_lat,
+        fr.customer_lng,
+        fr.completed_area_name,
+        fr.completed_lat,
+        fr.completed_lng,
         COALESCE(
           ep_status.name,
           fl_processing.processing_by_name,

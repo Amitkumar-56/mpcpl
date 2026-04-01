@@ -23,7 +23,8 @@ export default function FillingDetailsAdmin() {
     aqty: '',
     status: 'Pending',
     remarks: '',
-    sub_product_id: ''
+    sub_product_id: '',
+    area_name: ''
   });
   const [submitting, setSubmitting] = useState(false);
   const [uploadedFiles, setUploadedFiles] = useState({
@@ -192,7 +193,8 @@ export default function FillingDetailsAdmin() {
           aqty: data.data.aqty || data.data.qty || '',
           status: data.data.status || 'Pending',
           remarks: data.data.remark || '',
-          sub_product_id: data.data.sub_product_id || ''
+          sub_product_id: data.data.sub_product_id || '',
+          area_name: data.data.area_name || ''
         }));
 
         console.log('🔄 Current request status from API:', data.data.status);
@@ -315,6 +317,7 @@ export default function FillingDetailsAdmin() {
       submitData.append('cl_id', requestData.cid);
       submitData.append('com_id', requestData.cid);
       submitData.append('product_id', requestData.product);
+      submitData.append('area_name', formData.area_name);
 
       // Add sub_product_id if selected
       if (formData.sub_product_id) {
@@ -327,6 +330,54 @@ export default function FillingDetailsAdmin() {
       submitData.append('available_balance', requestData.available_balance || 0);
       submitData.append('day_limit', requestData.day_limit || 0);
       submitData.append('price', requestData.fuel_price || requestData.price || 0);
+
+      // Capture completion location when status is "Completed"
+      if (formData.status === 'Completed') {
+        try {
+          // Get current location
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0
+            });
+          });
+          
+          const completionLat = position.coords.latitude;
+          const completionLng = position.coords.longitude;
+          
+          // Get area name from coordinates (reverse geocoding)
+          let completionAreaName = 'Unknown Location';
+          try {
+            const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${completionLat}&lon=${completionLng}&zoom=18&addressdetails=1`);
+            const data = await response.json();
+            completionAreaName = data.display_name || data.address?.suburb || data.address?.neighbourhood || 'Unknown Location';
+          } catch (geocodeError) {
+            console.warn('Could not get area name from coordinates:', geocodeError);
+          }
+          
+          submitData.append('completed_area_name', completionAreaName);
+          submitData.append('completed_lat', completionLat);
+          submitData.append('completed_lng', completionLng);
+          
+          console.log('📍 Completion location captured:', {
+            area: completionAreaName,
+            lat: completionLat,
+            lng: completionLng
+          });
+        } catch (locationError) {
+          console.warn('Could not get location for completion:', locationError);
+          // Still submit without location data
+          submitData.append('completed_area_name', '');
+          submitData.append('completed_lat', '');
+          submitData.append('completed_lng', '');
+        }
+      } else {
+        // For non-completed status, send empty location data
+        submitData.append('completed_area_name', '');
+        submitData.append('completed_lat', '');
+        submitData.append('completed_lng', '');
+      }
 
       console.log('📤 Submitting form data with status:', formData.status);
       console.log('🔹 Current page status:', requestData.status);
@@ -879,6 +930,56 @@ export default function FillingDetailsAdmin() {
                           <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Station</td>
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.station_name}</td>
                         </tr>
+                        
+                        {/* Location Information */}
+                        {requestData.area_name && (
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">📍 Area</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                                </svg>
+                                <span className="font-medium">{requestData.area_name}</span>
+                              </div>
+                              {requestData.customer_lat && requestData.customer_lng && (
+                                <div className="text-xs text-gray-500 mt-1 ml-6">
+                                  📍 {parseFloat(requestData.customer_lat).toFixed(4)}, {parseFloat(requestData.customer_lng).toFixed(4)}
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                        
+                        {/* Stock Information */}
+                        {requestData.station_stock !== undefined && requestData.station_stock !== null && (
+                          <tr className="flex flex-col md:table-row">
+                            <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">📦 Stock</td>
+                            <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">
+                              <div className="flex items-center">
+                                <svg className="w-4 h-4 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                                </svg>
+                                <span className={`font-medium ${
+                                  parseFloat(requestData.station_stock) >= parseFloat(requestData.qty) 
+                                    ? 'text-green-600' 
+                                    : 'text-red-600'
+                                }`}>
+                                  {requestData.station_stock} L
+                                </span>
+                                {parseFloat(requestData.station_stock) < parseFloat(requestData.qty) && (
+                                  <span className="ml-2 text-xs text-red-600 bg-red-100 px-2 py-1 rounded">
+                                    ⚠️ Insufficient Stock
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1 ml-6">
+                                Requested: {requestData.qty} L | Available: {requestData.station_stock} L
+                              </div>
+                            </td>
+                          </tr>
+                        )}
                         <tr className="flex flex-col md:table-row">
                           <td className="px-3 md:px-4 py-2 md:py-3 bg-gray-50 text-xs font-medium text-gray-500 uppercase tracking-wide">Client Name</td>
                           <td className="px-3 md:px-4 py-2 md:py-3 text-sm text-gray-900 break-words">{requestData.client_name}</td>

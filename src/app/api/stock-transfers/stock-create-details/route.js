@@ -538,21 +538,27 @@ export async function POST(request) {
               [station_to, product]
             );
             if (latestHist && latestHist.length > 0) {
-              const latest = latestHist[0];
+              // Create a new Inward entry instead of updating existing one
               await connection.execute(
-                `UPDATE filling_history 
-                   SET trans_type = 'edited', current_stock = ?, filling_qty = ?, available_stock = ? 
-                 WHERE id = ?`,
-                [stock_to, transfer_quantity, new_stock_to, latest.id]
+                `INSERT INTO filling_history 
+                   (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
+                 VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())`,
+                [station_to, product, stock_to, transfer_quantity, new_stock_to, user_id]
               );
             } else {
-              console.log('No filling_history row found to update for destination, skipping update');
+              // Create a new Inward entry if no history exists
+              await connection.execute(
+                `INSERT INTO filling_history 
+                   (fs_id, product_id, trans_type, current_stock, filling_qty, available_stock, filling_date, created_by, created_at)
+                 VALUES (?, ?, 'Inward', ?, ?, ?, NOW(), ?, NOW())`,
+                [station_to, product, stock_to, transfer_quantity, new_stock_to, user_id]
+              );
             }
           } catch (error) {
             console.log('filling_history table not found, skipping');
           }
 
-          stockAction = `Inward edited: ${stock_to} → ${new_stock_to} ${productName}`;
+          stockAction = `Inward: ${stock_to} → ${new_stock_to} ${productName}`;
         } else {
           throw new Error('DEST_STOCK_NOT_FOUND')
         }

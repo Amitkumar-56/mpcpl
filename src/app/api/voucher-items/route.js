@@ -1,6 +1,8 @@
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { verifyToken } from '@/lib/auth';
+import { createAuditLog } from '@/lib/auditLog';
+import { cookies } from 'next/headers';
 
 export async function GET(request) {
   try {
@@ -50,8 +52,14 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     // Verify authentication
-    const authResult = await verifyToken(request);
-    if (!authResult.success) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const decoded = verifyToken(token);
+    if (!decoded) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -81,6 +89,41 @@ export async function POST(request) {
       }
     }
 
+    // Get user info for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      userId = decoded.userId || decoded.id;
+      const users = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (users.length > 0) {
+        userName = users[0].name;
+      }
+    } catch (userError) {
+      console.error('Error getting user info for audit log:', userError);
+    }
+
+    // Create audit log for voucher items update
+    try {
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucher_id.toString(),
+        section: 'Voucher Items',
+        userId: userId,
+        userName: userName,
+        action: 'edit',
+        remarks: `Voucher items updated by ${userName || 'Unknown User'}`,
+        oldValue: { items_count: items.length },
+        newValue: { items: items.map(item => ({ item_details: item.item_details, amount: item.amount })) },
+        recordType: 'voucher_items',
+        recordId: parseInt(voucher_id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
+
     return NextResponse.json({ success: true, message: 'Items updated successfully' });
   } catch (error) {
     console.error('Update voucher items API error:', error);
@@ -91,8 +134,14 @@ export async function POST(request) {
 export async function DELETE(request) {
   try {
     // Verify authentication
-    const authResult = await verifyToken(request);
-    if (!authResult.success) {
+    const cookieStore = await cookies();
+    const token = cookieStore.get('token')?.value;
+    if (!token) {
+      return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+    
+    const decoded = verifyToken(token);
+    if (!decoded) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -108,6 +157,41 @@ export async function DELETE(request) {
 
     if (result.affectedRows === 0) {
       return NextResponse.json({ success: false, error: 'Item not found' }, { status: 404 });
+    }
+
+    // Get user info for audit log
+    let userId = null;
+    let userName = null;
+    try {
+      userId = decoded.userId || decoded.id;
+      const users = await executeQuery(
+        `SELECT name FROM employee_profile WHERE id = ?`,
+        [userId]
+      );
+      if (users.length > 0) {
+        userName = users[0].name;
+      }
+    } catch (userError) {
+      console.error('Error getting user info for audit log:', userError);
+    }
+
+    // Create audit log for item deletion
+    try {
+      await createAuditLog({
+        page: 'Vouchers',
+        uniqueCode: voucher_id.toString(),
+        section: 'Voucher Items',
+        userId: userId,
+        userName: userName,
+        action: 'delete',
+        remarks: `Voucher item ${item_id} deleted by ${userName || 'Unknown User'}`,
+        oldValue: { item_id: item_id, voucher_id: voucher_id },
+        newValue: null,
+        recordType: 'voucher_items',
+        recordId: parseInt(item_id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
     }
 
     return NextResponse.json({ success: true, message: 'Item deleted successfully' });

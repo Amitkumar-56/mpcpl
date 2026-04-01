@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { BiChevronDown, BiMessageRounded, BiSend, BiUser, BiX } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
+import { initializeNotifications, showChatNotification } from '@/utils/notifications';
 
 export default function ChatBox({ customerId, customerName, userRole = 'customer' }) {
   const [showChat, setShowChat] = useState(false);
@@ -19,6 +20,11 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
   const audioRef = useRef(null);
   const [ringing, setRinging] = useState(false);
   const ringIntervalRef = useRef(null);
+
+  // Initialize notifications on component mount
+  useEffect(() => {
+    initializeNotifications();
+  }, []);
 
   // Initialize audio on component mount and user interactions
   useEffect(() => {
@@ -103,6 +109,14 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
         speakMessage("नया मैसेज आया है", "hi-IN");
       }
 
+      // Show PWA notification if chat is closed
+      if (!showChat && data.message) {
+        const senderName = userRole === 'customer' 
+          ? (selectedEmployee?.name || 'Employee') 
+          : (customerName || 'Customer');
+        showChatNotification(senderName, data.message.text || data.message);
+      }
+
       // Add message to state (with deduplication)
       setMessages(prev => {
         const message = data.message;
@@ -145,6 +159,14 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
         // Voice announcement for customer
         if (!showChat) {
           speakMessage("नया मैसेज आया है", "hi-IN");
+        }
+
+        // Show PWA notification if chat is closed
+        if (!showChat && data.message) {
+          showChatNotification(
+            data.employeeName || 'Employee', 
+            data.message
+          );
         }
 
         // Add message to state

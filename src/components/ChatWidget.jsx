@@ -11,6 +11,7 @@ import { BiMessageRounded, BiSend, BiX, BiMinus } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 
 import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
+import { initializeNotifications, showChatNotification, showChatRequestNotification } from '@/utils/notifications';
 
 
 
@@ -59,6 +60,11 @@ export default function ChatWidget({ showChat, setShowChat }) {
     }
   };
 
+  // Initialize notifications on component mount
+  useEffect(() => {
+    initializeNotifications();
+  }, []);
+
   // Initialize audio on component mount and user interactions
   useEffect(() => {
     // Force initialize audio on first user interaction
@@ -101,24 +107,8 @@ export default function ChatWidget({ showChat, setShowChat }) {
       // Show notification even if page is visible, but not if actively viewing this chat
       if (selectedCustomer && selectedCustomer.customerName === customerName && showChat && !chatMinimized) return;
       
-      const notification = new Notification(`New message from ${customerName}`, {
-        body: message,
-        icon: '/favicon.png',
-        badge: '/favicon.png',
-        tag: `chat-${customerName}`, // Prevent duplicate notifications
-        requireInteraction: true // Keep notification until user interacts
-      });
-      
-      notification.onclick = () => {
-        window.focus();
-        setShowChat(true);
-        notification.close();
-      };
-      
-      // Auto-close after 5 seconds
-      setTimeout(() => {
-        notification.close();
-      }, 5000);
+      // Use PWA notification utility
+      showChatNotification(customerName, message);
     }
   };
 
@@ -574,23 +564,21 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
 
         // Admin/Employees broadcast notification listener
-
         socketInstance.on('customer_message_notification', (data) => {
-
           console.log('ChatWidget: customer_message_notification:', data);
 
+          // Show PWA notification for new chat request
+          if (data.customerName && !showChat) {
+            showChatRequestNotification(data.customerName);
+          }
+
           // Increment badge if not viewing the chat
-
           if (!showChat) {
-
             setSocketConnected(true);
-
           }
 
           loadActiveChatSessions();
-
         });
-
 
 
       } catch (error) {

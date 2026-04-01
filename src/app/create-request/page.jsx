@@ -41,6 +41,10 @@ export default function CreateRequestPage() {
   const [allowedStations, setAllowedStations] = useState([]);
   const [allowedStationIds, setAllowedStationIds] = useState(new Set());
   const [stationError, setStationError] = useState('');
+  const [currentLocation, setCurrentLocation] = useState({ lat: null, lng: null });
+  const [areaName, setAreaName] = useState('');
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState('');
 
   // Product configuration based on product_id
   const productConfig = {
@@ -255,6 +259,89 @@ export default function CreateRequestPage() {
 
   }, [formData.qty, formData.product_id, productCodes]);
 
+  // ✅ Auto-detect location on page load
+  useEffect(() => {
+    // Auto-detect location after a short delay to allow page to load
+    const timer = setTimeout(() => {
+      console.log('🌍 [Admin] Starting auto-location detection...');
+      
+      if (!navigator.geolocation) {
+        setLocationError('Geolocation is not supported by your browser');
+        console.warn('⚠️ [Admin] Geolocation not supported');
+        return;
+      }
+
+      setLocationLoading(true);
+      setLocationError('');
+      
+      navigator.geolocation.getCurrentPosition(
+        async (position) => {
+          const { latitude, longitude } = position.coords;
+          console.log('📍 [Admin] Location detected:', { latitude, longitude });
+          setCurrentLocation({ lat: latitude, lng: longitude });
+          
+          try {
+            // Get area name from coordinates
+            const response = await fetch('/api/get-area', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ lat: latitude, lng: longitude })
+            });
+            
+            const data = await response.json();
+            if (data.success) {
+              setAreaName(data.area_name);
+              setLocationError('');
+              console.log('✅ [Admin] Auto-detected area:', data.area_name);
+              
+              // Show success notification
+              if (typeof window !== 'undefined' && window.alert) {
+                // Optional: Show success message
+                console.log('🎯 [Admin] Location successfully detected and stored!');
+              }
+            } else {
+              console.warn('⚠️ [Admin] Auto-detection failed:', data.message);
+              setLocationError(data.message || 'Unable to detect area');
+            }
+          } catch (error) {
+            console.error('❌ [Admin] Error getting area:', error);
+            setLocationError('Failed to get area information');
+          } finally {
+            setLocationLoading(false);
+          }
+        },
+        (error) => {
+          setLocationLoading(false);
+          let errorMessage = 'Location detection failed';
+          
+          switch (error.code) {
+            case error.PERMISSION_DENIED:
+              errorMessage = 'Location permission denied. Please enable location access in your browser settings.';
+              break;
+            case error.POSITION_UNAVAILABLE:
+              errorMessage = 'Location information unavailable. Please check your GPS/location services.';
+              break;
+            case error.TIMEOUT:
+              errorMessage = 'Location request timed out. Please try again.';
+              break;
+            default:
+              errorMessage = 'An unknown error occurred while getting location.';
+          }
+          
+          setLocationError(errorMessage);
+          console.warn('⚠️ [Admin] Auto-location detection failed:', error.message);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000, // Increased timeout to 15 seconds
+          maximumAge: 300000 // 5 minutes cache
+        }
+      );
+    }, 3000); // Increased delay to 3 seconds for better page load
+
+    return () => clearTimeout(timer);
+  }, []);
+
 
 
 
@@ -394,10 +481,61 @@ export default function CreateRequestPage() {
     }
   };
 
+  // Get current location and detect area
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser')
+      return
+    }
 
+    setLocationLoading(true)
+    setLocationError('')
 
-
-
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        setCurrentLocation({ lat: latitude, lng: longitude })
+        
+        try {
+          // Get area name from coordinates
+          const response = await fetch('/api/get-area', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: latitude, lng: longitude })
+          })
+          
+          const data = await response.json()
+          if (data.success) {
+            setAreaName(data.area_name)
+            setLocationError('')
+          } else {
+            setLocationError(data.message || 'Unable to detect area')
+          }
+        } catch (error) {
+          console.error('Error getting area:', error)
+          setLocationError('Failed to get area information')
+        } finally {
+          setLocationLoading(false)
+        }
+      },
+      (error) => {
+        setLocationLoading(false)
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError('Location permission denied. Please enable location access.')
+            break
+          case error.POSITION_UNAVAILABLE:
+            setLocationError('Location information unavailable.')
+            break
+          case error.TIMEOUT:
+            setLocationError('Location request timed out.')
+            break
+          default:
+            setLocationError('An unknown error occurred while getting location.')
+        }
+      }
+    )
+  }
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -498,7 +636,10 @@ export default function CreateRequestPage() {
         ...formData,
         product_name: selectedProduct?.name || '',
         barrels_required: calculatedBarrels,
-        products_codes: parseInt(formData.products_codes)
+        products_codes: parseInt(formData.products_codes),
+        area_name: areaName,
+        customer_lat: currentLocation.lat,
+        customer_lng: currentLocation.lng
       };
 
       console.log('📤 Submitting data:', submitData);
@@ -779,6 +920,151 @@ export default function CreateRequestPage() {
                     placeholder="Add any notes for this request"
                   />
                   
+                </div>
+
+                {/* Location Section */}
+                <div className="flex flex-col md:col-span-2 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                  <div className="flex items-center mb-3">
+                    <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-gray-700">📍 Location Detection</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Detection Status
+                      </label>
+                      <div className={`px-4 py-3 rounded-lg border-2 flex items-center ${
+                        areaName
+                          ? 'border-green-300 bg-green-50'
+                          : locationLoading
+                            ? 'border-blue-300 bg-blue-50'
+                            : locationError
+                              ? 'border-red-300 bg-red-50'
+                              : 'border-gray-300 bg-gray-50'
+                      }`}>
+                        {locationLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                            <div>
+                              <span className="text-blue-700 font-medium">🌍 Detecting location...</span>
+                              <div className="text-xs text-blue-600 mt-1">Please allow location access</div>
+                            </div>
+                          </>
+                        ) : areaName ? (
+                          <>
+                            <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div>
+                              <span className="text-green-800 font-medium">✅ {areaName}</span>
+                              <div className="text-xs text-green-600 mt-1">Location captured successfully</div>
+                            </div>
+                          </>
+                        ) : locationError ? (
+                          <>
+                            <svg className="w-5 h-5 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <div>
+                              <span className="text-red-800 font-medium">❌ Detection Failed</span>
+                              <div className="text-xs text-red-600 mt-1">{locationError}</div>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            <span className="text-gray-500">Waiting for auto-detection...</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Manual Detection
+                      </label>
+                      <button
+                        type="button"
+                        onClick={getCurrentLocation}
+                        disabled={locationLoading}
+                        className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                          locationLoading
+                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                        }`}
+                      >
+                        {locationLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                            Detecting...
+                          </>
+                        ) : (
+                          <>
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                            </svg>
+                            Try Manual Detection
+                          </>
+                        )}
+                      </button>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Detected Area
+                      </label>
+                      <div className={`px-4 py-3 rounded-lg border-2 min-h-[48px] flex items-center ${
+                        areaName
+                          ? 'border-green-300 bg-green-50'
+                          : 'border-gray-300 bg-white'
+                      }`}>
+                        {areaName ? (
+                          <div className="flex items-center">
+                            <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            <span className="text-green-800 font-medium">{areaName}</span>
+                          </div>
+                        ) : (
+                          <span className="text-gray-500">📍 Area will appear here</span>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Coordinates
+                      </label>
+                      <div className="px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 min-h-[48px] flex items-center">
+                        {currentLocation.lat && currentLocation.lng ? (
+                          <span className="text-gray-700 font-mono text-sm">
+                            📍 {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">🌍 Coordinates will appear here</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {locationError && (
+                    <div className="md:col-span-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm text-red-700 flex items-center">
+                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        {locationError}
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <div className="md:col-span-2 flex justify-start gap-4">

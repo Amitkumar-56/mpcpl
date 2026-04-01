@@ -82,12 +82,14 @@ export async function POST(request) {
     const result = await executeQuery(
       `INSERT INTO filling_requests (
         rid, fl_id, fs_id, vehicle_number, driver_number, rtype, qty, aqty, 
-        created, cid, status, remark, product
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        created, cid, status, remark, product,
+        area_name, customer_lat, customer_lng, created_by
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         nextRID, parseInt(products_codes), parseInt(station_id),
         vehicle_no, driver_no, request_type, parseFloat(qty), parseFloat(qty),
-        currentDate, parseInt(customer), 'Pending', remarks || '', ''
+        currentDate, parseInt(customer), 'Pending', remarks || '', '',
+        body.area_name || null, body.customer_lat || null, body.customer_lng || null, userId || null
       ]
     );
 

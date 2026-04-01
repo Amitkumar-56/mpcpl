@@ -41,6 +41,10 @@ export default function CreateRequestForm() {
   const [dayLimitStatus, setDayLimitStatus] = useState(null)
   const [checkingEligibility, setCheckingEligibility] = useState(false)
   const [isAuthenticated, setIsAuthenticated] = useState(false) // ✅ Added authentication state
+  const [currentLocation, setCurrentLocation] = useState({ lat: null, lng: null })
+  const [areaName, setAreaName] = useState('')
+  const [locationLoading, setLocationLoading] = useState(false)
+  const [locationError, setLocationError] = useState('')
 
   // Product configuration based on product_id
   const productConfig = {
@@ -324,7 +328,109 @@ export default function CreateRequestForm() {
     fetchCustomerData(cid);
   }, [router]);
 
+  // ✅ 11. Auto-detect location on page load
+  useEffect(() => {
+    // Auto-detect location after a short delay to allow page to load
+    const timer = setTimeout(() => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          async (position) => {
+            const { latitude, longitude } = position.coords;
+            setCurrentLocation({ lat: latitude, lng: longitude });
+            
+            try {
+              // Get area name from coordinates
+              const response = await fetch('/api/get-area', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lat: latitude, lng: longitude })
+              });
+              
+              const data = await response.json();
+              if (data.success) {
+                setAreaName(data.area_name);
+                setLocationError('');
+                console.log('✅ Auto-detected area:', data.area_name);
+              } else {
+                console.warn('⚠️ Auto-detection failed:', data.message);
+              }
+            } catch (error) {
+              console.error('❌ Error getting area:', error);
+            }
+          },
+          (error) => {
+            // Silently fail for auto-detection - user can still click manually
+            console.warn('⚠️ Auto-location detection failed:', error.message);
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000, // 10 seconds timeout
+            maximumAge: 300000 // 5 minutes cache
+          }
+        );
+      }
+    }, 2000); // Wait 2 seconds after page load
+
+    return () => clearTimeout(timer);
+  }, []);
+
   // ================ FUNCTIONS ================
+
+  // Get current location and detect area
+  const getCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported by your browser')
+      return
+    }
+
+    setLocationLoading(true)
+    setLocationError('')
+
+    navigator.geolocation.getCurrentPosition(
+      async (position) => {
+        const { latitude, longitude } = position.coords
+        setCurrentLocation({ lat: latitude, lng: longitude })
+        
+        try {
+          // Get area name from coordinates
+          const response = await fetch('/api/get-area', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ lat: latitude, lng: longitude })
+          })
+          
+          const data = await response.json()
+          if (data.success) {
+            setAreaName(data.area_name)
+            setLocationError('')
+          } else {
+            setLocationError(data.message || 'Unable to detect area')
+          }
+        } catch (error) {
+          console.error('Error getting area:', error)
+          setLocationError('Failed to get area information')
+        } finally {
+          setLocationLoading(false)
+        }
+      },
+      (error) => {
+        setLocationLoading(false)
+        switch (error.code) {
+          case error.PERMISSION_DENIED:
+            setLocationError('Location permission denied. Please enable location access.')
+            break
+          case error.POSITION_UNAVAILABLE:
+            setLocationError('Location information unavailable.')
+            break
+          case error.TIMEOUT:
+            setLocationError('Location request timed out.')
+            break
+          default:
+            setLocationError('An unknown error occurred while getting location.')
+        }
+      }
+    )
+  }
 
   const checkEligibility = async () => {
     try {
@@ -709,7 +815,11 @@ export default function CreateRequestForm() {
         request_type: 'Liter',
         qty: formData.qty || '0',
         remarks: formData.remarks,
-        customer_id: customerId
+        customer_id: customerId,
+        area_name: areaName,
+        customer_lat: currentLocation.lat,
+        customer_lng: currentLocation.lng,
+        created_by: customerId
       }
 
       console.log('📤 Sending to API:', {
@@ -1156,6 +1266,129 @@ export default function CreateRequestForm() {
                           {errors.phone}
                         </p>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Location Section */}
+                  <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                    <div className="flex items-center mb-4">
+                      <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                      </svg>
+                      <h3 className="text-lg font-semibold text-gray-700">Location Information</h3>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      {/* Location Detection */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Location Detection
+                        </label>
+                        <div className="space-y-3">
+                          {/* Auto-detection status */}
+                          <div className={`px-4 py-3 rounded-xl border-2 flex items-center ${
+                            areaName
+                              ? 'border-green-300 bg-green-50'
+                              : locationLoading
+                                ? 'border-blue-300 bg-blue-50'
+                                : 'border-gray-300 bg-gray-50'
+                          }`}>
+                            {locationLoading ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                                <span className="text-blue-700 font-medium">Auto-detecting location...</span>
+                              </>
+                            ) : areaName ? (
+                              <>
+                                <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div>
+                                  <span className="text-green-800 font-medium">Auto-detected: {areaName}</span>
+                                  <div className="text-xs text-green-600 mt-1">Location captured automatically</div>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <div>
+                                  <span className="text-gray-600">Waiting for auto-detection...</span>
+                                  <div className="text-xs text-gray-500 mt-1">Or try manual detection below</div>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                          
+                          {/* Manual detection button */}
+                          <button
+                            type="button"
+                            onClick={getCurrentLocation}
+                            disabled={locationLoading || dayLimitStatus?.isEligible === false}
+                            className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                              locationLoading
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-gray-100 text-gray-700 hover:bg-gray-200 border border-gray-300'
+                            } ${dayLimitStatus?.isEligible === false ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          >
+                            {locationLoading ? (
+                              <>
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                                Detecting...
+                              </>
+                            ) : (
+                              <>
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                </svg>
+                                Try Manual Detection
+                              </>
+                            )}
+                          </button>
+                        </div>
+                        
+                        {locationError && (
+                          <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <p className="text-sm text-red-700 flex items-center">
+                              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                              </svg>
+                              {locationError}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Area Display */}
+                      <div>
+                        <label className="block text-sm font-semibold text-gray-700 mb-2">
+                          Detected Area
+                        </label>
+                        <div className={`px-4 py-3 rounded-xl border-2 min-h-[48px] flex items-center ${
+                          areaName
+                            ? 'border-green-300 bg-green-50'
+                            : 'border-gray-300 bg-white'
+                        }`}>
+                          {areaName ? (
+                            <div className="flex items-center">
+                              <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              <span className="text-green-800 font-medium">{areaName}</span>
+                            </div>
+                          ) : (
+                            <span className="text-gray-500">Click "Get My Location" to detect area</span>
+                          )}
+                        </div>
+                        
+                        {currentLocation.lat && currentLocation.lng && (
+                          <div className="mt-2 text-xs text-gray-600">
+                            Coordinates: {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
 

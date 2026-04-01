@@ -705,6 +705,21 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
         <td className="py-3 px-4 font-mono text-sm font-semibold text-blue-600">{request.rid}</td>
         <td className="py-3 px-4 text-sm">{request.product_name || "N/A"}</td>
         <td className="py-3 px-4 text-sm">{request.loading_station || "N/A"}</td>
+        <td className="py-3 px-4 text-sm">
+          <div className="flex items-center">
+            {request.area_name ? (
+              <>
+                <svg className="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <span className="font-medium">{request.area_name}</span>
+              </>
+            ) : (
+              <span className="text-gray-400">N/A</span>
+            )}
+          </div>
+        </td>
         <td className="py-3 px-4 text-sm font-medium">{request.vehicle_number}</td>
         <td className="py-3 px-4 text-sm">{request.customer_name || "N/A"}</td>
         <td className="py-3 px-4 text-sm">{request.driver_number}</td>
@@ -867,6 +882,15 @@ const RequestRow = ({ request, index, onView, onEdit, onExpand, onCall, onShare,
                     <div className="text-sm text-gray-900">
                       {request.completed_by_name || "-"}
                     </div>
+                    {/* 📍 Completed Area Name */}
+                    {request.completed_area_name && (
+                      <div className="mt-2">
+                        <div className="text-xs font-medium text-gray-500 mb-1">📍 Completed At</div>
+                        <div className="text-sm text-gray-900">
+                          {request.completed_area_name}
+                        </div>
+                      </div>
+                    )}
                     {(request.completed_date_formatted || (request.completed_date && request.completed_date !== "0000-00-00 00:00:00")) && (
                       <div className="text-xs text-gray-500 mt-1">
                         {request.completed_date_formatted ||
@@ -1301,6 +1325,15 @@ const MobileRequestCard = ({ request, index, onView, onEdit, onExpand, onCall, o
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <div className="text-xs font-medium text-gray-500 mb-1">Completed By</div>
                 <div className="text-sm text-gray-900">{request.completed_by_name || "-"}</div>
+                {/* 📍 Completed Area Name */}
+                {request.completed_area_name && (
+                  <div className="mt-2">
+                    <div className="text-xs font-medium text-gray-500 mb-1">📍 Completed At</div>
+                    <div className="text-sm text-gray-900">
+                      {request.completed_area_name}
+                    </div>
+                  </div>
+                )}
                 {request.completed_date && request.completed_date !== "0000-00-00 00:00:00" && (
                   <div className="text-xs text-gray-500 mt-1">
                     {request.completed_date_formatted || new Date(request.completed_date).toLocaleString("en-IN", {
@@ -2137,6 +2170,7 @@ export default function FillingRequests() {
                       <th className="py-3 px-4 border-b">Request ID</th>
                       <th className="py-3 px-4 border-b">Product</th>
                       <th className="py-3 px-4 border-b">Loading Station</th>
+                      <th className="py-3 px-4 border-b">Area</th>
                       <th className="py-3 px-4 border-b">Vehicle No</th>
                       <th className="py-3 px-4 border-b">Client Name</th>
                       <th className="py-3 px-4 border-b">Driver Phone</th>
@@ -2297,6 +2331,15 @@ export default function FillingRequests() {
                       <div className="text-base text-gray-900 font-semibold">
                         {detailsModal.completed_by_name || 'N/A'}
                       </div>
+                      {/* 📍 Completed Area Name */}
+                      {detailsModal.completed_area_name && (
+                        <div className="mt-2">
+                          <div className="text-sm font-medium text-gray-500 mb-1">📍 Completed At</div>
+                          <div className="text-base text-gray-900">
+                            {detailsModal.completed_area_name}
+                          </div>
+                        </div>
+                      )}
                       {detailsModal.completed_date && detailsModal.completed_date !== "0000-00-00 00:00:00" && (
                         <div className="text-xs text-gray-500 mt-1">
                           {detailsModal.completed_date_formatted || new Date(detailsModal.completed_date).toLocaleString("en-IN", {

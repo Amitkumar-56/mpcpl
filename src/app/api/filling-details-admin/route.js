@@ -326,9 +326,20 @@ export async function POST(request) {
     const aqty = parseFloat(formData.get('aqty')) || 0;
     const status = formData.get('status');
     const remarks = formData.get('remarks');
+    const area_name = formData.get('area_name');
+    const completed_area_name = formData.get('completed_area_name');
+    const completed_lat = formData.get('completed_lat');
+    const completed_lng = formData.get('completed_lng');
 
     console.log('🎯 CRITICAL FIELDS FOR PROCESSING:', {
-      id, rid, status, aqty, cl_id
+      id, rid, status, aqty, cl_id, area_name
+    });
+
+    console.log('📍 COMPLETION LOCATION DATA:', {
+      status,
+      completed_area_name,
+      completed_lat,
+      completed_lng
     });
 
     // Validate required fields
@@ -439,7 +450,7 @@ export async function POST(request) {
         id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
         oldstock, credit_limit, available_balance, day_limit,
         price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
-        isDayLimitCustomer
+        isDayLimitCustomer, completed_area_name, completed_lat, completed_lng
       });
 
       try {
@@ -497,9 +508,9 @@ export async function POST(request) {
         });
       } catch (auditErr) { }
     } else {
-      console.log('🔄 Handling generic status update...');
+      console.log(' Handling generic status update...');
       resultMessage = await updateFillingRequest({
-        id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
+        id, aqty, status, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id, area_name, completed_area_name, completed_lat, completed_lng
       });
       try {
         const userRows = await executeQuery(
@@ -965,7 +976,7 @@ async function handleCompletedStatus(data) {
     id, rid, fs_id, cl_id, product_id, sub_product_id, billing_type,
     oldstock, credit_limit, available_balance, day_limit,
     price, aqty, doc1Path, doc2Path, doc3Path, remarks, userId,
-    isDayLimitCustomer = false
+    isDayLimitCustomer = false, completed_area_name, completed_lat, completed_lng
   } = data;
 
   // Re-select sub_product based on actual qty thresholds
@@ -1122,7 +1133,7 @@ async function handleCompletedStatus(data) {
     });
   }
 
-  // ✅ Update filling request with payment_status
+  // Update filling request with payment_status and completion location
   const updateRequestQuery = `
     UPDATE filling_requests 
     SET status = 'Completed', 
@@ -1137,7 +1148,11 @@ async function handleCompletedStatus(data) {
         sub_product_id = ?,
         price = ?,
         totalamt = ?,
-        payment_status = ?
+        payment_status = ?,
+        completed_area_name = ?,
+        completed_lat = ?,
+        completed_lng = ?,
+        completed_by_employee_id = ?
     WHERE id = ? AND rid = ?
   `;
 
@@ -1145,7 +1160,9 @@ async function handleCompletedStatus(data) {
 
   await executeQuery(updateRequestQuery, [
     aqty, now, userId, remarks, doc1Path, doc2Path, doc3Path, userId,
-    chosenSubProduct, finalPrice, calculatedAmount, paymentStatus, id, rid
+    chosenSubProduct, finalPrice, calculatedAmount, paymentStatus,
+    completed_area_name, completed_lat, completed_lng, userId,
+    id, rid
   ]);
 
   // Get last new_amount from filling_history for this customer
@@ -1581,7 +1598,7 @@ async function handleCancelStatus(data) {
 
 async function updateFillingRequest(data) {
   const {
-    id, aqty, status, remarks, doc1Base64, doc2Base64, doc3Base64, userId, sub_product_id
+    id, aqty, status, remarks, doc1Base64, doc2Base64, doc3Base64, userId, sub_product_id, area_name, completed_area_name, completed_lat, completed_lng
   } = data;
 
   const now = getIndianTime();
@@ -1601,10 +1618,32 @@ async function updateFillingRequest(data) {
           sub_product_id = ?,
           pdate = ?,
           pcid = ?,
-          status_updated_by = ?
+          status_updated_by = ?,
+          area_name = ?
       WHERE id = ?
     `;
-    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, now, userId, userId, id];
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, now, userId, userId, area_name, id];
+  } else if (status === 'Completed') {
+    // When completing, also store completion location data
+    updateQuery = `
+      UPDATE filling_requests 
+      SET doc1 = ?, 
+          doc2 = ?, 
+          doc3 = ?, 
+          aqty = ?, 
+          status = ?, 
+          remark = ?, 
+          sub_product_id = ?,
+          status_updated_by = ?,
+          area_name = ?,
+          completed_area_name = ?,
+          completed_lat = ?,
+          completed_lng = ?,
+          completed_by_employee_id = ?,
+          completed_date = ?
+      WHERE id = ?
+    `;
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, userId, area_name, completed_area_name, completed_lat, completed_lng, userId, now, id];
   } else {
     updateQuery = `
       UPDATE filling_requests 
@@ -1615,10 +1654,11 @@ async function updateFillingRequest(data) {
           status = ?, 
           remark = ?, 
           sub_product_id = ?,
-          status_updated_by = ?
+          status_updated_by = ?,
+          area_name = ?
       WHERE id = ?
     `;
-    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, userId, id];
+    queryParams = [doc1Base64, doc2Base64, doc3Base64, aqty, status, remarks, sub_product_id, userId, area_name, id];
   }
 
   await executeQuery(updateQuery, queryParams);
