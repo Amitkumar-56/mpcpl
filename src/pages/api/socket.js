@@ -600,6 +600,254 @@ export default function SocketHandler(req, res) {
 
         });
 
+        // Employee-to-Employee Chat Events
+        socket.on("employee_chat_request", async (data) => {
+          try {
+            const { requesterId, responderId, requestMessage } = data;
+
+            if (!requesterId || !responderId) {
+              socket.emit("error", { message: "Requester ID and responder ID are required" });
+              return;
+            }
+
+            // Save chat request to database
+            const result = await executeQuery(
+              `INSERT INTO employee_sessions (requester_id, responder_id, status, request_message) 
+               VALUES (?, ?, 'pending', ?)`,
+              [requesterId, responderId, requestMessage || '']
+            );
+
+            if (result.affectedRows > 0) {
+              // Get session details with employee info
+              const sessionDetails = await executeQuery(
+                `SELECT 
+                  es.id,
+                  es.requester_id,
+                  es.responder_id,
+                  es.status,
+                  es.request_message,
+                  es.created_at,
+                  requester.name as requester_name,
+                  requester.picture as requester_picture,
+                  responder.name as responder_name,
+                  responder.picture as responder_picture
+                FROM employee_sessions es
+                LEFT JOIN employee_profile requester ON es.requester_id = requester.id
+                LEFT JOIN employee_profile responder ON es.responder_id = responder.id
+                WHERE es.id = ?`,
+                [result.insertId]
+              );
+
+              const sessionData = sessionDetails[0];
+
+              // Send notification to responder
+              io.to(`employee_${responderId}`).emit('employee_chat_request_received', sessionData);
+
+              // Send confirmation to requester
+              socket.emit('employee_chat_request_sent', sessionData);
+
+              console.log(`📨 Employee chat request: ${requesterId} -> ${responderId}`);
+            }
+
+          } catch (error) {
+            console.error('Employee chat request error:', error);
+            socket.emit("error", { message: "Failed to send chat request" });
+          }
+        });
+
+        socket.on("employee_chat_respond", async (data) => {
+          try {
+            const { sessionId, responderId, action } = data;
+
+            if (!sessionId || !responderId || !['accept', 'reject'].includes(action)) {
+              socket.emit("error", { message: "Invalid data" });
+              return;
+            }
+
+            // Update session status
+            const newStatus = action === 'accept' ? 'active' : 'rejected';
+            const result = await executeQuery(
+              `UPDATE employee_sessions SET status = ?, updated_at = NOW() WHERE id = ?`,
+              [newStatus, sessionId]
+            );
+
+            if (result.affectedRows > 0) {
+              // Get updated session with employee details
+              const sessionDetails = await executeQuery(
+                `SELECT 
+                  es.id,
+                  es.requester_id,
+                  es.responder_id,
+                  es.status,
+                  es.request_message,
+                  es.created_at,
+                  es.updated_at,
+                  requester.name as requester_name,
+                  requester.picture as requester_picture,
+                  responder.name as responder_name,
+                  responder.picture as responder_picture
+                FROM employee_sessions es
+                LEFT JOIN employee_profile requester ON es.requester_id = requester.id
+                LEFT JOIN employee_profile responder ON es.responder_id = responder.id
+                WHERE es.id = ?`,
+                [sessionId]
+              );
+
+              const sessionData = sessionDetails[0];
+
+              // Notify the original requester
+              io.to(`employee_${sessionData.requester_id}`).emit('employee_chat_response_received', {
+                sessionId,
+                action,
+                session: sessionData
+              });
+
+              // Send confirmation to responder
+              socket.emit('employee_chat_response_sent', {
+                sessionId,
+                action,
+                session: sessionData
+              });
+
+              console.log(`📝 Employee chat response: ${responderId} ${action} session ${sessionId}`);
+            }
+
+          } catch (error) {
+            console.error('Employee chat response error:', error);
+            socket.emit("error", { message: "Failed to respond to chat request" });
+          }
+        });
+
+        socket.on("employee_chat_message", async (data) => {
+          try {
+            const { sessionId, senderId, receiverId, message, messageType = 'text' } = data;
+
+            if (!sessionId || !senderId || !receiverId || !message) {
+              socket.emit("error", { message: "Missing required fields" });
+              return;
+            }
+
+            // Save message to database
+            const result = await executeQuery(
+              `INSERT INTO chat_messages (session_id, sender_id, receiver_id, message, message_type, status) 
+               VALUES (?, ?, ?, ?, ?, 'sent')`,
+              [sessionId, senderId, receiverId, message, messageType]
+            );
+
+            if (result.affectedRows > 0) {
+              // Update session timestamp
+              await executeQuery(
+                `UPDATE employee_sessions SET updated_at = NOW() WHERE id = ?`,
+                [sessionId]
+              );
+
+              // Get complete message with employee details
+              const messageDetails = await executeQuery(
+                `SELECT 
+                  cm.id,
+                  cm.session_id,
+                  cm.sender_id,
+                  cm.receiver_id,
+                  cm.message,
+                  cm.message_type,
+                  cm.status,
+                  cm.created_at,
+                  sender.name as sender_name,
+                  sender.picture as sender_picture,
+                  receiver.name as receiver_name,
+                  receiver.picture as receiver_picture
+                FROM chat_messages cm
+                LEFT JOIN employee_profile sender ON cm.sender_id = sender.id
+                LEFT JOIN employee_profile receiver ON cm.receiver_id = receiver.id
+                WHERE cm.id = ?`,
+                [result.insertId]
+              );
+
+              const messageData = messageDetails[0];
+
+              // Send message to receiver
+              io.to(`employee_${receiverId}`).emit('employee_chat_message_received', messageData);
+
+              // Send confirmation to sender
+              socket.emit('employee_chat_message_sent', messageData);
+
+              console.log(`💬 Employee chat message: ${senderId} -> ${receiverId} (session: ${sessionId})`);
+            }
+
+          } catch (error) {
+            console.error('Employee chat message error:', error);
+            socket.emit("error", { message: "Failed to send message" });
+          }
+        });
+
+        socket.on("employee_chat_typing", (data) => {
+          try {
+            const { sessionId, receiverId, isTyping, senderName } = data;
+
+            if (!sessionId || !receiverId) return;
+
+            // Send typing indicator to receiver
+            io.to(`employee_${receiverId}`).emit('employee_chat_typing_indicator', {
+              sessionId,
+              isTyping,
+              senderName
+            });
+
+          } catch (error) {
+            console.error('Employee chat typing error:', error);
+          }
+        });
+
+        socket.on("employee_chat_mark_read", async (data) => {
+          try {
+            const { sessionId, employeeId, messageIds } = data;
+
+            if (!sessionId || !employeeId) return;
+
+            let updateResult;
+
+            if (messageIds && Array.isArray(messageIds) && messageIds.length > 0) {
+              // Mark specific messages as read
+              const placeholders = messageIds.map(() => '?').join(',');
+              updateResult = await executeQuery(
+                `UPDATE chat_messages 
+                 SET status = 'read', read_at = NOW() 
+                 WHERE id IN (${placeholders}) AND receiver_id = ? AND session_id = ?`,
+                [...messageIds, employeeId, sessionId]
+              );
+            } else {
+              // Mark all unread messages in the session as read
+              updateResult = await executeQuery(
+                `UPDATE chat_messages 
+                 SET status = 'read', read_at = NOW() 
+                 WHERE receiver_id = ? AND session_id = ? AND status != 'read'`,
+                [employeeId, sessionId]
+              );
+            }
+
+            // Notify the other employee that messages were read
+            const session = await executeQuery(
+              `SELECT requester_id, responder_id FROM employee_sessions WHERE id = ?`,
+              [sessionId]
+            );
+
+            if (session.length > 0) {
+              const otherEmployeeId = session[0].requester_id === employeeId 
+                ? session[0].responder_id 
+                : session[0].requester_id;
+
+              io.to(`employee_${otherEmployeeId}`).emit('employee_chat_messages_read', {
+                sessionId,
+                readBy: employeeId,
+                count: updateResult.affectedRows
+              });
+            }
+
+          } catch (error) {
+            console.error('Employee chat mark read error:', error);
+          }
+        });
+
         socket.on("typing_start", (data) => {
 
           const { customerId, userType, userName } = data;

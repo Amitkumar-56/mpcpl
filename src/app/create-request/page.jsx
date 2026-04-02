@@ -7,6 +7,96 @@ import Footer from '../../components/Footer';
 import Header from '../../components/Header';
 import Sidebar from '../../components/sidebar';
 
+// Add this SearchableSelect component
+const SearchableSelect = ({ 
+  options, 
+  value, 
+  onChange, 
+  placeholder = "Select...",
+  required = false,
+  name
+}) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedLabel, setSelectedLabel] = useState('');
+
+  // Find selected option label
+  useEffect(() => {
+    const selected = options.find(opt => opt.id == value);
+    setSelectedLabel(selected ? selected.name : '');
+  }, [value, options]);
+
+  const filteredOptions = options.filter(option =>
+    option.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelect = (option) => {
+    onChange({ target: { name, value: option.id } });
+    setSelectedLabel(option.name);
+    setIsOpen(false);
+    setSearchTerm('');
+  };
+
+  return (
+    <div className="relative">
+      <div
+        className="border border-gray-300 rounded p-2 bg-white cursor-pointer flex justify-between items-center"
+        onClick={() => setIsOpen(!isOpen)}
+      >
+        <span className={selectedLabel ? 'text-gray-900' : 'text-gray-500'}>
+          {selectedLabel || placeholder}
+        </span>
+        <svg
+          className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'transform rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+
+      {isOpen && (
+        <>
+          <div
+            className="fixed inset-0 z-10"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg">
+            <div className="p-2 border-b">
+              <input
+                type="text"
+                placeholder="Search customer..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+                autoFocus
+              />
+            </div>
+            <div className="max-h-60 overflow-y-auto">
+              {filteredOptions.length > 0 ? (
+                filteredOptions.map((option) => (
+                  <div
+                    key={option.id}
+                    className="px-4 py-2 hover:bg-blue-50 cursor-pointer transition-colors"
+                    onClick={() => handleSelect(option)}
+                  >
+                    {option.name}
+                  </div>
+                ))
+              ) : (
+                <div className="px-4 py-2 text-gray-500 text-center">
+                  No customers found
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 export default function CreateRequestPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
@@ -193,7 +283,6 @@ export default function CreateRequestPage() {
     setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
   }, [formData.products_codes, productCodes]);
 
-  // ✅ FIX: Move all hooks BEFORE early returns to maintain hook order
   // Barrel calculation - 200 liters per barrel
   useEffect(() => {
     if (selectedProduct?.barrelSize && formData.qty) {
@@ -209,10 +298,7 @@ export default function CreateRequestPage() {
     }
   }, [formData.qty, selectedProduct]);
 
- 
-
-
-  // ✅ AUTO-SWITCH BULK/RETAIL BASED ON QTY
+  // AUTO-SWITCH BULK/RETAIL BASED ON QTY
   useEffect(() => {
     if (!formData.product_id || !productCodes.length || !formData.qty) return;
 
@@ -225,7 +311,6 @@ export default function CreateRequestPage() {
     } else if (pid === 4) { // DEF Lose
       if (qty > 3000) targetType = 'bulk';
     } else if (pid === 5) { // DEF Bucket
-      // Assuming qty is Liters here as per main logic
       if (qty > 3000) targetType = 'bulk';
     }
 
@@ -234,19 +319,16 @@ export default function CreateRequestPage() {
     if (pid === 2 || pid === 3) {
       targetCode = productCodes.find(c => {
         const pcode = c.pcode.toUpperCase();
-        // Strict Retail check: includes "(R)"
         const isRetail = pcode.includes('(R)');
         return targetType === 'retail' ? isRetail : !isRetail;
       });
     } else if (pid === 4) {
       targetCode = productCodes.find(c => {
-        // Retail: includes "(R)"
         const isRetail = c.pcode.toUpperCase().includes('(R)');
         return targetType === 'retail' ? isRetail : !isRetail;
       });
     } else if (pid === 5) {
       targetCode = productCodes.find(c => {
-        // Retail: includes "(R)"
         const isRetail = c.pcode.toUpperCase().includes('(R)');
         return targetType === 'retail' ? isRetail : !isRetail;
       });
@@ -259,9 +341,8 @@ export default function CreateRequestPage() {
 
   }, [formData.qty, formData.product_id, productCodes]);
 
-  // ✅ Auto-detect location on page load
+  // Auto-detect location on page load
   useEffect(() => {
-    // Auto-detect location after a short delay to allow page to load
     const timer = setTimeout(() => {
       console.log('🌍 [Admin] Starting auto-location detection...');
       
@@ -281,7 +362,6 @@ export default function CreateRequestPage() {
           setCurrentLocation({ lat: latitude, lng: longitude });
           
           try {
-            // Get area name from coordinates
             const response = await fetch('/api/get-area', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -293,12 +373,6 @@ export default function CreateRequestPage() {
               setAreaName(data.area_name);
               setLocationError('');
               console.log('✅ [Admin] Auto-detected area:', data.area_name);
-              
-              // Show success notification
-              if (typeof window !== 'undefined' && window.alert) {
-                // Optional: Show success message
-                console.log('🎯 [Admin] Location successfully detected and stored!');
-              }
             } else {
               console.warn('⚠️ [Admin] Auto-detection failed:', data.message);
               setLocationError(data.message || 'Unable to detect area');
@@ -333,19 +407,16 @@ export default function CreateRequestPage() {
         },
         {
           enableHighAccuracy: true,
-          timeout: 15000, // Increased timeout to 15 seconds
-          maximumAge: 300000 // 5 minutes cache
+          timeout: 15000,
+          maximumAge: 300000
         }
       );
-    }, 3000); // Increased delay to 3 seconds for better page load
+    }, 3000);
 
     return () => clearTimeout(timer);
   }, []);
 
-
-
-
-  // ✅ Early returns AFTER all hooks
+  // Early returns AFTER all hooks
   if (authLoading) {
     return (
       <div className="flex h-screen bg-gray-100 overflow-hidden">
@@ -430,16 +501,12 @@ export default function CreateRequestPage() {
             const codes = json.codes || [];
             setProductCodes(codes);
 
-            // ✅ AUTO-SELECT DEFAULT RETAIL CODE
             let defaultCode = null;
-            if (productId === 2 || productId === 3) { // Industrial Oil
-              // Strict check for "(R)"
+            if (productId === 2 || productId === 3) {
               defaultCode = codes.find(c => c.pcode.toUpperCase().includes('(R)'));
-            } else if (productId === 4) { // DEF Lose
-              // Strict check for "(R)"
+            } else if (productId === 4) {
               defaultCode = codes.find(c => c.pcode.toUpperCase().includes('(R)'));
-            } else if (productId === 5) { // DEF Bucket
-              // Strict check for "(R)"
+            } else if (productId === 5) {
               defaultCode = codes.find(c => c.pcode.toUpperCase().includes('(R)'));
             }
 
@@ -476,7 +543,6 @@ export default function CreateRequestPage() {
         setMaxQuantity(0);
       }
 
-      // Keep qty/aty if just switching sub-products to avoid clearing user input
       setCalculatedBarrels(0);
     }
   };
@@ -497,7 +563,6 @@ export default function CreateRequestPage() {
         setCurrentLocation({ lat: latitude, lng: longitude })
         
         try {
-          // Get area name from coordinates
           const response = await fetch('/api/get-area', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -558,13 +623,7 @@ export default function CreateRequestPage() {
     }
 
     setFormData(prev => ({ ...prev, [name]: value, qty, aty }));
-
-    if (name === 'aty' || name === 'qty') {
-      const currentQty = parseInt(qty) || 0;
-    }
   };
-
- 
 
   const handleSubmitClick = (e) => {
     e.preventDefault();
@@ -581,7 +640,6 @@ export default function CreateRequestPage() {
       setStationError('');
     }
 
-    // ✅ STRICT Vehicle Number Validation - NO SPACES ALLOWED
     if (formData.vehicle_no.includes(' ')) {
       return alert('❌ Spaces are not allowed in Vehicle Number! Please remove spaces.');
     }
@@ -590,7 +648,6 @@ export default function CreateRequestPage() {
       return alert('Please enter a valid vehicle number (minimum 3 characters).');
     }
 
-    // ✅ STRICT Driver Number Validation - NO SPACES ALLOWED
     if (formData.driver_no.includes(' ')) {
       return alert('❌ Spaces are not allowed in Driver Number! Please remove spaces.');
     }
@@ -703,14 +760,6 @@ export default function CreateRequestPage() {
         <main className="flex-1 mt-20 mb-20 md:mb-16 overflow-auto px-4 py-6">
           <h1 className="text-2xl font-bold mb-4">Purchase Request</h1>
 
-          {/* ✅ WARNING MESSAGE REMOVED FROM HERE */}
-
-          {loading && (
-            <div className="bg-white shadow-md rounded-lg p-6 text-center">
-              <p className="text-gray-600">Loading data...</p>
-            </div>
-          )}
-
           {error && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
               {error}
@@ -756,332 +805,327 @@ export default function CreateRequestPage() {
             </div>
           )}
 
-          {!loading && !error && (
-            <div className="bg-white shadow-md rounded-lg p-6">
-              <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleSubmitClick}>
+          <div className="bg-white shadow-md rounded-lg p-6">
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-6" onSubmit={handleSubmitClick}>
 
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">Select Customer *</label>
-                  <select name="customer" value={formData.customer} onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" required>
-                    <option value="">Select Customer</option>
-                    {customers.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">Select Customer *</label>
+                <SearchableSelect
+                  options={customers}
+                  value={formData.customer}
+                  onChange={handleChange}
+                  placeholder="Search or select customer..."
+                  required={true}
+                  name="customer"
+                />
+              </div>
 
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">Select Product *</label>
-                  <select
-                    name="product_id"
-                    value={formData.product_id}
-                    onChange={handleChange}
-                    className="border border-gray-300 rounded p-2"
-                    required
-                  >
-                    <option value="">Select Product</option>
-                    {products.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.pname || p.product_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">Select Product *</label>
+                <select
+                  name="product_id"
+                  value={formData.product_id}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded p-2"
+                  required
+                >
+                  <option value="">Select Product</option>
+                  {products.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.pname || p.product_name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">Select Product Code (Sub-Product) *</label>
-                  <select
-                    name="products_codes"
-                    value={formData.products_codes}
-                    onChange={() => {}}
-                    className="border border-gray-300 rounded p-2"
-                    required
-                    disabled={true}
-                  >
-                    <option value="">{productCodes.length === 0 ? 'No sub-products available' : 'Select Product Code'}</option>
-                    {productCodes.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.pcode}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">Select Product Code (Sub-Product) *</label>
+                <select
+                  name="products_codes"
+                  value={formData.products_codes}
+                  onChange={() => {}}
+                  className="border border-gray-300 rounded p-2"
+                  required
+                  disabled={true}
+                >
+                  <option value="">{productCodes.length === 0 ? 'No sub-products available' : 'Select Product Code'}</option>
+                  {productCodes.map(p => (
+                    <option key={p.id} value={p.id}>
+                      {p.pcode}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-                <div className="flex flex-col">
-                  <div className="flex justify-between items-center mb-1">
-                    <label className="font-medium">
-                      {selectedProduct
-                        ? selectedProduct.type === "bucket"
-                          ? `No. of Buckets (Min ${selectedProduct.min}) *`
-                          : `Liters (Min ${selectedProduct.min}) *`
-                        : "Enter Quantity *"}
-                    </label>
-                    
-                  </div>
-                  <input
-                    type="number"
-                    name="aty"
-                    value={formData.aty}
-                    onChange={handleInputChange}
-                    placeholder={selectedProduct
+              <div className="flex flex-col">
+                <div className="flex justify-between items-center mb-1">
+                  <label className="font-medium">
+                    {selectedProduct
                       ? selectedProduct.type === "bucket"
-                        ? "Enter number of buckets"
-                        : "Enter liters"
-                      : "Enter quantity"}
-                    className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    min={selectedProduct?.min || 1}
-                    required
-                  />
-                </div>
-
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">
-                    {selectedProduct?.barrelSize ? "Total Barrels" : "Total Liters"}
+                        ? `No. of Buckets (Min ${selectedProduct.min}) *`
+                        : `Liters (Min ${selectedProduct.min}) *`
+                      : "Enter Quantity *"}
                   </label>
-                  <input
-                    type="text"
-                    value={
-                      selectedProduct?.barrelSize
-                        ? `${calculatedBarrels} Barrel${calculatedBarrels > 1 ? "s" : ""} (${formData.qty}L)`
-                        : `${formData.qty} Liters`
-                    }
-                    className="border border-gray-300 rounded p-2 bg-gray-100 text-center font-medium"
-                    disabled
-                    placeholder="Auto-calculated"
-                  />
-                  {selectedProduct?.barrelSize && (
-                    <p className="text-xs text-gray-500 mt-1 text-center">
-                      Each barrel holds 200L
-                    </p>
-                  )}
+                  
                 </div>
+                <input
+                  type="number"
+                  name="aty"
+                  value={formData.aty}
+                  onChange={handleInputChange}
+                  placeholder={selectedProduct
+                    ? selectedProduct.type === "bucket"
+                      ? "Enter number of buckets"
+                      : "Enter liters"
+                    : "Enter quantity"}
+                  className="border border-gray-300 rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  min={selectedProduct?.min || 1}
+                  required
+                />
+              </div>
 
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">
+                  {selectedProduct?.barrelSize ? "Total Barrels" : "Total Liters"}
+                </label>
+                <input
+                  type="text"
+                  value={
+                    selectedProduct?.barrelSize
+                      ? `${calculatedBarrels} Barrel${calculatedBarrels > 1 ? "s" : ""} (${formData.qty}L)`
+                      : `${formData.qty} Liters`
+                  }
+                  className="border border-gray-300 rounded p-2 bg-gray-100 text-center font-medium"
+                  disabled
+                  placeholder="Auto-calculated"
+                />
+                {selectedProduct?.barrelSize && (
+                  <p className="text-xs text-gray-500 mt-1 text-center">
+                    Each barrel holds 200L
+                  </p>
+                )}
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">Select Station *</label>
+                <select name="station_id" value={formData.station_id} onChange={handleChange}
+                  className="border border-gray-300 rounded p-2" required
+                >
+                  <option value="">Select Station</option>
+                  {stations && stations.length > 0 ? (
+                    stations.map(s => <option key={s.id} value={s.id}>{s.station_name}</option>)
+                  ) : (
+                    <option value="" disabled>Loading stations...</option>
+                  )}
+                </select>
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">Vehicle Number *</label>
+                <input
+                  type="text"
+                  name="vehicle_no"
+                  value={formData.vehicle_no}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const cleanValue = value.replace(/[^a-zA-Z0-9]/g, '');
+                    setFormData(prev => ({ ...prev, vehicle_no: cleanValue }));
+                  }}
+                  className="border border-gray-300 rounded p-2 uppercase"
+                  placeholder="e.g. UP15AB1234"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col">
+                <label className="mb-1 font-medium">Driver Number *</label>
+                <input
+                  type="tel"
+                  name="driver_no"
+                  value={formData.driver_no}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    const cleanValue = value.replace(/\D/g, '');
+                    setFormData(prev => ({ ...prev, driver_no: cleanValue }));
+                  }}
+                  className="border border-gray-300 rounded p-2"
+                  maxLength={10}
+                  placeholder="10 digits without spaces"
+                  required
+                />
+              </div>
+
+              <div className="flex flex-col md:col-span-2">
+                <label className="mb-1 font-medium">Remarks</label>
+                <textarea
+                  name="remarks"
+                  value={formData.remarks}
+                  onChange={handleChange}
+                  className="border border-gray-300 rounded p-2 h-20"
+                  placeholder="Add any notes for this request"
+                />
                 
+              </div>
 
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">Select Station *</label>
-                  <select name="station_id" value={formData.station_id} onChange={handleChange}
-                    className="border border-gray-300 rounded p-2" required
-                  >
-                    <option value="">Select Station</option>
-                    {stations && stations.length > 0 ? (
-                      stations.map(s => <option key={s.id} value={s.id}>{s.station_name}</option>)
-                    ) : (
-                      <option value="" disabled>Loading stations...</option>
-                    )}
-                  </select>
+              {/* Location Section */}
+              <div className="flex flex-col md:col-span-2 bg-gray-50 rounded-lg p-4 border border-gray-200">
+                <div className="flex items-center mb-3">
+                  <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  <h3 className="text-lg font-semibold text-gray-700">📍 Location Detection</h3>
                 </div>
-
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">Vehicle Number *</label>
-                  <input
-                    type="text"
-                    name="vehicle_no"
-                    value={formData.vehicle_no}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Allow only alphanumeric characters, no spaces
-                      const cleanValue = value.replace(/[^a-zA-Z0-9]/g, '');
-                      setFormData(prev => ({ ...prev, vehicle_no: cleanValue }));
-                    }}
-                    className="border border-gray-300 rounded p-2 uppercase"
-                    placeholder="e.g. UP15AB1234"
-                    required
-                  />
-                  {/* ✅ Small text message removed */}
-                </div>
-
-                <div className="flex flex-col">
-                  <label className="mb-1 font-medium">Driver Number *</label>
-                  <input
-                    type="tel"
-                    name="driver_no"
-                    value={formData.driver_no}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      // Allow only numbers, no spaces
-                      const cleanValue = value.replace(/\D/g, '');
-                      setFormData(prev => ({ ...prev, driver_no: cleanValue }));
-                    }}
-                    className="border border-gray-300 rounded p-2"
-                    maxLength={10}
-                    placeholder="10 digits without spaces"
-                    required
-                  />
-                  {/* ✅ Small text message removed */}
-                </div>
-
-                <div className="flex flex-col md:col-span-2">
-                  <label className="mb-1 font-medium">Remarks</label>
-                  <textarea
-                    name="remarks"
-                    value={formData.remarks}
-                    onChange={handleChange}
-                    className="border border-gray-300 rounded p-2 h-20"
-                    placeholder="Add any notes for this request"
-                  />
-                  
-                </div>
-
-                {/* Location Section */}
-                <div className="flex flex-col md:col-span-2 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                  <div className="flex items-center mb-3">
-                    <svg className="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                    <h3 className="text-lg font-semibold text-gray-700">📍 Location Detection</h3>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Detection Status
-                      </label>
-                      <div className={`px-4 py-3 rounded-lg border-2 flex items-center ${
-                        areaName
-                          ? 'border-green-300 bg-green-50'
-                          : locationLoading
-                            ? 'border-blue-300 bg-blue-50'
-                            : locationError
-                              ? 'border-red-300 bg-red-50'
-                              : 'border-gray-300 bg-gray-50'
-                      }`}>
-                        {locationLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
-                            <div>
-                              <span className="text-blue-700 font-medium">🌍 Detecting location...</span>
-                              <div className="text-xs text-blue-600 mt-1">Please allow location access</div>
-                            </div>
-                          </>
-                        ) : areaName ? (
-                          <>
-                            <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <div>
-                              <span className="text-green-800 font-medium">✅ {areaName}</span>
-                              <div className="text-xs text-green-600 mt-1">Location captured successfully</div>
-                            </div>
-                          </>
-                        ) : locationError ? (
-                          <>
-                            <svg className="w-5 h-5 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <div>
-                              <span className="text-red-800 font-medium">❌ Detection Failed</span>
-                              <div className="text-xs text-red-600 mt-1">{locationError}</div>
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            <span className="text-gray-500">Waiting for auto-detection...</span>
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Manual Detection
-                      </label>
-                      <button
-                        type="button"
-                        onClick={getCurrentLocation}
-                        disabled={locationLoading}
-                        className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
-                          locationLoading
-                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
-                        }`}
-                      >
-                        {locationLoading ? (
-                          <>
-                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
-                            Detecting...
-                          </>
-                        ) : (
-                          <>
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                            </svg>
-                            Try Manual Detection
-                          </>
-                        )}
-                      </button>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Detected Area
-                      </label>
-                      <div className={`px-4 py-3 rounded-lg border-2 min-h-[48px] flex items-center ${
-                        areaName
-                          ? 'border-green-300 bg-green-50'
-                          : 'border-gray-300 bg-white'
-                      }`}>
-                        {areaName ? (
-                          <div className="flex items-center">
-                            <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                            <span className="text-green-800 font-medium">{areaName}</span>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Detection Status
+                    </label>
+                    <div className={`px-4 py-3 rounded-lg border-2 flex items-center ${
+                      areaName
+                        ? 'border-green-300 bg-green-50'
+                        : locationLoading
+                          ? 'border-blue-300 bg-blue-50'
+                          : locationError
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-gray-300 bg-gray-50'
+                    }`}>
+                      {locationLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 mr-3"></div>
+                          <div>
+                            <span className="text-blue-700 font-medium">🌍 Detecting location...</span>
+                            <div className="text-xs text-blue-600 mt-1">Please allow location access</div>
                           </div>
-                        ) : (
-                          <span className="text-gray-500">📍 Area will appear here</span>
-                        )}
-                      </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Coordinates
-                      </label>
-                      <div className="px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 min-h-[48px] flex items-center">
-                        {currentLocation.lat && currentLocation.lng ? (
-                          <span className="text-gray-700 font-mono text-sm">
-                            📍 {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
-                          </span>
-                        ) : (
-                          <span className="text-gray-500">🌍 Coordinates will appear here</span>
-                        )}
-                      </div>
+                        </>
+                      ) : areaName ? (
+                        <>
+                          <svg className="w-5 h-5 text-green-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <span className="text-green-800 font-medium">✅ {areaName}</span>
+                            <div className="text-xs text-green-600 mt-1">Location captured successfully</div>
+                          </div>
+                        </>
+                      ) : locationError ? (
+                        <>
+                          <svg className="w-5 h-5 text-red-600 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <div>
+                            <span className="text-red-800 font-medium">❌ Detection Failed</span>
+                            <div className="text-xs text-red-600 mt-1">{locationError}</div>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5 text-gray-400 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          <span className="text-gray-500">Waiting for auto-detection...</span>
+                        </>
+                      )}
                     </div>
                   </div>
                   
-                  {locationError && (
-                    <div className="md:col-span-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm text-red-700 flex items-center">
-                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                        </svg>
-                        {locationError}
-                      </p>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Manual Detection
+                    </label>
+                    <button
+                      type="button"
+                      onClick={getCurrentLocation}
+                      disabled={locationLoading}
+                      className={`w-full px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center justify-center gap-2 ${
+                        locationLoading
+                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm'
+                      }`}
+                    >
+                      {locationLoading ? (
+                        <>
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                          Detecting...
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                          </svg>
+                          Try Manual Detection
+                        </>
+                      )}
+                    </button>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Detected Area
+                    </label>
+                    <div className={`px-4 py-3 rounded-lg border-2 min-h-[48px] flex items-center ${
+                      areaName
+                        ? 'border-green-300 bg-green-50'
+                        : 'border-gray-300 bg-white'
+                    }`}>
+                      {areaName ? (
+                        <div className="flex items-center">
+                          <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span className="text-green-800 font-medium">{areaName}</span>
+                        </div>
+                      ) : (
+                        <span className="text-gray-500">📍 Area will appear here</span>
+                      )}
                     </div>
-                  )}
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Coordinates
+                    </label>
+                    <div className="px-4 py-3 rounded-lg border-2 border-gray-300 bg-gray-50 min-h-[48px] flex items-center">
+                      {currentLocation.lat && currentLocation.lng ? (
+                        <span className="text-gray-700 font-mono text-sm">
+                          📍 {currentLocation.lat.toFixed(6)}, {currentLocation.lng.toFixed(6)}
+                        </span>
+                      ) : (
+                        <span className="text-gray-500">🌍 Coordinates will appear here</span>
+                      )}
+                    </div>
+                  </div>
                 </div>
+                
+                {locationError && (
+                  <div className="md:col-span-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-sm text-red-700 flex items-center">
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                      </svg>
+                      {locationError}
+                    </p>
+                  </div>
+                )}
+              </div>
 
-                <div className="md:col-span-2 flex justify-start gap-4">
-                  <button
-                    type="submit"
-                    className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-                    disabled={submitting}
-                  >
-                    {submitting ? 'Submitting...' : 'Submit Request'}
-                  </button>
-                  <button type="button" onClick={handleReset} className="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400">
-                    Reset
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
+              <div className="md:col-span-2 flex justify-start gap-4">
+                <button
+                  type="submit"
+                  className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+                  disabled={submitting}
+                >
+                  {submitting ? 'Submitting...' : 'Submit Request'}
+                </button>
+                <button type="button" onClick={handleReset} className="px-6 py-2 bg-gray-300 rounded hover:bg-gray-400">
+                  Reset
+                </button>
+              </div>
+            </form>
+          </div>
         </main>
 
         <div className="fixed bottom-0 left-0 md:left-64 right-0 z-10">

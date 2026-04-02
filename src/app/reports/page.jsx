@@ -67,42 +67,38 @@ function QuickStats({ stats, loading }) {
     {
       title: "Total Fillings",
       value: stats.filling.total,
-      color: "bg-gradient-to-br from-blue-500 to-blue-600",
-      icon: "📊"
+      color: "bg-gradient-to-br from-blue-600 via-blue-500 to-blue-400",
+      icon: "📊",
+      borderColor: "border-blue-200",
+      shadowColor: "shadow-blue-200"
     },
     {
-      title: "Total Stock",
+      title: "Total Stock", 
       value: stats.stock.total,
-      color: "bg-gradient-to-br from-green-500 to-green-600",
-      icon: "📦"
-    },
-    {
-      title: "Total Invoices",
-      value: stats.invoice.total,
-      color: "bg-gradient-to-br from-amber-500 to-amber-600",
-      icon: "🧾"
-    },
-    {
-      title: "Total Recharges",
-      value: stats.recharge.total,
-      color: "bg-gradient-to-br from-purple-500 to-purple-600",
-      icon: "💰"
+      color: "bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-400",
+      icon: "📦",
+      borderColor: "border-emerald-200",
+      shadowColor: "shadow-emerald-200"
     }
   ];
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6 sm:mb-8">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6 mb-8">
       {statCards.map((stat, index) => (
         <div
           key={index}
-          className={`${stat.color} rounded-xl sm:rounded-2xl p-4 sm:p-6 text-white shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-xl`}
+          className={`${stat.color} ${stat.borderColor} border-2 rounded-2xl p-6 text-white shadow-xl ${stat.shadowColor} transform transition-all duration-300 hover:scale-105 hover:shadow-2xl relative overflow-hidden group`}
         >
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-xs sm:text-sm font-medium">{stat.title}</p>
-              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2">{stat.value}</p>
+          {/* Background decoration */}
+          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-10 rounded-full -mr-16 -mt-16 group-hover:scale-150 transition-transform duration-500"></div>
+          
+          <div className="relative z-10 flex items-center justify-between">
+            <div className="flex-1">
+              <p className="text-white/90 text-sm font-semibold mb-2 tracking-wide uppercase">{stat.title}</p>
+              <p className="text-3xl sm:text-4xl font-bold text-white drop-shadow-lg">{stat.value.toLocaleString()}</p>
+              <div className="mt-3 h-1 bg-white/30 rounded-full w-16"></div>
             </div>
-            <div className="text-2xl sm:text-3xl opacity-80">
+            <div className="text-4xl sm:text-5xl opacity-90 transform group-hover:scale-110 transition-transform duration-300">
               {stat.icon}
             </div>
           </div>
@@ -125,35 +121,57 @@ function ReportsGrid({ reports, loading, activeReport, onReportClick }) {
   }
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 xl:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
       {reports.map((report, index) => (
         <div
           key={index}
-          className={`${report.color} ${report.textColor} rounded-xl sm:rounded-2xl p-4 sm:p-6 shadow-lg transform transition-all duration-300 cursor-pointer ${
+          className={`${report.color} rounded-2xl p-8 shadow-xl transform transition-all duration-300 cursor-pointer ${
             activeReport === index 
-              ? 'scale-95 ring-4 ring-opacity-50 ring-white' 
-              : 'hover:scale-105 hover:shadow-xl'
-          }`}
+              ? 'scale-95 ring-4 ring-white ring-opacity-50 shadow-2xl' 
+              : 'hover:scale-105 hover:shadow-2xl'
+          } relative overflow-hidden group`}
           onClick={() => onReportClick(report.path, report.name, index)}
         >
-          <div className="flex flex-col h-full">
-            <div className="flex items-center justify-between mb-3 sm:mb-4">
-              <div className="text-2xl sm:text-3xl">{report.icon}</div>
-              <svg 
-                className="w-5 h-5 sm:w-6 sm:h-6 opacity-80 transform transition-transform duration-300 group-hover:translate-x-1" 
-                fill="none" 
-                stroke="currentColor" 
-                viewBox="0 0 24 24"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
+          {/* Background pattern */}
+          <div className="absolute inset-0 opacity-10">
+            <div className="absolute inset-0" style={{
+              backgroundImage: `repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255,255,255,.1) 35px, rgba(255,255,255,.1) 70px)`
+            }}></div>
+          </div>
+          
+          <div className="relative z-10 flex flex-col h-full">
+            <div className="flex items-start justify-between mb-6">
+              <div className="text-4xl sm:text-5xl transform group-hover:scale-110 transition-transform duration-300">
+                {report.icon}
+              </div>
+              <div className={`p-3 rounded-full bg-white/20 backdrop-blur-sm transform group-hover:scale-110 transition-all duration-300 group-hover:bg-white/30`}>
+                <svg 
+                  className="w-6 h-6 text-white" 
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </div>
             </div>
-            <h3 className="text-lg sm:text-xl font-bold mb-2">{report.name}</h3>
-            <p className="text-xs sm:text-sm opacity-90 flex-1">{report.description}</p>
-            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-opacity-20">
-              <span className="text-xs font-medium opacity-80">
-                Click to view report →
-              </span>
+            
+            <div className="flex-1">
+              <h3 className="text-2xl font-bold mb-3 text-white drop-shadow-lg">{report.name}</h3>
+              <p className="text-white/90 text-base leading-relaxed mb-6">{report.description}</p>
+            </div>
+            
+            <div className="mt-auto pt-6 border-t border-white/20">
+              <div className="flex items-center justify-between">
+                <span className="text-white font-semibold text-sm uppercase tracking-wide">
+                  View Report
+                </span>
+                <div className="flex space-x-1">
+                  {[1, 2, 3].map((dot) => (
+                    <div key={dot} className="w-2 h-2 bg-white/50 rounded-full group-hover:bg-white transition-colors duration-300"></div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -231,40 +249,22 @@ function ReportsContent() {
   const reports = [
     { 
       name: "Filling Report", 
-      color: "bg-gradient-to-br from-blue-500 to-blue-700 hover:from-blue-600 hover:to-blue-800",
+      color: "bg-gradient-to-br from-blue-600 via-blue-500 to-blue-400",
       textColor: "text-white",
-      description: "View all filling requests and their status",
+      description: "View comprehensive filling requests analysis and status tracking",
       icon: "📊",
       path: "/reports/filling-report",
       type: "filling"
     },
     { 
-      name: "Invoice Report", 
-      color: "bg-gradient-to-br from-amber-400 to-amber-600 hover:from-amber-500 hover:to-amber-700",
-      textColor: "text-gray-900",
-      description: "Generate and view invoice reports",
-      icon: "🧾",
-      path: "/reports/invoice",
-      type: "invoice"
-    },
-    { 
-      name: "Recharge Report", 
-      color: "bg-gradient-to-br from-emerald-500 to-emerald-700 hover:from-emerald-600 hover:to-emerald-800",
-      textColor: "text-white",
-      description: "Check recharge history and reports",
-      icon: "💰",
-      path: "/reports/recharge",
-      type: "recharge"
-    },
-    { 
       name: "Stock Report", 
-      color: "bg-gradient-to-br from-cyan-400 to-cyan-600 hover:from-cyan-500 hover:to-cyan-700",
-      textColor: "text-gray-900",
-      description: "Monitor stock levels and inventory",
+      color: "bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-400",
+      textColor: "text-white",
+      description: "Monitor real-time inventory levels and stock management insights",
       icon: "📦",
       path: "/stock/stock-reports",
       type: "stock"
-    },
+    }
   ];
 
   const handleReportClick = (path, reportName, index) => {
@@ -292,17 +292,26 @@ function ReportsContent() {
         </div>
 
         {/* Main Content Area */}
-        <main className="flex-1 overflow-y-auto min-h-0 p-4 sm:p-6">
-          {/* Breadcrumb */}
-          <nav className="mb-4 sm:mb-6 lg:mb-8">
-            <button 
-              onClick={handleBack} 
-              className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
-              title="Go Back"
-            >
-              ←
-            </button>
-          </nav>
+        <main className="flex-1 overflow-y-auto min-h-0 p-6 sm:p-8">
+          {/* Page Header */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-2">
+              <button 
+                onClick={handleBack} 
+                className="flex items-center space-x-2 text-blue-600 hover:text-blue-800 transition-colors group"
+                title="Go Back"
+              >
+                <svg className="w-5 h-5 transform group-hover:-translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                <span className="font-medium">Back</span>
+              </button>
+            </div>
+            <div className="mt-6">
+              <h1 className="text-4xl sm:text-5xl font-bold text-gray-800 mb-3">Reports Dashboard</h1>
+              <p className="text-lg text-gray-600">Access comprehensive reports and analytics for your business</p>
+            </div>
+          </div>
 
           {/* Quick Stats with Suspense */}
           <Suspense fallback={null}>

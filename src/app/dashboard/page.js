@@ -2,6 +2,7 @@
 "use client";
 
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import EmployeeChatDashboard from "@/components/EmployeeChatDashboard";
 import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
@@ -156,6 +157,7 @@ function DashboardContent() {
   // Real-time Chat States
   const [socket, setSocket] = useState(null);
   const [showChat, setShowChat] = useState(false);
+  const [showEmployeeChat, setShowEmployeeChat] = useState(false);
   const [activeChats, setActiveChats] = useState([]);
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [employeeMessages, setEmployeeMessages] = useState({});
@@ -702,7 +704,7 @@ function DashboardContent() {
           <button
             onClick={() => setShowChat(!showChat)}
             className="bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-600 transition-all relative"
-            title="Open Chat"
+            title="Customer Chat"
           >
             <BiMessageRounded className="w-6 h-6" />
             {notifCount > 0 && (
@@ -710,6 +712,22 @@ function DashboardContent() {
                 {notifCount > 9 ? '9+' : notifCount}
               </span>
             )}
+          </button>
+        </div>
+
+        {/* Employee Chat Button - Bottom Right */}
+        <div className="fixed bottom-4 right-4 z-50">
+          <button
+            onClick={() => {
+              console.log('Employee chat button clicked!');
+              setShowEmployeeChat(!showEmployeeChat);
+            }}
+            className="bg-green-500 text-white rounded-full p-3 shadow-lg hover:bg-green-600 transition-all relative"
+            title="Employee Chat"
+            style={{ width: '3rem', height: '3rem' }}
+          >
+            <BiGroup className="w-4 h-4" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full border-2 border-white animate-pulse"></span>
           </button>
         </div>
 
@@ -1047,6 +1065,14 @@ function DashboardContent() {
           markMessagesAsRead={markMessagesAsRead}
           deduplicateChats={deduplicateChats}
           setActiveChats={setActiveChats}
+        />
+      )}
+
+      {/* Employee Chat Widget */}
+      {showEmployeeChat && (
+        <EmployeeChatDashboard
+          showChat={showEmployeeChat}
+          setShowChat={setShowEmployeeChat}
         />
       )}
     </div>
