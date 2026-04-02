@@ -2,6 +2,107 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+export async function POST(req) {
+  try {
+    const body = await req.json();
+    const { user_id, user_role, module_name } = body;
+
+    if (!user_id || !module_name) {
+      return NextResponse.json({ error: "Missing parameters" }, { status: 400 });
+    }
+
+    console.log(`🔍 POST Permission Check: User=${user_id}, Role=${user_role}, Module=${module_name}`);
+
+    // Get user info
+    const userQuery = `SELECT id, role, status, name FROM employee_profile WHERE id = ?`;
+    const userResult = await executeQuery(userQuery, [user_id]);
+    
+    if (userResult.length === 0) {
+      return NextResponse.json({ 
+        permissions: { can_view: false, can_edit: false, can_create: false },
+        error: "Employee not found"
+      });
+    }
+
+    const userData = userResult[0];
+    const userRole = userData.role;
+
+    // Admin always has full access
+    if (userRole === '5' || Number(userRole) === 5) {
+      return NextResponse.json({ 
+        permissions: { can_view: true, can_edit: true, can_create: true },
+        userRole,
+        checkType: 'admin_full_access'
+      });
+    }
+
+    // Check role-based permissions
+    const query = `
+      SELECT can_view, can_edit, can_create
+      FROM role_permissions
+      WHERE role = ? 
+        AND module_name = ? 
+        AND (employee_id IS NULL OR employee_id = 0)
+      LIMIT 1
+    `;
+
+    const result = await executeQuery(query, [user_role, module_name]);
+    
+    if (result.length > 0) {
+      const permissions = {
+        can_view: result[0].can_view === 1,
+        can_edit: result[0].can_edit === 1,
+        can_create: result[0].can_create === 1
+      };
+      
+      return NextResponse.json({ 
+        permissions,
+        userRole,
+        checkType: 'role_based'
+      });
+    }
+
+    // Check employee-specific permissions
+    const empQuery = `
+      SELECT can_view, can_edit, can_create
+      FROM role_permissions
+      WHERE employee_id = ? 
+        AND module_name = ?
+      LIMIT 1
+    `;
+
+    const empResult = await executeQuery(empQuery, [user_id, module_name]);
+    
+    if (empResult.length > 0) {
+      const permissions = {
+        can_view: empResult[0].can_view === 1,
+        can_edit: empResult[0].can_edit === 1,
+        can_create: empResult[0].can_create === 1
+      };
+      
+      return NextResponse.json({ 
+        permissions,
+        userRole,
+        checkType: 'employee_specific'
+      });
+    }
+
+    // No permissions found
+    return NextResponse.json({ 
+      permissions: { can_view: false, can_edit: false, can_create: false },
+      userRole,
+      checkType: 'no_permissions'
+    });
+
+  } catch (error) {
+    console.error('🚨 POST Permission check error:', error);
+    return NextResponse.json({ 
+      permissions: { can_view: false, can_edit: false, can_create: false },
+      error: error.message
+    }, { status: 500 });
+  }
+}
+
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const employee_id = parseInt(searchParams.get("employee_id"));

@@ -26,8 +26,42 @@ export default function AgentManagement() {
   const [allocationsCustomers, setAllocationsCustomers] = useState([]);
   const [allocationsRates, setAllocationsRates] = useState({});
   const [allocationsAgent, setAllocationsAgent] = useState(null);
+  const [userPermissions, setUserPermissions] = useState({});
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
+
+  // Check user permissions for Agent Management
+  useEffect(() => {
+    const checkPermissions = async () => {
+      if (authLoading || !user) return;
+      
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/check-permissions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token?.trim()}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ 
+            module_name: "Agent Management",
+            user_id: user.id,
+            user_role: user.role 
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setUserPermissions(data.permissions || {});
+        }
+      } catch (error) {
+        console.error("Error checking permissions:", error);
+      }
+    };
+
+    checkPermissions();
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (authLoading) return;
@@ -35,12 +69,17 @@ export default function AgentManagement() {
       router.push("/login");
       return;
     }
-    if (Number(user.role) !== 5) {
+    
+    // Check if user has permission to view Agent Management
+    const hasPermission = userPermissions.can_view === true || Number(user.role) === 5;
+    
+    if (!hasPermission) {
       setLoading(false);
       return;
     }
+    
     fetchAgents();
-  }, [user, authLoading]);
+  }, [user, authLoading, userPermissions]);
 
   // Filter agents based on search term
   useEffect(() => {
@@ -399,7 +438,10 @@ export default function AgentManagement() {
 
   if (authLoading || loading) return <div className="p-6">Loading...</div>;
 
-  if (Number(user?.role) !== 5) {
+  // Check if user has permission to view Agent Management
+  const hasPermission = userPermissions.can_view === true || Number(user?.role) === 5;
+  
+  if (!hasPermission) {
     return (
       <div className="min-h-screen flex">
         <Sidebar />
@@ -409,7 +451,7 @@ export default function AgentManagement() {
             <div className="bg-white rounded-lg shadow p-8 text-center max-w-md">
               <div className="text-red-500 text-5xl mb-2">🚫</div>
               <h2 className="text-xl font-bold mb-2">Access Denied</h2>
-              <p className="text-gray-600 mb-4">Only Admin can view Agent Management.</p>
+              <p className="text-gray-600 mb-4">You don't have permission to view Agent Management.</p>
               <Link href="/dashboard" className="bg-blue-600 text-white px-4 py-2 rounded">Go to Dashboard</Link>
             </div>
           </main>
