@@ -1,3 +1,4 @@
+// src/pages/api/socket.js
 import { executeQuery } from "@/lib/db";
 
 let io;
