@@ -16,6 +16,7 @@ export default function CreateUserPage() {
   const [selectedStations, setSelectedStations] = useState([]);
   const [hasPermission, setHasPermission] = useState(false);
   const [checkingPermission, setCheckingPermission] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const [formData, setFormData] = useState({
     emp_code: "",
     email: "",
@@ -79,8 +80,20 @@ export default function CreateUserPage() {
       }
       checkPermissions();
       fetchStations();
+      detectMobile();
     }
   }, [user, authLoading]);
+
+  // Detect mobile device
+  const detectMobile = () => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  };
 
   const isAdmin = user?.role === 5;
 
@@ -451,8 +464,8 @@ export default function CreateUserPage() {
             </div>
           )}
 
-          {/* Module Permissions - Only for Admin */}
-          {isAdmin && (
+          {/* Module Permissions - Only for Admin and Desktop */}
+          {isAdmin && !isMobile && (
             <div className="mt-6 overflow-x-auto bg-white rounded-lg p-4">
               <h3 className="text-md font-semibold mb-3">Assign Module Permissions</h3>
               <table className="w-full border border-gray-200 text-sm">

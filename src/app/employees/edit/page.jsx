@@ -18,6 +18,7 @@ function EditEmployeeContent() {
   const [selectedStations, setSelectedStations] = useState([]);
   const [formData, setFormData] = useState(null);
   const [error, setError] = useState(null);
+  const [isMobile, setIsMobile] = useState(false);
   const [permissions, setPermissions] = useState({
     Dashboard: { can_view: false, can_edit: false, can_create: false },
     Customers: { can_view: false, can_edit: false, can_create: false },
@@ -62,6 +63,7 @@ function EditEmployeeContent() {
         return;
       }
       checkPermissions();
+      detectMobile();
       if (id) {
         fetchData();
       } else {
@@ -70,6 +72,17 @@ function EditEmployeeContent() {
       }
     }
   }, [id, user, authLoading]);
+
+  // Detect mobile device
+  const detectMobile = () => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  };
 
   const checkPermissions = async () => {
     if (!user || !user.id) {
@@ -603,8 +616,8 @@ function EditEmployeeContent() {
                   )}
                 </div>
 
-                {/* Permissions Section - Only for Admin */}
-                {isAdmin && (
+                {/* Permissions Section - Only for Admin and Desktop */}
+                {isAdmin && !isMobile && (
                   <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
                     <h3 className="text-lg font-semibold mb-4 text-gray-800">Assign Module Permissions</h3>
                     <div className="overflow-x-auto max-h-96 overflow-y-auto">

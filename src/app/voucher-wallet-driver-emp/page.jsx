@@ -133,8 +133,8 @@ function VoucherWalletDriverEmpContent() {
     return n < 0 ? 'text-red-600 font-semibold' : n > 0 ? 'text-green-600 font-semibold' : 'text-gray-900';
   };
 
-  const totalAmount = vouchers.reduce((s, v) => s + parseFloat(v.total_expense || 0), 0);
-  const pendingAmount = vouchers.reduce((s, v) => s + parseFloat(v.remaining_amount || 0), 0);
+  const totalAmount = vouchers.reduce((s, v) => s + parseFloat(v.advance || 0) - parseFloat(v.total_expense || 0), 0);
+  const pendingAmount = vouchers.reduce((s, v) => s + parseFloat(v.advance || 0) - parseFloat(v.total_expense || 0), 0);
   const advanceAmount = vouchers.reduce((s, v) => s + parseFloat(v.advance || 0), 0);
 
   if (!emp_id && !loading) {
@@ -251,7 +251,7 @@ function VoucherWalletDriverEmpContent() {
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-5">
                 {[
                   { label: 'Total Vouchers', value: vouchers.length, color: 'text-gray-900', bg: 'bg-white', icon: '📋' },
-                  { label: 'Total Amount', value: formatCurrency(totalAmount), color: 'text-green-700', bg: 'bg-green-50', icon: '💰' },
+                  { label: 'Total Expense', value: formatCurrency(totalAmount), color: 'text-green-700', bg: 'bg-green-50', icon: '💰' },
                   { label: 'Pending Amount', value: formatCurrency(pendingAmount), color: 'text-red-700', bg: 'bg-red-50', icon: '⏳' },
                   { label: 'Advance Given', value: formatCurrency(advanceAmount), color: 'text-blue-700', bg: 'bg-blue-50', icon: '💳' },
                 ].map((stat, i) => (
@@ -276,7 +276,7 @@ function VoucherWalletDriverEmpContent() {
                   <table className="min-w-full divide-y divide-gray-100 text-sm">
                     <thead className="bg-gray-50">
                       <tr>
-                        {['#', 'Voucher No.', 'Date', 'Station', 'Vehicle', 'Advance', 'Total', 'Pending', 'Reserve', 'Status', 'Actions'].map(h => (
+                        {['#', 'Voucher No.', 'Date', 'Station', 'Vehicle', 'Advance', 'Total Expense', 'Pending', 'Status', 'Actions'].map(h => (
                           <th key={h} className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider whitespace-nowrap">{h}</th>
                         ))}
                       </tr>
@@ -291,8 +291,7 @@ function VoucherWalletDriverEmpContent() {
                           <td className="px-3 py-2.5 text-gray-600 text-xs whitespace-nowrap">{voucher.vehicle_no || 'N/A'}</td>
                           <td className="px-3 py-2.5 text-blue-600 font-medium text-xs">{formatCurrency(voucher.advance)}</td>
                           <td className="px-3 py-2.5 font-semibold text-gray-800 text-xs">{formatCurrency(voucher.total_expense)}</td>
-                          <td className={`px-3 py-2.5 text-xs ${getAmountColor(voucher.remaining_amount)}`}>{formatCurrency(voucher.remaining_amount)}</td>
-                          <td className="px-3 py-2.5 text-purple-600 font-medium text-xs">{formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}</td>
+                          <td className={`px-3 py-2.5 text-xs ${getAmountColor(parseFloat(voucher.advance || 0) - parseFloat(voucher.total_expense || 0))}`}>{formatCurrency(parseFloat(voucher.advance || 0) - parseFloat(voucher.total_expense || 0))}</td>
                           <td className="px-3 py-2.5"><StatusBadge status={voucher.status} /></td>
                           <td className="px-3 py-2.5">
                             <div className="flex flex-wrap gap-1">
@@ -320,7 +319,7 @@ function VoucherWalletDriverEmpContent() {
                               </button>
 
                               <Link href={`/voucher-print?voucher_id=${voucher.voucher_id}`} target="_blank" className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap inline-flex items-center gap-0.5">
-                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> Print
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2-4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> Print
                               </Link>
                               <button onClick={() => openLogModal(voucher)} className="bg-purple-600 hover:bg-purple-700 text-white px-2 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap inline-flex items-center gap-0.5">
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6M5 8h14" /></svg> Log
@@ -330,7 +329,7 @@ function VoucherWalletDriverEmpContent() {
                         </tr>
                       )) : (
                         <tr>
-                          <td colSpan="11" className="px-4 py-12 text-center">
+                          <td colSpan="10" className="px-4 py-12 text-center">
                             <div className="text-gray-400 text-4xl mb-3">📭</div>
                             <div className="text-gray-600 font-medium mb-1">No vouchers found</div>
                             <div className="text-gray-400 text-sm mb-4">This staff member has no vouchers yet</div>
@@ -364,9 +363,8 @@ function VoucherWalletDriverEmpContent() {
                     <div className="grid grid-cols-2 gap-2 text-xs mb-4 bg-gray-50 rounded-lg p-3">
                       {[
                         { label: 'Advance', value: formatCurrency(voucher.advance), color: 'text-blue-600' },
-                        { label: 'Total', value: formatCurrency(voucher.total_expense), color: 'text-gray-800 font-bold' },
-                        { label: 'Pending', value: formatCurrency(voucher.remaining_amount), color: getAmountColor(voucher.remaining_amount) },
-                        { label: 'Reserve', value: formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0))), color: 'text-purple-600' },
+                        { label: 'Total Expense', value: formatCurrency(voucher.total_expense), color: 'text-gray-800 font-bold' },
+                        { label: 'Pending', value: formatCurrency(parseFloat(voucher.advance || 0) - parseFloat(voucher.total_expense || 0)), color: getAmountColor(parseFloat(voucher.advance || 0) - parseFloat(voucher.total_expense || 0)) },
                       ].map((item, i) => (
                         <div key={i}>
                           <div className="text-gray-400 mb-0.5">{item.label}</div>

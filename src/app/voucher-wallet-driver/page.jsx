@@ -318,7 +318,7 @@ function VoucherWalletDriverContent() {
                   <div className="text-xl md:text-2xl font-bold text-gray-900">{vouchers.length}</div>
                 </div>
                 <div className="bg-white p-4 rounded-lg shadow border">
-                  <div className="text-sm text-gray-600 mb-1">Total Amount</div>
+                  <div className="text-sm text-gray-600 mb-1">Total Expense</div>
                   <div className="text-xl md:text-2xl font-bold text-green-600">{formatCurrency(totalAmount)}</div>
                 </div>
                 <div className="bg-white p-4 rounded-lg shadow border">
@@ -357,9 +357,8 @@ function VoucherWalletDriverContent() {
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Driver</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Phone</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Advance</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Total</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Total Expense</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Pending</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Reserve</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Actions</th>
                         <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase">Logs</th>
                       </tr>
@@ -391,9 +390,6 @@ function VoucherWalletDriverContent() {
                             <span className={`font-medium ${parseFloat(voucher.remaining_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                               {formatCurrency(voucher.remaining_amount)}
                             </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm font-medium text-purple-600">
-                            {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
                           </td>
                           <td className="px-4 py-3 text-sm">
                             <div className="flex flex-col gap-1 min-w-[100px]">
@@ -500,19 +496,13 @@ function VoucherWalletDriverContent() {
                       
                       <div className="border-t border-gray-200 pt-3 mt-3">
                         <div className="flex justify-between items-center mb-2">
-                          <span className="text-gray-600 text-sm">Total:</span>
+                          <span className="text-gray-600 text-sm">Total Expense:</span>
                           <span className="font-semibold text-gray-900">{formatCurrency(voucher.total_expense)}</span>
                         </div>
-                        <div className="flex justify-between items-center mb-2">
+                        <div className="flex justify-between items-center">
                           <span className="text-gray-600 text-sm">Pending:</span>
                           <span className={`font-semibold ${parseFloat(voucher.remaining_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
                             {formatCurrency(voucher.remaining_amount)}
-                          </span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-gray-600 text-sm">Reserve:</span>
-                          <span className="font-semibold text-purple-600">
-                            {formatCurrency(voucher.reserve_amount || (parseFloat(voucher.total_expense || 0) - parseFloat(voucher.remaining_amount || 0)))}
                           </span>
                         </div>
                       </div>
