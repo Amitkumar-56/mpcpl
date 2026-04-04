@@ -144,18 +144,18 @@ function VoucherContent() {
     ? items.reduce((sum, i) => sum + (parseFloat(i?.amount || 0) || 0), 0)
     : 0;
   
-  // Total Amount = Sum of voucher items (total_expense)
-  const totalAmount = itemsTotal || parseFloat(total_amount || 0) || parseFloat(voucher?.total_expense || 0) || 0;
-  
   // Advance Paid = Sum of all advances from history
   const advancePaid = Array.isArray(advance_history)
     ? advance_history.reduce((sum, adv) => sum + (parseFloat(adv?.amount || 0) || 0), 0)
     : parseFloat(voucher?.advance || 0);
   
-  // Remaining Amount = Total Amount - Advance Paid
-  // When advance > expenses: negative (minus)
-  // When expenses > advance: positive (plus)
-  const remaining_amount = totalAmount - advancePaid;
+  // Total Expense = Items Total
+  const totalAmount = itemsTotal;
+  
+  // Remaining Amount = Advance Paid - Total Expense
+  // When advance > expenses: positive (plus)
+  // When expenses > advance: negative (minus)
+  const remaining_amount = advancePaid - totalAmount;
   
   const formatINR = (n) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(parseFloat(n || 0));
 
