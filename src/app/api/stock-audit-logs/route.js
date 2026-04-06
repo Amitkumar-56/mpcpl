@@ -43,30 +43,27 @@ export async function GET(request) {
         COALESCE(ep.name, sal.user_name) AS employee_name
       FROM stock_audit_log sal
       LEFT JOIN employee_profile ep ON sal.user_id = ep.id
-      WHERE sal.stock_id = ? 
+      WHERE sal.stock_id = ${stockId} 
       ORDER BY sal.created_at DESC`;
-      params = [stockId];
     } else if (stationId && productId) {
       query = `SELECT 
         sal.*,
         COALESCE(ep.name, sal.user_name) AS employee_name
       FROM stock_audit_log sal
       LEFT JOIN employee_profile ep ON sal.user_id = ep.id
-      WHERE sal.station_id = ? AND sal.product_id = ?
+      WHERE sal.station_id = ${stationId} AND sal.product_id = ${productId}
       ORDER BY sal.created_at DESC`;
-      params = [stationId, productId];
     } else {
       query = `SELECT 
         sal.*,
         COALESCE(ep.name, sal.user_name) AS employee_name
       FROM stock_audit_log sal
       LEFT JOIN employee_profile ep ON sal.user_id = ep.id
-      WHERE sal.station_id = ?
+      WHERE sal.station_id = ${stationId}
       ORDER BY sal.created_at DESC`;
-      params = [stationId];
     }
 
-    const logs = await executeQuery(query, params);
+    const logs = await executeQuery(query);
 
     // Map the results to use employee_name
     const logsWithNames = logs.map(log => ({

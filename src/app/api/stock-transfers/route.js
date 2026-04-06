@@ -130,18 +130,10 @@ export async function POST(request) {
     const query = `
       INSERT INTO stock_transfers 
       (station_from, station_to, driver_id, vehicle_id, transfer_quantity, product, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, NOW())
+      VALUES (${station_from}, ${station_to}, ${driver_id}, ${vehicle_id}, ${transfer_quantity}, '${product}', ${status}, NOW())
     `;
 
-    const result = await executeQuery(query, [
-      station_from,
-      station_to,
-      driver_id,
-      vehicle_id,
-      transfer_quantity,
-      product,
-      status
-    ]);
+    const result = await executeQuery(query);
 
     // Get current user for audit log
     console.log('🔍 [StockTransfer] Getting current user for audit log...');
@@ -153,8 +145,7 @@ export async function POST(request) {
     if (!userName && currentUser?.userId) {
       console.log('🔍 [StockTransfer] Fetching user name for userId:', currentUser.userId);
       const users = await executeQuery(
-        `SELECT name FROM employee_profile WHERE id = ?`,
-        [currentUser.userId]
+        `SELECT name FROM employee_profile WHERE id = ${currentUser.userId}`
       );
       if (users.length > 0 && users[0].name) {
         userName = users[0].name;

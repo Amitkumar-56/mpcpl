@@ -21,8 +21,7 @@ export async function GET(request) {
     if (employeeId) {
       // First get the employee's emp_code to match properly
       const empRows = await executeQuery(
-        'SELECT emp_code FROM employee_profile WHERE id = ? LIMIT 1',
-        [employeeId]
+        `SELECT emp_code FROM employee_profile WHERE id = ${employeeId} LIMIT 1`
       );
       const empCodeFromDb = empRows.length > 0 ? empRows[0].emp_code : null;
       
@@ -34,11 +33,10 @@ export async function GET(request) {
           FROM audit_log al
           LEFT JOIN employee_profile ep ON al.user_id = ep.id
           WHERE al.record_type = 'employee' 
-            AND (al.record_id = ? OR al.unique_code = ?)
+            AND (al.record_id = ${employeeId} OR al.unique_code = '${empCodeFromDb}')
           ORDER BY al.created_at DESC, al.action_date DESC, al.action_time DESC
           LIMIT 100
         `;
-        params = [employeeId, empCodeFromDb];
       } else {
         query = `
           SELECT 
@@ -47,11 +45,10 @@ export async function GET(request) {
           FROM audit_log al
           LEFT JOIN employee_profile ep ON al.user_id = ep.id
           WHERE al.record_type = 'employee' 
-            AND al.record_id = ?
+            AND al.record_id = ${employeeId}
           ORDER BY al.created_at DESC, al.action_date DESC, al.action_time DESC
           LIMIT 100
         `;
-        params = [employeeId];
       }
     } else if (empCode) {
       query = `
@@ -61,14 +58,13 @@ export async function GET(request) {
         FROM audit_log al
         LEFT JOIN employee_profile ep ON al.user_id = ep.id
         WHERE al.record_type = 'employee' 
-          AND al.unique_code = ?
+          AND al.unique_code = '${empCode}'
         ORDER BY al.created_at DESC, al.action_date DESC, al.action_time DESC
         LIMIT 100
       `;
-      params = [empCode];
     }
 
-    const logs = await executeQuery(query, params);
+    const logs = await executeQuery(query);
 
     // Parse JSON values and enhance with role names
     const roleNames = {

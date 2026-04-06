@@ -26,51 +26,42 @@ export async function GET(request) {
     const params = [];
 
     if (searchParams.get('page')) {
-      conditions.push('page = ?');
-      params.push(searchParams.get('page'));
+      conditions.push(`page = '${searchParams.get('page')}'`);
     }
 
     if (searchParams.get('section')) {
-      conditions.push('section = ?');
-      params.push(searchParams.get('section'));
+      conditions.push(`section = '${searchParams.get('section')}'`);
     }
 
     if (searchParams.get('user_id')) {
-      conditions.push('user_id = ?');
-      params.push(parseInt(searchParams.get('user_id')));
+      conditions.push(`user_id = ${parseInt(searchParams.get('user_id'))}`);
     }
 
     if (searchParams.get('action')) {
-      conditions.push('action = ?');
-      params.push(searchParams.get('action'));
+      conditions.push(`action = '${searchParams.get('action')}'`);
     }
 
     if (searchParams.get('record_type')) {
-      conditions.push('record_type = ?');
-      params.push(searchParams.get('record_type'));
+      conditions.push(`record_type = '${searchParams.get('record_type')}'`);
     }
 
     if (searchParams.get('record_id')) {
       const recordId = parseInt(searchParams.get('record_id'));
       if (!isNaN(recordId)) {
-        conditions.push('record_id = ?');
-        params.push(recordId);
+        conditions.push(`record_id = ${recordId}`);
       }
     }
 
     if (searchParams.get('unique_code')) {
-      conditions.push('unique_code = ?');
-      params.push(searchParams.get('unique_code'));
+      conditions.push(`unique_code = '${searchParams.get('unique_code')}'`);
     }
 
     if (searchParams.get('from_date')) {
-      conditions.push('action_date >= ?');
-      params.push(searchParams.get('from_date'));
+      conditions.push(`action_date >= '${searchParams.get('from_date')}'`);
     }
 
     if (searchParams.get('to_date')) {
-      conditions.push('action_date <= ?');
-      params.push(searchParams.get('to_date'));
+      conditions.push(`action_date <= '${searchParams.get('to_date')}'`);
     }
 
     const whereClause = conditions.length > 0
@@ -113,7 +104,7 @@ export async function GET(request) {
 
     // Get total count
     const countQuery = `SELECT COUNT(*) as total FROM audit_log ${whereClause}`;
-    const countResult = await executeQuery(countQuery, params);
+    const countResult = await executeQuery(countQuery);
     const total = countResult[0]?.total || 0;
 
     // Get audit logs with user names from both employee_profile and customers tables
@@ -130,10 +121,10 @@ export async function GET(request) {
       LEFT JOIN customers c ON al.user_id = c.id
       ${whereClause}
       ORDER BY al.created_at DESC, al.action_date DESC, al.action_time DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${limit} OFFSET ${offset}
     `;
 
-    const logs = await executeQuery(query, [...params, limit, offset]);
+    const logs = await executeQuery(query);
 
     // Parse JSON values and enhance with role information
     const roleNames = {
@@ -156,9 +147,8 @@ export async function GET(request) {
     if (allUserIds.length > 0) {
       try {
         console.log(`🔍 [AuditLogs API] Fetching employee names for ${allUserIds.length} unique user IDs`);
-        const placeholders = allUserIds.map(() => '?').join(',');
-        const employeeQuery = `SELECT id, name FROM employee_profile WHERE id IN (${placeholders})`;
-        const employees = await executeQuery(employeeQuery, allUserIds);
+        const employeeQuery = `SELECT id, name FROM employee_profile WHERE id IN (${allUserIds.join(',')})`;
+        const employees = await executeQuery(employeeQuery);
         console.log(`✅ [AuditLogs API] Found ${employees.length} employees from employee_profile table`);
         employees.forEach(emp => {
           if (emp.name && emp.id) {
@@ -175,8 +165,7 @@ export async function GET(request) {
           for (const userId of missingIds) {
             try {
               const directQuery = await executeQuery(
-                `SELECT id, name FROM employee_profile WHERE id = ?`,
-                [userId]
+                `SELECT id, name FROM employee_profile WHERE id = ${userId}`
               );
               if (directQuery.length > 0 && directQuery[0].name) {
                 employeeNamesMap.set(userId, directQuery[0].name);

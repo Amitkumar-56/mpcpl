@@ -35,9 +35,8 @@ export async function GET(request) {
         COALESCE(ep.name, cal.user_name) AS employee_name
       FROM customer_audit_log cal
       LEFT JOIN employee_profile ep ON cal.user_id = ep.id
-      WHERE cal.customer_id = ? 
-      ORDER BY cal.created_at DESC`,
-      [customerId]
+      WHERE cal.customer_id = ${customerId} 
+      ORDER BY cal.created_at DESC`
     );
 
     // Map the results to use employee_name (never null or 'System')
