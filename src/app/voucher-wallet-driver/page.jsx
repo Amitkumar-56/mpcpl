@@ -110,6 +110,14 @@ function VoucherWalletDriverContent() {
   const [error, setError] = useState(null);
   const [expandedVouchers, setExpandedVouchers] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    total_pages: 1,
+    total_records: 0,
+    limit: 10,
+    has_next: false,
+    has_prev: false
+  });
   
   const searchParams = useSearchParams();
   const emp_id = searchParams.get('emp_id');
@@ -122,7 +130,7 @@ function VoucherWalletDriverContent() {
   };
 
   useEffect(() => {
-    fetchVouchers();
+    fetchVouchers(1);
   }, [emp_id]);
 
   useEffect(() => {
@@ -140,16 +148,17 @@ function VoucherWalletDriverContent() {
     }
   }, [vouchers, searchQuery]);
 
-  const fetchVouchers = async () => {
+  const fetchVouchers = async (page = pagination.current_page, limit = pagination.limit) => {
     try {
       setLoading(true);
       setError(null);
       
-      const url = emp_id 
-        ? `/api/voucher-wallet-driver?emp_id=${emp_id}`
-        : '/api/voucher-wallet-driver';
+      const params = new URLSearchParams();
+      if (emp_id) params.append('emp_id', emp_id);
+      params.append('page', page.toString());
+      params.append('limit', limit.toString());
       
-      const response = await fetch(url);
+      const response = await fetch(`/api/voucher-wallet-driver?${params.toString()}`);
       const data = await response.json();
       
       if (!response.ok) {
@@ -163,6 +172,9 @@ function VoucherWalletDriverContent() {
       setVouchers(data.vouchers || []);
       setPermissions(data.permissions);
       setDriverName(data.driver_name);
+      if (data.pagination) {
+        setPagination(data.pagination);
+      }
       
     } catch (error) {
       console.error('Error fetching vouchers:', error);
@@ -170,6 +182,17 @@ function VoucherWalletDriverContent() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && newPage <= pagination.total_pages) {
+      fetchVouchers(newPage, pagination.limit);
+    }
+  };
+
+  const handleLimitChange = (newLimit) => {
+    const newPage = 1; // Reset to first page when changing limit
+    fetchVouchers(newPage, newLimit);
   };
 
   const formatDate = (dateString) => {
@@ -233,7 +256,7 @@ function VoucherWalletDriverContent() {
                 </Link>
               )}
               <button
-                onClick={fetchVouchers}
+                onClick={() => fetchVouchers(pagination.current_page, pagination.limit)}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm flex items-center gap-2 touch-target"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -268,7 +291,7 @@ function VoucherWalletDriverContent() {
                     <div className="text-red-600 text-sm">{error}</div>
                   </div>
                   <button
-                    onClick={fetchVouchers}
+                    onClick={() => fetchVouchers(pagination.current_page, pagination.limit)}
                     className="bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded text-sm"
                   >
                     Try Again
@@ -311,11 +334,11 @@ function VoucherWalletDriverContent() {
             </div>
 
             {/* Summary Cards */}
-            {vouchers.length > 0 && (
+            {pagination.total_records > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div className="bg-white p-4 rounded-lg shadow border">
                   <div className="text-sm text-gray-600 mb-1">Total Vouchers</div>
-                  <div className="text-xl md:text-2xl font-bold text-gray-900">{vouchers.length}</div>
+                  <div className="text-xl md:text-2xl font-bold text-gray-900">{pagination.total_records}</div>
                 </div>
                 <div className="bg-white p-4 rounded-lg shadow border">
                   <div className="text-sm text-gray-600 mb-1">Total Expense</div>
@@ -339,7 +362,10 @@ function VoucherWalletDriverContent() {
                 <div className="flex justify-between items-center">
                   <h2 className="font-bold text-gray-800">Vouchers List</h2>
                   <span className="text-sm text-gray-600">
-                    {searchQuery ? `${filteredVouchers.length} of ${vouchers.length} vouchers` : `${vouchers.length} vouchers`}
+                    {searchQuery 
+                      ? `${filteredVouchers.length} of ${pagination.total_records} vouchers` 
+                      : `Page ${pagination.current_page} of ${pagination.total_pages} (${pagination.total_records} total vouchers)`
+                    }
                   </span>
                 </div>
               </div>
@@ -563,7 +589,7 @@ function VoucherWalletDriverContent() {
                         Clear Search
                       </button>
                       <button
-                        onClick={fetchVouchers}
+                        onClick={() => fetchVouchers(pagination.current_page, pagination.limit)}
                         className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
                       >
                         Refresh
@@ -573,7 +599,7 @@ function VoucherWalletDriverContent() {
                     <>
                       <div className="text-gray-500 text-lg mb-4">No vouchers found</div>
                       <button
-                        onClick={fetchVouchers}
+                        onClick={() => fetchVouchers(pagination.current_page, pagination.limit)}
                         className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
                       >
                         Refresh
@@ -583,10 +609,96 @@ function VoucherWalletDriverContent() {
                 </div>
               )}
             </div>
+
+            {/* Pagination Controls */}
+            {pagination.total_pages > 1 && (
+              <div className="bg-white rounded-lg shadow border p-4 mt-6">
+                <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">Show</span>
+                    <select
+                      value={pagination.limit}
+                      onChange={(e) => handleLimitChange(parseInt(e.target.value))}
+                      className="border border-gray-300 rounded px-3 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      <option value={5}>5</option>
+                      <option value={10}>10</option>
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                    </select>
+                    <span className="text-sm text-gray-600">entries</span>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-gray-600">
+                      Showing {((pagination.current_page - 1) * pagination.limit) + 1} to {Math.min(pagination.current_page * pagination.limit, pagination.total_records)} of {pagination.total_records} entries
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => handlePageChange(1)}
+                      disabled={!pagination.has_prev}
+                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      First
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(pagination.current_page - 1)}
+                      disabled={!pagination.has_prev}
+                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Previous
+                    </button>
+                    
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
+                        let pageNum;
+                        if (pagination.total_pages <= 5) {
+                          pageNum = i + 1;
+                        } else if (pagination.current_page <= 3) {
+                          pageNum = i + 1;
+                        } else if (pagination.current_page >= pagination.total_pages - 2) {
+                          pageNum = pagination.total_pages - 4 + i;
+                        } else {
+                          pageNum = pagination.current_page - 2 + i;
+                        }
+                        
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => handlePageChange(pageNum)}
+                            className={`px-3 py-1 text-sm border rounded ${
+                              pageNum === pagination.current_page
+                                ? 'bg-blue-600 text-white border-blue-600'
+                                : 'hover:bg-gray-50'
+                            }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    
+                    <button
+                      onClick={() => handlePageChange(pagination.current_page + 1)}
+                      disabled={!pagination.has_next}
+                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Next
+                    </button>
+                    <button
+                      onClick={() => handlePageChange(pagination.total_pages)}
+                      disabled={!pagination.has_next}
+                      className="px-3 py-1 text-sm border rounded disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    >
+                      Last
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
-        </div>
-        <div className="flex-shrink-0">
-          <Footer />
         </div>
       </div>
     </div>

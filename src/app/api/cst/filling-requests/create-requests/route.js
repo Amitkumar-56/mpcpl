@@ -303,6 +303,18 @@ export async function POST(request) {
     console.log('✅ Database insert result:', result);
 
     if (result.affectedRows === 1) {
+      // Create filling_logs entry with customer_id as created_by
+      try {
+        await executeQuery(
+          `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`,
+          [newRid, parseInt(customer_id), currentDate]
+        );
+        console.log('✅ Filling logs entry created with customer_id:', customer_id);
+      } catch (logError) {
+        console.error('⚠️ Error creating filling logs:', logError);
+        // Don't fail the request if log creation fails
+      }
+
       const stationQuery = `SELECT station_name FROM filling_stations WHERE id = ?`;
       const stationResult = await executeQuery(stationQuery, [station_id]);
       const stationName = stationResult.length > 0 ? stationResult[0].station_name : 'Unknown Station';

@@ -16,6 +16,9 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const emp_id = searchParams.get('emp_id');
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 10;
+    const offset = (page - 1) * limit;
     
     const userId = session.user_id;
     const role = session.role;
@@ -63,15 +66,54 @@ export async function GET(request) {
       params.push(emp_id);
     }
 
-    // Add ORDER BY (your exact PHP logic)
-    sql += ' ORDER BY v.voucher_id DESC';
+    // Add ORDER BY and LIMIT (your exact PHP logic with pagination)
+    sql += ' ORDER BY v.voucher_id DESC LIMIT ? OFFSET ?';
+    params.push(limit, offset);
 
     console.log('Final SQL:', sql);
     console.log('Query Parameters:', params);
 
-    // Execute query
+    // Execute query for paginated results
     const result = await executeQuery(sql, params);
     console.log('Query result:', result.length, 'records found');
+
+    // Get total count for pagination
+    let countSql = "";
+    let countParams = [];
+
+    if (role == 5 || role == 4 || role == 3) {
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM vouchers v
+        LEFT JOIN filling_stations fs ON v.station_id = fs.id
+        LEFT JOIN employee_profile c ON v.emp_id = c.id
+      `;
+    } else {
+      const subs = (role == 1) ? ' AND v.created_by = ?' : '';
+      countSql = `
+        SELECT COUNT(*) as total
+        FROM vouchers v
+        LEFT JOIN filling_stations fs ON v.station_id = fs.id
+        LEFT JOIN employee_profile c ON v.emp_id = c.id
+        WHERE v.station_id IN (?) ${subs}
+      `;
+      countParams = [fs_id];
+      if (role == 1) countParams.push(userId);
+    }
+
+    // Filter by employee for count query
+    if (emp_id) {
+      if (countSql.includes('WHERE')) {
+        countSql += ' AND v.emp_id = ?';
+      } else {
+        countSql += ' WHERE v.emp_id = ?';
+      }
+      countParams.push(emp_id);
+    }
+
+    const countResult = await executeQuery(countSql, countParams);
+    const totalRecords = countResult[0].total;
+    const totalPages = Math.ceil(totalRecords / limit);
 
     // Get driver name if emp_id is provided (your exact PHP logic)
     let driver_name = null;
@@ -123,6 +165,14 @@ export async function GET(request) {
       vouchers: result,
       driver_name: driver_name,
       permissions: permissions,
+      pagination: {
+        current_page: page,
+        total_pages: totalPages,
+        total_records: totalRecords,
+        limit: limit,
+        has_next: page < totalPages,
+        has_prev: page > 1
+      },
       query_info: {
         role: role,
         sql: sql,
