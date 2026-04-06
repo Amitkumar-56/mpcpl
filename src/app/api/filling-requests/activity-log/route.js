@@ -27,8 +27,8 @@ export async function GET(request) {
       FROM filling_logs fl
       LEFT JOIN filling_requests fr ON fl.request_id = fr.id
       ORDER BY COALESCE(fl.updated_date, fl.created_date, fl.processed_date, fl.completed_date) DESC
-      LIMIT ? OFFSET ?
-    `, [limit, offset]);
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+    `);
     
     // Get total count
     const countResult = await executeQuery(`
@@ -50,8 +50,7 @@ export async function GET(request) {
       if (log.created_by) {
         // Try customer first
         const customerResult = await executeQuery(
-          'SELECT name FROM customers WHERE id = ?',
-          [log.created_by]
+          `SELECT name FROM customers WHERE id = ${log.created_by}`
         );
         if (customerResult.length > 0) {
           customerName = customerResult[0].name;
@@ -59,8 +58,7 @@ export async function GET(request) {
         } else {
           // Try employee
           const employeeResult = await executeQuery(
-            'SELECT name FROM employee_profile WHERE id = ?',
-            [log.created_by]
+            `SELECT name FROM employee_profile WHERE id = ${log.created_by}`
           );
           if (employeeResult.length > 0) {
             createdByName = employeeResult[0].name;
@@ -71,32 +69,28 @@ export async function GET(request) {
       // Get other names (employees only)
       if (log.processed_by) {
         const result = await executeQuery(
-          'SELECT name FROM employee_profile WHERE id = ?',
-          [log.processed_by]
+          `SELECT name FROM employee_profile WHERE id = ${log.processed_by}`
         );
         processedByName = result.length > 0 ? result[0].name : null;
       }
 
       if (log.completed_by) {
         const result = await executeQuery(
-          'SELECT name FROM employee_profile WHERE id = ?',
-          [log.completed_by]
+          `SELECT name FROM employee_profile WHERE id = ${log.completed_by}`
         );
         completedByName = result.length > 0 ? result[0].name : null;
       }
 
       if (log.cancelled_by) {
         const result = await executeQuery(
-          'SELECT name FROM employee_profile WHERE id = ?',
-          [log.cancelled_by]
+          `SELECT name FROM employee_profile WHERE id = ${log.cancelled_by}`
         );
         cancelledByName = result.length > 0 ? result[0].name : null;
       }
 
       if (log.updated_by) {
         const result = await executeQuery(
-          'SELECT name FROM employee_profile WHERE id = ?',
-          [log.updated_by]
+          `SELECT name FROM employee_profile WHERE id = ${log.updated_by}`
         );
         updatedByName = result.length > 0 ? result[0].name : null;
       }
