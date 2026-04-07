@@ -88,7 +88,7 @@ export async function GET(request) {
       SELECT * FROM expenses 
       ${whereClause}
       ORDER BY ${sortBy} ${sortOrder}
-      LIMIT ? OFFSET ?
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
     `;
     
     // Copy query params for data query

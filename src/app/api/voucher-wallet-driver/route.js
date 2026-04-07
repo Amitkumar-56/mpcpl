@@ -67,8 +67,7 @@ export async function GET(request) {
     }
 
     // Add ORDER BY and LIMIT (your exact PHP logic with pagination)
-    sql += ' ORDER BY v.voucher_id DESC LIMIT ? OFFSET ?';
-    params.push(limit, offset);
+    sql += ' ORDER BY v.voucher_id DESC LIMIT ' + parseInt(limit) + ' OFFSET ' + parseInt(offset);
 
     console.log('Final SQL:', sql);
     console.log('Query Parameters:', params);

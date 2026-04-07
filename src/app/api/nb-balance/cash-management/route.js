@@ -78,11 +78,10 @@ export async function GET(request) {
       SELECT * FROM expenses 
       ${whereClause}
       ORDER BY ${sortBy} ${sortOrder}
-      LIMIT ? OFFSET ?
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
     `;
     
-    const dataParams = [...queryParams, limit, offset];
-    const expenses = await executeQuery(dataQuery, dataParams);
+    const expenses = await executeQuery(dataQuery);
 
     // Get total cash balance - initialize if empty
     let cashBalanceResult = await executeQuery(`SELECT balance FROM cash_balance LIMIT 1`);
