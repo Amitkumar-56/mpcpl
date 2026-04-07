@@ -354,12 +354,20 @@ export default function AttendancePage() {
                   View and mark employee attendance
                 </p>
               </div>
-              <Link
-                href="/attendance/history"
-                className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-              >
-                View History & Logs
-              </Link>
+              <div className="flex gap-3">
+                <Link
+                  href="/attendance/activity-logs"
+                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                >
+                  📊 Activity Logs
+                </Link>
+                <Link
+                  href="/attendance/history"
+                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                >
+                  View History & Logs
+                </Link>
+              </div>
             </div>
 
             {/* Filters */}

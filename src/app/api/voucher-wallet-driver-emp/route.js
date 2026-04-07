@@ -89,7 +89,7 @@ export async function GET(request) {
         LEFT JOIN filling_stations fs ON v.station_id = fs.id
         LEFT JOIN employee_profile c ON v.emp_id = c.id
         LEFT JOIN employee_profile approver ON v.approved_by = approver.id
-        WHERE v.station_id IN (?) ${subs}
+        WHERE v.station_id = ? ${subs}
       `;
       params = [fs_id];
       if (role == 1) params.push(userId);

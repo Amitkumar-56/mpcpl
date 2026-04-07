@@ -848,31 +848,21 @@ function DashboardContent() {
               <div className="mb-6">
                 <h2 className="text-xl font-bold text-gray-800 mb-4">Outstandings</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <a
-                    href="/customers/client-history"
-                    className="block"
-                  >
-                    <StatCard
-                      title="Til Yesterday Outstanding"
-                      amount={stats.clientYesterdayOutstanding}
-                      icon={<BiDollar />}
-                      gradient="from-blue-500 to-blue-600"
-                      showDetails={false}
-                    />
-                  </a>
+                  <StatCard
+                    title="Til Yesterday Outstanding"
+                    amount={stats.clientYesterdayOutstanding}
+                    icon={<BiDollar />}
+                    gradient="from-blue-500 to-blue-600"
+                    showDetails={false}
+                  />
 
-                  <a
-                    href="/customers/client-history"
-                    className="block"
-                  >
-                    <StatCard
-                      title="Today Outstanding"
-                      amount={stats.clientTodayOutstanding}
-                      icon={<BiChart />}
-                      gradient="from-green-500 to-green-600"
-                      showDetails={false}
-                    />
-                  </a>
+                  <StatCard
+                    title="Today Outstanding"
+                    amount={stats.clientTodayOutstanding}
+                    icon={<BiChart />}
+                    gradient="from-green-500 to-green-600"
+                    showDetails={false}
+                  />
                 </div>
               </div>
 
@@ -1081,7 +1071,7 @@ function DashboardContent() {
 
 // Optimized Stat Card Component
 const StatCard = ({ title, amount, icon, gradient, change, showDetails }) => (
-  <div className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-xl shadow-lg hover:shadow-xl transition-shadow cursor-pointer`}>
+  <div className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-xl shadow-lg hover:shadow-xl transition-shadow`}>
     <div className="flex items-center justify-between">
       <div>
         <p className="text-sm opacity-90">{title}</p>

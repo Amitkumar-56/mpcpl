@@ -4,9 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
 
 // Main component that uses useSearchParams
-function ActivityLogsContent({ 
+function NBStockActivityLogsContent({ 
   pageName = "", 
-  recordType = "filling_request",
+  recordType = "nb_stock",
   showFilters = true,
   limit = 50 
 }) {
@@ -23,21 +23,14 @@ function ActivityLogsContent({
   });
   const [filters, setFilters] = useState({
     search: '',
-    status: 'all',
-    handler: 'all',
-    createdBy: 'all',
-    processedBy: 'all',
-    completedBy: 'all',
+    station: 'all',
+    product: 'all',
     dateFrom: '',
     dateTo: ''
   });
-  const [uniqueHandlers, setUniqueHandlers] = useState([]);
-  const [uniqueCreators, setUniqueCreators] = useState([]);
-  const [uniqueProcessors, setUniqueProcessors] = useState([]);
-  const [uniqueCompleters, setUniqueCompleters] = useState([]);
+  const [uniqueStations, setUniqueStations] = useState([]);
+  const [uniqueProducts, setUniqueProducts] = useState([]);
   const [isDownloading, setIsDownloading] = useState(false);
-  const [viewMode, setViewMode] = useState('table');
-  const [selectedActivity, setSelectedActivity] = useState(null);
 
   // Update URL when filters or pagination change
   useEffect(() => {
@@ -45,11 +38,8 @@ function ActivityLogsContent({
     if (pagination.currentPage > 1) params.set('page', pagination.currentPage.toString());
     if (pagination.limit !== limit) params.set('limit', pagination.limit.toString());
     if (filters.search) params.set('search', filters.search);
-    if (filters.status !== 'all') params.set('status', filters.status);
-    if (filters.handler !== 'all') params.set('handler', filters.handler);
-    if (filters.createdBy !== 'all') params.set('createdBy', filters.createdBy);
-    if (filters.processedBy !== 'all') params.set('processedBy', filters.processedBy);
-    if (filters.completedBy !== 'all') params.set('completedBy', filters.completedBy);
+    if (filters.station !== 'all') params.set('station', filters.station);
+    if (filters.product !== 'all') params.set('product', filters.product);
     if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
     if (filters.dateTo) params.set('dateTo', filters.dateTo);
     
@@ -59,33 +49,34 @@ function ActivityLogsContent({
   }, [pagination.currentPage, pagination.limit, filters, router, limit]);
 
   useEffect(() => {
-    fetchAllUsers();
-    fetchActivities();
+    fetchAllOptions();
+    fetchActivities(); // Initial load
   }, []);
 
   useEffect(() => {
     fetchActivities();
   }, [pagination.currentPage, pagination.limit]);
 
+  // Remove the automatic fetch on filter change - only fetch when user explicitly triggers it
   const applyFilters = async () => {
     setPagination(prev => ({ ...prev, currentPage: 1 }));
+    // Don't set loading to true for filter operations
     try {
+      // Build query parameters
       const queryParams = new URLSearchParams({
         page: '1',
         limit: pagination.limit.toString(),
         recordType: recordType
       });
       
+      // Add filters to API call
       if (filters.search) queryParams.append('search', filters.search);
-      if (filters.status !== 'all') queryParams.append('status', filters.status);
-      if (filters.handler !== 'all') queryParams.append('handler', filters.handler);
-      if (filters.createdBy !== 'all') queryParams.append('createdBy', filters.createdBy);
-      if (filters.processedBy !== 'all') queryParams.append('processedBy', filters.processedBy);
-      if (filters.completedBy !== 'all') queryParams.append('completedBy', filters.completedBy);
+      if (filters.station !== 'all') queryParams.append('station', filters.station);
+      if (filters.product !== 'all') queryParams.append('product', filters.product);
       if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
       
-      const response = await fetch(`/api/filling-requests/activity-log?${queryParams.toString()}`);
+      const response = await fetch(`/api/nb-stock/activity-log?${queryParams.toString()}`);
       const result = await response.json();
       
       if (result.success) {
@@ -103,22 +94,22 @@ function ActivityLogsContent({
       setError('Failed to load activities');
       console.error(err);
     }
+    // Don't set loading to false - keep the current state
   };
 
   const clearAllFilters = async () => {
+    // Reset all filters to default
     setFilters({
       search: '',
-      status: 'all',
-      handler: 'all',
-      createdBy: 'all',
-      processedBy: 'all',
-      completedBy: 'all',
+      station: 'all',
+      product: 'all',
       dateFrom: '',
       dateTo: ''
     });
     
     setPagination(prev => ({ ...prev, currentPage: 1 }));
     
+    // Fetch all data without filters
     try {
       const queryParams = new URLSearchParams({
         page: '1',
@@ -126,7 +117,7 @@ function ActivityLogsContent({
         recordType: recordType
       });
       
-      const response = await fetch(`/api/filling-requests/activity-log?${queryParams.toString()}`);
+      const response = await fetch(`/api/nb-stock/activity-log?${queryParams.toString()}`);
       const result = await response.json();
       
       if (result.success) {
@@ -146,41 +137,39 @@ function ActivityLogsContent({
     }
   };
 
-  const fetchAllUsers = async () => {
+  const fetchAllOptions = async () => {
     try {
-      const response = await fetch('/api/filling-requests/activity-log/users');
+      // Fetch all unique stations and products for filter dropdowns
+      const response = await fetch('/api/nb-stock/activity-log/options');
       if (response.ok) {
         const result = await response.json();
         if (result.success) {
-          setUniqueHandlers(result.data.handlers || []);
-          setUniqueCreators(result.data.creators || []);
-          setUniqueProcessors(result.data.processors || []);
-          setUniqueCompleters(result.data.completers || []);
+          setUniqueStations(result.data.stations || []);
+          setUniqueProducts(result.data.products || []);
         }
       }
     } catch (err) {
-      console.error('Failed to fetch users:', err);
+      console.error('Failed to fetch options:', err);
     }
   };
 
   const fetchActivities = async () => {
     try {
+      // Build query parameters
       const queryParams = new URLSearchParams({
         page: pagination.currentPage.toString(),
         limit: pagination.limit.toString(),
         recordType: recordType
       });
       
+      // Add filters to API call
       if (filters.search) queryParams.append('search', filters.search);
-      if (filters.status !== 'all') queryParams.append('status', filters.status);
-      if (filters.handler !== 'all') queryParams.append('handler', filters.handler);
-      if (filters.createdBy !== 'all') queryParams.append('createdBy', filters.createdBy);
-      if (filters.processedBy !== 'all') queryParams.append('processedBy', filters.processedBy);
-      if (filters.completedBy !== 'all') queryParams.append('completedBy', filters.completedBy);
+      if (filters.station !== 'all') queryParams.append('station', filters.station);
+      if (filters.product !== 'all') queryParams.append('product', filters.product);
       if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
       if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
       
-      const response = await fetch(`/api/filling-requests/activity-log?${queryParams.toString()}`);
+      const response = await fetch(`/api/nb-stock/activity-log?${queryParams.toString()}`);
       const result = await response.json();
       
       if (result.success) {
@@ -210,20 +199,19 @@ function ActivityLogsContent({
   };
 
   const handleFilterChange = (key, value) => {
+    // If date filters are being used, reset other filters to 'all'
     if ((key === 'dateFrom' || key === 'dateTo') && value) {
       setFilters({
         search: '',
-        status: 'all',
-        handler: 'all',
-        createdBy: 'all',
-        processedBy: 'all',
-        completedBy: 'all',
+        station: 'all',
+        product: 'all',
         dateFrom: key === 'dateFrom' ? value : filters.dateFrom,
         dateTo: key === 'dateTo' ? value : filters.dateTo
       });
     } else {
       setFilters(prev => ({ ...prev, [key]: value }));
     }
+    // Don't auto-fetch - user will click Apply Filters button
   };
 
   const downloadPDF = async () => {
@@ -238,25 +226,20 @@ function ActivityLogsContent({
       
       pdfContent.innerHTML = `
         <div style="text-align: center; margin-bottom: 30px;">
-          <h1 style="color: #1e40af; margin-bottom: 10px;">Activity Logs Report</h1>
+          <h1 style="color: #1e40af; margin-bottom: 10px;">NB Stock Activity Logs Report</h1>
           <p style="color: #666;">Generated on: ${new Date().toLocaleString('en-IN')}</p>
           <hr style="margin: 20px 0;" />
         </div>
       `;
       
-      if (filters.search || filters.status !== 'all' || filters.handler !== 'all' || 
-          filters.createdBy !== 'all' || filters.processedBy !== 'all' || 
-          filters.completedBy !== 'all' || filters.dateFrom || filters.dateTo) {
+      if (filters.search || filters.station !== 'all' || filters.product !== 'all' || filters.dateFrom || filters.dateTo) {
         pdfContent.innerHTML += `
           <div style="margin-bottom: 20px; padding: 10px; background: #f3f4f6; border-radius: 5px;">
             <h3 style="margin: 0 0 10px 0; color: #374151;">Filters Applied:</h3>
             <ul style="margin: 0; padding-left: 20px;">
               ${filters.search ? `<li>Search: ${filters.search}</li>` : ''}
-              ${filters.status !== 'all' ? `<li>Status: ${filters.status}</li>` : ''}
-              ${filters.handler !== 'all' ? `<li>Handler: ${filters.handler}</li>` : ''}
-              ${filters.createdBy !== 'all' ? `<li>Created By: ${filters.createdBy}</li>` : ''}
-              ${filters.processedBy !== 'all' ? `<li>Processed By: ${filters.processedBy}</li>` : ''}
-              ${filters.completedBy !== 'all' ? `<li>Completed By: ${filters.completedBy}</li>` : ''}
+              ${filters.station !== 'all' ? `<li>Station: ${filters.station}</li>` : ''}
+              ${filters.product !== 'all' ? `<li>Product: ${filters.product}</li>` : ''}
               ${filters.dateFrom ? `<li>Date From: ${filters.dateFrom}</li>` : ''}
               ${filters.dateTo ? `<li>Date To: ${filters.dateTo}</li>` : ''}
             </ul>
@@ -268,12 +251,10 @@ function ActivityLogsContent({
         <table style="width: 100%; border-collapse: collapse; font-size: 10px;">
           <thead>
             <tr style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-              <th style="padding: 10px; text-align: left;">Request ID</th>
-              <th style="padding: 10px; text-align: left;">Description</th>
-              <th style="padding: 10px; text-align: left;">Status</th>
-              <th style="padding: 10px; text-align: left;">Handler</th>
+              <th style="padding: 10px; text-align: left;">Station</th>
+              <th style="padding: 10px; text-align: left;">Product</th>
+              <th style="padding: 10px; text-align: left;">Stock Quantity</th>
               <th style="padding: 10px; text-align: left;">Created</th>
-              <th style="padding: 10px; text-align: left;">Last Updated</th>
             </tr>
           </thead>
           <tbody>
@@ -282,17 +263,15 @@ function ActivityLogsContent({
       activities.forEach(activity => {
         tableHTML += `
           <tr style="border-bottom: 1px solid #e0e0e0;">
-            <td style="padding: 8px;">${activity.requestId}</td>
-            <td style="padding: 8px;">${(activity.customerDescription || activity.description || '-').replace('#', '')}</td>
-            <td style="padding: 8px;">${activity.status || 'Unknown'}</td>
-            <td style="padding: 8px;">${activity.currentHandler || '-'}</td>
+            <td style="padding: 8px;">${activity.stationName}</td>
+            <td style="padding: 8px;">${activity.productName}</td>
+            <td style="padding: 8px;">${activity.stock}</td>
             <td style="padding: 8px;">${formatDate(activity.createdAt)}</td>
-            <td style="padding: 8px;">${formatDate(activity.updatedDate || activity.lastActionDate)}</td>
           </tr>
         `;
       });
       
-      tableHTML += `</tbody></table>`;
+      tableHTML += `</tbody>`;
       pdfContent.innerHTML += tableHTML;
       
       pdfContent.innerHTML += `
@@ -303,7 +282,7 @@ function ActivityLogsContent({
       
       const options = {
         margin: [10, 10, 10, 10],
-        filename: `activity-logs-${new Date().toISOString().split('T')[0]}.pdf`,
+        filename: `nb-stock-activity-logs-${new Date().toISOString().split('T')[0]}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
@@ -318,23 +297,6 @@ function ActivityLogsContent({
     }
   };
 
-  const getStatusBadge = (status) => {
-    const statusConfig = {
-      created: { color: 'from-blue-500 to-blue-600', label: 'Created', icon: '📝', bg: 'bg-blue-50', text: 'text-blue-700' },
-      processed: { color: 'from-yellow-500 to-yellow-600', label: 'Processed', icon: '⚙️', bg: 'bg-yellow-50', text: 'text-yellow-700' },
-      completed: { color: 'from-green-500 to-green-600', label: 'Completed', icon: '✅', bg: 'bg-green-50', text: 'text-green-700' },
-      cancelled: { color: 'from-red-500 to-red-600', label: 'Cancelled', icon: '❌', bg: 'bg-red-50', text: 'text-red-700' },
-      unknown: { color: 'from-gray-500 to-gray-600', label: 'Unknown', icon: '❓', bg: 'bg-gray-50', text: 'text-gray-700' }
-    };
-    const config = statusConfig[status] || statusConfig.unknown;
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-lg ${config.bg} ${config.text}`}>
-        <span>{config.icon}</span>
-        <span>{config.label}</span>
-      </span>
-    );
-  };
-
   const formatDate = (dateString) => {
     if (!dateString) return '-';
     const date = new Date(dateString);
@@ -345,67 +307,6 @@ function ActivityLogsContent({
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const getAllActivities = (activity) => {
-    const activitiesList = [];
-    if (activity.createdBy && activity.createdAt) {
-      activitiesList.push({
-        type: 'create',
-        label: 'Created',
-        user: activity.createdBy,
-        date: activity.createdAt,
-        icon: '📝',
-        color: 'text-blue-600'
-      });
-    }
-    if (activity.processedBy && activity.processedDate) {
-      activitiesList.push({
-        type: 'process',
-        label: 'Processed',
-        user: activity.processedBy,
-        date: activity.processedDate,
-        icon: '⚙️',
-        color: 'text-yellow-600'
-      });
-    }
-    if (activity.completedBy && activity.completedDate) {
-      activitiesList.push({
-        type: 'complete',
-        label: 'Completed',
-        user: activity.completedBy,
-        date: activity.completedDate,
-        icon: '✅',
-        color: 'text-green-600'
-      });
-    }
-    if (activity.cancelledBy && activity.cancelledDate) {
-      activitiesList.push({
-        type: 'cancel',
-        label: 'Cancelled',
-        user: activity.cancelledBy,
-        date: activity.cancelledDate,
-        icon: '❌',
-        color: 'text-red-600'
-      });
-    }
-    if (activity.updatedBy && activity.updatedDate) {
-      const isDuplicate = activitiesList.some(a => 
-        a.user === activity.updatedBy && 
-        Math.abs(new Date(a.date) - new Date(activity.updatedDate)) < 1000
-      );
-      if (!isDuplicate) {
-        activitiesList.push({
-          type: 'update',
-          label: 'Updated',
-          user: activity.updatedBy,
-          date: activity.updatedDate,
-          icon: '✏️',
-          color: 'text-purple-600'
-        });
-      }
-    }
-    return activitiesList;
   };
 
   const StatCard = ({ title, value, icon, color }) => (
@@ -442,10 +343,9 @@ function ActivityLogsContent({
 
   const stats = {
     total: pagination.total,
-    created: activities.filter(a => a.status === 'created').length,
-    processed: activities.filter(a => a.status === 'processed').length,
-    completed: activities.filter(a => a.status === 'completed').length,
-    cancelled: activities.filter(a => a.status === 'cancelled').length
+    totalStock: activities.reduce((sum, a) => sum + (parseInt(a.stock) || 0), 0),
+    uniqueStations: [...new Set(activities.map(a => a.stationName))].length,
+    uniqueProducts: [...new Set(activities.map(a => a.productName))].length
   };
 
   return (
@@ -461,22 +361,21 @@ function ActivityLogsContent({
               <svg className="w-5 h-5 text-gray-600 group-hover:text-gray-800 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
               </svg>
-              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Back to Filling Requests</span>
+              <span className="text-sm font-medium text-gray-700 group-hover:text-gray-900">Back to NB Stock</span>
             </button>
           </div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-            Activity Logs
+            NB Stock Activity Logs
           </h1>
-          <p className="text-gray-600 mt-1">Track and monitor all system activities</p>
+          <p className="text-gray-600 mt-1">Track and monitor all non-billing stock activities</p>
         </div>
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <StatCard title="Total Records" value={stats.total} icon="📊" color="bg-blue-100" />
-          <StatCard title="Created" value={stats.created} icon="📝" color="bg-blue-100" />
-          <StatCard title="Processed" value={stats.processed} icon="⚙️" color="bg-yellow-100" />
-          <StatCard title="Completed" value={stats.completed} icon="✅" color="bg-green-100" />
-          <StatCard title="Cancelled" value={stats.cancelled} icon="❌" color="bg-red-100" />
+          <StatCard title="Total Stock" value={stats.totalStock.toLocaleString()} icon="📦" color="bg-green-100" />
+          <StatCard title="Unique Stations" value={stats.uniqueStations} icon="🏢" color="bg-purple-100" />
+          <StatCard title="Unique Products" value={stats.uniqueProducts} icon="📋" color="bg-orange-100" />
         </div>
 
         {/* Filters Card */}
@@ -518,75 +417,35 @@ function ActivityLogsContent({
                 <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
                 <input
                   type="text"
-                  placeholder="🔍 Search by ID or description..."
+                  placeholder="🔍 Search by station or product..."
                   value={filters.search}
                   onChange={(e) => handleFilterChange('search', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Station</label>
                 <select
-                  value={filters.status}
-                  onChange={(e) => handleFilterChange('status', e.target.value)}
+                  value={filters.station}
+                  onChange={(e) => handleFilterChange('station', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 >
-                  <option value="all">All Status</option>
-                  <option value="created">📝 Created</option>
-                  <option value="processed">⚙️ Processed</option>
-                  <option value="completed">✅ Completed</option>
-                  <option value="cancelled">❌ Cancelled</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Handler</label>
-                <select
-                  value={filters.handler}
-                  onChange={(e) => handleFilterChange('handler', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                >
-                  <option value="all">All Handlers</option>
-                  {uniqueHandlers.map(handler => (
-                    <option key={handler} value={handler}>{handler}</option>
+                  <option value="all">All Stations</option>
+                  {uniqueStations.map(station => (
+                    <option key={station} value={station}>{station}</option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Created By</label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Product</label>
                 <select
-                  value={filters.createdBy}
-                  onChange={(e) => handleFilterChange('createdBy', e.target.value)}
+                  value={filters.product}
+                  onChange={(e) => handleFilterChange('product', e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 >
-                  <option value="all">All Creators</option>
-                  {uniqueCreators.map(creator => (
-                    <option key={creator} value={creator}>{creator}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Processed By</label>
-                <select
-                  value={filters.processedBy}
-                  onChange={(e) => handleFilterChange('processedBy', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                >
-                  <option value="all">All Processors</option>
-                  {uniqueProcessors.map(processor => (
-                    <option key={processor} value={processor}>{processor}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Completed By</label>
-                <select
-                  value={filters.completedBy}
-                  onChange={(e) => handleFilterChange('completedBy', e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-                >
-                  <option value="all">All Completers</option>
-                  {uniqueCompleters.map(completer => (
-                    <option key={completer} value={completer}>{completer}</option>
+                  <option value="all">All Products</option>
+                  {uniqueProducts.map(product => (
+                    <option key={product} value={product}>{product}</option>
                   ))}
                 </select>
               </div>
@@ -635,26 +494,23 @@ function ActivityLogsContent({
               <thead className="bg-gradient-to-r from-gray-50 to-gray-100">
                 <tr>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Request ID
+                    Station
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Description
+                    Product
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Status
+                    Stock Quantity
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Timeline
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-600 uppercase tracking-wider">
-                    Last Updated
+                    Created
                   </th>
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-100">
                 {activities.length === 0 ? (
                   <tr>
-                    <td colSpan="5" className="px-6 py-12 text-center">
+                    <td colSpan="4" className="px-6 py-12 text-center">
                       <div className="flex flex-col items-center">
                         <span className="text-5xl mb-3">📋</span>
                         <p className="text-gray-500 font-medium">No activity logs found</p>
@@ -663,55 +519,30 @@ function ActivityLogsContent({
                     </td>
                   </tr>
                 ) : (
-                  activities.map((activity) => {
-                    const allActivities = getAllActivities(activity);
-                    const lastUpdate = activity.updatedDate || activity.lastActionDate;
-                    const lastUpdater = activity.updatedBy || activity.currentHandler;
-                    
-                    return (
-                      <tr key={activity.id} className="hover:bg-gray-50 transition-colors duration-150">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-indigo-600">
-                            {activity.requestId}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="text-sm text-gray-800 max-w-md">
-                            {(activity.customerDescription || activity.description || '-').replace('#', '')}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {getStatusBadge(activity.status)}
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-1.5">
-                            {allActivities.map((act, idx) => (
-                              <div key={idx} className="flex items-center gap-2 text-xs">
-                                <span className={act.color}>{act.icon}</span>
-                                <span className="font-medium text-gray-700">{act.label}:</span>
-                                <span className="text-gray-600">{act.user}</span>
-                                <span className="text-gray-400 text-xs">
-                                  {formatDate(act.date)}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm">
-                            <div className="text-gray-700 font-medium">
-                              {formatDate(lastUpdate)}
-                            </div>
-                            {lastUpdater && (
-                              <div className="text-xs text-gray-400 mt-0.5">
-                                by {lastUpdater}
-                              </div>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  activities.map((activity) => (
+                    <tr key={activity.id} className="hover:bg-gray-50 transition-colors duration-150">
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-semibold text-indigo-600">
+                          {activity.stationName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-800">
+                          {activity.productName}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">
+                          {parseInt(activity.stock).toLocaleString()}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm text-gray-700">
+                          {formatDate(activity.createdAt)}
+                        </div>
+                      </td>
+                    </tr>
+                  ))
                 )}
               </tbody>
             </table>
@@ -816,23 +647,26 @@ function ActivityLogsContent({
 }
 
 // Loading fallback component
-function ActivityLogsLoading() {
+function LoadingFallback() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md text-center">
-        <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mb-4"></div>
-        <h3 className="text-xl font-semibold text-gray-800 mb-2">Loading Activity Logs...</h3>
-        <p className="text-gray-600">Please wait while we fetch the data</p>
+        <div className="text-6xl mb-4">⏳</div>
+        <h3 className="text-xl font-semibold text-gray-800 mb-2">Loading NB Stock Activity Logs</h3>
+        <p className="text-gray-600">Please wait while we load your data...</p>
+        <div className="mt-4 flex justify-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600"></div>
+        </div>
       </div>
     </div>
   );
 }
 
-// Main component - Wrap with Suspense properly
-export default function ActivityLogs(props) {
+// Main component with Suspense boundary
+export default function NBStockActivityLogs(props) {
   return (
-    <Suspense fallback={<ActivityLogsLoading />}>
-      <ActivityLogsContent {...props} />
+    <Suspense fallback={<LoadingFallback />}>
+      <NBStockActivityLogsContent {...props} />
     </Suspense>
   );
 }
