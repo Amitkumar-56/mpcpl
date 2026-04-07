@@ -74,7 +74,10 @@ function AddStockModal({
   onRemarksChange, 
   formErrors, 
   onConfirm,
-  isFormValid 
+  isFormValid,
+  invoiceNumber,
+  onInvoiceNumberChange,
+  availableInvoices
 }) {
   if (!show || !selectedStation) return null;
 
@@ -139,6 +142,32 @@ function AddStockModal({
             }`}>
               {getCurrentStock()}
             </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Invoice Number (Optional)
+            </label>
+            {availableInvoices && availableInvoices.length > 0 ? (
+              <select
+                value={invoiceNumber}
+                onChange={onInvoiceNumberChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Select or leave blank</option>
+                {availableInvoices.map((inv, idx) => (
+                  <option key={idx} value={inv}>{inv}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={invoiceNumber}
+                onChange={onInvoiceNumberChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Enter invoice number or leave blank"
+              />
+            )}
           </div>
 
           <div>
@@ -384,6 +413,7 @@ function AllStockContent() {
   const [operationType, setOperationType] = useState('plus'); // 'plus' or 'minus'
   const [quantity, setQuantity] = useState('');
   const [remarks, setRemarks] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [addingStock, setAddingStock] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
   const [formErrors, setFormErrors] = useState({});
@@ -488,6 +518,7 @@ function AllStockContent() {
     setShowAddModal(true);
     setQuantity('');
     setRemarks('');
+    setInvoiceNumber('');
     setFormErrors({});
   };
 
@@ -512,7 +543,8 @@ function AllStockContent() {
           product_id: selectedProduct,
           quantity: operationType === 'minus' ? -parseInt(quantity) : parseInt(quantity), // Negative for minus
           remarks: remarks || (operationType === 'minus' ? 'Stock shortage deducted' : 'Stock added'),
-          operation_type: operationType
+          operation_type: operationType,
+          invoice_number: invoiceNumber || null
         }),
       });
 
@@ -1042,6 +1074,9 @@ function AllStockContent() {
         formErrors={formErrors}
         onConfirm={handleSubmit}
         isFormValid={isFormValid()}
+        invoiceNumber={invoiceNumber}
+        onInvoiceNumberChange={(e) => setInvoiceNumber(e.target.value)}
+        availableInvoices={selectedStation?.invoice_numbers || []}
       />
 
       {/* Confirmation Modal */}

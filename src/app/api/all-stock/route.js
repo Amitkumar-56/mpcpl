@@ -32,6 +32,22 @@ export async function GET() {
       ORDER BY fs_id, product
     `);
 
+    // Fetch invoice numbers for each fs_id (from stock table)
+    const invoiceResult = await executeQuery(`
+      SELECT DISTINCT fs_id, invoice_number
+      FROM stock
+      WHERE fs_id IS NOT NULL AND invoice_number IS NOT NULL
+      ORDER BY fs_id, invoice_number DESC
+    `);
+
+    const invoicesByStation = {};
+    invoiceResult.forEach(row => {
+      if (!invoicesByStation[row.fs_id]) {
+        invoicesByStation[row.fs_id] = [];
+      }
+      invoicesByStation[row.fs_id].push(row.invoice_number);
+    });
+
     // Merge data based on fs_id and product (defensive, with logging)
     const mergedData = {};
 
@@ -61,6 +77,7 @@ export async function GET() {
             industrial_oil_60: 0,
             def_loose: 0,
             def_bucket: 0,
+            invoice_numbers: invoicesByStation[fs_id] || []
           };
         }
 

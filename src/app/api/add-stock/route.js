@@ -1,11 +1,11 @@
-import { executeQuery } from '@/lib/db';
-import { NextResponse } from 'next/server';
 import { createAuditLog } from '@/lib/auditLog';
 import { getCurrentUser } from '@/lib/auth';
+import { executeQuery } from '@/lib/db';
+import { NextResponse } from 'next/server';
 
 export async function POST(request) {
   try {
-    const { station_id, product_id, quantity, remarks, agent_id, operation_type } = await request.json();
+    const { station_id, product_id, quantity, remarks, agent_id, operation_type, invoice_number } = await request.json();
     
     // Get user info for audit log
     const currentUser = await getCurrentUser();
@@ -63,6 +63,11 @@ export async function POST(request) {
     const isMinus = operation_type === 'minus' || quantityValue < 0;
     const absQuantity = Math.abs(quantityValue);
     
+    // Add invoice_number to remarks if provided
+    const finalRemarks = invoice_number 
+      ? `${remarks || (isMinus ? 'Stock shortage deducted' : 'Stock added')} [Invoice: ${invoice_number}]`
+      : remarks || (isMinus ? 'Stock shortage deducted' : 'Stock added');
+    
     // ✅ Get current stock before update (for filling_history)
     const currentStock = existingRecord.length > 0 ? parseFloat(existingRecord[0].stock) || 0 : 0;
     const availableStock = isMinus ? Math.max(0, currentStock - absQuantity) : currentStock + absQuantity;
@@ -77,7 +82,7 @@ export async function POST(request) {
       await executeQuery(updateQuery, [
         availableStock, 
         isMinus ? `Stock shortage: -${absQuantity}` : `Stock added: +${absQuantity}`, 
-        remarks || (isMinus ? 'Stock shortage deducted' : 'Stock added'),
+        finalRemarks,
         station_id, 
         product_id
       ]);
@@ -101,7 +106,7 @@ export async function POST(request) {
           product_id, 
           absQuantity,
           `Stock added: +${absQuantity}`,
-          remarks || 'Stock added'
+          finalRemarks
         ]);
         console.log("✅ Filling station stocks inserted:", {
           fs_id: station_id,
@@ -127,8 +132,8 @@ export async function POST(request) {
       `;
       
       const historyParams = agent_id 
-        ? [station_id, product_id, parseInt(quantity), remarks || 'Stock added', agent_id]
-        : [station_id, product_id, parseInt(quantity), remarks || 'Stock added'];
+        ? [station_id, product_id, parseInt(quantity), finalRemarks, agent_id]
+        : [station_id, product_id, parseInt(quantity), finalRemarks];
         
       await executeQuery(historyQuery, historyParams);
     } catch (historyError) {
@@ -297,7 +302,7 @@ export async function POST(request) {
         userId: agent_id ? null : userId,
         userName: logUserName,
         action: isMinus ? 'deduct' : (existingRecord.length > 0 ? 'update' : 'add'),
-        remarks: remarks || `Stock ${isMinus ? 'shortage deducted' : (existingRecord.length > 0 ? 'updated' : 'added')} for ${stationName} - ${productName}${agent_id ? ' (by Agent)' : ''}`,
+        remarks: finalRemarks,
         oldValue: { stock: currentStock, station_id, product_id },
         newValue: { stock: availableStock, station_id, product_id, quantity_change: isMinus ? -absQuantity : absQuantity, agent_id: agent_id || null },
         fieldName: 'stock',
