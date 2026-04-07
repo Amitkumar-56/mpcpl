@@ -215,34 +215,64 @@ export async function GET(req) {
       }
 
       if (!data.logs || !data.logs.created_by_name || data.logs.created_by_name === 'System') {
-        const fallbackQuery = `
+        // First try to get creator from filling_logs
+        const logCreatorQuery = `
           SELECT 
-            fr.cid,
+            fl.created_by,
             COALESCE(
-              (SELECT c.name FROM customers c WHERE c.id = fr.cid LIMIT 1),
-              (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.cid LIMIT 1),
+              (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+              (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
               'System'
             ) as created_by_name,
             CASE 
-              WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fr.cid) THEN 'customer'
-              WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fr.cid) THEN 'employee'
+              WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
+              WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
               ELSE 'system'
             END as created_by_type
-          FROM filling_requests fr
-          LEFT JOIN filling_logs fl ON fr.rid = fl.request_id
-          LEFT JOIN employee_profile ep ON fl.created_by = ep.id
-          WHERE fr.rid = ?
+          FROM filling_logs fl
+          WHERE fl.request_id = ?
+          ORDER BY fl.created_date ASC, fl.id ASC
           LIMIT 1
         `;
-        const fallbackResult = await executeQuery(fallbackQuery, [data.rid]);
-        if (fallbackResult.length > 0 &&
-          fallbackResult[0].created_by_name !== 'System' &&
-          fallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
+        const logCreatorResult = await executeQuery(logCreatorQuery, [data.rid]);
+        
+        if (logCreatorResult.length > 0 && 
+            logCreatorResult[0].created_by_name !== 'System' &&
+            logCreatorResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
           if (!data.logs) {
             data.logs = {};
           }
-          data.logs.created_by_name = fallbackResult[0].created_by_name;
-          data.logs.created_by_type = fallbackResult[0].created_by_type;
+          data.logs.created_by_name = logCreatorResult[0].created_by_name;
+          data.logs.created_by_type = logCreatorResult[0].created_by_type;
+        } else {
+          // Only use customer as fallback if no log entry exists
+          const customerFallbackQuery = `
+            SELECT 
+              fr.cid,
+              COALESCE(
+                (SELECT c.name FROM customers c WHERE c.id = fr.cid LIMIT 1),
+                (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.cid LIMIT 1),
+                'System'
+              ) as created_by_name,
+              CASE 
+                WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fr.cid) THEN 'customer'
+                WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fr.cid) THEN 'employee'
+                ELSE 'system'
+              END as created_by_type
+            FROM filling_requests fr
+            WHERE fr.rid = ?
+            LIMIT 1
+          `;
+          const customerFallbackResult = await executeQuery(customerFallbackQuery, [data.rid]);
+          if (customerFallbackResult.length > 0 &&
+              customerFallbackResult[0].created_by_name !== 'System' &&
+              customerFallbackResult[0].created_by_name.toUpperCase() !== 'SWIFT') {
+            if (!data.logs) {
+              data.logs = {};
+            }
+            data.logs.created_by_name = customerFallbackResult[0].created_by_name;
+            data.logs.created_by_type = customerFallbackResult[0].created_by_type;
+          }
         }
       }
 
@@ -357,7 +387,7 @@ export async function POST(request) {
 
       if (!balanceCheck.sufficient) {
         return NextResponse.json({
-          success: true,
+          success: false,
           limitOverdue: true,
           limitTitle: balanceCheck.title || 'Credit Limit Overdue',
           isDayLimitExpired: balanceCheck.isDayLimitExpired || false,

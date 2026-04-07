@@ -8,22 +8,7 @@ export async function GET(request) {
     console.log('🚀 API CALL STARTED...');
     console.log('📡 Request URL:', request.url);
 
-    // Auto-cancel: mark Pending requests older than 72 hours as Cancelled
-    try {
-      const autoCancelQuery = `
-        UPDATE filling_requests
-        SET status = 'Cancelled'
-        WHERE status = 'Pending'
-          AND created IS NOT NULL
-          AND TIMESTAMPDIFF(HOUR, created, NOW()) >= 72
-      `;
-      const autoCancelResult = await executeQuery(autoCancelQuery);
-      if (autoCancelResult?.affectedRows) {
-        console.log('🕒 Auto-cancel applied to pending requests older than 72h:', autoCancelResult.affectedRows);
-      }
-    } catch (autoCancelErr) {
-      console.warn('⚠️ Auto-cancel check failed:', autoCancelErr.message);
-    }
+    // Auto-cancel disabled - pending requests should remain pending until manually processed
 
     const { searchParams } = new URL(request.url);
     const page = parseInt(searchParams.get('page')) || 1;

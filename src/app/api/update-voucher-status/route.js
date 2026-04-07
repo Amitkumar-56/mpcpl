@@ -70,7 +70,7 @@ export async function POST(request) {
     }
 
     // Approve: store approver's id
-    const sql = 'UPDATE vouchers SET status = 1, approved_by = ?, approved_date = NOW() WHERE voucher_id = ?';
+    const sql = 'UPDATE vouchers SET status = 1, approved_by = ?, approved_at = NOW() WHERE voucher_id = ?';
     const params = [current_user.id, voucher_id];
     const actionType = 'approve';
     const remarks = `Approved by ${current_user.name}`;
@@ -197,7 +197,7 @@ export async function GET(request) {
     console.log('Current User:', current_user);
 
     // Approve: store approver's id
-    const sql = 'UPDATE vouchers SET status = 1, approved_by = ?, approved_date = NOW() WHERE voucher_id = ?';
+    const sql = 'UPDATE vouchers SET status = 1, approved_by = ?, approved_at = NOW() WHERE voucher_id = ?';
     const params = [current_user.id, voucher_id];
     const actionType = 'approve';
     const remarks = `Approved by ${current_user.name}`;

@@ -311,12 +311,24 @@ export default function EditVoucherContent() {
                     <span className="text-gray-500 sm:text-sm">₹</span>
                   </div>
                   <input 
-                    type="number" 
+                    type="text" 
                     value={totalExpense} 
-                    onChange={(e) => setTotalExpense(parseFloat(e.target.value || 0).toFixed(2))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty, numbers with up to 2 decimal places
+                      if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                        setTotalExpense(value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const num = parseFloat(e.target.value || 0);
+                      setTotalExpense(num.toFixed(2));
+                    }}
+                    onFocus={(e) => e.target.select()}
                     className="w-full pl-8 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
                     placeholder="0.00"
-                    step="0.01"
+                    inputMode="decimal"
+                    pattern="[0-9]*\.?[0-9]{0,2}"
                   />
                 </div>
                 <div className="mt-2 text-sm text-gray-600">{formatINR(totalExpense)}</div>
@@ -331,12 +343,24 @@ export default function EditVoucherContent() {
                     <span className="text-gray-500 sm:text-sm">₹</span>
                   </div>
                   <input 
-                    type="number" 
+                    type="text" 
                     value={advance} 
-                    onChange={(e) => setAdvance(parseFloat(e.target.value || 0).toFixed(2))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // Allow empty, numbers with up to 2 decimal places
+                      if (value === '' || /^\d*\.?\d{0,2}$/.test(value)) {
+                        setAdvance(value);
+                      }
+                    }}
+                    onBlur={(e) => {
+                      const num = parseFloat(e.target.value || 0);
+                      setAdvance(num.toFixed(2));
+                    }}
+                    onFocus={(e) => e.target.select()}
                     className="w-full pl-8 pr-3 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-lg font-semibold"
                     placeholder="0.00"
-                    step="0.01"
+                    inputMode="decimal"
+                    pattern="[0-9]*\.?[0-9]{0,2}"
                   />
                 </div>
                 <div className="mt-2 text-sm text-gray-600">{formatINR(advance)}</div>

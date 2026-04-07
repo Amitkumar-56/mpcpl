@@ -27,7 +27,7 @@ export async function GET(request) {
     const whereConditions = [];
     
     if (search) {
-      whereConditions.push(`(fl.request_id LIKE '%${search}%' OR fr.cid LIKE '%${search}%')`);
+      whereConditions.push(`fl.request_id LIKE '%${search}%'`);
     }
     
     if (status !== 'all') {
@@ -47,7 +47,7 @@ export async function GET(request) {
       }
     }
     
-    // Simplified filtering - only apply if specific names are selected
+    // Simplified filtering - use employee names from employee_profile
     if (handler !== 'all' && handler !== 'All Handlers') {
       whereConditions.push(`(
         fl.created_by IN (SELECT id FROM employee_profile WHERE name = '${handler}') OR
@@ -59,10 +59,7 @@ export async function GET(request) {
     }
     
     if (createdBy !== 'all' && createdBy !== 'All Creators') {
-      whereConditions.push(`(
-        fl.created_by IN (SELECT id FROM employee_profile WHERE name = '${createdBy}') OR
-        fl.created_by IN (SELECT id FROM customers WHERE name = '${createdBy}')
-      )`);
+      whereConditions.push(`fl.created_by IN (SELECT id FROM employee_profile WHERE name = '${createdBy}')`);
     }
     
     if (processedBy !== 'all' && processedBy !== 'All Processors') {
@@ -84,7 +81,7 @@ export async function GET(request) {
     const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
     console.log('🔍 WHERE clause:', whereClause);
     
-    // Simplified main query - get basic data first
+    // Simplified main query - use basic columns (name columns don't exist yet)
     const queryStartTime = Date.now();
     const logs = await executeQuery(`
       SELECT 
@@ -94,15 +91,13 @@ export async function GET(request) {
         fl.processed_by,
         fl.completed_by,
         fl.cancelled_by,
+        fl.updated_by,
         fl.created_date,
         fl.processed_date,
         fl.completed_date,
         fl.cancelled_date,
-        fl.updated_by,
-        fl.updated_date,
-        fr.cid as request_customer_id
+        fl.updated_date
       FROM filling_logs fl
-      LEFT JOIN filling_requests fr ON fl.request_id = fr.id
       ${whereClause}
       ORDER BY COALESCE(fl.updated_date, fl.created_date, fl.processed_date, fl.completed_date) DESC
       LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
@@ -114,19 +109,16 @@ export async function GET(request) {
     const countStartTime = Date.now();
     const countResult = await executeQuery(`
       SELECT COUNT(*) as total FROM filling_logs fl
-      LEFT JOIN filling_requests fr ON fl.request_id = fr.id
       ${whereClause}
     `);
     console.log(`⏱️ Count query took: ${Date.now() - countStartTime}ms`);
     
-    // Transform data for activity logs
+    // Transform data for activity logs - fetch employee names
     const transformStartTime = Date.now();
     const activities = [];
     
-    // Batch fetch all names at once instead of per-record queries
+    // Batch fetch all employee names
     const allUserIds = new Set();
-    const allCustomerIds = new Set();
-    
     logs.forEach(log => {
       if (log.created_by) allUserIds.add(log.created_by);
       if (log.processed_by) allUserIds.add(log.processed_by);
@@ -135,33 +127,52 @@ export async function GET(request) {
       if (log.updated_by) allUserIds.add(log.updated_by);
     });
     
-    // Get all names in one batch
     const userIdsArray = Array.from(allUserIds);
-    const nameMap = {};
+    const employeeNameMap = {};
     
     if (userIdsArray.length > 0) {
       const employees = await executeQuery(
         `SELECT id, name FROM employee_profile WHERE id IN (${userIdsArray.join(',')})`
       );
       employees.forEach(emp => {
-        nameMap[emp.id] = emp.name;
-      });
-      
-      const customers = await executeQuery(
-        `SELECT id, name FROM customers WHERE id IN (${userIdsArray.join(',')})`
-      );
-      customers.forEach(cust => {
-        nameMap[cust.id] = cust.name;
+        employeeNameMap[emp.id] = emp.name;
       });
     }
     
-    // Transform records using the name map
+    // Transform records using fetched employee names
     logs.forEach(log => {
-      const createdByName = nameMap[log.created_by];
-      const processedByName = nameMap[log.processed_by];
-      const completedByName = nameMap[log.completed_by];
-      const cancelledByName = nameMap[log.cancelled_by];
-      const updatedByName = nameMap[log.updated_by];
+      const createdByName = employeeNameMap[log.created_by];
+      const processedByName = employeeNameMap[log.processed_by];
+      const completedByName = employeeNameMap[log.completed_by];
+      const cancelledByName = employeeNameMap[log.cancelled_by];
+      const updatedByName = employeeNameMap[log.updated_by];
+      
+      // Debug logging for first few records
+      if (activities.length < 5) {
+        console.log(`Using fetched names for log ${log.request_id}:`, {
+          logIds: {
+            created_by: log.created_by,
+            processed_by: log.processed_by,
+            completed_by: log.completed_by,
+            cancelled_by: log.cancelled_by,
+            updated_by: log.updated_by
+          },
+          employeeNames: {
+            created_by: employeeNameMap[log.created_by],
+            processed_by: employeeNameMap[log.processed_by],
+            completed_by: employeeNameMap[log.completed_by],
+            cancelled_by: employeeNameMap[log.cancelled_by],
+            updated_by: employeeNameMap[log.updated_by]
+          },
+          finalNames: {
+            createdBy: createdByName,
+            processedBy: processedByName,
+            completedBy: completedByName,
+            cancelledBy: cancelledByName,
+            updatedBy: updatedByName
+          }
+        });
+      }
       
       activities.push({
         id: log.id,
@@ -173,15 +184,15 @@ export async function GET(request) {
         createdAt: log.created_date,
         createdBy: createdByName || log.created_by,
         
-        // Processed fields
+        // Processed fields - prioritize employee names
         processedBy: processedByName || log.processed_by,
         processedDate: log.processed_date,
         
-        // Completed fields
+        // Completed fields - prioritize employee names
         completedBy: completedByName || log.completed_by,
         completedDate: log.completed_date,
         
-        // Cancelled fields
+        // Cancelled fields - prioritize employee names
         cancelledBy: cancelledByName || log.cancelled_by,
         cancelledDate: log.cancelled_date,
         
@@ -195,7 +206,7 @@ export async function GET(request) {
                 log.processed_by ? 'processed' :
                 log.created_by ? 'created' : 'unknown',
                 
-        // Show current handler
+        // Show current handler - prioritize employee names for actions
         currentHandler: completedByName || cancelledByName || processedByName || updatedByName || createdByName || log.completed_by || log.cancelled_by || log.processed_by || log.updated_by || log.created_by,
         
         // Last action date

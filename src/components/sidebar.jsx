@@ -534,9 +534,13 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
         {/* Logout Button */}
         <div style={{
-          padding: isInitialized && isCollapsed ? '0.5rem' : '0.75rem',
+          paddingTop: isInitialized && isCollapsed ? '0.5rem' : '0.75rem',
+          paddingLeft: isInitialized && isCollapsed ? '0.5rem' : '0.75rem',
+          paddingRight: isInitialized && isCollapsed ? '0.5rem' : '0.75rem',
+          paddingBottom: '1rem',
           borderTop: '1px solid #d1d5db',
           backgroundColor: '#93c5fd',
+          marginBottom: '0.5rem',
         }}>
           <button
             onClick={handleLogout}

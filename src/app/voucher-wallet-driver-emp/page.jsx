@@ -186,8 +186,8 @@ function VoucherWalletDriverEmpContent() {
         </div>
 
         {/* Page content */}
-        <div className="flex-1 pt-14 lg:pt-16 lg:ml-64 p-4 md:p-6 bg-gray-100 pb-24">
-          <div className="max-w-full mx-auto">
+        <div className="flex-1 pt-14 lg:pt-16 lg:ml-64 p-4 md:p-6 bg-gray-100 overflow-y-auto">
+          <div className="max-w-full mx-auto pb-20">
 
             {/* Page header */}
             <div className="mb-5">
@@ -304,19 +304,28 @@ function VoucherWalletDriverEmpContent() {
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.477 0 8.268 2.943 9.542 7-1.274 4.057-5.065 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> View
                               </Link>
 
-                              {/* ✅ APPROVE BUTTON — Shows loading spinner while updating */}
-                              <button
-                                onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                                disabled={updatingStatus[voucher.voucher_id]}
-                                className={`px-2 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap inline-flex items-center gap-0.5 disabled:opacity-60 disabled:cursor-not-allowed
-                                  ${voucher.status == 1 ? 'bg-green-100 text-green-800 border border-green-300 cursor-default' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                                title={voucher.status == 1 ? 'Already Approved' : 'Approve Voucher'}
-                              >
-                                {updatingStatus[voucher.voucher_id]
-                                  ? <><span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span> ...</>
-                                  : <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Approve</>
-                                }
-                              </button>
+                              {/* APPROVE BUTTON - Disabled if already approved */}
+                              {voucher.status == 1 ? (
+                                <button
+                                  disabled={true}
+                                  className="px-2 py-1 rounded text-xs font-medium bg-green-100 text-green-800 border border-green-300 cursor-not-allowed opacity-60 whitespace-nowrap inline-flex items-center gap-0.5"
+                                  title="Already Approved"
+                                >
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Approved
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                                  disabled={updatingStatus[voucher.voucher_id]}
+                                  className="px-2 py-1 rounded text-xs font-medium bg-green-600 hover:bg-green-700 text-white transition-colors whitespace-nowrap inline-flex items-center gap-0.5 disabled:opacity-60 disabled:cursor-not-allowed"
+                                  title="Approve Voucher"
+                                >
+                                  {updatingStatus[voucher.voucher_id]
+                                    ? <><span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span> ...</>
+                                    : <><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Approve</>
+                                  }
+                                </button>
+                              )}
 
                               <Link href={`/voucher-print?voucher_id=${voucher.voucher_id}`} target="_blank" className="bg-yellow-500 hover:bg-yellow-600 text-white px-2 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap inline-flex items-center gap-0.5">
                                 <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2-4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg> Print
@@ -379,15 +388,23 @@ function VoucherWalletDriverEmpContent() {
                       <Link href={`/edit-voucher?voucher_id=${voucher.voucher_id}`} className="bg-blue-600 text-white py-2 rounded-lg text-xs font-medium text-center">✏ Edit</Link>
                       <Link href={`/voucher-items?voucher_id=${voucher.voucher_id}`} className="bg-cyan-500 text-white py-2 rounded-lg text-xs font-medium text-center">👁 View</Link>
 
-                      {/* ✅ Approve with loading state */}
-                      <button
-                        onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
-                        disabled={updatingStatus[voucher.voucher_id]}
-                        className={`py-2 rounded-lg text-xs font-medium transition-colors flex items-center justify-center gap-1 disabled:opacity-60
-                          ${voucher.status == 1 ? 'bg-green-100 text-green-800 border border-green-300' : 'bg-green-600 hover:bg-green-700 text-white'}`}
-                      >
-                        {updatingStatus[voucher.voucher_id] ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span> : '✓'} Approve
-                      </button>
+                      {/* Approve button - Disabled if already approved */}
+                      {voucher.status == 1 ? (
+                        <button
+                          disabled={true}
+                          className="py-2 rounded-lg text-xs font-medium bg-green-100 text-green-800 border border-green-300 cursor-not-allowed opacity-60 flex items-center justify-center gap-1"
+                        >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg> Approved
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleStatusUpdate(voucher.voucher_id, 1)}
+                          disabled={updatingStatus[voucher.voucher_id]}
+                          className="py-2 rounded-lg text-xs font-medium bg-green-600 hover:bg-green-700 text-white transition-colors flex items-center justify-center gap-1 disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                          {updatingStatus[voucher.voucher_id] ? <span className="w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin"></span> : <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>} Approve
+                        </button>
+                      )}
 
                       <Link href={`/voucher-print?voucher_id=${voucher.voucher_id}`} target="_blank" className="bg-yellow-500 text-white py-2 rounded-lg text-xs font-medium text-center">🖨 Print</Link>
                       <button onClick={() => openLogModal(voucher)} className="bg-purple-600 text-white py-2 rounded-lg text-xs font-medium">📋 Logs</button>

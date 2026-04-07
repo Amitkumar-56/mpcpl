@@ -457,6 +457,7 @@ export default function FillingDetailsAdmin() {
         if (result.limitOverdue) {
           // Special handling for balance/limit issues
           alert(result.error || 'Insufficient balance to complete this request.');
+          return; // Don't throw error, just return to stop process
         } else {
           // General error
           throw new Error(result.error || result.message || 'Unknown error');
