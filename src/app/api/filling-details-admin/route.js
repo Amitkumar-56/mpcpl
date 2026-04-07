@@ -31,6 +31,8 @@ export async function GET(req) {
           c.phone as client_phone,
           c.billing_type,
           c.client_type,
+          c.email as client_email,
+          c.address as client_address,
           cb.id as balance_id,
           cb.balance as used_amount,
           cb.hold_balance,
@@ -70,6 +72,18 @@ export async function GET(req) {
       }
 
       data = rows[0];
+
+      // Debug customer data fetching
+      console.log('Customer Debug Info:', {
+        filling_request_id: id,
+        customer_id_from_request: data.cid,
+        created_by_from_request: data.created_by,
+        customer_name_fetched: data.client_name,
+        customer_email: data.client_email,
+        customer_phone: data.client_phone,
+        join_condition: 'fr.cid = c.id',
+        note: 'created_by should contain employee ID for employee requests'
+      });
 
       // Calculate available balance
       const rawAvailableBalance = parseFloat(data.raw_available_balance) || 0;
@@ -209,6 +223,16 @@ export async function GET(req) {
       const logs = await executeQuery(logsQuery, [data.rid]);
       data.logs = logs.length > 0 ? logs[0] : null;
 
+      console.log('Logs Debug Info:', {
+        request_id: data.rid,
+        logs_found: logs.length > 0,
+        logs_data: logs.length > 0 ? {
+          created_by: logs[0].created_by,
+          created_by_name: logs[0].created_by_name,
+          created_by_type: logs[0].created_by_type
+        } : null
+      });
+
       if (data.logs && data.logs.created_by_name && data.logs.created_by_name.toUpperCase() === 'SWIFT') {
         data.logs.created_by_name = null;
         data.logs.created_by_code = null;
@@ -246,17 +270,19 @@ export async function GET(req) {
           data.logs.created_by_type = logCreatorResult[0].created_by_type;
         } else {
           // Only use customer as fallback if no log entry exists
+          // Check if request was created by employee using created_by field
           const customerFallbackQuery = `
             SELECT 
               fr.cid,
+              fr.created_by,
               COALESCE(
+                (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.created_by LIMIT 1),
                 (SELECT c.name FROM customers c WHERE c.id = fr.cid LIMIT 1),
-                (SELECT ep.name FROM employee_profile ep WHERE ep.id = fr.cid LIMIT 1),
                 'System'
               ) as created_by_name,
               CASE 
+                WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fr.created_by) THEN 'employee'
                 WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fr.cid) THEN 'customer'
-                WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fr.cid) THEN 'employee'
                 ELSE 'system'
               END as created_by_type
             FROM filling_requests fr

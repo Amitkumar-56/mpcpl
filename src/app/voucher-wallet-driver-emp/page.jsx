@@ -73,6 +73,7 @@ function VoucherWalletDriverEmpContent() {
   // ✅ FIX: Status update uses POST with JSON body — proper REST
   const handleStatusUpdate = async (voucher_id, status) => {
     // Optimistic update — UI changes immediately
+    const originalVouchers = [...vouchers];
     setVouchers(prev => prev.map(v => v.voucher_id === voucher_id ? { ...v, status } : v));
     setUpdatingStatus(prev => ({ ...prev, [voucher_id]: true }));
 
@@ -85,15 +86,17 @@ function VoucherWalletDriverEmpContent() {
 
       const data = await response.json();
       if (!response.ok || !data.success) {
-        // Rollback on failure
-        setVouchers(prev => prev.map(v => v.voucher_id === voucher_id ? { ...v, status: data.old_status ?? v.status } : v));
+        // Rollback on failure - fetch fresh data
+        setVouchers(originalVouchers);
         showToast(data.error || 'Status update failed', 'error');
       } else {
         showToast(status == 1 ? 'Voucher approved!' : 'Status updated!', 'success');
+        // Optional: Refresh data to ensure consistency
+        setTimeout(() => fetchVouchers(), 1000);
       }
     } catch (err) {
       // Rollback on network error
-      fetchVouchers();
+      setVouchers(originalVouchers);
       showToast('Network error: ' + err.message, 'error');
     } finally {
       setUpdatingStatus(prev => ({ ...prev, [voucher_id]: false }));
