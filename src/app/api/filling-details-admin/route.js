@@ -188,17 +188,14 @@ export async function GET(req) {
         SELECT 
           fl.*,
           COALESCE(
-            (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
             'System'
           ) as created_by_name,
           COALESCE(
-            (SELECT c.email FROM customers c WHERE c.id = fl.created_by LIMIT 1),
             (SELECT ep.id FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
             ''
           ) as created_by_code,
           CASE 
-            WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
             WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
             ELSE 'system'
           END as created_by_type,
@@ -245,12 +242,10 @@ export async function GET(req) {
             fl.created_by,
             COALESCE(
               (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
-              (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
               'System'
             ) as created_by_name,
             CASE 
               WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
-              WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
               ELSE 'system'
             END as created_by_type
           FROM filling_logs fl

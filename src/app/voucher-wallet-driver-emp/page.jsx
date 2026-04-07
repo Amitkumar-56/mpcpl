@@ -25,7 +25,8 @@ function VoucherWalletEmpError({ error, onRetry, onGoBack }) {
 }
 
 function StatusBadge({ status }) {
-  if (status == 1) return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">✓ Approved</span>;
+  const statusNum = parseInt(status);
+  if (statusNum === 1) return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 border border-green-200">✓ Approved</span>;
   return <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800 border border-yellow-200">⏳ Pending</span>;
 }
 
@@ -58,9 +59,11 @@ function VoucherWalletDriverEmpContent() {
     try {
       setLoading(true);
       setError(null);
-      const response = await fetch(`/api/voucher-wallet-driver-emp?emp_id=${emp_id}`);
+      const timestamp = Date.now(); // Add timestamp to prevent caching
+      const response = await fetch(`/api/voucher-wallet-driver-emp?emp_id=${emp_id}&_t=${timestamp}`);
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error(data.error || `HTTP ${response.status}`);
+      console.log('Fetched vouchers:', data.vouchers.map(v => ({ id: v.voucher_id, status: v.status, approved_by: v.approved_by })));
       setVouchers(data.vouchers || []);
       setDriverName(data.driver_name || '');
     } catch (err) {
@@ -74,7 +77,7 @@ function VoucherWalletDriverEmpContent() {
   const handleStatusUpdate = async (voucher_id, status) => {
     // Optimistic update — UI changes immediately
     const originalVouchers = [...vouchers];
-    setVouchers(prev => prev.map(v => v.voucher_id === voucher_id ? { ...v, status } : v));
+    setVouchers(prev => prev.map(v => v.voucher_id === voucher_id ? { ...v, status, approved_by: 'Processing...' } : v));
     setUpdatingStatus(prev => ({ ...prev, [voucher_id]: true }));
 
     try {
@@ -91,8 +94,8 @@ function VoucherWalletDriverEmpContent() {
         showToast(data.error || 'Status update failed', 'error');
       } else {
         showToast(status == 1 ? 'Voucher approved!' : 'Status updated!', 'success');
-        // Optional: Refresh data to ensure consistency
-        setTimeout(() => fetchVouchers(), 1000);
+        // Immediately refresh data to ensure consistency
+        await fetchVouchers();
       }
     } catch (err) {
       // Rollback on network error
