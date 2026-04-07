@@ -194,7 +194,7 @@ export async function GET(req) {
           ) as created_by_name,
           COALESCE(
             (SELECT c.email FROM customers c WHERE c.id = fl.created_by LIMIT 1),
-            (SELECT ep.emp_code FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+            (SELECT ep.id FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
             ''
           ) as created_by_code,
           CASE 
@@ -808,7 +808,26 @@ function getIndianTime() {
 
 async function updateFillingLogs(request_id, status, userId) {
   try {
-    console.log('📝 Updating filling logs:', { request_id, status, userId });
+    console.log('=== DEBUGGING FILLING LOGS UPDATE ===');
+    console.log('Request ID:', request_id);
+    console.log('Status:', status);
+    console.log('Current User ID (userId):', userId);
+    
+    // Get current user details to see what name will be shown
+    try {
+      const currentUserQuery = `SELECT id, name FROM employee_profile WHERE id = ?`;
+      const currentUserResult = await executeQuery(currentUserQuery, [userId]);
+      if (currentUserResult.length > 0) {
+        console.log('Current User Details:', {
+          id: currentUserResult[0].id,
+          name: currentUserResult[0].name
+        });
+      } else {
+        console.log('User not found in employee_profile for ID:', userId);
+      }
+    } catch (userError) {
+      console.log('Error fetching user details:', userError);
+    }
 
     const checkQuery = `SELECT id, created_by FROM filling_logs WHERE request_id = ?`;
     const existingLogs = await executeQuery(checkQuery, [request_id]);
@@ -816,6 +835,7 @@ async function updateFillingLogs(request_id, status, userId) {
     const now = getIndianTime();
 
     if (existingLogs.length > 0) {
+      // EXISTING LOG FOUND - UPDATE IT
       let updateQuery = '';
       let queryParams = [];
 
@@ -823,106 +843,110 @@ async function updateFillingLogs(request_id, status, userId) {
         case 'Processing':
           updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
           queryParams = [userId, now, request_id];
-          console.log('✅ Updating processed_by log:', { userId, now });
+          console.log('=== UPDATING EXISTING LOG - Processing ===');
+          console.log('Query:', updateQuery);
+          console.log('Params:', { userId, now, request_id });
           break;
         case 'Completed':
           updateQuery = `UPDATE filling_logs SET completed_by = ?, completed_date = ? WHERE request_id = ?`;
           queryParams = [userId, now, request_id];
-          console.log('✅ Updating completed_by log:', { userId, now });
+          console.log('=== UPDATING EXISTING LOG - Completed ===');
+          console.log('Query:', updateQuery);
+          console.log('Params:', { userId, now, request_id });
           break;
         case 'Cancel':
           updateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
           queryParams = [userId, now, request_id];
-          console.log('✅ Updating cancelled_by log:', { userId, now });
+          console.log('=== UPDATING EXISTING LOG - Cancel ===');
+          console.log('Query:', updateQuery);
+          console.log('Params:', { userId, now, request_id });
           break;
         default:
-          console.log('⚠️ No log update needed for status:', status);
+          console.log('No log update needed for status:', status);
           return;
       }
 
       if (updateQuery) {
-        await executeQuery(updateQuery, queryParams);
-        console.log('✅ Filling log updated successfully');
+        const result = await executeQuery(updateQuery, queryParams);
+        console.log('=== EXISTING LOG UPDATED SUCCESSFULLY ===');
+        console.log('Update Result:', result);
+        console.log('Updated by user ID:', userId);
+        console.log('Status updated to:', status);
       }
     } else {
-      const requestQuery = `SELECT cid FROM filling_requests WHERE rid = ?`;
+      // NO EXISTING LOG - CREATE NEW ONE BUT ONLY IF NEEDED
+      console.log('=== NO EXISTING LOG FOUND ===');
+      console.log('Creating new log entry for request_id:', request_id);
+      
+      // Get the original creator information
+      const requestQuery = `SELECT cid, created_by FROM filling_requests WHERE rid = ?`;
       const requestResult = await executeQuery(requestQuery, [request_id]);
 
       let createdById = null;
 
-      if (requestResult.length > 0 && requestResult[0].cid) {
-        const customerId = requestResult[0].cid;
-        const customerCheck = await executeQuery(
-          `SELECT id FROM customers WHERE id = ?`,
-          [customerId]
-        );
-
-        if (customerCheck.length > 0) {
-          createdById = customerId;
-          console.log('✅ Request created by customer (original creator):', customerId);
+      if (requestResult.length > 0) {
+        const requestData = requestResult[0];
+        console.log('Request Data:', requestData);
+        
+        // First try to use created_by from filling_requests (should be the actual creator)
+        if (requestData.created_by) {
+          createdById = requestData.created_by;
+          console.log('Using created_by from filling_requests:', createdById);
+        } else if (requestData.cid) {
+          // Fallback to customer ID if created_by is not set
+          createdById = requestData.cid;
+          console.log('Using customer ID as creator:', createdById);
         } else {
-          const existingLogCheck = await executeQuery(
-            `SELECT created_by FROM filling_logs WHERE request_id = ? ORDER BY created_date ASC, id ASC LIMIT 1`,
-            [request_id]
-          );
-          if (existingLogCheck.length > 0 && existingLogCheck[0].created_by) {
-            createdById = existingLogCheck[0].created_by;
-            console.log('✅ Found existing log with original creator:', createdById);
-          } else {
-            createdById = customerId;
-            console.log('⚠️ Using customer ID from request (customer may not exist):', customerId);
-          }
-        }
-      } else {
-        const existingLogCheck = await executeQuery(
-          `SELECT created_by FROM filling_logs WHERE request_id = ? ORDER BY created_date ASC, id ASC LIMIT 1`,
-          [request_id]
-        );
-        if (existingLogCheck.length > 0 && existingLogCheck[0].created_by) {
-          createdById = existingLogCheck[0].created_by;
-          console.log('✅ Using existing log creator:', createdById);
-        } else {
+          // Last resort - use current user
           createdById = userId;
-          console.log('⚠️ No customer found, using current user as created_by (last resort):', userId);
+          console.log('Using current user as creator (last resort):', userId);
         }
-      }
-
-      if (createdById) {
-        const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
-        await executeQuery(insertQuery, [request_id, createdById, now]);
-        console.log('✅ New filling log created with original creator:', { request_id, created_by: createdById, created_date: now });
       } else {
-        console.error('❌ Could not determine created_by for request:', request_id);
+        createdById = userId;
+        console.log('No request found, using current user as creator:', userId);
       }
 
+      // Create the log entry
+      const insertQuery = `INSERT INTO filling_logs (request_id, created_by, created_date) VALUES (?, ?, ?)`;
+      await executeQuery(insertQuery, [request_id, createdById, now]);
+      console.log('=== NEW LOG CREATED ===');
+      console.log('Created by ID:', createdById);
+      console.log('Request ID:', request_id);
+      console.log('Created Date:', now);
+
+      // Now update the status field in the newly created log
       if (status === 'Processing' || status === 'Completed' || status === 'Cancel') {
-        let updateQuery = '';
-        let queryParams = [];
+        let statusUpdateQuery = '';
+        let statusParams = [];
 
         switch (status) {
           case 'Processing':
-            updateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
-            queryParams = [userId, now, request_id];
+            statusUpdateQuery = `UPDATE filling_logs SET processed_by = ?, processed_date = ? WHERE request_id = ?`;
+            statusParams = [userId, now, request_id];
             break;
           case 'Completed':
-            updateQuery = `UPDATE filling_logs SET completed_by = ?, completed_date = ? WHERE request_id = ?`;
-            queryParams = [userId, now, request_id];
+            statusUpdateQuery = `UPDATE filling_logs SET completed_by = ?, completed_date = ? WHERE request_id = ?`;
+            statusParams = [userId, now, request_id];
             break;
           case 'Cancel':
-            updateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
-            queryParams = [userId, now, request_id];
+            statusUpdateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
+            statusParams = [userId, now, request_id];
             break;
         }
 
-        if (updateQuery) {
-          await executeQuery(updateQuery, queryParams);
-          console.log('✅ Status field updated in new log');
+        if (statusUpdateQuery) {
+          const statusResult = await executeQuery(statusUpdateQuery, statusParams);
+          console.log('=== STATUS UPDATED IN NEW LOG ===');
+          console.log('Status Update Result:', statusResult);
+          console.log('Status:', status);
+          console.log('Updated by user ID:', userId);
         }
       }
     }
   } catch (error) {
-    console.error('❌ Error updating filling_logs:', error);
-    console.error('Error stack:', error.stack);
+    console.error('=== ERROR UPDATING FILLING LOGS ===');
+    console.error('Error:', error);
+    console.error('Error Stack:', error.stack);
   }
 }
 
