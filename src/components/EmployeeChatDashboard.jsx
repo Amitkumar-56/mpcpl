@@ -1,13 +1,13 @@
 'use client';
 
 import { useSession } from '@/context/SessionContext';
-import { showChatNotification } from '@/utils/notifications';
-import { playBeep } from '@/utils/sound';
+import { initializeNotifications, showChatNotification } from '@/utils/notifications';
+import { forceInitializeAudio, playBeep } from '@/utils/sound';
 import { useEffect, useRef, useState } from 'react';
 import { BiMenu, BiMessageRounded, BiSearch, BiSend, BiX } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 
-export default function EmployeeChatDashboard({ showChat, setShowChat }) {
+export default function EmployeeChatDashboard({ showChat, setShowChat, setEmployeeChatNotifCount }) {
   const { user: sessionUser } = useSession();
   const [socket, setSocket] = useState(null);
   const [socketConnected, setSocketConnected] = useState(false);
@@ -31,10 +31,20 @@ export default function EmployeeChatDashboard({ showChat, setShowChat }) {
   const [lastNotification, setLastNotification] = useState(null);
   const [typingIndicators, setTypingIndicators] = useState({});
 
+  useEffect(() => {
+    if (typeof setEmployeeChatNotifCount === 'function') {
+      setEmployeeChatNotifCount(unreadCount);
+    }
+  }, [unreadCount, setEmployeeChatNotifCount]);
+
   const messagesEndRef = useRef(null);
 
   // ── Socket ──────────────────────────────────────────────────
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      initializeNotifications();
+      forceInitializeAudio();
+    }
     if (!sessionUser?.id) return;
     let socketInstance;
 
@@ -83,16 +93,19 @@ export default function EmployeeChatDashboard({ showChat, setShowChat }) {
             return exists ? prev : { ...prev, [msg.session_id]: [...cur, msg] };
           });
 
+          const senderName = msg.sender_name || 'Someone';
+          const messageText = msg.message || 'New message received';
+
           if (selectedSession?.id === msg.session_id) {
             markMessagesAsRead(msg.session_id);
             setNotificationCount(0); setLastNotification(null);
           } else {
-            const name = msg.sender_name || 'Someone';
-            showChatNotification(`${name}: ${msg.message}`, 'New message');
+            showChatNotification(senderName, messageText);
             setNotificationCount(p => p + 1);
-            setLastNotification({ senderName: name, message: msg.message });
+            setLastNotification({ senderName, message: messageText });
             setUnreadCount(p => p + 1);
-            loadChatSessions(); playBeep();
+            loadChatSessions();
+            playBeep();
           }
         });
 
@@ -159,11 +172,17 @@ export default function EmployeeChatDashboard({ showChat, setShowChat }) {
   const markMessagesAsRead = async (sessionId) => {
     if (!sessionUser?.id || !sessionId) return;
     try {
-      await fetch('/api/employee-chat/mark-read', {
+      const res = await fetch('/api/employee-chat/mark-read', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sessionId, employeeId: sessionUser.id })
       });
+      const result = res.ok ? await res.json() : null;
+      if (result?.success) {
+        await loadChatSessions();
+        setNotificationCount(0);
+        setLastNotification(null);
+      }
     } catch {}
   };
 
@@ -285,6 +304,8 @@ export default function EmployeeChatDashboard({ showChat, setShowChat }) {
     if (selectedSession && sessionUser?.id) {
       loadMessages(selectedSession.id);
       markMessagesAsRead(selectedSession.id);
+      setNotificationCount(0);
+      setLastNotification(null);
     }
   }, [selectedSession, sessionUser?.id]);
 

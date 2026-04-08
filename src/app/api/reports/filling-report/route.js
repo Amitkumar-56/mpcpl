@@ -2,6 +2,26 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 
+// Helper function to convert timestamps to IST (UTC+5:30)
+function convertToIST(record) {
+  const istOffset = 5.5 * 60 * 60 * 1000; // 5 hours 30 minutes in milliseconds
+  const dateFields = ['checked_at', 'invoiced_at', 'created_date', 'processed_date', 'completed_date', 'created'];
+  
+  const converted = { ...record };
+  dateFields.forEach(field => {
+    if (converted[field]) {
+      try {
+        const date = new Date(converted[field]);
+        const istDate = new Date(date.getTime() + istOffset);
+        converted[field] = istDate.toISOString();
+      } catch (e) {
+        // If conversion fails, leave as is
+      }
+    }
+  });
+  return converted;
+}
+
 export async function POST(request) {
   try {
     const { 
@@ -164,6 +184,9 @@ export async function POST(request) {
     const records = await executeQuery(queryStr, params);
     console.log('✅ Records found:', records.length);
 
+    // Convert all timestamps to IST
+    const istRecords = records.map(convertToIST);
+
     // Handle Export
     if (exportData) {
       const csvHeaders = [
@@ -171,7 +194,7 @@ export async function POST(request) {
          'Checked', 'Checked By', 'Invoiced', 'Invoiced By'
       ];
       
-      const csvData = records.map(record => [
+      const csvData = istRecords.map(record => [
         record.rid,
         (() => {
           const dateVal = record.completed_date || record.created;
@@ -207,7 +230,7 @@ export async function POST(request) {
     // Calculate totals
     let totalQty = 0;
     let totalAmount = 0;
-    records.forEach(row => {
+    istRecords.forEach(row => {
       totalQty += parseFloat(row.aqty || 0);
       totalAmount += parseFloat(row.amount || 0);
     });
@@ -244,7 +267,7 @@ export async function POST(request) {
     return NextResponse.json({
       success: true,
       data: {
-        records,
+        records: istRecords,
         pagination: {
           currentPage: parseInt(page),
           totalPages,
@@ -254,7 +277,7 @@ export async function POST(request) {
         totals: {
           pageQty: totalQty,
           pageAmount: totalAmount,
-          pageRecords: records.length,
+          pageRecords: istRecords.length,
           grandTotalQty: totalQty,
           grandTotalAmount: totalAmount,
           grandTotalRecords: totalRecords

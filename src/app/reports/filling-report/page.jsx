@@ -445,6 +445,23 @@ function ReportHistoryContent() {
     await Promise.all(promises);
   };
 
+  const handleExpandAndCheck = async (record) => {
+    const isAlreadyChecked = record.is_checked || selectedRecords.has(record.id);
+    if (!isAlreadyChecked) {
+      await handleCheckRecord(record.id, true);
+    }
+
+    setExpandedRows(prev => {
+      const newExpanded = new Set(prev);
+      if (newExpanded.has(record.id)) {
+        newExpanded.delete(record.id);
+      } else {
+        newExpanded.add(record.id);
+      }
+      return newExpanded;
+    });
+  };
+
   const handleViewChecked = () => {
     if (selectedRecords.size === 0) {
       alert('Please select at least one record to view.');
@@ -1067,21 +1084,13 @@ function ReportHistoryContent() {
                             <div className="flex items-center gap-2">
                               <span>{record.vehicle_number}</span>
                               <button
-                                onClick={() => {
-                                  const newExpanded = new Set(expandedRows);
-                                  if (newExpanded.has(record.id)) {
-                                    newExpanded.delete(record.id);
-                                  } else {
-                                    newExpanded.add(record.id);
-                                  }
-                                  setExpandedRows(newExpanded);
-                                }}
+                                onClick={() => handleExpandAndCheck(record)}
                                 className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors flex items-center justify-center"
                                 title={expandedRows.has(record.id) ? "Hide Details" : "Show Details"}
                               >
                                 {expandedRows.has(record.id) ? (
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                   </svg>
                                 ) : (
                                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1374,21 +1383,13 @@ function ReportHistoryContent() {
                           <div className="flex items-center gap-2">
                             <span className="text-sm text-gray-900">{record.vehicle_number}</span>
                             <button
-                              onClick={() => {
-                                const newExpanded = new Set(expandedRows);
-                                if (newExpanded.has(record.id)) {
-                                  newExpanded.delete(record.id);
-                                } else {
-                                  newExpanded.add(record.id);
-                                }
-                                setExpandedRows(newExpanded);
-                              }}
+                              onClick={() => handleExpandAndCheck(record)}
                               className="p-1.5 text-green-600 hover:bg-green-50 rounded-full transition-colors"
                               title={expandedRows.has(record.id) ? "Hide Details" : "Show Details"}
                             >
                               {expandedRows.has(record.id) ? (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                                 </svg>
                               ) : (
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

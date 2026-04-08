@@ -6,12 +6,12 @@ import { useSession } from '@/context/SessionContext';
 
 import { useEffect, useRef, useState } from 'react';
 
-import { BiMessageRounded, BiSend, BiX, BiMinus } from 'react-icons/bi';
+import { BiSend, BiX } from 'react-icons/bi';
 
 import { io } from 'socket.io-client';
 
-import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
 import { initializeNotifications, showChatNotification, showChatRequestNotification } from '@/utils/notifications';
+import { forceInitializeAudio, playBeep, speakMessage } from '@/utils/sound';
 
 
 
@@ -63,6 +63,7 @@ export default function ChatWidget({ showChat, setShowChat }) {
   // Initialize notifications on component mount
   useEffect(() => {
     initializeNotifications();
+    forceInitializeAudio();
   }, []);
 
   // Initialize audio on component mount and user interactions

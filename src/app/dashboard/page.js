@@ -1,33 +1,33 @@
 // src/app/dashboard/page.js
 "use client";
 
-import PWAInstallBanner from "@/components/PWAInstallBanner";
 import EmployeeChatDashboard from "@/components/EmployeeChatDashboard";
+import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useSession } from "@/context/SessionContext";
+import { forceInitializeAudio, playBeep, speakMessage } from "@/utils/sound";
 import Footer from "components/Footer";
 import Header from "components/Header";
 import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
-  BiCalendar,
-  BiChart,
-  BiCheckCircle,
-  BiDollar,
-  BiError,
-  BiGroup,
-  BiHide,
-  BiMessageRounded,
-  BiPackage,
-  BiRefresh,
-  BiSend,
-  BiShoppingBag,
-  BiShow,
-  BiUser,
-  BiX
+    BiCalendar,
+    BiChart,
+    BiCheckCircle,
+    BiDollar,
+    BiError,
+    BiGroup,
+    BiHide,
+    BiMessageRounded,
+    BiPackage,
+    BiRefresh,
+    BiSend,
+    BiShoppingBag,
+    BiShow,
+    BiUser,
+    BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
-import { playBeep, forceInitializeAudio, speakMessage } from "@/utils/sound";
 
 // Indian Rupee formatting function
 const formatIndianRupees = (amount) => {
@@ -164,6 +164,7 @@ function DashboardContent() {
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef(null);
   const [notifCount, setNotifCount] = useState(0);
+  const [employeeChatNotifCount, setEmployeeChatNotifCount] = useState(0);
   const [socketConnected, setSocketConnected] = useState(false);
   const ringIntervalRef = useRef(null);
 
@@ -720,7 +721,11 @@ function DashboardContent() {
           <button
             onClick={() => {
               console.log('Employee chat button clicked!');
-              setShowEmployeeChat(!showEmployeeChat);
+              const willOpen = !showEmployeeChat;
+              setShowEmployeeChat(willOpen);
+              if (willOpen) {
+                setEmployeeChatNotifCount(0);
+              }
             }}
             className="bg-green-500 text-white rounded-full p-3 shadow-lg hover:bg-green-600 transition-all relative"
             title="Employee Chat"
@@ -728,6 +733,11 @@ function DashboardContent() {
           >
             <BiGroup className="w-4 h-4" />
             <span className="absolute -top-1 -right-1 w-2 h-2 bg-green-400 rounded-full border-2 border-white animate-pulse"></span>
+            {employeeChatNotifCount > 0 && (
+              <span className="absolute -top-2 -right-2 min-w-[1.35rem] h-5 bg-red-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold px-1.5">
+                {employeeChatNotifCount > 9 ? '9+' : employeeChatNotifCount}
+              </span>
+            )}
           </button>
         </div>
 
@@ -1063,6 +1073,7 @@ function DashboardContent() {
         <EmployeeChatDashboard
           showChat={showEmployeeChat}
           setShowChat={setShowEmployeeChat}
+          setEmployeeChatNotifCount={setEmployeeChatNotifCount}
         />
       )}
     </div>
