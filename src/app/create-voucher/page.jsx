@@ -19,7 +19,8 @@ function CreateVoucherContent() {
     vehicle_no: '',
     station_id: '',
     advance: '0',
-    total_expense: '0'
+    total_expense: '0',
+    status: '0'
   });
 
 
@@ -205,7 +206,8 @@ function CreateVoucherContent() {
           vehicle_no: '',
           station_id: '',
           advance: '0',
-          total_expense: '0'
+          total_expense: '0',
+          status: '0'
         });
         
         
@@ -488,6 +490,25 @@ function CreateVoucherContent() {
                           className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                           required
                         />
+                      </div>
+
+                      {/* Status */}
+                      <div>
+                        <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+                          Status *
+                        </label>
+                        <select
+                          id="status"
+                          name="status"
+                          value={formData.status}
+                          onChange={handleInputChange}
+                          className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                          required
+                        >
+                          <option value="0">0 - Pending</option>
+                          <option value="1">1 - Approved</option>
+                        </select>
+                        <p className="mt-1 text-xs text-gray-500">0=Pending, 1=Approved</p>
                       </div>
                     </div>
 

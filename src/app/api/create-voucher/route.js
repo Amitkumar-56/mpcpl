@@ -73,6 +73,7 @@ export async function POST(request) {
     const station_id = formData.get('station_id');
     const advance = parseFloat(formData.get('advance')) || 0;
     const total_expense = parseFloat(formData.get('total_expense')) || 0;
+    const status = parseInt(formData.get('status')) || 0; // Get status from form, default to 0 (pending)
     const user_id = formData.get('user_id');
 
     // Validate required fields
@@ -100,7 +101,6 @@ export async function POST(request) {
     // Calculate remaining amount (pending) = total_expense - advance
     const remaining_amount = total_expense - advance;
     const paid_amount = 0;
-    const status = 0; // 0=pending, 1=approved, 2=rejected
 
     // Determine next sequence by extracting numeric sequence part from existing
     // `voucher_no` values of the form 'V{seq}{last4}'. We want V01, V02, V03 pattern
