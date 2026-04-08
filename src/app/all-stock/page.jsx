@@ -111,7 +111,7 @@ function AddStockModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[calc(100vh-5rem)] overflow-hidden">
         <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${
           operationType === 'minus' ? 'bg-red-50' : 'bg-blue-50'
         }`}>
@@ -128,7 +128,7 @@ function AddStockModal({
           </button>
         </div>
         
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-4 space-y-4 overflow-y-auto max-h-[60vh]">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="text-gray-600">Station:</div>
             <div className="font-semibold">{selectedStation.station_name}</div>
@@ -301,7 +301,7 @@ function ConfirmationModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[calc(100vh-5rem)] overflow-hidden">
         <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${
           operationType === 'minus' ? 'bg-red-50' : 'bg-yellow-50'
         }`}>
@@ -319,7 +319,7 @@ function ConfirmationModal({
           </button>
         </div>
         
-        <div className="px-6 py-4 space-y-4">
+        <div className="px-6 py-4 space-y-4 overflow-y-auto max-h-[60vh]">
           <div className="flex items-center justify-center text-yellow-500 mb-4">
             <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.35 16.5c-.77.833.192 2.5 1.732 2.5z" />

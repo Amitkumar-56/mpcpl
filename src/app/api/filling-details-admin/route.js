@@ -205,10 +205,10 @@ export async function GET(req) {
           COALESCE(ep_completed.emp_code, '') as completed_by_code,
           COALESCE(ep_cancelled.name, '') as cancelled_by_name,
           COALESCE(ep_cancelled.emp_code, '') as cancelled_by_code,
-          DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') as created_date_formatted,
-          DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') as processed_date_formatted,
-          DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') as completed_date_formatted,
-          DATE_FORMAT(fl.cancelled_date, '%d/%m/%Y %h:%i %p') as cancelled_date_formatted
+          DATE_FORMAT(CONVERT_TZ(fl.created_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') as created_date_formatted,
+          DATE_FORMAT(CONVERT_TZ(fl.processed_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') as processed_date_formatted,
+          DATE_FORMAT(CONVERT_TZ(fl.completed_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') as completed_date_formatted,
+          DATE_FORMAT(CONVERT_TZ(fl.cancelled_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') as cancelled_date_formatted
         FROM filling_logs fl
         LEFT JOIN employee_profile ep_processed ON fl.processed_by = ep_processed.id
         LEFT JOIN employee_profile ep_completed ON fl.completed_by = ep_completed.id

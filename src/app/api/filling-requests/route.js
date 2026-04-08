@@ -89,10 +89,10 @@ export async function GET(request) {
         fl_created.created_by_name as created_by_name,
         fl_created.created_date as created_date,
         fl_created.created_date_formatted as created_date_formatted,
-        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(fr.created, '%d/%m/%Y %h:%i %p') ELSE NULL END as created_formatted,
-        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(fr.completed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted,
-        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(fr.created, '%Y-%m-%d %H:%i:%s') ELSE NULL END as created_ist,
-        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(fr.completed_date, '%Y-%m-%d %H:%i:%s') ELSE NULL END as completed_date_ist
+        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fr.created, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') ELSE NULL END as created_formatted,
+        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fr.completed_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted,
+        CASE WHEN fr.created IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fr.created, '+00:00', '+05:30'), '%Y-%m-%d %H:%i:%s') ELSE NULL END as created_ist,
+        CASE WHEN fr.completed_date IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fr.completed_date, '+00:00', '+05:30'), '%Y-%m-%d %H:%i:%s') ELSE NULL END as completed_date_ist
       FROM filling_requests fr
       LEFT JOIN customers c ON c.id = fr.cid
       LEFT JOIN filling_stations fs ON fs.id = fr.fs_id
@@ -103,7 +103,7 @@ export async function GET(request) {
         SELECT 
           fl.request_id,
           ep.name as processing_by_name,
-          CASE WHEN fl.processed_date IS NOT NULL THEN DATE_FORMAT(fl.processed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as processed_date_formatted
+          CASE WHEN fl.processed_date IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fl.processed_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') ELSE NULL END as processed_date_formatted
         FROM filling_logs fl
         LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
         WHERE fl.processed_by IS NOT NULL
@@ -120,7 +120,7 @@ export async function GET(request) {
         SELECT 
           fl.request_id,
           ep.name as completed_by_name,
-          CASE WHEN fl.completed_date IS NOT NULL THEN DATE_FORMAT(fl.completed_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted
+          CASE WHEN fl.completed_date IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fl.completed_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') ELSE NULL END as completed_date_formatted
         FROM filling_logs fl
         LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
         WHERE fl.completed_by IS NOT NULL
@@ -150,7 +150,7 @@ export async function GET(request) {
             END
           ) as created_by_name,
           -- ✅ Add formatted date/time
-          CASE WHEN fl.created_date IS NOT NULL THEN DATE_FORMAT(fl.created_date, '%d/%m/%Y %h:%i %p') ELSE NULL END as created_date_formatted
+          CASE WHEN fl.created_date IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fl.created_date, '+00:00', '+05:30'), '%d/%m/%Y %h:%i %p') ELSE NULL END as created_date_formatted
         FROM filling_logs fl
         LEFT JOIN employee_profile ep_created ON fl.created_by = ep_created.id
         LEFT JOIN customers c_created ON fl.created_by = c_created.id

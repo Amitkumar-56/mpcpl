@@ -33,7 +33,7 @@ export async function GET(request) {
         COALESCE(ep.name, 'Unknown') as employee_name,
         fr.vehicle_number,
         fr.completed_date,
-        CASE WHEN fh.filling_date IS NOT NULL THEN DATE_FORMAT(fh.filling_date, '%d/%m/%Y') ELSE NULL END as formatted_date,
+        CASE WHEN fh.filling_date IS NOT NULL THEN DATE_FORMAT(CONVERT_TZ(fh.filling_date, '+00:00', '+05:30'), '%d/%m/%Y') ELSE NULL END as formatted_date,
         CASE WHEN fh.filling_date IS NOT NULL THEN DATE_FORMAT(fh.filling_date, '%h:%i %p') ELSE NULL END as formatted_time,
         DATE(fh.filling_date) as log_date,
         TIME(fh.filling_date) as log_time

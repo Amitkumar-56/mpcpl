@@ -1,8 +1,8 @@
 // src/app/api/reports/update-invoice-status/route.js
-import { executeQuery } from "@/lib/db";
-import { NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/auditLog";
 import { getCurrentUser } from "@/lib/auth";
+import { executeQuery } from "@/lib/db";
+import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
@@ -33,14 +33,13 @@ export async function POST(request) {
     // Update the invoice status in the database
     const query = `
       UPDATE filling_requests 
-      SET is_invoiced = ?, invoiced_by = ?, invoiced_at = ?
+      SET is_invoiced = ?, invoiced_by = ?, invoiced_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
     
     const params = [
       is_invoiced ? 1 : 0,
       invoiced_by || null,
-      is_invoiced ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null,
       record_id
     ];
 

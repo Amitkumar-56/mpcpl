@@ -4,6 +4,7 @@
 import EmployeeChatDashboard from "@/components/EmployeeChatDashboard";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useSession } from "@/context/SessionContext";
+import { initializeNotifications, showChatNotification } from "@/utils/notifications";
 import { forceInitializeAudio, playBeep, speakMessage } from "@/utils/sound";
 import Footer from "components/Footer";
 import Header from "components/Header";
@@ -11,21 +12,21 @@ import Sidebar from "components/sidebar";
 import { useRouter } from "next/navigation";
 import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import {
-    BiCalendar,
-    BiChart,
-    BiCheckCircle,
-    BiDollar,
-    BiError,
-    BiGroup,
-    BiHide,
-    BiMessageRounded,
-    BiPackage,
-    BiRefresh,
-    BiSend,
-    BiShoppingBag,
-    BiShow,
-    BiUser,
-    BiX
+  BiCalendar,
+  BiChart,
+  BiCheckCircle,
+  BiDollar,
+  BiError,
+  BiGroup,
+  BiHide,
+  BiMessageRounded,
+  BiPackage,
+  BiRefresh,
+  BiSend,
+  BiShoppingBag,
+  BiShow,
+  BiUser,
+  BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
 
@@ -153,6 +154,16 @@ function DashboardContent() {
       document.removeEventListener('mousemove', handleUserInteraction);
     };
   }, []);
+
+  useEffect(() => {
+    if (!sessionUser) return;
+
+    initializeNotifications().then((granted) => {
+      if (!granted) {
+        console.log('🔔 Notifications permission not granted; chat notifications may not appear.');
+      }
+    });
+  }, [sessionUser]);
 
   // Real-time Chat States
   const [socket, setSocket] = useState(null);
@@ -537,6 +548,13 @@ function DashboardContent() {
               return [newChatItem, ...prev];
             }
           });
+
+          if (!isCurrentChat) {
+            showChatNotification(
+              data.customerName || 'Customer',
+              data.message || data.text || 'You have a new chat message'
+            );
+          }
         });
 
         // Handle message sent confirmation

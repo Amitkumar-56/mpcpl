@@ -5,22 +5,23 @@ import CstHeader from "@/components/cstHeader";
 import Sidebar from "@/components/cstsidebar";
 import Footer from "@/components/Footer";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
+import { initializeNotifications, showChatNotification } from "@/utils/notifications";
+import { playBeep } from "@/utils/sound";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
-  BiCheckDouble,
-  BiMessageRounded,
-  BiMinus,
-  BiReceipt,
-  BiSend,
-  BiTime,
-  BiUser,
-  BiWifi,
-  BiWifiOff,
-  BiX
+    BiCheckDouble,
+    BiMessageRounded,
+    BiMinus,
+    BiReceipt,
+    BiSend,
+    BiTime,
+    BiUser,
+    BiWifi,
+    BiWifiOff,
+    BiX
 } from "react-icons/bi";
 import { io } from "socket.io-client";
-import { playBeep } from "@/utils/sound";
 // SSOSync component removed - no longer needed
 
 export default function CustomerDashboardPage() {
@@ -87,6 +88,16 @@ export default function CustomerDashboardPage() {
       router.push("/cst/login");
     }
   }, [router]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    initializeNotifications().then((granted) => {
+      if (!granted) {
+        console.log('🔔 CST notifications permission not granted; browser notifications may not appear.');
+      }
+    });
+  }, [user]);
 
   // Fetch customer data when user is loaded
   useEffect(() => {
@@ -288,6 +299,10 @@ export default function CustomerDashboardPage() {
           
           if (!showChat) {
             setUnreadCount(prev => prev + 1);
+            showChatNotification(
+              message?.senderName || 'New message',
+              message?.text || 'You have a new message from support.'
+            );
           }
           scrollToBottom();
         });

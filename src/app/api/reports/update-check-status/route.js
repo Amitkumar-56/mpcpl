@@ -34,14 +34,13 @@ export async function POST(request) {
     // Update the check status in the database
     const query = `
       UPDATE filling_requests 
-      SET is_checked = ?, checked_by = ?, checked_at = ?
+      SET is_checked = ?, checked_by = ?, checked_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `;
     
     const params = [
       is_checked ? 1 : 0,
       checked_by || null,
-      is_checked ? new Date().toISOString().slice(0, 19).replace('T', ' ') : null,
       record_id
     ];
 
