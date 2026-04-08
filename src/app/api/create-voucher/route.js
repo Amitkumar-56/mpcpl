@@ -100,7 +100,7 @@ export async function POST(request) {
     // Calculate remaining amount (pending) = total_expense - advance
     const remaining_amount = total_expense - advance;
     const paid_amount = 0;
-    const status = 'pending';
+    const status = 0; // 0=pending, 1=approved, 2=rejected
 
     // Determine next sequence by extracting numeric sequence part from existing
     // `voucher_no` values of the form 'V{seq}{last4}'. We want V01, V02, V03 pattern
