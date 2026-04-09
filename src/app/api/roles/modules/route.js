@@ -24,6 +24,7 @@ export async function GET() {
       'Products',
       'Employees',
       'Suppliers',
+      'Vendors',
       'Transporters',
       'NB Accounts',
       'NB Expenses',

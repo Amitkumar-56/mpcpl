@@ -130,14 +130,18 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Products", icon: <FaBox />, module: "products", path: "/products" },
     { name: "Employees", icon: <FaUserTie />, module: "employees", path: "/employees" },
     { name: "Attendance", icon: <FaClock />, module: "attendance", path: "/attendance" },
+    { name: "HR Dashboard", icon: <FaUsers />, module: "hr_dashboard", path: "/hr-dashboard" },
     { name: "Suppliers", icon: <FaBuilding />, module: "suppliers", path: "/suppliers" },
+    { name: "Vendors", icon: <FaBuilding />, module: "vendors", path: "/vendors" },
     { name: "Transporters", icon: <FaTruck />, module: "transporters", path: "/transporters" },
     { name: "NB Accounts", icon: <FaClipboard />, module: "nb_balance", path: "/nb-balance" },
     { name: "NB Expenses", icon: <FaMoneyBill />, module: "nb_expenses", path: "/nb-expenses" },
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
+  
 
+    
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
     { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-list" },
     { name: "Loading History", icon: <FaHistory />, module: "history", path: "/loading-unloading-history" },
@@ -162,11 +166,13 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     products: "Products",
     employees: "Employees",
     attendance: "Attendance",
+    hr_dashboard: "HR Dashboard",
     vehicles: "Vehicles",
     schedule_price: "Schedule Prices",
     lr_management: "LR Management",
     history: "Loading History",
     suppliers: "Suppliers",
+    vendors: "Vendors",
     outstanding_history: "Outstanding History",
     transporters: "Transporters",
     nb_balance: "NB Accounts",
@@ -481,56 +487,6 @@ const Sidebar = memo(function Sidebar({ onClose }) {
             </div>
           ) : null}
         </nav>
-        {/* Old Website Link */}
-        {user && (Number(user.role) === 5 || user.role === 5) && (
-          <button
-            onClick={(event) => {
-              const button = event.currentTarget;
-              const originalContent = button.innerHTML;
-              
-              try {
-                button.innerHTML = '<span style="font-size: 0.875rem;">Opening...</span>';
-                button.disabled = true;
-                
-                // Simple direct index.php access - no SSO
-                window.open('https://masafipetro.com/new/index.php', '_blank');
-                
-              } catch (error) {
-                console.error('Error:', error);
-              } finally {
-                setTimeout(() => {
-                  button.innerHTML = originalContent;
-                  button.disabled = false;
-                }, 1000);
-              }
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              width: '100%',
-              padding: '0.75rem',
-              marginTop: '0.5rem',
-              borderRadius: '0.375rem',
-              cursor: 'pointer',
-              textAlign: 'left',
-              justifyContent: isInitialized && isMobile && isCollapsed ? 'center' : 'flex-start',
-              backgroundColor: 'transparent',
-              color: '#d97706',
-              border: '1px dashed #d97706',
-              marginBottom: '1rem',
-            }}
-            title="Go to Old Website"
-          >
-            <span style={{ fontSize: '1.125rem', display: 'flex', flexShrink: 0 }}>
-              <FaExchangeAlt />
-            </span>
-            {isInitialized && !isCollapsed && (
-              <span style={{ fontSize: '0.875rem', fontWeight: 500, marginLeft: '0.75rem' }}>
-                Old Website
-              </span>
-            )}
-          </button>
-        )}
 
         {/* Logout Button */}
         <div style={{

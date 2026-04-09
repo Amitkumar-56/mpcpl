@@ -170,17 +170,6 @@ export default function Sidebar({ user: propUser }) {
           })}
         </nav>
 
-        {/* Old Website Link */}
-        <div className="px-2 pb-2">
-          <button
-            onClick={() => window.open('https://masafipetro.com/new/cst/login.php', '_blank')}
-            className="flex items-center w-full p-3 mb-2 rounded border border-dashed border-orange-500 text-orange-700 hover:bg-orange-50 transition-colors"
-          >
-            <span className="mr-3 text-lg">↩️</span>
-            <span className="text-sm font-medium">Old Website</span>
-          </button>
-        </div>
-
         <button
           onClick={logout}
           className="flex items-center p-3 border-t border-gray-300 text-black hover:bg-red-500 hover:text-white transition-colors"

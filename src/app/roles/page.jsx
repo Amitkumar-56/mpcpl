@@ -33,6 +33,7 @@ export default function RoleAccessControl() {
     'Products',
     'Employees',
     'Suppliers',
+    'Vendors',
     'Transporters',
     'NB Accounts',
     'NB Expenses',

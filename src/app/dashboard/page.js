@@ -939,22 +939,6 @@ function DashboardContent() {
                       color="purple"
                     />
                   </a>
-                  <a href="/all-stock" className="block">
-                    <InfoCard
-                      title="Total Stations"
-                      value={stats.totalStations || 0}
-                      icon={<BiPackage />}
-                      color="green"
-                    />
-                  </a>
-                  <a href="/filling-requests" className="block">
-                    <InfoCard
-                      title="Transactions"
-                      value={stats.totalTransactions}
-                      icon={<BiShoppingBag />}
-                      color="blue"
-                    />
-                  </a>
                   {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3 || sessionUser?.role === 7) && (
                     <a href="/old-filling-requests" className="block">
                       <InfoCard
@@ -965,37 +949,6 @@ function DashboardContent() {
                       />
                     </a>
                   )}
-                  <a href="/stock" className="block">
-                    <InfoCard
-                      title="Stock Management"
-                      value={stats.totalStockHistory || 0}
-                      icon={<BiPackage />}
-                      color="indigo"
-                    />
-                  </a>
-                  {/* HR Dashboard Link */}
-                  {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3) && (
-                    <a href="/hr-dashboard" className="block">
-                      <InfoCard
-                        title="HR Dashboard"
-                        value="Access"
-                        icon={<BiGroup />}
-                        color="green"
-                      />
-                    </a>
-                  )}
-                  {/* Driver History Link */}
-                  {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3) && (
-                    <a href="/driver-history" className="block">
-                      <InfoCard
-                        title="Driver History"
-                        value="View All"
-                        icon={<BiCalendar />}
-                        color="orange"
-                      />
-                    </a>
-                  )}
-
                   {/* Staff can view their own attendance and leave */}
                   {sessionUser?.role === 1 && (
                     <>
@@ -1017,18 +970,6 @@ function DashboardContent() {
                       </a>
                     </>
                   )}
-                  <InfoCard
-                    title="Pending"
-                    value={stats.pendingPayments}
-                    icon={<BiError />}
-                    color="yellow"
-                  />
-                  <InfoCard
-                    title="Cleared"
-                    value={stats.clearedPayments}
-                    icon={<BiCheckCircle />}
-                    color="green"
-                  />
                 </div>
               </div>
 

@@ -29,6 +29,7 @@ function EditEmployeeContent() {
     Products: { can_view: false, can_edit: false, can_create: false },
     Employees: { can_view: false, can_edit: false, can_create: false },
     Suppliers: { can_view: false, can_edit: false, can_create: false },
+    Vendors: { can_view: false, can_edit: false, can_create: false },
     Transporters: { can_view: false, can_edit: false, can_create: false },
     "NB Accounts": { can_view: false, can_edit: false, can_create: false },
     "NB Expenses": { can_view: false, can_edit: false, can_create: false },
@@ -51,6 +52,7 @@ function EditEmployeeContent() {
     Vouchers: { can_view: false, can_edit: false, can_create: false },
     Remarks: { can_view: false, can_edit: false, can_create: false },
     Items: { can_view: false, can_edit: false, can_create: false },
+    "HR Dashboard": { can_view: false, can_edit: false, can_create: false },
   });
   const modules = Object.keys(permissions);
 

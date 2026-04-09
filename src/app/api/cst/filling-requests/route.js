@@ -105,6 +105,16 @@ export async function GET(request) {
       console.error("⚠️ CST API: Error checking customer:", checkError);
     }
 
+    // Test query first to check area_name
+    const testQuery = `
+      SELECT rid, area_name, product 
+      FROM filling_requests 
+      WHERE cid = ? 
+      LIMIT 3
+    `;
+    const testResult = await executeQuery(testQuery, [customerIdInt]);
+    console.log("🧪 Test query result:", testResult);
+
     // Build query based on filters
     let query = `
       SELECT 
@@ -135,8 +145,9 @@ export async function GET(request) {
         ep_completed.name AS completed_by_name,
         fl_completed_log.completed_date
       FROM filling_requests fr
+      LEFT JOIN product_codes pc_main ON fr.product = pc_main.id
+      LEFT JOIN products p ON pc_main.product_id = p.id
       LEFT JOIN product_codes pc ON fr.sub_product_id = pc.id
-      LEFT JOIN products p ON pc.product_id = p.id
       LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
       LEFT JOIN customers c ON fr.cid = c.id
       LEFT JOIN customer_balances cb ON cb.com_id = fr.cid
@@ -201,6 +212,25 @@ export async function GET(request) {
     }
 
     console.log(`✅ CST API: Found ${requests.length} requests`);
+    
+    // Debug: Check first request data
+    if (requests.length > 0) {
+      console.log("🔍 First request sample:", {
+        product_name: requests[0].product_name,
+        area_name: requests[0].area_name,
+        product: requests[0].product,
+        sub_product_id: requests[0].sub_product_id,
+        station_name: requests[0].station_name,
+        all_keys: Object.keys(requests[0])
+      });
+      
+      // Check if area_name exists in the raw data
+      console.log("🔍 Area name check:", {
+        has_area_name: 'area_name' in requests[0],
+        area_name_value: requests[0].area_name,
+        area_name_type: typeof requests[0].area_name
+      });
+    }
 
     // Calculate eligibility and fetch prices for each request
     const enrichedRequests = await Promise.all(
