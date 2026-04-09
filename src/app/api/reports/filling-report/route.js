@@ -187,14 +187,154 @@ export async function POST(request) {
     // Convert all timestamps to IST
     const istRecords = records.map(convertToIST);
 
-    // Handle Export
+    // Handle Export - Only export CHECKED records
     if (exportData) {
+      // Build query to export ONLY checked records with same filters
+      let exportQueryStr = `
+        SELECT DISTINCT
+          fr.id,
+          fr.rid,
+          fr.vehicle_number,
+          fr.driver_number,
+          fr.aqty,
+          fr.completed_date,
+          fr.created,
+          fr.status,
+          fr.doc1,
+          fr.doc2,
+          fr.doc3,
+          fr.is_checked,
+          fr.checked_by,
+          fr.checked_at,
+          fr.is_invoiced,
+          fr.invoiced_by,
+          fr.invoiced_at,
+          COALESCE(fr.totalamt, 0) as amount,
+          p.pname AS product_name, 
+          fs.station_name, 
+          c.name AS client_name,
+          ep.name as checked_by_name,
+          ep_invoice.name as invoiced_by_name,
+          /* Activity log names + IDs */
+          COALESCE(fl_created.created_by_name, NULL) as created_by_name,
+          fl_created.created_date,
+          fl_created.created_by_id,
+          fl_processed.processed_by_name,
+          fl_processed.processed_date,
+          fl_processed.processed_by_id,
+          fl_completed.completed_by_name,
+          fl_completed.completed_date,
+          fl_completed.completed_by_id
+        FROM filling_requests fr
+        LEFT JOIN products p ON fr.product = p.id
+        LEFT JOIN filling_stations fs ON fr.fs_id = fs.id
+        LEFT JOIN customers c ON fr.cid = c.id
+        LEFT JOIN employee_profile ep ON fr.checked_by = ep.id
+        LEFT JOIN employee_profile ep_invoice ON fr.invoiced_by = ep_invoice.id
+        LEFT JOIN (
+          SELECT 
+            fl.request_id,
+            fl.created_by AS created_by_id,
+            fl.created_date,
+            COALESCE(
+              (SELECT c.name FROM customers c WHERE c.id = fl.created_by LIMIT 1),
+              (SELECT ep.name FROM employee_profile ep WHERE ep.id = fl.created_by LIMIT 1),
+              NULL
+            ) AS created_by_name,
+          CASE 
+            WHEN EXISTS(SELECT 1 FROM customers c WHERE c.id = fl.created_by) THEN 'customer'
+            WHEN EXISTS(SELECT 1 FROM employee_profile ep WHERE ep.id = fl.created_by) THEN 'employee'
+            ELSE 'system'
+          END AS created_by_type
+        FROM filling_logs fl
+        WHERE fl.created_by IS NOT NULL
+        AND fl.id = (
+          SELECT fl2.id 
+          FROM filling_logs fl2 
+          WHERE fl2.request_id = fl.request_id 
+          AND fl2.created_by IS NOT NULL
+          ORDER BY fl2.created_date DESC, fl2.id DESC
+          LIMIT 1
+        )
+      ) fl_created ON fr.rid = fl_created.request_id
+        LEFT JOIN (
+          SELECT 
+            fl.request_id,
+            ep.name as processed_by_name,
+            fl.processed_date,
+            ep.id as processed_by_id
+          FROM filling_logs fl
+          LEFT JOIN employee_profile ep ON fl.processed_by = ep.id
+          WHERE fl.processed_by IS NOT NULL
+          AND fl.id = (
+            SELECT fl2.id 
+            FROM filling_logs fl2 
+            WHERE fl2.request_id = fl.request_id 
+            AND fl2.processed_by IS NOT NULL
+            ORDER BY fl2.processed_date DESC, fl2.id DESC
+            LIMIT 1
+          )
+      ) fl_processed ON fr.rid = fl_processed.request_id
+        LEFT JOIN (
+          SELECT 
+            fl.request_id,
+            ep.name as completed_by_name,
+            fl.completed_date,
+            ep.id as completed_by_id
+          FROM filling_logs fl
+          LEFT JOIN employee_profile ep ON fl.completed_by = ep.id
+          WHERE fl.completed_by IS NOT NULL
+          AND fl.id = (
+            SELECT fl2.id 
+            FROM filling_logs fl2 
+            WHERE fl2.request_id = fl.request_id 
+            AND fl2.completed_by IS NOT NULL
+            ORDER BY fl2.completed_date DESC, fl2.id DESC
+            LIMIT 1
+          )
+      ) fl_completed ON fr.rid = fl_completed.request_id
+        WHERE fr.status = 'Completed'
+        AND fr.is_checked = 1
+      `;
+      
+      const exportParams = [];
+      
+      // Apply same filters as GET request but only for checked records
+      if (product) {
+        exportQueryStr += " AND fr.product = ?";
+        exportParams.push(product);
+      }
+      if (loading_station) {
+        exportQueryStr += " AND fr.fs_id = ?";
+        exportParams.push(loading_station);
+      }
+      if (customer) {
+        exportQueryStr += " AND fr.cid = ?";
+        exportParams.push(customer);
+      }
+      if (from_date && to_date) {
+        exportQueryStr += " AND DATE(fr.completed_date) BETWEEN ? AND ?";
+        exportParams.push(from_date, to_date);
+      }
+      
+      exportQueryStr += " ORDER BY fr.created DESC";
+      
+      console.log('📤 Export Query (CHECKED ONLY):', exportQueryStr);
+      console.log('📤 Export Params:', exportParams);
+      
+      // Execute export query for checked records only
+      const exportRecords = await executeQuery(exportQueryStr, exportParams);
+      console.log('📤 Export Records Found:', exportRecords.length);
+      
+      // Convert timestamps to IST for export records
+      const istExportRecords = exportRecords.map(convertToIST);
+      
       const csvHeaders = [
         'ID', 'Date', 'Station', 'Client', 'Product', 'Vehicle Number','Quantity (Ltr)', 'Amount', 'Status', 
          'Checked', 'Checked By', 'Invoiced', 'Invoiced By'
       ];
       
-      const csvData = istRecords.map(record => [
+      const csvData = istExportRecords.map(record => [
         record.rid,
         (() => {
           const dateVal = record.completed_date || record.created;

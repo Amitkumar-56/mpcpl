@@ -19,7 +19,8 @@ function StockHistoryContent() {
   const [filters, setFilters] = useState({
     pname: '',
     from_date: '',
-    to_date: ''
+    to_date: '',
+    fs_id: ''
   });
   const [exportLoading, setExportLoading] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -59,6 +60,7 @@ function StockHistoryContent() {
       if (filterParams.pname) params.append('pname', filterParams.pname);
       if (filterParams.from_date) params.append('from_date', filterParams.from_date);
       if (filterParams.to_date) params.append('to_date', filterParams.to_date);
+      if (filterParams.fs_id) params.append('fs_id', filterParams.fs_id);
 
       const url = `/api/stock-history?${params}`;
       console.log('🔍 Fetching stock history from:', url);
@@ -111,12 +113,14 @@ function StockHistoryContent() {
         const newFilters = {
           pname: result.data?.filters?.pname || '',
           from_date: result.data?.filters?.from_date || '',
-          to_date: result.data?.filters?.to_date || ''
+          to_date: result.data?.filters?.to_date || '',
+          fs_id: result.data?.filters?.fs_id || ''
         };
         setFilters(prev => {
           if (prev.pname === newFilters.pname && 
               prev.from_date === newFilters.from_date && 
-              prev.to_date === newFilters.to_date) {
+              prev.to_date === newFilters.to_date && 
+              prev.fs_id === newFilters.fs_id) {
             return prev;
           }
           return newFilters;
@@ -164,7 +168,8 @@ function StockHistoryContent() {
     setFilters({
       pname: '',
       from_date: '',
-      to_date: ''
+      to_date: '',
+      fs_id: ''
     });
     fetchStockHistory({});
   };
@@ -178,6 +183,7 @@ function StockHistoryContent() {
       if (filters.pname) params.append('pname', filters.pname);
       if (filters.from_date) params.append('from_date', filters.from_date);
       if (filters.to_date) params.append('to_date', filters.to_date);
+      if (filters.fs_id) params.append('fs_id', filters.fs_id);
 
       const response = await fetch(`/api/export/stock?${params}`);
       
@@ -306,9 +312,9 @@ function StockHistoryContent() {
                 } else if (transType === 'extra') {
                   typeText = 'Extra';
                   badgeColor = 'bg-blue-100 text-blue-800 border border-blue-300';
-                } else if (transType === 'stored') {
-                  typeText = 'Stored';
-                  badgeColor = 'bg-orange-100 text-orange-800 border border-orange-300';
+                } else if (transType === 'stored' || transType === 'Shortage') {
+                  typeText = transType === 'Shortage' ? 'Shortage' : 'Stored';
+                  badgeColor = transType === 'Shortage' ? 'bg-red-100 text-red-800 border border-red-300' : 'bg-orange-100 text-orange-800 border border-orange-300';
                 } else {
                   typeText = row.trans_type || 'N/A';
                   badgeColor = 'bg-gray-100 text-gray-800';
@@ -523,6 +529,9 @@ function StockHistoryContent() {
               } else if (transType === 'stored') {
                 typeText = 'Stored';
                 badgeColor = 'bg-orange-100 text-orange-800 border border-orange-300';
+              } else if (transType === 'shortage') {
+                typeText = 'Shortage';
+                badgeColor = 'bg-red-100 text-red-800 border border-red-300';
               } else {
                 typeText = row.trans_type || 'N/A';
                 badgeColor = 'bg-gray-100 text-gray-800';
@@ -536,7 +545,7 @@ function StockHistoryContent() {
             })()}
           </td>
           <td className="px-3 py-2 md:px-4 md:py-3 text-xs md:text-sm text-gray-900">
-            {(row.trans_type?.toLowerCase() === 'outward' || row.trans_type?.toLowerCase() === 'edited') && row.rid
+            {(row.trans_type?.toLowerCase() === 'outward' || row.trans_type?.toLowerCase() === 'edited' || row.trans_type?.toLowerCase() === 'shortage') && row.rid
               ? (row.vehicle_number || '')
               : ''
             }
@@ -735,7 +744,26 @@ function StockHistoryContent() {
                   {cid && (
                     <input type="hidden" name="id" value={cid} />
                   )}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6 mb-4 md:mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4 md:gap-6 mb-4 md:mb-6">
+                    <div>
+                      <label htmlFor="station-filter" className="block text-sm font-medium text-gray-700 mb-1 md:mb-2">
+                        Station
+                      </label>
+                      <select
+                        id="station-filter"
+                        name="fs_id"
+                        value={filters.fs_id}
+                        onChange={(e) => setFilters({...filters, fs_id: e.target.value})}
+                        className="w-full px-3 py-2 md:px-4 md:py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm md:text-base"
+                      >
+                        <option value="">All Stations</option>
+                        {Object.entries(data.filling_stations).map(([id, name]) => (
+                          <option key={id} value={id}>
+                            {name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
                     <div>
                       <label htmlFor="pname-filter" className="block text-sm font-medium text-gray-700 mb-1 md:mb-2">
                         Product Name

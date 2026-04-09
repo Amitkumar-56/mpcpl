@@ -580,7 +580,7 @@ export async function PUT(request) {
             await executeQuery(
               `INSERT INTO filling_history 
                (fs_id, product_id, filling_qty, trans_type, stock_type, current_stock, available_stock, filling_date, created_by, created_at) 
-               VALUES (?, ?, ?, 'Outward', 'stored', ?, ?, NOW(), ?, NOW())`,
+               VALUES (?, ?, ?, 'Outward', 'Shortage', ?, ?, NOW(), ?, NOW())`,
               [fsOld, prodOld, -oldQty, oldCurrent, afterOld, editorUserId]
             );
             await executeQuery(

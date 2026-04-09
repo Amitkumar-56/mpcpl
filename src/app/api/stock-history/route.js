@@ -16,6 +16,7 @@ export async function GET(request) {
     const pname = searchParams.get("pname");
     const from_date = searchParams.get("from_date");
     const to_date = searchParams.get("to_date");
+    const fs_id = searchParams.get("fs_id");
 
     const cid = id ? parseInt(id) : 0;
 
@@ -73,8 +74,7 @@ export async function GET(request) {
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE 1=1
-      AND fh.trans_type IN ('Inward', 'Outward', 'Edited', 'extra', 'stored')
-      AND (fh.filling_qty IS NOT NULL AND fh.filling_qty != 0)  -- ✅ Exclude zero loading qty
+      AND fh.trans_type IN ('Inward', 'Outward', 'Edited', 'extra', 'stored', 'Shortage')
     `;
     
     // Add NB Stock condition if stock_type exists
@@ -88,6 +88,11 @@ export async function GET(request) {
     if (cid) {
       conditions.push("fh.fs_id = ?");
       params.push(cid);
+    }
+
+    if (fs_id && fs_id.trim() !== "") {
+      conditions.push("fh.fs_id = ?");
+      params.push(fs_id);
     }
 
     if (pname && pname.trim() !== "") {
@@ -120,27 +125,29 @@ export async function GET(request) {
     
     // ✅ Detailed debug log
     if (rows && rows.length > 0) {
-      console.log('🔍 Filtered Transactions (filling_qty > 0):');
+      console.log(' Filtered Transactions (filling_qty > 0):');
       
       // Summary
       const inwardRows = rows.filter(r => r.trans_type === 'Inward');
       const outwardRows = rows.filter(r => r.trans_type === 'Outward');
-      const editedRows = rows.filter(r => r.trans_type === 'Edited');
-      const extraRows = rows.filter(r => r.trans_type === 'extra');
       const storedRows = rows.filter(r => r.trans_type === 'stored');
+      const shortageRows = rows.filter(r => r.trans_type === 'Shortage');
+      const extraRows = rows.filter(r => r.trans_type === 'extra');
+      const editedRows = rows.filter(r => r.trans_type === 'Edited');
       
-      console.log('📊 Transaction Summary:', {
+      console.log(' Transaction Summary:', {
         total: rows.length,
         inward: inwardRows.length,
         outward: outwardRows.length,
         edited: editedRows.length,
         extra: extraRows.length,
         stored: storedRows.length,
+        shortage: shortageRows.length,
         zeroQtyExcluded: inwardRows.filter(r => parseFloat(r.filling_qty || 0) === 0).length
       });
       
       // Show sample data
-      console.log('🔍 Sample rows (first 3):');
+      console.log(' Sample rows (first 3):');
       rows.slice(0, 3).forEach((row, index) => {
         console.log(`Row ${index + 1}:`, {
           id: row.id,
@@ -241,7 +248,9 @@ export async function GET(request) {
     const filteredRows = formattedRows.filter(row => 
       row.filling_qty > 0 || 
       row.filling_qty < 0 || // Include negative quantities for 'stored' transactions
-      row.trans_type === 'Edited' // Edited transactions might have 0 qty change
+      row.trans_type === 'Edited' || // Edited transactions might have 0 qty change
+      row.trans_type === 'stored' || // Include stored transactions even with 0 qty
+      row.trans_type === 'Shortage' // Include Shortage transactions even with 0 qty
     );
 
     console.log(`✅ After filtering zero qty rows: ${filteredRows.length} records`);
@@ -277,6 +286,7 @@ export async function GET(request) {
           pname: pname || "",
           from_date: from_date || "",
           to_date: to_date || "",
+          fs_id: fs_id || "",
         },
       },
     });

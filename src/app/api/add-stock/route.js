@@ -151,12 +151,12 @@ export async function POST(request) {
       
       // Determine trans_type based on operation
       // Add (+): trans_type = 'extra'
-      // Minus (-): trans_type = 'stored'
+      // Minus (-): trans_type = 'Shortage'
       // Determine trans_type and stock_type based on operation
       // Add (+): trans_type = 'extra', stock_type = 'extra'
-      // Minus (-): trans_type = 'stored', stock_type = 'stored'
-      const transType = isMinus ? 'stored' : 'extra';
-      const stockType = isMinus ? 'stored' : 'extra';
+      // Minus (-): trans_type = 'Shortage', stock_type = 'Shortage'
+      const transType = isMinus ? 'Shortage' : 'extra';
+      const stockType = isMinus ? 'Shortage' : 'extra';
       
       // filling_qty: positive for add, negative for minus
       const fillingQty = isMinus ? -absQuantity : absQuantity;

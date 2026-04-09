@@ -55,14 +55,14 @@ const calculatePercentageChange = (current, previous) => {
 // Skeleton Loader Component
 function DashboardSkeleton() {
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="flex h-screen bg-gradient-to-br from-blue-900 via-purple-900 to-pink-900">
       {/* Sidebar Skeleton */}
-      <div className="w-64 bg-white shadow-lg hidden md:block">
+      <div className="w-64 bg-white/10 backdrop-blur-md shadow-2xl hidden md:block border-r border-white/20">
         <div className="p-4">
-          <div className="h-8 bg-gray-200 rounded animate-pulse mb-8"></div>
+          <div className="h-8 bg-white/20 rounded animate-pulse mb-8"></div>
           <div className="space-y-2">
             {[...Array(6)].map((_, i) => (
-              <div key={i} className="h-10 bg-gray-200 rounded animate-pulse"></div>
+              <div key={i} className="h-10 bg-white/20 rounded animate-pulse"></div>
             ))}
           </div>
         </div>
@@ -70,31 +70,31 @@ function DashboardSkeleton() {
 
       {/* Main Content Skeleton */}
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
-        <div className="flex-shrink-0 p-4 bg-white shadow-sm">
-          <div className="h-10 bg-gray-200 rounded animate-pulse w-1/4"></div>
+        <div className="flex-shrink-0 p-4 bg-white/10 backdrop-blur-md shadow-sm border-b border-white/20">
+          <div className="h-10 bg-white/20 rounded animate-pulse w-1/4"></div>
         </div>
         
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           <div className="mb-6">
-            <div className="h-8 bg-gray-200 rounded animate-pulse w-1/3 mb-2"></div>
-            <div className="h-4 bg-gray-200 rounded animate-pulse w-1/2"></div>
+            <div className="h-8 bg-white/20 rounded animate-pulse w-1/3 mb-2"></div>
+            <div className="h-4 bg-white/20 rounded animate-pulse w-1/2"></div>
           </div>
 
           {/* Cards Skeleton */}
           <div className="mb-6">
-            <div className="h-6 bg-gray-200 rounded animate-pulse w-1/4 mb-4"></div>
+            <div className="h-6 bg-white/20 rounded animate-pulse w-1/4 mb-4"></div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-              <div className="h-32 bg-gray-200 rounded-xl animate-pulse"></div>
-              <div className="h-32 bg-gray-200 rounded-xl animate-pulse"></div>
+              <div className="h-32 bg-white/10 backdrop-blur-sm rounded-xl animate-pulse border border-white/20"></div>
+              <div className="h-32 bg-white/10 backdrop-blur-sm rounded-xl animate-pulse border border-white/20"></div>
             </div>
           </div>
 
           {/* Stats Skeleton */}
           <div className="mb-6">
-            <div className="h-6 bg-gray-200 rounded animate-pulse w-1/4 mb-4"></div>
+            <div className="h-6 bg-white/20 rounded animate-pulse w-1/4 mb-4"></div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
               {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-24 bg-gray-200 rounded-lg animate-pulse"></div>
+                <div key={i} className="h-24 bg-white/10 backdrop-blur-sm rounded-lg animate-pulse border border-white/20"></div>
               ))}
             </div>
           </div>
@@ -709,7 +709,7 @@ function DashboardContent() {
   }
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-blue-50 via-purple-50 to-pink-50">
+    <div className="flex h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900">
       <Sidebar activePage={activePage} setActivePage={setActivePage} />
 
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -762,12 +762,12 @@ function DashboardContent() {
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
           {/* Error Alert (Hidden for Staff/Incharge) */}
           {error && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
-            <div className="mb-4 bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
+            <div className="mb-4 bg-red-900/50 border border-red-500/50 backdrop-blur-sm rounded-lg p-3 flex items-center justify-between">
               <div className="flex items-center">
-                <BiError className="text-red-500 mr-2" />
-                <span className="text-red-800 text-sm">{error}</span>
+                <BiError className="text-red-400 mr-2" />
+                <span className="text-red-200 text-sm">{error}</span>
               </div>
-              <button onClick={handleRefresh} className="text-red-800 text-sm">
+              <button onClick={handleRefresh} className="text-red-300 text-sm hover:text-red-100 transition-colors">
                 Retry
               </button>
             </div>
@@ -777,10 +777,10 @@ function DashboardContent() {
           <div className="mb-6">
             <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between">
               <div className="flex-1">
-                <h1 className="text-2xl lg:text-3xl font-bold text-gray-800">
+                <h1 className="text-2xl lg:text-3xl font-bold text-white">
                   Welcome, {sessionUser?.name}!
                 </h1>
-                <p className="text-gray-600 mt-1 text-sm">
+                <p className="text-gray-300 mt-1 text-sm">
                   {((sessionUser?.role === 1 || sessionUser?.role === 2))
                     ? "Chat and Support Dashboard"
                     : (sessionUser?.role === 6 || (sessionUser?.name && sessionUser.name.toLowerCase().includes('driver')) || (sessionUser?.role && sessionUser.role.toString().toLowerCase().includes('driver')))
@@ -788,10 +788,10 @@ function DashboardContent() {
                     : "Real-time outstanding balances overview"}
                 </p>
                 {lastUpdated && (
-                  <p className="text-gray-500 text-xs mt-1">
+                  <p className="text-gray-400 text-xs mt-1">
                     Updated: {lastUpdated.toLocaleTimeString('en-IN')}
                     {socketConnected && (
-                      <span className="ml-2 text-green-600">● Live</span>
+                      <span className="ml-2 text-green-400">● Live</span>
                     )}
                   </p>
                 )}
@@ -800,14 +800,14 @@ function DashboardContent() {
               <div className="flex items-center space-x-2 mt-3 lg:mt-0">
                 <button
                   onClick={() => speakMessage("नया मैसेज आया है", "hi-IN")}
-                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  className="p-2 bg-white/10 backdrop-blur-sm rounded-lg shadow hover:bg-white/20 transition-all border border-white/20"
                   title="Test Voice"
                 >
                   🗣️
                 </button>
                 <button
                   onClick={playBeep}
-                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  className="p-2 bg-white/10 backdrop-blur-sm rounded-lg shadow hover:bg-white/20 transition-all border border-white/20"
                   title="Test Sound"
                 >
                   🔊
@@ -816,17 +816,17 @@ function DashboardContent() {
                 <button
                   onClick={handleRefresh}
                   disabled={refreshing}
-                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  className="p-2 bg-white/10 backdrop-blur-sm rounded-lg shadow hover:bg-white/20 transition-all border border-white/20"
                   title="Refresh"
                 >
-                  <BiRefresh className={refreshing ? "animate-spin" : ""} />
+                  <BiRefresh className={refreshing ? "animate-spin text-white" : "text-white"} />
                 </button>
 
                 <button
                   onClick={() => setShowDetailedView(!showDetailedView)}
-                  className="p-2 bg-white rounded-lg shadow hover:shadow-md transition-all"
+                  className="p-2 bg-white/10 backdrop-blur-sm rounded-lg shadow hover:bg-white/20 transition-all border border-white/20"
                 >
-                  {showDetailedView ? <BiHide /> : <BiShow />}
+                  {showDetailedView ? <BiHide className="text-white" /> : <BiShow className="text-white" />}
                 </button>
               </div>
             </div>
@@ -835,13 +835,13 @@ function DashboardContent() {
           {/* Dashboard Content - Available for All Employees */}
           {(sessionUser?.role === 1 || sessionUser?.role === 2) ? (
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Staff Dashboard</h2>
-              <p className="text-gray-600">Access your modules and chat support from here.</p>
+              <h2 className="text-xl font-bold text-white mb-4">Staff Dashboard</h2>
+              <p className="text-gray-300">Access your modules and chat support from here.</p>
             </div>
           ) : (sessionUser?.role === 6 || (sessionUser?.name && sessionUser.name.toLowerCase().includes('driver')) || (sessionUser?.role && sessionUser.role.toString().toLowerCase().includes('driver'))) ? (
             /* Driver Dashboard Modules */
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-gray-800 mb-4">Driver Modules</h2>
+              <h2 className="text-xl font-bold text-white mb-4">Driver Modules</h2>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <a href="/driver-dashboard" className="block">
                   <InfoCard
@@ -874,7 +874,7 @@ function DashboardContent() {
             <>
               {/* Outstanding Group */}
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Outstandings</h2>
+                <h2 className="text-xl font-bold text-white mb-4">Outstandings</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                   <StatCard
                     title="Til Yesterday Outstanding"
@@ -897,14 +897,14 @@ function DashboardContent() {
               {/* Stock Group */}
               {hasStockView && (
                 <div className="mb-6">
-                  <h2 className="text-xl font-bold text-gray-800 mb-4">Stock Management</h2>
+                  <h2 className="text-xl font-bold text-white mb-4">Stock Management</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                     <a href="/stock-history" className="block">
                       <InfoCard
                         title="Stock History"
                         value={stats.totalStockHistory || 0}
                         icon={<BiCalendar />}
-                        color="purple"
+                        color="orange"
                       />
                     </a>
                     <a href="/all-stock" className="block">
@@ -929,14 +929,14 @@ function DashboardContent() {
 
               {/* Quick Stats */}
               <div className="mb-6">
-                <h2 className="text-xl font-bold text-gray-800 mb-4">Quick Stats</h2>
+                <h2 className="text-xl font-bold text-white mb-4">Quick Stats</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <a href="/customers" className="block">
                     <InfoCard
                       title="Total Clients"
                       value={stats.totalClients}
                       icon={<BiGroup />}
-                      color="purple"
+                      color="green"
                     />
                   </a>
                   {(sessionUser?.role === 5 || sessionUser?.role === 4 || sessionUser?.role === 3 || sessionUser?.role === 7) && (
@@ -974,24 +974,24 @@ function DashboardContent() {
               </div>
 
               {/* Summary Card */}
-              <div className="bg-white rounded-xl shadow-lg p-6">
-                <h2 className="text-lg font-bold text-gray-800 mb-4">Financial Summary</h2>
+              <div className="bg-white/10 backdrop-blur-md rounded-xl shadow-lg p-6 border border-white/20">
+                <h2 className="text-lg font-bold text-white mb-4">Financial Summary</h2>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Total Outstanding</p>
-                    <p className="text-xl font-bold text-gray-900">
+                  <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                    <p className="text-sm text-gray-300 mb-1">Total Outstanding</p>
+                    <p className="text-xl font-bold text-white">
                       {formatIndianRupees(stats.clientTodayOutstanding + stats.clientYesterdayOutstanding)}
                     </p>
                   </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Efficiency</p>
-                    <p className="text-xl font-bold text-blue-600">
+                  <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                    <p className="text-sm text-gray-300 mb-1">Efficiency</p>
+                    <p className="text-xl font-bold text-blue-400">
                       {stats.collectionEfficiency?.toFixed(1)}%
                     </p>
                   </div>
-                  <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <p className="text-sm text-gray-600 mb-1">Active</p>
-                    <p className="text-xl font-bold text-green-600">
+                  <div className="text-center p-4 bg-white/10 backdrop-blur-sm rounded-lg border border-white/20">
+                    <p className="text-sm text-gray-300 mb-1">Active</p>
+                    <p className="text-xl font-bold text-green-400">
                       {stats.totalClients}
                     </p>
                   </div>
@@ -1041,13 +1041,13 @@ function DashboardContent() {
 
 // Optimized Stat Card Component
 const StatCard = ({ title, amount, icon, gradient, change, showDetails }) => (
-  <div className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-xl shadow-lg hover:shadow-xl transition-shadow`}>
+  <div className={`bg-gradient-to-br ${gradient} text-white p-5 rounded-xl shadow-lg hover:shadow-xl transition-all backdrop-blur-sm border border-white/20`}>
     <div className="flex items-center justify-between">
       <div>
-        <p className="text-sm opacity-90">{title}</p>
+        <p className="text-sm opacity-90 font-medium">{title}</p>
         <p className="text-2xl font-bold mt-2">{formatIndianRupees(amount)}</p>
       </div>
-      <div className="p-3 bg-white bg-opacity-20 rounded-lg">
+      <div className="p-3 bg-white/20 backdrop-blur-sm rounded-lg border border-white/30">
         {icon}
       </div>
     </div>
@@ -1057,22 +1057,24 @@ const StatCard = ({ title, amount, icon, gradient, change, showDetails }) => (
 // Optimized Info Card Component
 const InfoCard = ({ title, value, icon, color }) => {
   const colorClasses = {
-    purple: "bg-purple-100 text-purple-800 border-purple-200 hover:bg-purple-200",
-    blue: "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200",
-    green: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200",
-    yellow: "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200",
-    indigo: "bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-200",
-    orange: "bg-orange-100 text-orange-800 border-orange-200 hover:bg-orange-200",
+    purple: "bg-purple-500/20 text-purple-200 border-purple-400/30 hover:bg-purple-500/30 backdrop-blur-sm",
+    blue: "bg-blue-500/20 text-blue-200 border-blue-400/30 hover:bg-blue-500/30 backdrop-blur-sm",
+    green: "bg-green-500/20 text-green-200 border-green-400/30 hover:bg-green-500/30 backdrop-blur-sm",
+    yellow: "bg-yellow-500/20 text-yellow-200 border-yellow-400/30 hover:bg-yellow-500/30 backdrop-blur-sm",
+    indigo: "bg-indigo-500/20 text-indigo-200 border-indigo-400/30 hover:bg-indigo-500/30 backdrop-blur-sm",
+    orange: "bg-orange-500/20 text-orange-200 border-orange-400/30 hover:bg-orange-500/30 backdrop-blur-sm",
   };
 
   return (
-    <div className={`border rounded-lg p-4 ${colorClasses[color]} shadow-sm transition-colors cursor-pointer`}>
+    <div className={`border rounded-lg p-4 ${colorClasses[color]} shadow-lg backdrop-blur-sm border-white/20 hover:shadow-xl transition-all cursor-pointer`}>
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm font-medium">{title}</p>
           <p className="text-lg font-bold mt-1">{value}</p>
         </div>
-        {icon}
+        <div className="text-white/80">
+          {icon}
+        </div>
       </div>
     </div>
   );
@@ -1337,7 +1339,7 @@ const ChatWidget = ({
   };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-full sm:w-80 max-w-[calc(100vw-2rem)] bg-white rounded-lg shadow-xl border border-gray-200">
+    <div className="fixed bottom-4 right-4 z-50 w-full sm:w-80 max-w-[calc(100vw-2rem)] bg-slate-800/95 backdrop-blur-md rounded-lg shadow-xl border border-white/20">
       <div className="bg-purple-600 rounded-t-lg p-3 text-white flex justify-between items-center">
         <h3 className="font-bold text-sm">Support Chat</h3>
         <div className="flex items-center space-x-2">
@@ -1348,41 +1350,41 @@ const ChatWidget = ({
           )}
           <button
             onClick={() => setShowChat(false)}
-            className="hover:bg-purple-700 rounded p-1"
+            className="hover:bg-purple-700 rounded p-1 transition-colors"
           >
             <BiX size={16} />
           </button>
         </div>
       </div>
 
-      <div className="h-[400px] sm:h-[450px] overflow-hidden flex flex-col border border-gray-200 rounded-lg shadow-lg">
+      <div className="h-[400px] sm:h-[450px] overflow-hidden flex flex-col border border-white/20 rounded-lg shadow-lg">
         {/* Chat list */}
         <div className="flex-1 flex flex-col sm:flex-row">
-          <div className="w-full sm:w-1/3 border-r border-gray-200 flex flex-col">
-            <div className="p-2 border-b bg-gray-50 flex-shrink-0">
-              <h4 className="font-semibold text-xs">Active Chats ({activeChats.length})</h4>
+          <div className="w-full sm:w-1/3 border-r border-white/20 flex flex-col">
+            <div className="p-2 border-b bg-slate-700/50 backdrop-blur-sm flex-shrink-0">
+              <h4 className="font-semibold text-xs text-white">Active Chats ({activeChats.length})</h4>
             </div>
-            <div className="flex-1 overflow-y-auto bg-white" style={{ maxHeight: '350px', minHeight: '150px' }}>
+            <div className="flex-1 overflow-y-auto bg-slate-800/50 backdrop-blur-sm" style={{ maxHeight: '350px', minHeight: '150px' }}>
               {activeChats.length > 0 ? (
                 activeChats.map((chat, index) => (
                   <div
                     key={`${chat.customerId}-${chat.lastMessage?.timestamp || index}-${index}`}
-                    className={`p-3 border-b cursor-pointer text-xs hover:bg-gray-50 transition-colors ${
+                    className={`p-3 border-b border-white/10 cursor-pointer text-xs hover:bg-white/10 transition-colors ${
                       selectedCustomer?.customerId === chat.customerId
-                        ? 'bg-blue-50 border-blue-200'
-                        : 'hover:bg-gray-50'
-                    } ${chat.unread ? 'bg-yellow-50' : ''}`}
+                        ? 'bg-purple-600/30 border-purple-400/50'
+                        : 'hover:bg-white/10'
+                    } ${chat.unread ? 'bg-yellow-500/20' : ''}`}
                     onClick={() => handleCustomerSelect(chat)}
                   >
                     <div className="flex justify-between items-start">
-                      <p className="font-medium text-xs flex-1 pr-2 break-words font-semibold">
+                      <p className="font-medium text-xs flex-1 pr-2 break-words font-semibold text-white">
                         {chat.customerName || `Customer ${chat.customerId}`}
                       </p>
                       {chat.unread && (
                         <span className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0 animate-pulse"></span>
                       )}
                     </div>
-                    <p className="text-gray-600 truncate text-xs mt-1">
+                    <p className="text-gray-300 truncate text-xs mt-1">
                       {chat.lastMessage?.text || 'No messages'}
                     </p>
                     {chat.lastMessage?.timestamp && (
@@ -1395,7 +1397,7 @@ const ChatWidget = ({
                     )}
                     {chat.employeeId ? (
                       <div className="mt-2 text-xs">
-                        <span className="bg-green-100 text-green-800 px-2 py-1 rounded-full text-xs">
+                        <span className="bg-green-500/30 text-green-200 px-2 py-1 rounded-full text-xs border border-green-400/30">
                           👤 {chat.employeeId?.name || 'Employee'}
                         </span>
                       </div>
@@ -1413,7 +1415,7 @@ const ChatWidget = ({
                   </div>
                 ))
               ) : (
-                <div className="p-8 text-center text-gray-500 text-xs">
+                <div className="p-8 text-center text-gray-400 text-xs">
                   <div className="mb-2">📭</div>
                   <div>No active chats</div>
                 </div>
@@ -1425,13 +1427,13 @@ const ChatWidget = ({
           <div className="w-full sm:w-2/3 flex flex-col">
             {selectedCustomer ? (
               <>
-                <div className="p-2 border-b bg-gray-50 flex justify-between items-center">
+                <div className="p-2 border-b border-white/20 bg-slate-700/50 backdrop-blur-sm flex justify-between items-center">
                   <div>
-                    <p className="font-semibold text-sm">
+                    <p className="font-semibold text-sm text-white">
                       {selectedCustomer.customerName || `Customer ${selectedCustomer.customerId}`}
                     </p>
                     {selectedCustomer.employeeId && (
-                      <p className="text-xs text-blue-600 mt-1">
+                      <p className="text-xs text-purple-300 mt-1">
                         👤 {selectedCustomer.employeeId?.name || 'Employee'} is handling this chat
                       </p>
                     )}
@@ -1439,15 +1441,15 @@ const ChatWidget = ({
                   {!selectedCustomer.employeeId && (
                     <button
                       onClick={() => acceptChat(selectedCustomer.customerId)}
-                      className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600"
+                      className="bg-green-500 text-white text-xs px-2 py-1 rounded hover:bg-green-600 transition-colors"
                     >
                       Accept Chat
                     </button>
                   )}
                 </div>
-                <div className="flex-1 p-2 overflow-y-auto bg-white" style={{ maxHeight: '300px', minHeight: '200px' }}>
+                <div className="flex-1 p-2 overflow-y-auto bg-slate-800/50 backdrop-blur-sm" style={{ maxHeight: '300px', minHeight: '200px' }}>
                   {loadingMessages ? (
-                    <div className="flex items-center justify-center h-full text-gray-500 text-xs">
+                    <div className="flex items-center justify-center h-full text-gray-400 text-xs">
                       Loading messages...
                     </div>
                   ) : employeeMessages[selectedCustomer.customerId] &&
@@ -1464,7 +1466,7 @@ const ChatWidget = ({
                             className={`max-w-[75%] rounded-lg px-3 py-2 ${
                               msg.sender === 'employee'
                                 ? 'bg-purple-600 text-white'
-                                : 'bg-gray-200 text-gray-800'
+                                : 'bg-gray-600 text-gray-100'
                             } ${msg.status === 'failed' ? 'opacity-50' : ''}`}
                           >
                             <p className="text-xs font-medium mb-1">
@@ -1474,7 +1476,7 @@ const ChatWidget = ({
                             <p className={`text-xs mt-1 ${
                               msg.sender === 'employee'
                                 ? 'text-purple-200'
-                                : 'text-gray-500'
+                                : 'text-gray-300'
                             }`}>
                               {new Date(msg.timestamp).toLocaleTimeString('en-IN', {
                                 hour: '2-digit',
@@ -1489,7 +1491,7 @@ const ChatWidget = ({
                       <div ref={messagesEndRef} />
                     </div>
                   ) : (
-                    <div className="flex items-center justify-center h-full text-gray-500 text-sm py-8">
+                    <div className="flex items-center justify-center h-full text-gray-400 text-sm py-8">
                       <div className="text-center">
                         <div className="mb-2">💬</div>
                         <div>No messages yet. Start the conversation!</div>
@@ -1498,7 +1500,7 @@ const ChatWidget = ({
                   )}
                 </div>
 
-                <div className="p-2 border-t bg-gray-50 flex-shrink-0">
+                <div className="p-2 border-t border-white/20 bg-slate-700/50 backdrop-blur-sm flex-shrink-0">
                   <div className="flex space-x-2 items-center">
                     <input
                       type="text"
@@ -1511,13 +1513,13 @@ const ChatWidget = ({
                         }
                       }}
                       placeholder="Type message..."
-                      className="flex-1 border border-gray-300 rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-0"
+                      className="flex-1 border border-white/20 bg-white/10 text-white rounded px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-w-0 placeholder-gray-400"
                       disabled={!socketConnected || !selectedCustomer.employeeId}
                     />
                     <button
                       onClick={sendMessage}
                       disabled={!newMessage.trim() || !socketConnected || !selectedCustomer.employeeId}
-                      className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0 min-w-[50px] gap-2"
+                      className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors flex items-center justify-center flex-shrink-0 min-w-[50px] gap-2"
                       title={!socketConnected ? 'Socket not connected' : !selectedCustomer.employeeId ? 'Accept chat first' : 'Send message'}
                     >
                       <BiSend size={18} className="sm:w-5 sm:h-5" />
@@ -1525,15 +1527,15 @@ const ChatWidget = ({
                     </button>
                   </div>
                   {!socketConnected && (
-                    <p className="text-red-500 text-xs mt-1">Connection lost</p>
+                    <p className="text-red-400 text-xs mt-1">Connection lost</p>
                   )}
                   {!selectedCustomer.employeeId && (
-                    <p className="text-yellow-600 text-xs mt-1">Accept chat to send messages</p>
+                    <p className="text-yellow-400 text-xs mt-1">Accept chat to send messages</p>
                   )}
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center text-gray-500 text-sm">
+              <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
                 Select a chat to start messaging
               </div>
             )}
