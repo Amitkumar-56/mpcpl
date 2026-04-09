@@ -278,7 +278,7 @@ export default function CreateRequestPage() {
     } else if (pid === 4) {
       minValue = category === 'bulk' ? 1000 : 1;
     } else if (pid === 5) {
-      minValue = category === 'bulk' ? 25 : 1;
+      minValue = category === 'bulk' ? 1 : 1;
     }
     setSelectedProduct(prev => prev ? { ...prev, min: minValue } : prev);
   }, [formData.products_codes, productCodes]);

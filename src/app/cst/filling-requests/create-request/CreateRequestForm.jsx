@@ -161,7 +161,7 @@ export default function CreateRequestForm() {
       minValue = category === 'bulk' ? 1000 : 1;
       maxAmount = category === 'bulk' ? 100000 : defaultMax;
     } else if (pid === 5) {
-      minValue = category === 'bulk' ? 25 : 1;
+      minValue = category === 'bulk' ? 1 : 1;
       // For buckets, max quantity in config is 100 buckets (2000L).
       // Bulk should allow more.
       maxAmount = category === 'bulk' ? 100000 : defaultMax;
@@ -205,7 +205,7 @@ export default function CreateRequestForm() {
       maxAmount = category === 'bulk' ? 100000 : defaultMax;
     } else if (pid === 5) {
       // bucket min is bucket count, not liters
-      minValue = category === 'bulk' ? 25 : 1;
+      minValue = category === 'bulk' ? 1 : 1;
       maxAmount = category === 'bulk' ? 100000 : defaultMax;
     }
     setSelectedProduct(prev => prev ? { ...prev, min: minValue, maxQuantity: maxAmount } : prev);
