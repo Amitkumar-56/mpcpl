@@ -11,6 +11,30 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get('limit')) || 50;
     const offset = (page - 1) * limit;
     
+    // Validate parameters
+    if (isNaN(page) || page < 1) {
+      return NextResponse.json(
+        { error: 'Invalid page parameter' },
+        { status: 400 }
+      );
+    }
+    
+    if (isNaN(limit) || limit < 1 || limit > 1000) {
+      return NextResponse.json(
+        { error: 'Invalid limit parameter (must be between 1 and 1000)' },
+        { status: 400 }
+      );
+    }
+    
+    if (isNaN(offset) || offset < 0) {
+      return NextResponse.json(
+        { error: 'Invalid offset parameter' },
+        { status: 400 }
+      );
+    }
+    
+    console.log('GET packing entries - Page:', page, 'Limit:', limit, 'Offset:', offset);
+    
     connection = await pool.getConnection();
     
     // Get total count for pagination
@@ -23,7 +47,7 @@ export async function GET(request) {
       FROM vendors
       ORDER BY created_at DESC
       LIMIT ? OFFSET ?
-    `, [limit, offset]);
+    `, [parseInt(limit), parseInt(offset)]);
     
     return NextResponse.json({
       success: true,
@@ -183,7 +207,7 @@ export async function PUT(request) {
       }
       
       // Get old and new values
-      const oldValue = oldVendor[key];
+      const oldValue = oldPacking[key];
       const newValue = updateData[key];
       
       // Handle numeric/string comparison
