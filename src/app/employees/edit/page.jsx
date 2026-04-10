@@ -618,8 +618,8 @@ function EditEmployeeContent() {
                   )}
                 </div>
 
-                {/* Permissions Section - Only for Admin and Desktop */}
-                {isAdmin && !isMobile && (
+                {/* Permissions Section - Only for Admin */}
+                {isAdmin && (
                   <div className="md:col-span-2 mt-6 bg-white rounded-lg p-4 border border-gray-200">
                     <h3 className="text-lg font-semibold mb-4 text-gray-800">Assign Module Permissions</h3>
                     <div className="overflow-x-auto max-h-96 overflow-y-auto">

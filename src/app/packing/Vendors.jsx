@@ -319,15 +319,15 @@ export default function PackingPage() {
         
         <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
           <div className="bg-white rounded-lg shadow-lg p-6">
-            <div className="flex justify-between items-center mb-6">
-              <h1 className="text-3xl font-bold text-gray-800">Parking Management</h1>
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">Parking Management</h1>
               {permissions.can_create && (
                 <button
                   onClick={() => {
                     resetForm();
                     setShowForm(true);
                   }}
-                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors"
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 transition-colors w-full sm:w-auto"
                 >
                   <BiPlus className="text-xl" />
                   Add Parking
@@ -336,7 +336,7 @@ export default function PackingPage() {
             </div>
 
             {/* Search and Filter */}
-            <div className="flex gap-4 mb-6">
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <div className="flex-1 relative">
                 <BiSearch className="absolute left-3 top-3 text-gray-400 text-xl" />
                 <input
@@ -350,7 +350,7 @@ export default function PackingPage() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500"
+                className="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-500 w-full sm:w-auto"
               >
                 <option value="all">All Status</option>
                 <option value="active">Active</option>
@@ -447,8 +447,103 @@ export default function PackingPage() {
               </div>
             )}
 
-            {/* Packing Table */}
-            <div className="overflow-x-auto">
+            {/* Packing Cards - Mobile Only */}
+            <div className="lg:hidden space-y-4">
+              {paginatedPacking.map((packing) => (
+                <div key={packing.id} className="bg-white border border-gray-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                  {/* Card Header */}
+                  <div className="p-4 border-b border-gray-100">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <h3 className="text-lg font-semibold text-gray-800">{packing.name}</h3>
+                        <div className="flex items-center gap-4 mt-2">
+                          <span className="text-gray-600">
+                            <span className="font-medium">Phone:</span> {packing.phone}
+                          </span>
+                          <span className={`px-2 py-1 rounded text-xs font-medium ${
+                            packing.status === 1 
+                              ? 'bg-green-100 text-green-800' 
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {packing.status === 1 ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <div className="text-lg font-bold text-green-600">
+                          &#8377;{packing.amount ? parseFloat(packing.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Card Actions */}
+                  <div className="p-4 bg-gray-50">
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        {permissions.can_edit && (
+                          <button
+                            onClick={() => handleEdit(packing)}
+                            className="bg-blue-500 hover:bg-blue-600 text-white p-2 rounded-lg transition-colors flex-1 sm:flex-none"
+                            title="Edit"
+                          >
+                            <BiEdit className="text-lg" />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handlePackingCarton(packing.id)}
+                          className="bg-green-500 hover:bg-green-600 text-white p-2 rounded-lg transition-colors flex-1 sm:flex-none"
+                          title="Packing In"
+                        >
+                          <BiMoney className="text-lg" />
+                        </button>
+                        <button
+                          onClick={() => handlePackingTransactions(packing.id)}
+                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg transition-colors flex-1 sm:flex-none"
+                          title="Packing Out"
+                        >
+                          <BiReceipt className="text-lg" />
+                        </button>
+                      </div>
+                      <button
+                        onClick={() => togglePackingLogs(packing.id)}
+                        className="text-gray-600 hover:text-gray-800 p-2 rounded-lg hover:bg-gray-200 transition-colors w-full sm:w-auto"
+                        title="View Logs"
+                      >
+                        {expandedPacking[packing.id] ? (
+                          <BiChevronUp className="text-lg" />
+                        ) : (
+                          <BiChevronDown className="text-lg" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Expanded Logs */}
+                  {expandedPacking[packing.id] && (
+                    <div className="border-t border-gray-200 bg-gray-50">
+                      <div className="p-4">
+                        <EntityLogs
+                          entityType="packing"
+                          entityId={packing.id}
+                        />
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {filteredPacking.length === 0 && (
+                <div className="text-center py-12 text-gray-500 bg-white rounded-lg border border-gray-200">
+                  <div className="text-4xl mb-4">&#128193;</div>
+                  <p className="text-lg font-medium">No parking records found</p>
+                  <p className="text-sm mt-2">Try adjusting your search or filters</p>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table - Hidden on Mobile */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="w-full border-collapse">
                 <thead>
                   <tr className="bg-yellow-100">
@@ -470,7 +565,7 @@ export default function PackingPage() {
                           {packing.phone}
                         </td>
                         <td className="border border-gray-300 px-4 py-2 font-medium text-green-600">
-                          ₹{packing.amount ? parseFloat(packing.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                          &#8377;{packing.amount ? parseFloat(packing.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
                         </td>
                         <td className="border border-gray-300 px-4 py-2">
                           <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -522,7 +617,7 @@ export default function PackingPage() {
                       </tr>
                       {expandedPacking[packing.id] && (
                         <tr>
-                          <td colSpan="4" className="border border-gray-300 px-4 py-2 bg-gray-50">
+                          <td colSpan="5" className="border border-gray-300 px-4 py-2 bg-gray-50">
                             <EntityLogs
                               entityType="packing"
                               entityId={packing.id}

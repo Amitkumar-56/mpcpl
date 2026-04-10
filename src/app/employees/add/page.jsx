@@ -466,8 +466,8 @@ export default function CreateUserPage() {
             </div>
           )}
 
-          {/* Module Permissions - Only for Admin and Desktop */}
-          {isAdmin && !isMobile && (
+          {/* Module Permissions - Only for Admin */}
+          {isAdmin && (
             <div className="mt-6 overflow-x-auto bg-white rounded-lg p-4">
               <h3 className="text-md font-semibold mb-3">Assign Module Permissions</h3>
               <table className="w-full border border-gray-200 text-sm">
