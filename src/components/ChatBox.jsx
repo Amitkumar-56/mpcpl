@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { BiChevronDown, BiMessageRounded, BiSend, BiUser, BiX } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
-import { initializeNotifications, showChatNotification } from '@/utils/notifications';
+import { initializeNotifications, showChatNotification, requestNotificationPermission } from '@/utils/notifications';
+import { initializePWANotifications, showChatNotificationPWA, isPWAStandalone } from '@/utils/pwa-notifications';
 
 export default function ChatBox({ customerId, customerName, userRole = 'customer' }) {
   const [showChat, setShowChat] = useState(false);
@@ -23,7 +24,13 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
   // Initialize notifications on component mount
   useEffect(() => {
-    initializeNotifications();
+    // Use PWA enhanced notifications if available
+    if (isPWAStandalone()) {
+      initializePWANotifications();
+    } else {
+      requestNotificationPermission();
+      initializeNotifications();
+    }
   }, []);
 
   // Initialize audio on component mount and user interactions

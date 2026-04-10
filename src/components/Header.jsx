@@ -176,7 +176,18 @@ export default function Header({ onMenuToggle }) {
             <div className="hidden md:block">
               <span className="text-gray-500 mx-2">•</span>
               <span className="text-gray-700 font-medium capitalize">
-                {pathname.split('/').filter(Boolean).join(' / ')}
+                {(() => {
+                  const pathParts = pathname.split('/').filter(Boolean);
+                  return pathParts.map(part => {
+                    // Map vendors to Parking for display
+                    if (part === 'vendors') return 'Parking';
+                    // Map vendor-transactions to Packing Out for display
+                    if (part === 'vendor-transactions') return 'Packing Out';
+                    // Map cash-collection to Packing In for display
+                    if (part === 'cash-collection') return 'Packing In';
+                    return part;
+                  }).join(' / ');
+                })()}
               </span>
             </div>
           )}

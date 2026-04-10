@@ -9,7 +9,7 @@ export async function POST(request) {
     const formData = await request.json();
     
     // Extract and validate form data
-    const { payment_date, title, details, paid_to, reason, amount } = formData;
+    const { payment_date, title, details, paid_to, reason, amount, vendor_id } = formData;
 
     // Validate required fields
     if (!payment_date || !title || !paid_to || !reason || !amount) {
@@ -71,6 +71,56 @@ export async function POST(request) {
     // Get new balance
     const newBalanceResult = await executeQuery('SELECT balance FROM cash_balance WHERE id = 1');
     const newBalance = newBalanceResult[0].balance;
+
+    // Handle vendor logic if vendor_id is provided
+    if (vendor_id) {
+      // Get vendor details
+      const vendorResult = await executeQuery('SELECT id, name, amount FROM vendors WHERE id = ?', [vendor_id]);
+      
+      if (vendorResult.length === 0) {
+        return NextResponse.json(
+          { error: 'Vendor not found' },
+          { status: 400 }
+        );
+      }
+
+      const vendor = vendorResult[0];
+
+      // Check if vendor has sufficient amount
+      if (vendor.amount < amountNum) {
+        return NextResponse.json(
+          { error: `Insufficient vendor balance. Vendor: ₹${vendor.amount}, Required: ₹${amountNum}` },
+          { status: 400 }
+        );
+      }
+
+      // Update vendor amount (deduct)
+      await executeQuery(
+        'UPDATE vendors SET amount = amount - ?, updated_at = NOW() WHERE id = ?',
+        [amountNum, vendor_id]
+      );
+
+      // Get current user ID for created_by field
+      let currentUserId = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            currentUserId = decoded.userId || decoded.id;
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user ID:', authError);
+      }
+
+      // Insert record into vendor_transactions table
+      await executeQuery(
+        'INSERT INTO vendor_transactions (vendor_id, customer_name, reverse_name, amount, transaction_date, created_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [vendor_id, title, paid_to, amountNum, payment_date, currentUserId]
+      );
+    }
 
     // Create Audit Log
     try {

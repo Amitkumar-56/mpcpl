@@ -30,26 +30,48 @@ export const requestNotificationPermission = async () => {
 // Show PWA notification for new chat messages
 export const showChatNotification = (customerName, message, options = {}) => {
   if (typeof window === 'undefined' || !('Notification' in window)) {
-    console.log('🔔 Notifications not supported');
+    console.log('Notifications not supported');
     return false;
   }
 
   if (Notification.permission !== 'granted') {
-    console.log('🔔 Notification permission not granted');
+    console.log('Notification permission not granted');
     return false;
   }
 
   try {
-    const notification = new Notification(`📨 New message from ${customerName}`, {
+    // Check if running in PWA standalone mode
+    const isPWA = window.matchMedia('(display-mode: standalone)').matches;
+    
+    const notificationOptions = {
       body: message,
-      icon: '/favicon.png',
+      icon: '/LOGO_NEW.jpg',
       badge: '/favicon.png',
       tag: `chat-${customerName}`, // Prevent duplicate notifications
       requireInteraction: true, // Keep notification until user interacts
       silent: false, // Play sound/vibrate
       vibrate: [200, 100, 200], // Vibration pattern for mobile
+      data: {
+        customerName: customerName,
+        url: window.location.href,
+        timestamp: Date.now()
+      },
+      actions: isPWA ? [
+        {
+          action: 'open-chat',
+          title: 'Open Chat',
+          icon: '/LOGO_NEW.jpg'
+        },
+        {
+          action: 'dismiss',
+          title: 'Dismiss',
+          icon: '/favicon.png'
+        }
+      ] : [],
       ...options
-    });
+    };
+
+    const notification = new Notification(`New message from ${customerName}`, notificationOptions);
 
     // Handle notification click
     notification.onclick = () => {
@@ -63,15 +85,31 @@ export const showChatNotification = (customerName, message, options = {}) => {
       notification.close();
     };
 
-    // Auto-close after 8 seconds
+    // Handle notification actions (PWA only)
+    if (isPWA) {
+      notification.addEventListener('notificationclick', (event) => {
+        if (event.action === 'open-chat') {
+          window.focus();
+          // Open chat widget
+          const chatButton = document.querySelector('[data-chat-toggle]');
+          if (chatButton) {
+            chatButton.click();
+          }
+        }
+        notification.close();
+      });
+    }
+
+    // Auto-close after 8 seconds for non-PWA, longer for PWA
+    const autoCloseTime = isPWA ? 12000 : 8000;
     setTimeout(() => {
       notification.close();
-    }, 8000);
+    }, autoCloseTime);
 
-    console.log('🔔 Chat notification shown:', { customerName, message });
+    console.log('Chat notification shown:', { customerName, message, isPWA });
     return true;
   } catch (error) {
-    console.error('🔔 Error showing notification:', error);
+    console.error('Error showing notification:', error);
     return false;
   }
 };

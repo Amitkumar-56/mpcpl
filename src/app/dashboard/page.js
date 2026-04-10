@@ -4,7 +4,7 @@
 import EmployeeChatDashboard from "@/components/EmployeeChatDashboard";
 import PWAInstallBanner from "@/components/PWAInstallBanner";
 import { useSession } from "@/context/SessionContext";
-import { initializeNotifications, showChatNotification } from "@/utils/notifications";
+import { initializeNotifications, showChatNotification, requestNotificationPermission } from "@/utils/notifications";
 import { forceInitializeAudio, playBeep, speakMessage } from "@/utils/sound";
 import Footer from "components/Footer";
 import Header from "components/Header";
@@ -158,10 +158,12 @@ function DashboardContent() {
   useEffect(() => {
     if (!sessionUser) return;
 
-    initializeNotifications().then((granted) => {
-      if (!granted) {
-        console.log('🔔 Notifications permission not granted; chat notifications may not appear.');
-      }
+    requestNotificationPermission().then(() => {
+      initializeNotifications().then((granted) => {
+        if (!granted) {
+          console.log('Notifications permission not granted; chat notifications may not appear.');
+        }
+      });
     });
   }, [sessionUser]);
 

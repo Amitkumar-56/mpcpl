@@ -45,7 +45,7 @@ export default function CreateUserPage() {
     Products: { can_view: false, can_edit: false, can_create: false },
     Employees: { can_view: false, can_edit: false, can_create: false },
     Suppliers: { can_view: false, can_edit: false, can_create: false },
-    Vendors: { can_view: false, can_edit: false, can_create: false },
+    Packing: { can_view: false, can_edit: false, can_create: false },
     Transporters: { can_view: false, can_edit: false, can_create: false },
     "NB Accounts": { can_view: false, can_edit: false, can_create: false },
     "NB Expenses": { can_view: false, can_edit: false, can_create: false },

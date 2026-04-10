@@ -185,7 +185,8 @@ export async function POST(request) {
       transactionId = '', 
       utrNo = '', 
       comments = '', 
-      paymentDate = new Date().toISOString().split('T')[0] 
+      paymentDate = new Date().toISOString().split('T')[0],
+      vendorId = null // Add vendorId from request
     } = body;
 
     console.log('Processing recharge for customer:', customerId, 'Amount:', amount, 'Payment Type:', paymentType);
@@ -195,6 +196,26 @@ export async function POST(request) {
         { success: false, error: "Valid customer ID and amount are required" },
         { status: 400 }
       );
+    }
+
+    // Get current user for created_by
+    let currentUserId = null;
+    try {
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const cookieStore = await cookies();
+      const token = cookieStore.get('token')?.value;
+      
+      if (token) {
+        const decoded = verifyToken(token);
+        if (decoded) {
+          currentUserId = decoded.userId || decoded.id;
+          console.log('Current user ID for cash_collection:', currentUserId);
+        }
+      }
+    } catch (authError) {
+      console.error('Error getting current user:', authError);
+      currentUserId = null; // Fallback to null if auth fails
     }
 
     // Get database connection for transaction
@@ -304,6 +325,105 @@ export async function POST(request) {
           } catch (cashTransError) {
             console.log('Cash transaction log note:', cashTransError.message);
           }
+
+          // ============================================
+          // Insert into cash_collection table
+          // ============================================
+          try {
+            console.log('Inserting into cash_collection table');
+            
+            // Use vendorId from request or get default vendor
+            let vendorIdToUse = vendorId;
+            let vendorName = 'Unknown Vendor';
+            
+            if (vendorIdToUse) {
+              // Get vendor name from vendorId
+              const [vendorRows] = await connection.query(
+                `SELECT id, name FROM vendors WHERE id = ?`,
+                [vendorIdToUse]
+              );
+              
+              if (vendorRows && vendorRows.length > 0) {
+                vendorName = vendorRows[0].name;
+                console.log('Using vendor_id from request:', vendorIdToUse, 'Vendor:', vendorName);
+              } else {
+                console.log('Vendor not found for ID:', vendorIdToUse, 'using NULL');
+                vendorIdToUse = null;
+              }
+            } else {
+              // Get default vendor (first active vendor)
+              const [vendorRows] = await connection.query(
+                `SELECT id, name FROM vendors WHERE status = 1 ORDER BY created_at ASC LIMIT 1`
+              );
+              
+              if (vendorRows && vendorRows.length > 0) {
+                vendorIdToUse = vendorRows[0].id;
+                vendorName = vendorRows[0].name;
+                console.log('Using default vendor_id:', vendorIdToUse, 'Vendor:', vendorName);
+              } else {
+                console.log('No active vendor found, using NULL vendor_id');
+                // Try to get any vendor if no active vendor found
+                const [anyVendorRows] = await connection.query(
+                  `SELECT id, name FROM vendors ORDER BY created_at ASC LIMIT 1`
+                );
+                if (anyVendorRows && anyVendorRows.length > 0) {
+                  vendorIdToUse = anyVendorRows[0].id;
+                  vendorName = anyVendorRows[0].name;
+                  console.log('Using any available vendor_id:', vendorIdToUse, 'Vendor:', vendorName);
+                }
+              }
+            }
+            
+            // Insert into cash_collection table
+            const [cashCollectionResult] = await connection.query(
+              `INSERT INTO cash_collection 
+               (vendor_id, customer_id, amount, collection_date, notes, created_at, created_by) 
+               VALUES (?, ?, ?, ?, ?, NOW(), ?)`,
+              [
+                vendorIdToUse,
+                parseInt(customerId),
+                rechargeAmount,
+                safePaymentDate,
+                `Cash payment from customer: ${customer.name} via ${vendorName} - ${safeComments}`,
+                currentUserId || 'system' // created_by - current user ID or system fallback
+              ]
+            );
+            
+            console.log('Cash collection record inserted:', {
+              insertId: cashCollectionResult.insertId,
+              vendorId: vendorIdToUse,
+              vendorName: vendorName,
+              customerId: parseInt(customerId),
+              amount: rechargeAmount,
+              collectionDate: safePaymentDate,
+              createdBy: currentUserId || 'system'
+            });
+
+            // Update vendor amount in vendors table
+            try {
+              const [vendorUpdateResult] = await connection.query(
+                `UPDATE vendors 
+                 SET amount = amount + ?, 
+                     updated_at = NOW()
+                 WHERE id = ?`,
+                [rechargeAmount, vendorIdToUse]
+              );
+              
+              console.log('Vendor amount updated:', {
+                vendorId: vendorIdToUse,
+                vendorName: vendorName,
+                amountAdded: rechargeAmount,
+                affectedRows: vendorUpdateResult.affectedRows
+              });
+            } catch (vendorUpdateError) {
+              console.log('Vendor amount update note:', vendorUpdateError.message);
+              // Don't fail the transaction if vendor amount update fails
+            }
+            
+          } catch (cashCollectionError) {
+            console.log('Cash collection insert note:', cashCollectionError.message);
+            // Don't fail the transaction if cash_collection insert fails
+          }
           
         } else {
           // Insert new cash balance record
@@ -314,14 +434,110 @@ export async function POST(request) {
           );
           cashBalanceId = insertResult.insertId;
           
-          console.log('💰 New cash balance record created:', {
+          console.log('New cash balance record created:', {
             insertId: cashBalanceId,
             balance: rechargeAmount
           });
+
+          // Insert into cash_collection table for new cash balance
+          try {
+            console.log('Inserting into cash_collection table for new cash balance');
+            
+            // Use vendorId from request or get default vendor
+            let vendorIdToUse = vendorId;
+            let vendorName = 'Unknown Vendor';
+            
+            if (vendorIdToUse) {
+              // Get vendor name from vendorId
+              const [vendorRows] = await connection.query(
+                `SELECT id, name FROM vendors WHERE id = ?`,
+                [vendorIdToUse]
+              );
+              
+              if (vendorRows && vendorRows.length > 0) {
+                vendorName = vendorRows[0].name;
+                console.log('Using vendor_id from request:', vendorIdToUse, 'Vendor:', vendorName);
+              } else {
+                console.log('Vendor not found for ID:', vendorIdToUse, 'using NULL');
+                vendorIdToUse = null;
+              }
+            } else {
+              // Get default vendor (first active vendor)
+              const [vendorRows] = await connection.query(
+                `SELECT id, name FROM vendors WHERE status = 1 ORDER BY created_at ASC LIMIT 1`
+              );
+              
+              if (vendorRows && vendorRows.length > 0) {
+                vendorIdToUse = vendorRows[0].id;
+                vendorName = vendorRows[0].name;
+                console.log('Using default vendor_id:', vendorIdToUse, 'Vendor:', vendorName);
+              } else {
+                console.log('No active vendor found, using NULL vendor_id');
+                // Try to get any vendor if no active vendor found
+                const [anyVendorRows] = await connection.query(
+                  `SELECT id, name FROM vendors ORDER BY created_at ASC LIMIT 1`
+                );
+                if (anyVendorRows && anyVendorRows.length > 0) {
+                  vendorIdToUse = anyVendorRows[0].id;
+                  vendorName = anyVendorRows[0].name;
+                  console.log('Using any available vendor_id:', vendorIdToUse, 'Vendor:', vendorName);
+                }
+              }
+            }
+            
+            // Insert into cash_collection table
+            const [cashCollectionResult] = await connection.query(
+              `INSERT INTO cash_collection 
+               (vendor_id, customer_id, amount, collection_date, notes, created_at, created_by) 
+               VALUES (?, ?, ?, ?, ?, NOW(), ?)`,
+              [
+                vendorIdToUse,
+                parseInt(customerId),
+                rechargeAmount,
+                safePaymentDate,
+                `Cash payment from customer: ${customer.name} via ${vendorName} - ${safeComments}`,
+                currentUserId || 'system'
+              ]
+            );
+            
+            console.log('Cash collection record inserted (new balance):', {
+              insertId: cashCollectionResult.insertId,
+              vendorId: vendorIdToUse,
+              vendorName: vendorName,
+              customerId: parseInt(customerId),
+              amount: rechargeAmount,
+              collectionDate: safePaymentDate,
+              createdBy: currentUserId || 'system'
+            });
+
+            // Update vendor amount in vendors table
+            try {
+              const [vendorUpdateResult] = await connection.query(
+                `UPDATE vendors 
+                 SET amount = amount + ?, 
+                     updated_at = NOW()
+                 WHERE id = ?`,
+                [rechargeAmount, vendorIdToUse]
+              );
+              
+              console.log('Vendor amount updated (new balance):', {
+                vendorId: vendorIdToUse,
+                vendorName: vendorName,
+                amountAdded: rechargeAmount,
+                affectedRows: vendorUpdateResult.affectedRows
+              });
+            } catch (vendorUpdateError) {
+              console.log('Vendor amount update note (new balance):', vendorUpdateError.message);
+              // Don't fail the transaction if vendor amount update fails
+            }
+            
+          } catch (cashCollectionError) {
+            console.log('Cash collection insert note (new balance):', cashCollectionError.message);
+          }
         }
         
       } catch (cashError) {
-        console.error('❌ Cash balance update error:', cashError);
+        console.error('Cash balance update error:', cashError);
         // Don't fail transaction - just log error
       }
     } else {
@@ -417,7 +633,8 @@ export async function POST(request) {
         rechargeAmount,
         paymentType: paymentTypeText,
         transactionType: 'INWARD',
-        cashUpdated: paymentType === "1" // Whether cash balance was updated
+        cashUpdated: paymentType === "1", // Whether cash balance was updated
+        cashCollectionUpdated: paymentType === "1" // Whether cash_collection was updated
       });
     }
 
@@ -555,7 +772,8 @@ export async function POST(request) {
         rechargeAmount,
         paymentType: paymentTypeText,
         transactionType: 'INWARD',
-        cashUpdated: paymentType === "1" // Whether cash balance was updated
+        cashUpdated: paymentType === "1", // Whether cash balance was updated
+        cashCollectionUpdated: paymentType === "1" // Whether cash_collection was updated
       });
     }
 
@@ -708,7 +926,8 @@ export async function POST(request) {
         pendingRequests: pendingRequests.length > 0 ? pendingRequests : undefined,
         rechargeAmount,
         paymentType: paymentTypeText,
-        cashUpdated: paymentType === "1" // Whether cash balance was updated
+        cashUpdated: paymentType === "1", // Whether cash balance was updated
+        cashCollectionUpdated: paymentType === "1" // Whether cash_collection was updated
       });
     }
 

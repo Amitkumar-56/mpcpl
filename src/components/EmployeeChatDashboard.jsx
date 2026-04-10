@@ -1,7 +1,8 @@
 'use client';
 
 import { useSession } from '@/context/SessionContext';
-import { initializeNotifications, showChatNotification } from '@/utils/notifications';
+import { initializeNotifications, showChatNotification, requestNotificationPermission } from '@/utils/notifications';
+import { initializePWANotifications, showChatNotificationPWA, isPWAStandalone } from '@/utils/pwa-notifications';
 import { forceInitializeAudio, playBeep } from '@/utils/sound';
 import { useEffect, useRef, useState } from 'react';
 import { BiMenu, BiMessageRounded, BiSearch, BiSend, BiX } from 'react-icons/bi';
@@ -39,10 +40,37 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
 
   const messagesEndRef = useRef(null);
 
+  // Handle user interaction for audio initialization
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      forceInitializeAudio();
+      // Remove listeners after first interaction
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+
+    document.addEventListener('click', handleUserInteraction);
+    document.addEventListener('keydown', handleUserInteraction);
+    document.addEventListener('touchstart', handleUserInteraction);
+
+    return () => {
+      document.removeEventListener('click', handleUserInteraction);
+      document.removeEventListener('keydown', handleUserInteraction);
+      document.removeEventListener('touchstart', handleUserInteraction);
+    };
+  }, []);
+
   // ── Socket ──────────────────────────────────────────────────
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      initializeNotifications();
+      // Use PWA enhanced notifications if available
+      if (isPWAStandalone()) {
+        initializePWANotifications();
+      } else {
+        requestNotificationPermission();
+        initializeNotifications();
+      }
       forceInitializeAudio();
     }
     if (!sessionUser?.id) return;
@@ -74,7 +102,14 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
 
         socketInstance.on('employee_chat_request_received', (s) => {
           loadChatSessions(); playBeep();
-          showChatNotification(`${s.requester_name} wants to chat`, 'New chat request');
+          if (isPWAStandalone()) {
+            showChatNotificationPWA(s.requester_name, 'wants to chat', { 
+              body: 'New chat request',
+              tag: 'chat-request'
+            });
+          } else {
+            showChatNotification(`${s.requester_name} wants to chat`, 'New chat request');
+          }
         });
 
         socketInstance.on('employee_chat_response_received', (d) => {
@@ -100,7 +135,15 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             markMessagesAsRead(msg.session_id);
             setNotificationCount(0); setLastNotification(null);
           } else {
-            showChatNotification(senderName, messageText);
+            // Use PWA enhanced notifications in standalone mode
+            if (isPWAStandalone()) {
+              showChatNotificationPWA(senderName, messageText, {
+                tag: `chat-${senderName}`,
+                renotify: true
+              });
+            } else {
+              showChatNotification(senderName, messageText);
+            }
             setNotificationCount(p => p + 1);
             setLastNotification({ senderName, message: messageText });
             setUnreadCount(p => p + 1);
@@ -369,10 +412,13 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             <BiMessageRounded size={16} className="flex-shrink-0" />
 
             <span className="font-semibold text-sm truncate">
-              {isChatOpen && chatPartnerName ? chatPartnerName : 'Employee Chat'}
+              {isChatOpen && chatPartnerName ? chatPartnerName : 
+               unreadCount > 0 && lastNotification ? 
+                 `${lastNotification.senderName} (${unreadCount})` : 
+                 'Employee Chat'}
             </span>
 
-            {unreadCount > 0 && (
+            {unreadCount > 0 && !isChatOpen && (
               <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center flex-shrink-0">
                 {unreadCount}
               </span>
@@ -439,39 +485,103 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             </div>
 
             <div className="flex-1 overflow-y-auto">
+              {/* Available Employees */}
+              {availableEmployees.length > 0 && (
+                <div>
+                  <div className="px-2.5 py-1.5 bg-gray-100">
+                    <span className="text-[10px] font-semibold text-gray-600">All Employees</span>
+                  </div>
+                  {availableEmployees.filter(emp => {
+                    // Filter out employees who are already in active chats
+                    const isInActiveChat = chatSessions.some(session => 
+                      (session.requester_id === emp.id || session.responder_id === emp.id)
+                    );
+                    return !isInActiveChat;
+                  }).map(emp => {
+                    const isActive =
+                      selectedEmployee?.id === emp.id ||
+                      selectedSession?.requester_id === emp.id ||
+                      selectedSession?.responder_id === emp.id;
+                    return (
+                      <button
+                        key={emp.id}
+                        onClick={() => handleEmployeeSelect(emp)}
+                        className={`
+                          w-full flex items-center gap-2 px-2.5 py-2.5
+                          hover:bg-white border-b border-gray-100 transition-colors text-left
+                          ${isActive ? 'bg-yellow-50 border-l-[3px] border-l-yellow-500' : ''}
+                        `}
+                      >
+                        <div className="w-7 h-7 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                          {emp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-xs truncate text-gray-800">{emp.name}</div>
+                          <div className="text-[10px] text-gray-400 truncate">{emp.role || 'Employee'}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              
+              {/* Chat Sessions with Unread Count */}
+              {chatSessions.length > 0 && (
+                <div className="border-t border-gray-200">
+                  <div className="px-2.5 py-1.5 bg-gray-100">
+                    <span className="text-[10px] font-semibold text-gray-600">Active Chats</span>
+                  </div>
+                  {chatSessions.map(session => {
+                    const partnerName = session.requester_id === sessionUser?.id 
+                      ? session.responder_name 
+                      : session.requester_name;
+                    const partnerId = session.requester_id === sessionUser?.id 
+                      ? session.responder_id 
+                      : session.requester_id;
+                    const isActive = selectedSession?.id === session.id;
+                    const unreadCount = session.unread_count || 0;
+                    
+                    return (
+                      <button
+                        key={session.id}
+                        onClick={() => {
+                          setSelectedSession(session);
+                          setSelectedEmployee(null);
+                          setSidebarOpen(false);
+                        }}
+                        className={`
+                          w-full flex items-center gap-2 px-2.5 py-2
+                          hover:bg-white border-b border-gray-100 transition-colors text-left
+                          ${isActive ? 'bg-yellow-50 border-l-[3px] border-l-yellow-500' : ''}
+                        `}
+                      >
+                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-[10px] flex-shrink-0">
+                          {partnerName?.charAt(0)?.toUpperCase() || '?'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-xs truncate text-gray-800">{partnerName}</div>
+                          <div className="text-[9px] text-gray-400 truncate">
+                            {session.last_message?.substring(0, 20) || 'No messages'}...
+                          </div>
+                        </div>
+                        {unreadCount > 0 && (
+                          <span className="bg-red-500 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center flex-shrink-0">
+                            {unreadCount}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              
               {loadingEmployees ? (
                 <p className="text-center py-5 text-xs text-gray-400">Loading...</p>
-              ) : availableEmployees.length > 0 ? (
-                availableEmployees.map(emp => {
-                  const isActive =
-                    selectedEmployee?.id === emp.id ||
-                    selectedSession?.requester_id === emp.id ||
-                    selectedSession?.responder_id === emp.id;
-                  return (
-                    <button
-                      key={emp.id}
-                      onClick={() => handleEmployeeSelect(emp)}
-                      className={`
-                        w-full flex items-center gap-2 px-2.5 py-2.5
-                        hover:bg-white border-b border-gray-100 transition-colors text-left
-                        ${isActive ? 'bg-yellow-50 border-l-[3px] border-l-yellow-500' : ''}
-                      `}
-                    >
-                      <div className="w-7 h-7 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                        {emp.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-xs truncate text-gray-800">{emp.name}</div>
-                        <div className="text-[10px] text-gray-400 truncate">{emp.role || 'Employee'}</div>
-                      </div>
-                    </button>
-                  );
-                })
-              ) : (
+              ) : chatSessions.length === 0 && availableEmployees.length === 0 ? (
                 <p className="text-center py-6 text-xs text-gray-400 px-3">
                   {searchEmployee ? 'No results' : 'No employees'}
                 </p>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -495,10 +605,10 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
                   {/* Back button — clear selection */}
                   <button
                     onClick={() => { setSelectedEmployee(null); setSelectedSession(null); }}
-                    className="text-gray-400 hover:text-gray-600 text-xs px-2 py-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0"
-                    aria-label="Back"
+                    className="text-gray-400 hover:text-gray-600 text-xs px-3 py-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0 font-medium"
+                    aria-label="Back to employee list"
                   >
-                    ✕
+                    Back
                   </button>
                 </div>
 

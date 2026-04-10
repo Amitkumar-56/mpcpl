@@ -1,22 +1,44 @@
-// src/app/api/vendors/route.js
+// src/app/api/packing/route.js
 import pool from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-// GET all vendors
-export async function GET() {
+// GET all packing entries
+export async function GET(request) {
   let connection;
   try {
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 50;
+    const offset = (page - 1) * limit;
+    
     connection = await pool.getConnection();
+    
+    // Get total count for pagination
+    const [countResult] = await connection.execute('SELECT COUNT(*) as total FROM vendors');
+    const total = countResult[0].total;
+    
+    // Get paginated packing entries
     const [rows] = await connection.execute(`
-      SELECT id, name, phone, status, created_at, updated_at, created_by
+      SELECT id, name, phone, status, amount, created_at, updated_at, created_by
       FROM vendors
       ORDER BY created_at DESC
-    `);
-    return NextResponse.json(rows);
+      LIMIT ? OFFSET ?
+    `, [limit, offset]);
+    
+    return NextResponse.json({
+      success: true,
+      vendors: rows,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    });
   } catch (error) {
-    console.error('Error fetching vendors:', error);
+    console.error('Error fetching packing entries:', error);
     return NextResponse.json(
-      { error: 'Error fetching vendors' },
+      { success: false, error: 'Error fetching packing entries' },
       { status: 500 }
     );
   } finally {
@@ -24,7 +46,7 @@ export async function GET() {
   }
 }
 
-// POST - Create new vendor
+// POST - Create new packing entry
 export async function POST(request) {
   let connection;
   try {
@@ -48,14 +70,14 @@ export async function POST(request) {
       );
     }
 
-    // Insert new vendor with status
+    // Insert new packing entry with status and amount
     const [result] = await connection.execute(`
-      INSERT INTO vendors (name, phone, status, created_by)
-      VALUES (?, ?, ?, ?)
-    `, [name, phone, status || 1, created_by]);
+      INSERT INTO vendors (name, phone, status, amount, created_by)
+      VALUES (?, ?, ?, ?, ?)
+    `, [name, phone, status || 1, 0.00, created_by]);
 
-    // Get the created vendor
-    const [newVendor] = await connection.execute(
+    // Get the created packing entry
+    const [newPacking] = await connection.execute(
       'SELECT * FROM vendors WHERE id = ?',
       [result.insertId]
     );
@@ -89,27 +111,27 @@ export async function POST(request) {
       }
 
       await createAuditLog({
-        page: 'Vendors',
+        page: 'Packing',
         uniqueCode: result.insertId.toString(),
-        section: 'Vendor Management',
+        section: 'Packing Management',
         userId: userId,
         userName: userName,
         action: 'create',
-        remarks: `Vendor created: ${name}`,
+        remarks: `Packing entry created: ${name}`,
         oldValue: null,
-        newValue: newVendor[0],
-        recordType: 'vendor',
+        newValue: newPacking[0],
+        recordType: 'packing',
         recordId: result.insertId
       });
     } catch (auditError) {
       console.error('Error creating audit log:', auditError);
     }
 
-    return NextResponse.json(newVendor[0], { status: 201 });
+    return NextResponse.json(newPacking[0], { status: 201 });
   } catch (error) {
-    console.error('Error creating vendor:', error);
+    console.error('Error creating packing entry:', error);
     return NextResponse.json(
-      { error: error.message || 'Error creating vendor', details: error.toString() },
+      { error: error.message || 'Error creating packing entry', details: error.toString() },
       { status: 500 }
     );
   } finally {
@@ -117,7 +139,7 @@ export async function POST(request) {
   }
 }
 
-// PUT - Update vendor
+// PUT - Update packing entry
 export async function PUT(request) {
   let connection;
   try {
@@ -126,7 +148,7 @@ export async function PUT(request) {
     
     if (!id) {
       return NextResponse.json(
-        { error: 'Vendor ID is required' },
+        { error: 'Packing ID is required' },
         { status: 400 }
       );
     }
@@ -135,20 +157,20 @@ export async function PUT(request) {
     
     connection = await pool.getConnection();
     
-    // Get old vendor data
-    const [oldVendorResult] = await connection.execute(
-      'SELECT id, name, phone, status, created_at, updated_at, created_by FROM vendors WHERE id = ?',
+    // Get old packing data
+    const [oldPackingResult] = await connection.execute(
+      'SELECT id, name, phone, status, amount, created_at, updated_at, created_by FROM vendors WHERE id = ?',
       [id]
     );
 
-    if (oldVendorResult.length === 0) {
+    if (oldPackingResult.length === 0) {
       return NextResponse.json(
-        { error: 'Vendor not found' },
+        { error: 'Packing entry not found' },
         { status: 404 }
       );
     }
 
-    const oldVendor = oldVendorResult[0];
+    const oldPacking = oldPackingResult[0];
 
     // Build update query dynamically - only update changed fields
     const updateFields = [];
@@ -206,13 +228,13 @@ export async function PUT(request) {
 
     updateValues.push(id);
 
-    // Update vendor
+    // Update packing entry
     const updateQuery = `UPDATE vendors SET ${updateFields.join(', ')} WHERE id = ?`;
     await connection.execute(updateQuery, updateValues);
 
-    // Fetch updated vendor
-    const [updatedVendor] = await connection.execute(
-      'SELECT id, name, phone, status, created_at, updated_at, created_by FROM vendors WHERE id = ?',
+    // Fetch updated packing entry
+    const [updatedPacking] = await connection.execute(
+      'SELECT id, name, phone, status, amount, created_at, updated_at, created_by FROM vendors WHERE id = ?',
       [id]
     );
 
@@ -245,16 +267,16 @@ export async function PUT(request) {
       }
 
       await createAuditLog({
-        page: 'Vendors',
+        page: 'Packing',
         uniqueCode: id.toString(),
-        section: 'Vendor Management',
+        section: 'Packing Management',
         userId: userId,
         userName: userName,
         action: 'edit',
-        remarks: `Vendor updated: ${oldVendor.name}`,
-        oldValue: oldVendor,
-        newValue: updatedVendor[0],
-        recordType: 'vendor',
+        remarks: `Packing entry updated: ${oldPacking.name}`,
+        oldValue: oldPacking,
+        newValue: updatedPacking[0],
+        recordType: 'packing',
         recordId: parseInt(id)
       });
     } catch (auditError) {
@@ -263,13 +285,108 @@ export async function PUT(request) {
 
     return NextResponse.json({
       success: true,
-      data: updatedVendor[0]
+      data: updatedPacking[0]
     });
 
   } catch (error) {
-    console.error('Error updating vendor:', error);
+    console.error('Error updating packing entry:', error);
     return NextResponse.json(
-      { error: 'Error updating vendor: ' + error.message },
+      { error: 'Error updating packing entry: ' + error.message },
+      { status: 500 }
+    );
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+// DELETE - Delete packing entry
+export async function DELETE(request) {
+  let connection;
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    
+    if (!id) {
+      return NextResponse.json(
+        { error: 'Packing ID is required' },
+        { status: 400 }
+      );
+    }
+
+    connection = await pool.getConnection();
+    
+    // Get packing data before deletion for audit log
+    const [packingResult] = await connection.execute(
+      'SELECT id, name, phone, status, amount, created_at, updated_at, created_by FROM vendors WHERE id = ?',
+      [id]
+    );
+
+    if (packingResult.length === 0) {
+      return NextResponse.json(
+        { error: 'Packing entry not found' },
+        { status: 404 }
+      );
+    }
+
+    const packing = packingResult[0];
+
+    // Delete packing entry
+    await connection.execute('DELETE FROM vendors WHERE id = ?', [id]);
+
+    // Create Audit Log
+    try {
+      const { cookies } = await import('next/headers');
+      const { verifyToken } = await import('@/lib/auth');
+      const { createAuditLog } = await import('@/lib/auditLog');
+      
+      let userId = null;
+      let userName = null;
+      try {
+        const cookieStore = await cookies();
+        const token = cookieStore.get('token')?.value;
+        if (token) {
+          const decoded = verifyToken(token);
+          if (decoded) {
+            userId = decoded.userId || decoded.id;
+            const [users] = await connection.execute(
+              `SELECT name FROM employee_profile WHERE id = ?`,
+              [userId]
+            );
+            if (users.length > 0) {
+              userName = users[0].name || null;
+            }
+          }
+        }
+      } catch (authError) {
+        console.error('Error getting user for audit log:', authError);
+      }
+
+      await createAuditLog({
+        page: 'Packing',
+        uniqueCode: id.toString(),
+        section: 'Packing Management',
+        userId: userId,
+        userName: userName,
+        action: 'delete',
+        remarks: `Packing entry deleted: ${packing.name}`,
+        oldValue: packing,
+        newValue: null,
+        recordType: 'packing',
+        recordId: parseInt(id)
+      });
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError);
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Packing entry deleted successfully'
+    });
+
+  } catch (error) {
+    console.error('Error deleting packing entry:', error);
+    return NextResponse.json(
+      { error: 'Error deleting packing entry: ' + error.message },
       { status: 500 }
     );
   } finally {

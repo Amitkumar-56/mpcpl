@@ -19,9 +19,12 @@ export default function RechargeRequestPage() {
     transaction_id: "",
     utr_no: "",
     comments: "",
+    vendor_id: "", // Add vendor_id field
+    vendors: "", // Add vendors field
   });
 
   const [customerData, setCustomerData] = useState(null);
+  const [vendors, setVendors] = useState([]); // Add vendors state
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [error, setError] = useState("");
@@ -39,8 +42,9 @@ export default function RechargeRequestPage() {
         return;
       }
       
-      console.log('✅ Valid Customer ID:', customerIdNum);
+      console.log('Valid Customer ID:', customerIdNum);
       fetchCustomerData();
+      fetchVendors(); // Fetch vendors for dropdown
     } else {
       setError("Customer ID is required");
       setPageLoading(false);
@@ -95,6 +99,36 @@ export default function RechargeRequestPage() {
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+  };
+
+  // Fetch vendors for dropdown
+  const fetchVendors = async () => {
+    try {
+      console.log('Fetching vendors for dropdown');
+      
+      const response = await fetch('/api/vendors');
+      if (!response.ok) {
+        throw new Error('Failed to fetch vendors');
+      }
+      
+      const data = await response.json();
+      console.log('Vendors response:', data);
+      
+      if (data.success && data.vendors) {
+        setVendors(data.vendors);
+        // Set default vendor if none selected
+        if (data.vendors.length > 0 && !formData.vendor_id) {
+          const activeVendor = data.vendors.find(v => v.status === 1) || data.vendors[0];
+          setFormData(prev => ({ ...prev, vendor_id: activeVendor.id.toString() }));
+        }
+      } else {
+        console.log('No vendors found');
+        setVendors([]);
+      }
+    } catch (err) {
+      console.error('Error fetching vendors:', err);
+      setVendors([]);
+    }
   };
 
   // Calculate payment breakdown based on amount - WITH DAY-WISE BREAKDOWN
@@ -241,6 +275,13 @@ export default function RechargeRequestPage() {
       return;
     }
 
+    // Validate parking selection for cash payments
+    if (formData.payment_type === "1" && !formData.vendor_id) {
+      setError("Please select a parking for cash payment");
+      setLoading(false);
+      return;
+    }
+
     try {
       const payload = {
         customerId: parseInt(customerId),
@@ -250,11 +291,12 @@ export default function RechargeRequestPage() {
         utrNo: formData.utr_no,
         comments: formData.comments,
         paymentDate: formData.payment_date,
+        vendorId: formData.payment_type === "1" ? formData.vendor_id : null, // Only send vendor_id for cash payments
       };
 
       console.log('Submitting payment request:', payload);
 
-      // ✅ Use POST route for payment processing
+      // Use POST route for payment processing
       const response = await fetch('/api/customers/recharge-request', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -270,7 +312,7 @@ export default function RechargeRequestPage() {
         
         let message = data.message || "Recharge processed successfully!";
         
-        // ✅ Enhanced message format for all customer types
+        // Enhanced message format for all customer types
         if (data.new_balance !== undefined) {
           message += `\n\n💰 New Balance: ₹${data.new_balance.toFixed(2)}`;
         }
@@ -287,18 +329,21 @@ export default function RechargeRequestPage() {
           message += `\n\n✅ Paid Requests: ${data.invoicesPaid}`;
         }
         if (data.amountPaid !== undefined && data.amountPaid > 0) {
-          message += `\n\n💳 Amount Paid: ₹${data.amountPaid.toFixed(2)}`;
+          message += `\n\n Amount Paid: ₹${data.amountPaid.toFixed(2)}`;
         }
         if (data.remainingCredit !== undefined && data.remainingCredit > 0) {
-          message += `\n\n💵 Remaining Credit: ₹${data.remainingCredit.toFixed(2)}`;
+          message += `\n\n Remaining Credit: ₹${data.remainingCredit.toFixed(2)}`;
         }
         if (data.cashUpdated !== undefined && data.cashUpdated) {
-          message += `\n\n💵 Cash Balance Updated`;
+          message += `\n\nCash Balance Updated`;
+        }
+        if (data.cashCollectionUpdated !== undefined && data.cashCollectionUpdated) {
+          message += `\n\nCash Collection Record Added`;
         }
         
         setSuccessMessage(message);
         setShowModal(false);
-        // ✅ For non-billing customers, keep payment_type as Cash (1), for others use RTGS (2)
+        // For non-billing customers, keep payment_type as Cash (1), for others use RTGS (2)
         const defaultPaymentType = customerData?.customer?.billing_type === 2 ? "1" : "2";
         setFormData({
           amount: "",
@@ -307,6 +352,7 @@ export default function RechargeRequestPage() {
           transaction_id: "",
           utr_no: "",
           comments: "",
+          vendor_id: vendors.length > 0 ? (vendors.find(v => v.status === 1) || vendors[0]).id.toString() : "",
         });
         
         // Refresh customer data
@@ -459,7 +505,7 @@ export default function RechargeRequestPage() {
                       </button>
                     </div>
                     
-                    {/* ✅ Show Paid and Pending Requests List */}
+                    {/* Show Paid and Pending Requests List */}
                     {rechargeResult && (rechargeResult.paidRequests?.length > 0 || rechargeResult.pendingRequests?.length > 0) && (
                       <div className="mt-4 space-y-4">
                         {/* Paid Requests */}
@@ -950,6 +996,33 @@ export default function RechargeRequestPage() {
                    formData.payment_type === '5' ? '📄 Cheque requires cheque number' : ''}
                 </p>
               </div>
+
+              {/* Parking Selection - Only show for Cash payments */}
+              {formData.payment_type === '1' && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Parking <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    name="vendor_id"
+                    value={formData.vendor_id}
+                    onChange={handleInputChange}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    disabled={loading}
+                    required
+                  >
+                    <option value="">Select Parking...</option>
+                    {vendors.map(vendor => (
+                      <option key={vendor.id} value={vendor.id}>
+                        {vendor.name} {vendor.status === 1 ? '(Active)' : '(Inactive)'}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Select parking for cash collection record
+                  </p>
+                </div>
+              )}
 
               {/* Transaction ID / Reference Number - Show based on payment type */}
               {shouldShowTransactionId() && (
