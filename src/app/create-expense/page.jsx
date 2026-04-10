@@ -52,13 +52,13 @@ function CreateExpenseContent() {
 
   const fetchVendors = async () => {
     try {
-      const response = await fetch('/api/vendors');
+      const response = await fetch('/api/packing');
       if (response.ok) {
         const result = await response.json();
         setVendors(result.vendors || []);
       }
     } catch (error) {
-      console.error('Error fetching vendors:', error);
+      console.error('Error fetching packing:', error);
     }
   };
 

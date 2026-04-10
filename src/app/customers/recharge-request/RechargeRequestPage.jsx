@@ -104,15 +104,15 @@ export default function RechargeRequestPage() {
   // Fetch vendors for dropdown
   const fetchVendors = async () => {
     try {
-      console.log('Fetching vendors for dropdown');
+      console.log('Fetching packing for dropdown');
       
-      const response = await fetch('/api/vendors');
+      const response = await fetch('/api/packing');
       if (!response.ok) {
-        throw new Error('Failed to fetch vendors');
+        throw new Error('Failed to fetch packing');
       }
       
       const data = await response.json();
-      console.log('Vendors response:', data);
+      console.log('Packing  response:', data);
       
       if (data.success && data.vendors) {
         setVendors(data.vendors);
