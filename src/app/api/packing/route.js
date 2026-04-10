@@ -46,8 +46,8 @@ export async function GET(request) {
       SELECT id, name, phone, status, amount, created_at, updated_at, created_by
       FROM vendors
       ORDER BY created_at DESC
-      LIMIT ? OFFSET ?
-    `, [parseInt(limit), parseInt(offset)]);
+      LIMIT ${parseInt(limit)} OFFSET ${parseInt(offset)}
+    `);
     
     return NextResponse.json({
       success: true,
