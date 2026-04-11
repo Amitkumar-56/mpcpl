@@ -607,37 +607,71 @@ export default function CustomerDashboardPage() {
               </div>
 
               {/* Header Card */}
-              <div className="bg-white rounded-xl shadow p-6">
-                <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-                  <div>
-                    <h2 className="text-xl font-semibold text-gray-900 mb-2">
-                      Welcome, {user?.name || 'Customer'}!
-                    </h2>
-                    <div className="flex flex-wrap gap-3">
-                      <span className={`inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm ${user?.client_type === 2 || user?.client_type === '2'
-                        ? 'bg-blue-500 text-white'
+              <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl shadow-lg p-4 sm:p-6 border border-blue-100">
+                <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-lg">
+                        <span className="text-white text-lg font-bold">
+                          {user?.name?.charAt(0) || 'C'}
+                        </span>
+                      </div>
+                      <div>
+                        <h2 className="text-xl lg:text-2xl font-bold text-gray-900 mb-1">
+                          Welcome back, {user?.name || 'Customer'}!
+                        </h2>
+                        <p className="text-sm text-gray-600">
+                          {user?.station && <span className="font-medium">Station: {user?.station}</span>}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <span className={`inline-flex px-3 py-1.5 text-xs sm:text-sm font-bold rounded-full shadow-md transition-all duration-200 hover:scale-105 ${user?.client_type === 2 || user?.client_type === '2'
+                        ? 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-blue'
                         : user?.client_type === 1 || user?.client_type === '1'
-                          ? 'bg-green-500 text-white'
+                          ? 'bg-gradient-to-r from-green-500 to-green-600 text-white shadow-green'
                           : user?.client_type === 3 || user?.client_type === '3'
-                            ? 'bg-purple-500 text-white'
-                            : 'bg-gray-400 text-white'
-                        }`}>
-                        {user?.client_type === 2 || user?.client_type === '2' ? '🔵 Postpaid Customer' :
-                          user?.client_type === 1 || user?.client_type === '1' ? '🟢 Prepaid Customer' :
-                            user?.client_type === 3 || user?.client_type === '3' ? '🟣 Day Limit Customer' : '❓ Unknown (' + (user?.client_type || 'null') + ')'}
+                            ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-purple'
+                            : 'bg-gradient-to-r from-gray-400 to-gray-500 text-white shadow-gray'
+                      }`}>
+                        <span className="flex items-center gap-1">
+                          {user?.client_type === 2 || user?.client_type === '2' ? '🔵' :
+                            user?.client_type === 1 || user?.client_type === '1' ? '🟢' :
+                              user?.client_type === 3 || user?.client_type === '3' ? '🟣' : '❓'}
+                          </span>
+                          <span className="hidden sm:inline">{user?.client_type === 2 || user?.client_type === '2' ? '🔵 Postpaid' :
+                          user?.client_type === 1 || user?.client_type === '1' ? '🟢 Prepaid' :
+                            user?.client_type === 3 || user?.client_type === '3' ? '🟣 Day Limit' : `❓ Unknown (${user?.client_type || 'null'})`}</span>
                       </span>
                       {user?.day_limit && (
-                        <span className="inline-flex px-4 py-2 text-sm font-bold rounded-full shadow-sm bg-orange-500 text-white">
-                          📅 Limit: {user.day_limit} days
+                        <span className="inline-flex px-2 py-1 text-xs font-bold rounded-full shadow-md bg-gradient-to-r from-orange-500 to-orange-600 text-white ml-2">
+                          📅 {user.day_limit}d
                         </span>
                       )}
                     </div>
-                    <p className="text-gray-600 mt-2">
-                      {connectionStatus === 'connected'
-                        ? 'Live support is available'
-                        : `Connection: ${connectionStatus}`
-                      }
-                    </p>
+                    <div className="mt-3 p-3 bg-white/50 rounded-lg border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium text-gray-700">
+                          {connectionStatus === 'connected' ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                              Live Support Active
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-2">
+                              <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                              Connection: {connectionStatus}
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          onClick={reconnectSocket}
+                          className="px-3 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                        >
+                          Reconnect
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
 

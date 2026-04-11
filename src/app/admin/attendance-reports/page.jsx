@@ -1,4 +1,4 @@
-//src/
+// src/app/admin/attendance-reports/page.jsx
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
@@ -48,6 +48,36 @@ function AdminReportsContent() {
   const [attendanceData, setAttendanceData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDriver, setSelectedDriver] = useState(null);
+
+  const downloadExcel = () => {
+    // Create CSV content for Excel
+    const headers = ['Employee Name', 'Employee Code', 'Role', 'Month', 'Total Attendance', 'Present', 'Absent', 'Half Day', 'Leave'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(item => [
+        item.employee_name || '',
+        item.emp_code || '',
+        item.role_name || '',
+        item.month || '',
+        item.total_attendance || 0,
+        item.present_count || 0,
+        item.absent_count || 0,
+        item.half_day_count || 0,
+        item.leave_count || 0
+      ].map(field => `"${field}"`).join(','))
+    ].join('\n');
+
+    // Create and download Excel file
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance_report_${selectedMonth}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -99,11 +129,12 @@ function AdminReportsContent() {
 
   const generateDriverReport = (driver) => {
     const reportContent = `
-DRIVER DETAILED REPORT - ${selectedMonth}
+EMPLOYEE DETAILED REPORT - ${selectedMonth}
 =========================================
 Generated on: ${new Date().toLocaleDateString('en-IN')}
-Employee: ${driver.name} (${driver.role_name})
+Employee: ${driver.employee_name} (${driver.role_name})
 Employee ID: ${driver.employee_id || 'N/A'}
+Employee Code: ${driver.emp_code || 'N/A'}
 
 ATTENDANCE SUMMARY:
 ------------------
@@ -113,7 +144,6 @@ Present Days: ${driver.present_count || 0}
 Absent Days: ${driver.absent_count || 0}
 Half Days: ${driver.half_day_count || 0}
 Leave Days: ${driver.leave_count || 0}
-Unique Employees: ${driver.total_employees || 0}
 
 MONTHLY BREAKDOWN:
 ${driver.monthly_breakdown ? driver.monthly_breakdown.map(day => 
@@ -135,7 +165,7 @@ End of Detailed Report
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `detailed_report_${driver.name}_${selectedMonth}.txt`;
+    a.download = `detailed_report_${driver.employee_name}_${selectedMonth}.txt`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -200,28 +230,28 @@ End of Detailed Report
             </div>
 
             {/* Filters */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Month
                   </label>
                   <input
                     type="month"
                     value={selectedMonth}
                     onChange={(e) => setSelectedMonth(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 sm:px-4 text-sm focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Role Filter
                   </label>
                   <select
                     value={selectedRole}
                     onChange={(e) => setSelectedRole(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 sm:px-4 text-sm focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="all">All Roles</option>
                     <option value="Staff">Staff</option>
@@ -233,23 +263,30 @@ End of Detailed Report
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  <label className="block text-xs sm:text-sm font-semibold text-gray-700 mb-1 sm:mb-2">
                     Station
                   </label>
                   <select
                     value={selectedStation}
                     onChange={(e) => setSelectedStation(e.target.value)}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 sm:px-4 text-sm focus:ring-2 focus:ring-blue-500"
                   >
                     <option value="">All Stations</option>
                   </select>
                 </div>
 
-                <div className="flex items-end">
+                <div className="flex flex-col sm:flex-row items-start sm:items-end gap-2 sm:gap-3">
+                  <button
+                    onClick={downloadExcel}
+                    disabled={loading || filteredData.length === 0}
+                    className="w-full sm:w-auto px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-xs sm:text-sm"
+                  >
+                    📊 Download Excel
+                  </button>
                   <button
                     onClick={fetchAttendanceData}
                     disabled={loading}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium"
+                    className="w-full sm:w-auto px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-xs sm:text-sm"
                   >
                     {loading ? 'Loading...' : '🔄 Refresh Data'}
                   </button>
@@ -276,79 +313,81 @@ End of Detailed Report
                   <p className="mt-4 text-gray-600">Loading attendance data...</p>
                 </div>
               ) : filteredData.length > 0 ? (
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Employee</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Role</th>
-                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Month</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Total</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Present</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Absent</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Half Day</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Leave</th>
-                        <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {filteredData.map((item, index) => (
-                        <tr key={`${item.role}-${item.month}-${index}`} className="hover:bg-gray-50">
-                          <td className="px-4 py-3">
-                            <button
-                              onClick={() => handleDriverClick(item)}
-                              className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left"
-                              title={`Click to generate detailed report for ${item.role_name}`}
-                            >
-                              {item.role_name}
-                            </button>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
-                              item.role_name === 'Staff' ? 'bg-gray-100 text-gray-800 border-gray-300' :
-                              item.role_name === 'Incharge' ? 'bg-purple-100 text-purple-800 border-purple-300' :
-                              item.role_name === 'Team Leader' ? 'bg-green-100 text-green-800 border-green-300' :
-                              item.role_name === 'Accountant' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                              item.role_name === 'Admin' ? 'bg-red-100 text-red-800 border-red-300' :
-                              'bg-gray-100 text-gray-800 border-gray-300'
-                            }`}>
-                              {item.role_name}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-gray-900">{item.month}</td>
-                          <td className="px-4 py-3 text-center font-medium text-gray-900">{item.total_attendance || 0}</td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                              {item.present_count || 0}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
-                              {item.absent_count || 0}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
-                              {item.half_day_count || 0}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                              {item.leave_count || 0}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <button
-                              onClick={() => handleDriverClick(item)}
-                              className="px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium"
-                            >
-                              📊 Report
-                            </button>
-                          </td>
+                <div className="overflow-x-auto -mx-4 sm:mx-0">
+                  <div className="inline-block min-w-full align-middle">
+                    <table className="w-full min-w-[800px]">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Employee</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Role</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-left text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Month</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Total</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Present</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Absent</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Half Day</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Leave</th>
+                          <th className="px-2 sm:px-4 py-2 sm:py-3 text-center text-xs sm:text-sm font-medium text-gray-900 whitespace-nowrap">Action</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {filteredData.map((item, index) => (
+                          <tr key={`${item.employee_id}-${item.month}-${index}`} className="hover:bg-gray-50">
+                            <td className="px-2 sm:px-4 py-2 sm:py-3">
+                              <button
+                                onClick={() => handleDriverClick(item)}
+                                className="text-blue-600 hover:text-blue-800 hover:underline font-medium text-left text-xs sm:text-sm"
+                                title={`Click to generate detailed report for ${item.employee_name}`}
+                              >
+                                {item.employee_name}
+                              </button>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${
+                                item.role_name === 'Staff' ? 'bg-gray-100 text-gray-800 border-gray-300' :
+                                item.role_name === 'Incharge' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                item.role_name === 'Team Leader' ? 'bg-green-100 text-green-800 border-green-300' :
+                                item.role_name === 'Accountant' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                item.role_name === 'Admin' ? 'bg-red-100 text-red-800 border-red-300' :
+                                'bg-gray-100 text-gray-800 border-gray-300'
+                              }`}>
+                                {item.role_name}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-gray-900 text-xs sm:text-sm">{item.month}</td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center font-medium text-gray-900 text-xs sm:text-sm">{item.total_attendance || 0}</td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                {item.present_count || 0}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                {item.absent_count || 0}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                {item.half_day_count || 0}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
+                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                {item.leave_count || 0}
+                              </span>
+                            </td>
+                            <td className="px-2 sm:px-4 py-2 sm:py-3 text-center">
+                              <button
+                                onClick={() => handleDriverClick(item)}
+                                className="px-2 sm:px-3 py-1 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium"
+                              >
+                                📊 Report
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
                 <div className="p-8 text-center text-gray-500">

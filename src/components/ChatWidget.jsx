@@ -62,7 +62,27 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
   // Initialize notifications on component mount
   useEffect(() => {
-    initializeNotifications();
+    console.log('🔔 Initializing chat notifications...');
+    const notifStatus = initializeNotifications();
+    console.log('🔔 Notification status:', notifStatus);
+    
+    // If permission denied, show manual request button
+    if (notifStatus === false) {
+      console.log('🔔 Permission denied, showing manual request button');
+      // Add a button to manually request permission
+      const requestPermissionBtn = document.createElement('button');
+      requestPermissionBtn.textContent = '🔔 Enable Notifications';
+      requestPermissionBtn.className = 'fixed bottom-4 right-4 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 hover:bg-purple-700 transition-colors';
+      requestPermissionBtn.onclick = async () => {
+        const granted = await Notification.requestPermission();
+        if (granted === 'granted') {
+          requestPermissionBtn.remove();
+          console.log('🔔 Permission granted manually!');
+        }
+      };
+      document.body.appendChild(requestPermissionBtn);
+    }
+    
     forceInitializeAudio();
   }, []);
 
@@ -385,10 +405,12 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
             // Show browser notification for new messages
             if (!isCurrentChat) {
-              showBrowserNotification(
+              console.log('🔔 Attempting to show notification for:', data.customerName, data.message);
+              const notificationResult = showChatNotification(
                 data.customerName || `Customer ${data.customerId}`,
                 data.message
               );
+              console.log('🔔 Notification result:', notificationResult);
             }
 
             // Always play sound for new messages (unless actively viewing this chat)

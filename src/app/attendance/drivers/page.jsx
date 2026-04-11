@@ -1,0 +1,614 @@
+// src/app/attendance/drivers/page.jsx
+"use client";
+
+import { Suspense, useState, useEffect } from "react";
+import Footer from "@/components/Footer";
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
+import { useSession } from "@/context/SessionContext";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+
+// Loading component for Suspense
+function LoadingFallback() {
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+        <main className="flex-1 overflow-y-auto">
+          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
+            <div className="flex items-center justify-center min-h-[400px]">
+              <div className="text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading driver attendance page...</p>
+              </div>
+            </div>
+          </div>
+        </main>
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main component content
+function DriverAttendanceContent() {
+  const router = useRouter();
+  const { user, loading: authLoading } = useSession();
+  const [drivers, setDrivers] = useState([]);
+  const [stations, setStations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedStation, setSelectedStation] = useState("");
+  const [selectedDrivers, setSelectedDrivers] = useState(new Set());
+  const [attendanceData, setAttendanceData] = useState({});
+  const [submitting, setSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showOnlyAvailable, setShowOnlyAvailable] = useState(false);
+  const [attendanceStats, setAttendanceStats] = useState([]);
+  const [currentMonthStats, setCurrentMonthStats] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.push("/login");
+      return;
+    }
+
+    if (user) {
+      // Check if user has access (not staff)
+      if (user.role === 1) {
+        router.push("/dashboard");
+        return;
+      }
+      fetchStations();
+      fetchDrivers();
+      fetchAttendanceStatistics();
+    }
+  }, [user, authLoading, router, selectedStation, selectedDate]);
+
+  const fetchStations = async () => {
+    try {
+      const url = user ? `/api/stations?user_id=${user.id}&role=${user.role}` : '/api/stations';
+      const response = await fetch(url);
+      const data = await response.json();
+      
+      if (data.success && data.stations) {
+        setStations(data.stations);
+      } else if (Array.isArray(data)) {
+        setStations(data);
+      } else {
+        setStations([]);
+      }
+    } catch (error) {
+      console.error('Error fetching stations:', error);
+      setStations([]);
+    }
+  };
+
+  const fetchDrivers = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      
+      let url = '/api/attendance/employees';
+      const params = new URLSearchParams();
+      if (selectedStation) params.append('station_id', selectedStation);
+      
+      const response = await fetch(`${url}?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Filter for staff role (role = 1) - includes drivers
+        const allDrivers = data.employees ? data.employees.filter(emp => emp.role === 1) : [];
+        setDrivers(allDrivers);
+      } else {
+        setError(data.error || "Failed to fetch drivers");
+      }
+    } catch (error) {
+      console.error('Error fetching drivers:', error);
+      setError("Failed to load driver data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAttendanceStatistics = async () => {
+    try {
+      setStatsLoading(true);
+      const params = new URLSearchParams();
+      params.append('user_id', user.id);
+      params.append('role', user.role);
+      if (selectedStation) {
+        params.append('station_id', selectedStation);
+      }
+
+      const response = await fetch(`/api/attendance/statistics?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Filter to show all roles, not just drivers
+        setAttendanceStats(data.statistics || []);
+        setCurrentMonthStats(data.currentMonthSummary || []);
+      } else {
+        console.error('Failed to fetch statistics:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance statistics:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  // Filter stations based on user role
+  const getAvailableStations = () => {
+    // Accountant - no station filter needed (can see all)
+    if (user?.role === 4) {
+      return []; // Return empty array to hide station dropdown
+    }
+    // Admin - no station filter needed (can see all)
+    if (user?.role === 5) {
+      return []; // Return empty array to hide station dropdown for admin
+    }
+    // Team Leader - can see all stations
+    if (user?.role === 3) {
+      return stations; // Show all stations for team leader
+    }
+    else if (user?.role === 2) {
+      // Incharge - only their stations
+      if (!user.fs_id) return [];
+      const stationIds = user.fs_id.toString().split(',').map(id => id.trim()).filter(id => id);
+      return stations.filter(s => stationIds.includes(s.id.toString()));
+    }
+    // Staff (role 1) - only their stations
+    if (user?.role === 1) {
+      if (!user.fs_id) return [];
+      const stationIds = user.fs_id.toString().split(',').map(id => id.trim()).filter(id => id);
+      return stations.filter(s => stationIds.includes(s.id.toString()));
+    }
+    return [];
+  };
+
+  const availableStations = getAvailableStations();
+
+  const filteredDrivers = drivers.filter((driver, index, self) => {
+    const matchesSearch = driver.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         driver.emp_code.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesAvailability = !showOnlyAvailable || !selectedDrivers.has(driver.id);
+    const isUnique = self.findIndex(d => d.id === driver.id) === index;
+    return matchesSearch && matchesAvailability && isUnique;
+  });
+
+  const toggleDriverSelection = (driverId) => {
+    const newSelected = new Set(selectedDrivers);
+    if (newSelected.has(driverId)) {
+      newSelected.delete(driverId);
+      const newAttendanceData = { ...attendanceData };
+      delete newAttendanceData[driverId];
+      setAttendanceData(newAttendanceData);
+    } else {
+      newSelected.add(driverId);
+      setAttendanceData({
+        ...attendanceData,
+        [driverId]: {
+          status: "Present",
+          check_in_time: "",
+          check_out_time: "",
+          remarks: ""
+        }
+      });
+    }
+    setSelectedDrivers(newSelected);
+  };
+
+  const toggleAllDrivers = () => {
+    const availableDrivers = filteredDrivers.filter(driver => !selectedDrivers.has(driver.id));
+    
+    if (availableDrivers.length === 0) {
+      // Deselect all
+      setSelectedDrivers(new Set());
+      setAttendanceData({});
+    } else {
+      // Select all available
+      const newSelected = new Set(selectedDrivers);
+      const newAttendanceData = { ...attendanceData };
+      
+      availableDrivers.forEach(driver => {
+        newSelected.add(driver.id);
+        if (!newAttendanceData[driver.id]) {
+          newAttendanceData[driver.id] = {
+            status: "Present",
+            check_in_time: "",
+            check_out_time: "",
+            remarks: ""
+          };
+        }
+      });
+      
+      setSelectedDrivers(newSelected);
+      setAttendanceData(newAttendanceData);
+    }
+  };
+
+  const updateAttendanceData = (driverId, field, value) => {
+    setAttendanceData({
+      ...attendanceData,
+      [driverId]: {
+        ...attendanceData[driverId],
+        [field]: value
+      }
+    });
+  };
+
+  const handleSubmitBulkAttendance = async () => {
+    if (selectedDrivers.size === 0) {
+      setError("Please select at least one driver");
+      return;
+    }
+
+    // Only require station selection for non-admin roles
+    if (availableStations.length > 0 && !selectedStation) {
+      setError("Please select a station");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      setError("");
+      setSuccess("");
+
+      const attendanceArray = Array.from(selectedDrivers).map(driverId => ({
+        employee_id: driverId,
+        ...attendanceData[driverId]
+      }));
+
+      const response = await fetch('/api/attendance/bulk-mark', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          attendance_data: attendanceArray,
+          date: selectedDate,
+          station_id: selectedStation || null
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setSuccess(`Attendance processed successfully! ${data.summary.successful} drivers marked, ${data.summary.failed} failed.`);
+        setSelectedDrivers(new Set());
+        setAttendanceData({});
+        fetchDrivers(); // Refresh data
+      } else {
+        setError(data.error || "Failed to process attendance");
+      }
+    } catch (error) {
+      console.error('Error submitting bulk attendance:', error);
+      setError("Failed to process attendance");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const markAllPresent = () => {
+    const newAttendanceData = { ...attendanceData };
+    selectedDrivers.forEach(driverId => {
+      newAttendanceData[driverId] = {
+        ...newAttendanceData[driverId],
+        status: "Present",
+        check_in_time: new Date().toTimeString().slice(0, 5),
+        check_out_time: "",
+        remarks: "Bulk marked as present"
+      };
+    });
+    setAttendanceData(newAttendanceData);
+  };
+
+  const markAllAbsent = () => {
+    const newAttendanceData = { ...attendanceData };
+    selectedDrivers.forEach(driverId => {
+      newAttendanceData[driverId] = {
+        status: "Absent",
+        check_in_time: "",
+        check_out_time: "",
+        remarks: "Bulk marked as absent"
+      };
+    });
+    setAttendanceData(newAttendanceData);
+  };
+
+  const getStatusBadge = (status) => {
+    const badges = {
+      'Present': 'bg-green-100 text-green-800',
+      'Absent': 'bg-red-100 text-red-800',
+      'Half Day': 'bg-yellow-100 text-yellow-800',
+      'Leave': 'bg-blue-100 text-blue-800'
+    };
+    return badges[status] || 'bg-gray-100 text-gray-800';
+  };
+
+  return (
+    <div className="flex min-h-screen bg-gray-50">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar />
+      </div>
+      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+        <div className="flex-shrink-0">
+          <Header />
+        </div>
+
+        <main className="flex-1 overflow-y-auto">
+          <div className="container mx-auto px-3 sm:px-4 py-4 sm:py-6 lg:px-8 max-w-7xl">
+            <div className="flex items-center gap-3 mb-4">
+              <button
+                onClick={() => router.back()}
+                className="text-blue-600 hover:text-blue-800 text-xl sm:text-2xl transition-colors"
+                title="Go Back"
+              >
+                ←
+              </button>
+            </div>
+            
+            <div className="mb-4 sm:mb-6 flex justify-between items-center">
+              <div>
+                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-gray-900">
+                  🚛 Driver Attendance Management
+                </h1>
+                <p className="text-gray-600 mt-1 text-xs sm:text-sm lg:text-base">
+                  Mark attendance for all drivers quickly and efficiently
+                </p>
+              </div>
+              <div className="flex gap-3 flex-wrap">
+              
+               
+                <Link
+                  href="/attendance"
+                  className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                >
+                  <span className="text-lg mr-1">📝</span> Regular Attendance
+                </Link>
+              </div>
+            </div>
+
+     
+
+            {/* Filters */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Date <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={selectedDate}
+                    onChange={(e) => setSelectedDate(e.target.value)}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                {availableStations.length > 0 && (
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Station <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={selectedStation}
+                      onChange={(e) => setSelectedStation(e.target.value)}
+                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Select Station</option>
+                      {availableStations.map((station) => (
+                        <option key={station.id} value={station.id}>
+                          {station.station_name || station.name || `Station ${station.id}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Search Drivers
+                  </label>
+                  <input
+                    type="text"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    placeholder="Search by name or code..."
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-2">
+                    Selected Drivers
+                  </label>
+                  <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-lg font-medium text-center">
+                    {selectedDrivers.size} / {filteredDrivers.length}
+                  </div>
+                </div>
+              </div>
+              
+              <div className="flex flex-wrap gap-3 mt-4">
+                <button
+                  onClick={toggleAllDrivers}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                >
+                  {filteredDrivers.filter(d => !selectedDrivers.has(d.id)).length === 0 ? 'Deselect All' : 'Select All'}
+                </button>
+                {selectedDrivers.size > 0 && (
+                  <>
+                    <button
+                      onClick={markAllPresent}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                    >
+                      ✓ Mark All Present
+                    </button>
+                    <button
+                      onClick={markAllAbsent}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors font-medium"
+                    >
+                      ✗ Mark All Absent
+                    </button>
+                  </>
+                )}
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={showOnlyAvailable}
+                    onChange={(e) => setShowOnlyAvailable(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-gray-700">Show only available drivers</span>
+                </label>
+              </div>
+            </div>
+
+            {/* Success/Error Messages */}
+            {success && (
+              <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded-lg mb-4">
+                {success}
+              </div>
+            )}
+            {error && (
+              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg mb-4">
+                {error}
+              </div>
+            )}
+
+            {/* Drivers List */}
+            {loading ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+                  <p className="mt-4 text-gray-600">Loading drivers...</p>
+                </div>
+              </div>
+            ) : filteredDrivers.length === 0 ? (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-8 text-center">
+                <div className="text-gray-500">
+                  <p className="text-lg">No drivers found</p>
+                  <p className="text-sm mt-2">Try adjusting your search or station filter</p>
+                </div>
+              </div>
+            ) : (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+                <div className="p-4 bg-gray-50 border-b border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg font-semibold text-gray-900">
+                      Available Drivers ({filteredDrivers.length})
+                    </h3>
+                    <div className="text-sm text-gray-600">
+                      {selectedDrivers.size} selected for attendance
+                    </div>
+                  </div>
+                </div>
+                
+                <div className="divide-y divide-gray-200 max-h-96 overflow-y-auto">
+                  {filteredDrivers.map((driver) => (
+                    <div key={`${driver.id}-${driver.station_id}`} className="p-4 hover:bg-gray-50 transition-colors">
+                      <div className="flex items-center gap-4">
+                        <input
+                          type="checkbox"
+                          checked={selectedDrivers.has(driver.id)}
+                          onChange={() => toggleDriverSelection(driver.id)}
+                          className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
+                        />
+                        
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3">
+                            <span className="text-2xl">🚛</span>
+                            <div>
+                              <div className="font-medium text-gray-900">{driver.name}</div>
+                              <div className="text-sm text-gray-500">
+                                {driver.emp_code} • {driver.station_name}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {selectedDrivers.has(driver.id) && (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={attendanceData[driver.id]?.status || "Present"}
+                              onChange={(e) => updateAttendanceData(driver.id, 'status', e.target.value)}
+                              className="px-3 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="Present">Present</option>
+                              <option value="Absent">Absent</option>
+                              <option value="Half Day">Half Day</option>
+                              <option value="Leave">Leave</option>
+                            </select>
+
+                            <input
+                              type="time"
+                              value={attendanceData[driver.id]?.check_in_time || ""}
+                              onChange={(e) => updateAttendanceData(driver.id, 'check_in_time', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="In"
+                            />
+
+                            <input
+                              type="time"
+                              value={attendanceData[driver.id]?.check_out_time || ""}
+                              onChange={(e) => updateAttendanceData(driver.id, 'check_out_time', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              placeholder="Out"
+                            />
+
+                            <input
+                              type="text"
+                              value={attendanceData[driver.id]?.remarks || ""}
+                              onChange={(e) => updateAttendanceData(driver.id, 'remarks', e.target.value)}
+                              className="px-2 py-1 border border-gray-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-32"
+                              placeholder="Remarks"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            {selectedDrivers.size > 0 && (
+              <div className="mt-6 flex justify-center">
+                <button
+                  onClick={handleSubmitBulkAttendance}
+                  disabled={submitting || (availableStations.length > 0 && !selectedStation)}
+                  className="px-8 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-lg"
+                >
+                  {submitting ? 'Processing...' : `🚛 Mark Attendance for ${selectedDrivers.size} Drivers`}
+                </button>
+              </div>
+            )}
+          </div>
+        </main>
+
+        <div className="flex-shrink-0">
+          <Footer />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Main export with Suspense
+export default function DriverAttendancePage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <DriverAttendanceContent />
+    </Suspense>
+  );
+}

@@ -8,8 +8,11 @@ const dbConfig = {
   password: process.env.DB_PASSWORD || "",
   database: process.env.DB_NAME || "masafipetro_dev",
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: 20,
   queueLimit: 0,
+  acquireTimeout: 60000,
+  timeout: 60000,
+  reconnect: true,
 };
 
 // Create pool
@@ -20,12 +23,27 @@ export async function getConnection() {
 }
 
 export async function executeQuery(query, params = []) {
-  const connection = await getConnection();
-  try {
-    const [rows] = await connection.execute(query, params);
-    return rows;
-  } finally {
-    connection.release();
+  let connection;
+  let retries = 3;
+  
+  while (retries > 0) {
+    try {
+      connection = await getConnection();
+      const [rows] = await connection.execute(query, params);
+      return rows;
+    } catch (error) {
+      retries--;
+      if (retries === 0) {
+        console.error('Database query failed after retries:', error);
+        throw error;
+      }
+      console.warn(`Database query failed, retrying... (${retries} attempts left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+    } finally {
+      if (connection) {
+        connection.release();
+      }
+    }
   }
 }
 

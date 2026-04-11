@@ -73,6 +73,7 @@ export async function GET(request) {
         a.updated_at,
         e.name as employee_name,
         e.emp_code,
+        e.role,
         fs.station_name,
         marked_by_user.name as marked_by_name
       FROM attendance a

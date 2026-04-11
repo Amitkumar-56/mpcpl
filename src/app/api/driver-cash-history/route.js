@@ -47,10 +47,7 @@ export async function GET(request) {
       )
     `);
 
-    // Ensure all params are defined and normalize undefined to null
-    const safeParams = [...params, Number(limit)].map(p => p === undefined ? null : p);
-
-    // Build the final query and validate placeholder count before execution
+    // Build the final query
     const query = `
         SELECT 
           id,
@@ -69,10 +66,13 @@ export async function GET(request) {
         LIMIT ?
       `;
 
+    // Ensure all params are defined and normalize undefined to null
+    const safeParams = [...params, Number(limit)].map(p => p === undefined ? null : p);
+
     // Defensive check: ensure the number of '?' placeholders matches params length
     const placeholderCount = (query.match(/\?/g) || []).length;
     if (placeholderCount !== safeParams.length) {
-      console.error('❌ SQL placeholder count mismatch in /api/driver-cash-history', {
+      console.error('SQL placeholder count mismatch in /api/driver-cash-history', {
         placeholderCount,
         paramsLength: safeParams.length,
         whereClause,
@@ -80,6 +80,9 @@ export async function GET(request) {
       });
       throw new Error(`SQL parameter count mismatch: expected ${placeholderCount} params but got ${safeParams.length}`);
     }
+
+    console.log('Executing query:', query);
+    console.log('With params:', safeParams);
 
     const rows = await executeQuery(query, safeParams);
 

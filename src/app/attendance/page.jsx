@@ -15,6 +15,11 @@ export default function AttendancePage() {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [stations, setStations] = useState([]);
+  const [attendanceStats, setAttendanceStats] = useState([]);
+  const [currentMonthStats, setCurrentMonthStats] = useState([]);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [dailySalaryData, setDailySalaryData] = useState([]);
+  const [salaryLoading, setSalaryLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -55,7 +60,33 @@ export default function AttendancePage() {
       fetchEmployees();
       fetchAttendance();
     }
-  }, [user, authLoading, router, selectedDate, selectedStation]);
+  }, [user, authLoading, router, selectedStation, selectedDate]);
+
+  // Refresh data when page becomes visible (after navigation)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (!document.hidden && user && user.role !== 1) {
+        fetchAttendance();
+        fetchAttendanceStatistics();
+        fetchDailySalaryData();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [user, selectedStation, selectedDate]);
+
+  // Also refresh when page gets focus
+  useEffect(() => {
+    const handleFocus = () => {
+      if (user && user.role !== 1) {
+        fetchAttendance();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [user, selectedStation, selectedDate]);
 
   const fetchStations = async () => {
     try {
@@ -118,6 +149,84 @@ export default function AttendancePage() {
       setError("Failed to load attendance data");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchAttendanceStatistics = async () => {
+    try {
+      setStatsLoading(true);
+      const params = new URLSearchParams();
+      params.append('user_id', user.id);
+      params.append('role', user.role);
+      if (selectedStation) {
+        params.append('station_id', selectedStation);
+      }
+
+      const response = await fetch(`/api/attendance/statistics?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        setAttendanceStats(data.statistics || []);
+        setCurrentMonthStats(data.currentMonthSummary || []);
+      } else {
+        console.error('Failed to fetch statistics:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance statistics:', error);
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  const fetchDailySalaryData = async () => {
+    try {
+      setSalaryLoading(true);
+      const params = new URLSearchParams();
+      params.append('user_id', user.id);
+      params.append('role', user.role);
+      params.append('month', selectedDate);
+      if (selectedStation) {
+        params.append('station_id', selectedStation);
+      }
+
+      const response = await fetch(`/api/salary/calculate?${params.toString()}`);
+      const data = await response.json();
+      
+      if (data.success) {
+        // Group daily salary data by date
+        const dailyData = {};
+        data.individual_calculations.forEach(employee => {
+          employee.daily_breakdown.forEach(day => {
+            if (!dailyData[day.date]) {
+              dailyData[day.date] = {
+                date: day.date,
+                total_salary: 0,
+                employees: []
+              };
+            }
+            dailyData[day.date].employees.push({
+              name: employee.name,
+              role: employee.role_name,
+              daily_salary: day.daily_salary,
+              status: day.status
+            });
+            dailyData[day.date].total_salary += day.daily_salary;
+          });
+        });
+
+        // Convert to array and sort by date
+        const sortedDailyData = Object.values(dailyData).sort((a, b) => 
+          new Date(a.date) - new Date(b.date)
+        );
+
+        setDailySalaryData(sortedDailyData);
+      } else {
+        console.error('Failed to fetch daily salary data:', data.error);
+      }
+    } catch (error) {
+      console.error('Error fetching daily salary data:', error);
+    } finally {
+      setSalaryLoading(false);
     }
   };
 
@@ -272,6 +381,28 @@ export default function AttendancePage() {
     return badges[status] || 'bg-gray-100 text-gray-800';
   };
 
+  const getRoleBadge = (role) => {
+    const badges = {
+      1: { name: 'Staff', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300' },
+      2: { name: 'Incharge', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-300' },
+      3: { name: 'Team Leader', color: 'bg-green-100 text-green-800', borderColor: 'border-green-300' },
+      4: { name: 'Accountant', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-300' },
+      5: { name: 'Admin', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300' }
+    };
+    return badges[role] || { name: 'Unknown', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300' };
+  };
+
+  const getRoleIcon = (role) => {
+    const icons = {
+      1: 'Staff',
+      2: 'Incharge',
+      3: 'Team Leader',
+      4: 'Accountant',
+      5: 'Admin'
+    };
+    return icons[role] || 'Unknown';
+  };
+
   // Calculate working hours from check-in and check-out time
   const calculateWorkingHours = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return "-";
@@ -354,20 +485,177 @@ export default function AttendancePage() {
                   View and mark employee attendance
                 </p>
               </div>
-              <div className="flex gap-3">
-                <Link
-                  href="/attendance/activity-logs"
-                  className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
-                >
-                  📊 Activity Logs
-                </Link>
-                <Link
-                  href="/attendance/history"
-                  className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
-                >
-                  View History & Logs
-                </Link>
+              <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 flex-wrap">
+                <div className="flex gap-2 sm:gap-3">
+                  <button
+                    onClick={() => fetchAttendance()}
+                    className="w-full sm:w-auto bg-green-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-green-700 transition-colors text-sm font-medium"
+                  >
+                    Refresh
+                  </button>
+                  <Link
+                    href="/attendance/history"
+                    className="w-full sm:w-auto bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  >
+                    View History
+                  </Link>
+                </div>
+                <div className="grid grid-cols-2 sm:flex sm:flex-wrap gap-2 sm:gap-3">
+                  <Link
+                    href="/attendance/dashboard"
+                    className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:from-purple-700 hover:to-indigo-700 transition-all text-sm font-medium shadow-lg"
+                  >
+                    Dashboard
+                  </Link>
+                  <Link
+                    href="/attendance/drivers"
+                    className="bg-blue-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+                  >
+                    Drivers
+                  </Link>
+                  <Link
+                    href="/attendance/team-leaders"
+                    className="bg-emerald-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-emerald-700 transition-colors text-sm font-medium"
+                  >
+                    Team Leaders
+                  </Link>
+                  <Link
+                    href="/attendance/accountants"
+                    className="bg-yellow-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-yellow-700 transition-colors text-sm font-medium"
+                  >
+                    Accountants
+                  </Link>
+                  <Link
+                    href="/attendance/staff"
+                    className="bg-gray-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors text-sm font-medium"
+                  >
+                    Staff
+                  </Link>
+                  <Link
+                    href="/attendance/incharge"
+                    className="bg-purple-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-purple-700 transition-colors text-sm font-medium"
+                  >
+                    Incharge
+                  </Link>
+                  <Link
+                    href="/attendance/admin"
+                    className="bg-red-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                  >
+                    Admin
+                  </Link>
+                  <Link
+                    href="/attendance/activity-logs"
+                    className="bg-indigo-600 text-white px-3 sm:px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                  >
+                    Activity Logs
+                  </Link>
+                </div>
               </div>
+            </div>
+
+            {/* Role Legend */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+              <div className="text-sm font-semibold text-gray-700 mb-3">Role Color Legend:</div>
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium border bg-gray-100 text-gray-800 border-gray-300">Staff</span>
+                  <span className="text-xs text-gray-600">Staff Members</span>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium border bg-purple-100 text-purple-800 border-purple-300">Incharge</span>
+                  <span className="text-xs text-gray-600">Supervisors</span>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium border bg-green-100 text-green-800 border-green-300">Team Leader</span>
+                  <span className="text-xs text-gray-600">Team Leaders</span>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium border bg-yellow-100 text-yellow-800 border-yellow-300">Accountant</span>
+                  <span className="text-xs text-gray-600">Finance Team</span>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium border bg-red-100 text-red-800 border-red-300">Admin</span>
+                  <span className="text-xs text-gray-600">Administrators</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Salary Calculation */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+              <div className="text-sm font-semibold text-gray-700 mb-4">
+                💰 Daily Salary Calculation - {selectedDate}
+              </div>
+              <div className="text-xs text-gray-600 mb-4">
+                Shows day-by-day salary calculation based on attendance
+              </div>
+              
+              {salaryLoading ? (
+                <div className="p-4 text-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
+                  <p className="mt-2 text-gray-600 text-sm">Calculating daily salaries...</p>
+                </div>
+              ) : dailySalaryData.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="max-h-96 overflow-y-auto">
+                    <table className="w-full text-sm">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-3 py-2 text-left font-medium text-gray-700">Date</th>
+                          <th className="px-3 py-2 text-center font-medium text-gray-700">Total Salary</th>
+                          <th className="px-3 py-2 text-center font-medium text-gray-700">Employees</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-200">
+                        {dailySalaryData.map((dayData, index) => (
+                          <tr key={index} className="hover:bg-gray-50">
+                            <td className="px-3 py-2 text-gray-900 font-medium">
+                              {new Date(dayData.date).toLocaleDateString('en-IN', { 
+                                day: 'numeric', 
+                                month: 'short', 
+                                year: 'numeric' 
+                              })}
+                            </td>
+                            <td className="px-3 py-2 text-center font-bold text-green-600">
+                              ₹{dayData.total_salary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-3 py-2">
+                              <div className="space-y-1">
+                                {dayData.employees.map((employee, empIndex) => (
+                                  <div key={empIndex} className="flex items-center gap-2 text-xs">
+                                    <span className={`px-2 py-1 rounded-full font-medium border ${
+                                      employee.role === 'Staff' ? 'bg-gray-100 text-gray-800 border-gray-300' :
+                                      employee.role === 'Incharge' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                      employee.role === 'Team Leader' ? 'bg-green-100 text-green-800 border-green-300' :
+                                      employee.role === 'Accountant' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                      employee.role === 'Admin' ? 'bg-red-100 text-red-800 border-red-300' :
+                                      'bg-gray-100 text-gray-800 border-gray-300'
+                                    }`}>
+                                      {employee.name}
+                                    </span>
+                                    <span className="text-gray-600">
+                                      {employee.status === 'Present' ? '✅' : 
+                                       employee.status === 'Absent' ? '❌' :
+                                       employee.status === 'Half Day' ? '🕐' :
+                                       employee.status === 'Leave' ? '🏖️' : '❓'}
+                                    </span>
+                                    <span className="text-gray-900 font-medium">
+                                      ₹{employee.daily_salary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 text-center text-gray-500">
+                  <p>No salary data available for the selected period</p>
+                </div>
+              )}
             </div>
 
             {/* Filters */}
@@ -444,6 +732,9 @@ export default function AttendancePage() {
                             Employee
                           </th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
+                            Role
+                          </th>
+                          <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
                             Station
                           </th>
                           <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700 border-b">
@@ -480,6 +771,11 @@ export default function AttendancePage() {
                                 <div className="font-medium">{record.employee_name}</div>
                                 <div className="text-xs text-gray-500">{record.emp_code}</div>
                               </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadge(record.role).color} ${getRoleBadge(record.role).borderColor}`}>
+                                {getRoleIcon(record.role)}
+                              </span>
                             </td>
                             <td className="px-4 py-3 text-sm text-gray-900">
                               {record.station_name}
@@ -558,7 +854,12 @@ export default function AttendancePage() {
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <div className="font-semibold text-base text-gray-900">{record.employee_name}</div>
-                          <div className="text-xs text-gray-500">{record.emp_code}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadge(record.role).color} ${getRoleBadge(record.role).borderColor}`}>
+                              {getRoleIcon(record.role)}
+                            </span>
+                            <span className="text-xs text-gray-500">{record.emp_code}</span>
+                          </div>
                           <div className="text-xs text-gray-500 mt-1">{record.station_name}</div>
                         </div>
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
@@ -914,16 +1215,7 @@ export default function AttendancePage() {
         </div>
       )}
 
-      {/* Activity Logs Button */}
-      <a
-        href="/activity-log"
-        className="fixed bottom-6 left-6 bg-purple-600 text-white px-4 py-3 rounded-full shadow-lg hover:bg-purple-700 transition-colors z-10 flex items-center text-sm"
-      >
-        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-        </svg>
-        Activity Logs
-      </a>
+    
     </div>
   );
 }
