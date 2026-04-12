@@ -9,6 +9,7 @@ import Sidebar from '../../components/sidebar';
 
 export default function FillingDetailsAdmin() {
   const router = useRouter();
+  
   const searchParams = useSearchParams();
   const id = searchParams.get('id');
   const { user, loading: authLoading } = useSession();
@@ -33,6 +34,7 @@ export default function FillingDetailsAdmin() {
     doc3: null
   });
   const [showCancelModal, setShowCancelModal] = useState(false);
+    const [showCancelCompletedModal, setShowCancelCompletedModal] = useState(false);
   const [cancelRemarks, setCancelRemarks] = useState('');
   const [permissions, setPermissions] = useState({ can_view: false, can_edit: false, can_create: false });
   const [hasPermission, setHasPermission] = useState(false);
@@ -41,6 +43,9 @@ export default function FillingDetailsAdmin() {
 
   const [brokenImages, setBrokenImages] = useState({ doc1: false, doc2: false, doc3: false });
   const [showPriceModal, setShowPriceModal] = useState(false);
+
+  // Check if user is admin
+  const isAdmin = user && ['1', '5'].includes(String(user.role));
 
   useEffect(() => {
     if (id) fetchRequestDetails();
@@ -568,6 +573,70 @@ export default function FillingDetailsAdmin() {
       setSubmitting(false);
     }
   };
+
+   const handleCancelCompletedRequest = async () => {
+    if (!id || !requestData.rid) {
+      alert('Request ID is missing');
+      return;
+    }
+
+    if (submitting) {
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      console.log('🔄 Cancelling completed request:', { id, rid: requestData.rid });
+      
+      const submitFormData = new FormData();
+      submitFormData.append('id', id);
+      submitFormData.append('rid', requestData.rid);
+      submitFormData.append('status', 'CancelCompleted');
+      
+      const response = await fetch(`/api/filling-details-admin`, {
+        method: 'POST',
+        body: submitFormData,
+      });
+
+      let result;
+      try {
+        const text = await response.text();
+        console.log('📨 Cancel completed raw response:', text.substring(0, 500));
+        if (!text || text.trim() === '') {
+          throw new Error('Empty response from server');
+        }
+        result = JSON.parse(text);
+      } catch (parseErr) {
+        console.error('❌ Failed to parse JSON:', parseErr);
+        result = { success: false, error: 'Invalid response from server. Please try again.' };
+      }
+
+      console.log('✅ Cancel completed API response:', result);
+
+      if (result.success) {
+        alert(`✅ Completed request cancelled successfully!\n\n${result.message || 'Stock and balance have been restored.'}`);
+        
+        setShowCancelCompletedModal(false);
+        
+        // Refresh request details
+        await fetchRequestDetails();
+
+        setTimeout(() => {
+          router.push('/filling-requests');
+        }, 2000);
+      } else {
+        throw new Error(result.error || result.message || 'Failed to cancel completed request');
+      }
+    } catch (err) {
+      console.error('❌ Cancel completed error:', err);
+      alert('Error cancelling completed request: ' + err.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+
 
   const handleRenewLimit = () => {
     // Close the price modal and show simple message
@@ -1655,15 +1724,28 @@ export default function FillingDetailsAdmin() {
                         ? 'This filling request has been completed successfully.'
                         : 'This filling request has been cancelled.'}
                     </p>
-                    <button
-                      onClick={() => router.push('/filling-requests')}
-                      className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors inline-flex items-center"
-                    >
-                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
-                      </svg>
-                      Back to Requests
-                    </button>
+                    <div className="flex gap-3 justify-center">
+                      {requestData.status === 'Completed' && isAdmin && (
+                        <button
+                          onClick={() => setShowCancelCompletedModal(true)}
+                          className="bg-red-600 hover:bg-red-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors inline-flex items-center"
+                        >
+                          <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+                          </svg>
+                          Cancel Completed Request
+                        </button>
+                      )}
+                      <button
+                        onClick={() => router.push('/filling-requests')}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-6 rounded-lg shadow-sm transition-colors inline-flex items-center"
+                      >
+                        <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+                        </svg>
+                        Back to Requests
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -1710,6 +1792,60 @@ export default function FillingDetailsAdmin() {
                 </div>
               )}
 
+   {showCancelCompletedModal && isAdmin && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                  <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+                    <h3 className="text-lg font-semibold mb-4 text-red-600">⚠️ Cancel Completed Request</h3>
+                    
+                    <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-red-700 font-medium">
+                        WARNING: Yeh action irreversible hai. Iske baad:
+                      </p>
+                      <ul className="text-xs text-red-600 mt-2 space-y-1">
+                        <li>✅ {parseFloat(requestData.aqty || 0).toFixed(2)}L stock station ko wapas milegi</li>
+                        <li>✅ ₹{formatAmount(requestData.totalamt || 0)} customer balance mein restore hoga</li>
+                        <li>✅ filling_history record "Cancelled" ho jayega</li>
+                        <li>✅ Request status "Cancelled" ho jayega</li>
+                      </ul>
+                    </div>
+                    
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+                      <p className="text-sm text-blue-700 font-medium">Request Details:</p>
+                      <div className="text-xs text-blue-600 mt-1 space-y-1">
+                        <div>ID: {requestData.rid}</div>
+                        <div>Customer: {requestData.client_name}</div>
+                        <div>Quantity: {requestData.aqty || 0} L</div>
+                        <div>Amount: ₹{formatAmount(requestData.totalamt || 0)}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end space-x-3">
+                      <button
+                        onClick={() => setShowCancelCompletedModal(false)}
+                        className="bg-gray-300 hover:bg-gray-400 text-gray-800 px-4 py-2 rounded-lg transition-colors"
+                        disabled={submitting}
+                      >
+                        Nahi, Wapas Jao
+                      </button>
+                      <button
+                        onClick={handleCancelCompletedRequest}
+                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg transition-colors disabled:opacity-50 flex items-center"
+                        disabled={submitting}
+                      >
+                        {submitting ? (
+                          <>
+                            <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Cancelling...
+                          </>
+                        ) : 'Haan, Cancel Karo'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
               {/* Deal Price Modal - Show only for non-Staff/Incharge */}
               {showPriceModal && !isStaffOrIncharge && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">

@@ -74,7 +74,7 @@ export async function GET(request) {
       LEFT JOIN filling_stations AS fs ON fh.fs_id = fs.id
       LEFT JOIN employee_profile AS ep ON fh.created_by = ep.id
       WHERE 1=1
-      AND fh.trans_type IN ('Inward', 'Outward', 'Edited', 'extra', 'stored', 'Shortage')
+      AND fh.trans_type IN ('Inward', 'Outward', 'Edited', 'extra', 'stored', 'Shortage', 'Return')
     `;
     
     // Add NB Stock condition if stock_type exists
@@ -134,6 +134,7 @@ export async function GET(request) {
       const shortageRows = rows.filter(r => r.trans_type === 'Shortage');
       const extraRows = rows.filter(r => r.trans_type === 'extra');
       const editedRows = rows.filter(r => r.trans_type === 'Edited');
+      const returnRows = rows.filter(r => r.trans_type === 'Return');
       
       console.log(' Transaction Summary:', {
         total: rows.length,
@@ -143,6 +144,7 @@ export async function GET(request) {
         extra: extraRows.length,
         stored: storedRows.length,
         shortage: shortageRows.length,
+        return: returnRows.length,
         zeroQtyExcluded: inwardRows.filter(r => parseFloat(r.filling_qty || 0) === 0).length
       });
       
@@ -244,16 +246,17 @@ export async function GET(request) {
       };
     });
 
-    // ✅ Filter out rows where filling_qty is 0 (double check)
-    const filteredRows = formattedRows.filter(row => 
+    // Filter out rows where filling_qty is 0 (double check)
+    const filteredRows = processedRows.filter(row => 
       row.filling_qty > 0 || 
       row.filling_qty < 0 || // Include negative quantities for 'stored' transactions
       row.trans_type === 'Edited' || // Edited transactions might have 0 qty change
       row.trans_type === 'stored' || // Include stored transactions even with 0 qty
-      row.trans_type === 'Shortage' // Include Shortage transactions even with 0 qty
+      row.trans_type === 'Shortage' || // Include Shortage transactions even with 0 qty
+      row.trans_type === 'Return' // Include Return transactions even with 0 qty
     );
 
-    console.log(`✅ After filtering zero qty rows: ${filteredRows.length} records`);
+    console.log(`After filtering zero qty rows: ${filteredRows.length} records`);
 
     const filling_stations = {};
     const productsSet = new Set();

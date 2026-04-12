@@ -276,7 +276,7 @@ export default function RechargeRequestPage() {
     }
 
     // Validate parking selection for cash payments
-    if (formData.payment_type === "1" && !formData.vendor_id) {
+    if (formData.payment_type === "1" && (!formData.vendor_id || formData.vendor_id === "")) {
       setError("Please select a parking for cash payment");
       setLoading(false);
       return;

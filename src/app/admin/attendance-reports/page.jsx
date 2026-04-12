@@ -93,7 +93,7 @@ function AdminReportsContent() {
       }
       fetchAttendanceData();
     }
-  }, [user, authLoading, selectedMonth, selectedRole, selectedStation]);
+  }, [user?.id, authLoading, selectedMonth, selectedRole, selectedStation]);
 
   const fetchAttendanceData = async () => {
     try {

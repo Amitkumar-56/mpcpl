@@ -333,7 +333,7 @@ export async function POST(request) {
             console.log('Inserting into cash_collection table');
             
             // Use vendorId from request or get default vendor
-            let vendorIdToUse = vendorId;
+            let vendorIdToUse = vendorId && vendorId !== "" ? vendorId : null;
             let vendorName = 'Unknown Vendor';
             
             if (vendorIdToUse) {
@@ -400,24 +400,28 @@ export async function POST(request) {
             });
 
             // Update vendor amount in vendors table
-            try {
-              const [vendorUpdateResult] = await connection.query(
-                `UPDATE vendors 
-                 SET amount = amount + ?, 
-                     updated_at = NOW()
-                 WHERE id = ?`,
-                [rechargeAmount, vendorIdToUse]
-              );
-              
-              console.log('Vendor amount updated:', {
-                vendorId: vendorIdToUse,
-                vendorName: vendorName,
-                amountAdded: rechargeAmount,
-                affectedRows: vendorUpdateResult.affectedRows
-              });
-            } catch (vendorUpdateError) {
-              console.log('Vendor amount update note:', vendorUpdateError.message);
-              // Don't fail the transaction if vendor amount update fails
+            if (vendorIdToUse) {
+              try {
+                const [vendorUpdateResult] = await connection.query(
+                  `UPDATE vendors 
+                   SET amount = amount + ?, 
+                       updated_at = NOW()
+                   WHERE id = ?`,
+                  [rechargeAmount, vendorIdToUse]
+                );
+                
+                console.log('Vendor amount updated:', {
+                  vendorId: vendorIdToUse,
+                  vendorName: vendorName,
+                  amountAdded: rechargeAmount,
+                  affectedRows: vendorUpdateResult.affectedRows
+                });
+              } catch (vendorUpdateError) {
+                console.log('Vendor amount update note:', vendorUpdateError.message);
+                // Don't fail the transaction if vendor amount update fails
+              }
+            } else {
+              console.log('Skipping vendor amount update - no valid vendor ID');
             }
             
           } catch (cashCollectionError) {
@@ -444,7 +448,7 @@ export async function POST(request) {
             console.log('Inserting into cash_collection table for new cash balance');
             
             // Use vendorId from request or get default vendor
-            let vendorIdToUse = vendorId;
+            let vendorIdToUse = vendorId && vendorId !== "" ? vendorId : null;
             let vendorName = 'Unknown Vendor';
             
             if (vendorIdToUse) {
@@ -511,24 +515,28 @@ export async function POST(request) {
             });
 
             // Update vendor amount in vendors table
-            try {
-              const [vendorUpdateResult] = await connection.query(
-                `UPDATE vendors 
-                 SET amount = amount + ?, 
-                     updated_at = NOW()
-                 WHERE id = ?`,
-                [rechargeAmount, vendorIdToUse]
-              );
-              
-              console.log('Vendor amount updated (new balance):', {
-                vendorId: vendorIdToUse,
-                vendorName: vendorName,
-                amountAdded: rechargeAmount,
-                affectedRows: vendorUpdateResult.affectedRows
-              });
-            } catch (vendorUpdateError) {
-              console.log('Vendor amount update note (new balance):', vendorUpdateError.message);
-              // Don't fail the transaction if vendor amount update fails
+            if (vendorIdToUse) {
+              try {
+                const [vendorUpdateResult] = await connection.query(
+                  `UPDATE vendors 
+                   SET amount = amount + ?, 
+                       updated_at = NOW()
+                   WHERE id = ?`,
+                  [rechargeAmount, vendorIdToUse]
+                );
+                
+                console.log('Vendor amount updated (new balance):', {
+                  vendorId: vendorIdToUse,
+                  vendorName: vendorName,
+                  amountAdded: rechargeAmount,
+                  affectedRows: vendorUpdateResult.affectedRows
+                });
+              } catch (vendorUpdateError) {
+                console.log('Vendor amount update note (new balance):', vendorUpdateError.message);
+                // Don't fail the transaction if vendor amount update fails
+              }
+            } else {
+              console.log('Skipping vendor amount update (new balance) - no valid vendor ID');
             }
             
           } catch (cashCollectionError) {
@@ -603,8 +611,8 @@ export async function POST(request) {
       await connection.query(
         `INSERT INTO filling_history 
          (trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, cl_id, created_by, payment_status) 
-         VALUES ('inward', ?, ?, ?, ?, ?, ?, 1, 1)`,
-        [rechargeAmount, safePaymentDate, oldBalance, newBalance, newAmtLimit, parseInt(customerId)]
+         VALUES ('inward', ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [rechargeAmount, safePaymentDate, oldBalance, newBalance, newAmtLimit, parseInt(customerId), currentUserId || 1]
       );
       
       // Step 3: Insert into limit_history
@@ -739,8 +747,8 @@ export async function POST(request) {
       await connection.query(
         `INSERT INTO filling_history 
          (trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, cl_id, created_by, payment_status) 
-         VALUES ('inward', ?, ?, ?, ?, ?, ?, 1, 1)`,
-        [rechargeAmount, safePaymentDate, oldBalance, newBalance, newAmtLimit, parseInt(customerId)]
+         VALUES ('inward', ?, ?, ?, ?, ?, ?, ?, 1)`,
+        [rechargeAmount, safePaymentDate, oldBalance, newBalance, newAmtLimit, parseInt(customerId), currentUserId || 1]
       );
       
       // Step 3: Insert into limit_history
@@ -899,8 +907,8 @@ export async function POST(request) {
         await connection.query(
           `INSERT INTO filling_history 
            (trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, cl_id, created_by, payment_status) 
-           VALUES ('inward', ?, ?, ?, ?, NULL, ?, 1, 1)`,
-          [rechargeAmount, safePaymentDate, oldBalance, newBalance, parseInt(customerId)]
+           VALUES ('inward', ?, ?, ?, ?, NULL, ?, ?, 1)`,
+          [rechargeAmount, safePaymentDate, oldBalance, newBalance, parseInt(customerId), currentUserId || 1]
         );
       } catch (historyErr) {
         console.log('Note: filling_history insert skipped for day_limit recharge:', historyErr.message);

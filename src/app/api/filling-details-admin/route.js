@@ -486,7 +486,13 @@ export async function POST(request) {
       resultMessage = await handleProcessingStatus({
         id, rid, cl_id, remarks, doc1Path, doc2Path, doc3Path, userId, sub_product_id
       });
-    } else if (status === 'Completed') {
+    }
+    else if (status === 'CancelCompleted') {
+      console.log('🔄 Handling Cancel Completed status...');
+      resultMessage = await handleCancelCompletedStatus({
+        id, rid, userId
+      });}
+     else if (status === 'Completed') {
       console.log('🔄 Handling Completed status...');
 
       // Get customer type for balance update logic
@@ -856,6 +862,12 @@ async function updateFillingLogs(request_id, status, userId) {
           console.log('Query:', updateQuery);
           console.log('Params:', { userId, now, request_id });
           break;
+           case 'CancelCompleted':
+          // ✅ FIX: CancelCompleted bhi logs update kare
+          updateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
+          queryParams = [userId, now, request_id];
+          console.log('=== UPDATING EXISTING LOG - CancelCompleted ===');
+          break;
         default:
           console.log('No log update needed for status:', status);
           return;
@@ -924,6 +936,10 @@ async function updateFillingLogs(request_id, status, userId) {
             statusParams = [userId, now, request_id];
             break;
           case 'Cancel':
+            statusUpdateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
+            statusParams = [userId, now, request_id];
+            break;
+            case 'CancelCompleted':
             statusUpdateQuery = `UPDATE filling_logs SET cancelled_by = ?, cancelled_date = ? WHERE request_id = ?`;
             statusParams = [userId, now, request_id];
             break;
@@ -1815,7 +1831,302 @@ async function handleNonBillingStocks(station_id, product_id, aqty, userId = 1) 
     return false;
   }
 }
+async function handleCancelCompletedStatus(data) {
+  const { id, rid, userId } = data;
+  const now = getIndianTime();
 
+  console.log('🔄 Cancelling completed request:', { id, rid, userId });
+
+  // Get the completed request details
+  const requestQuery = `
+    SELECT fr.*, c.client_type, c.billing_type as cust_billing_type, 
+           cb.amtlimit, cb.balance, cb.hold_balance, cb.day_limit,
+           fss.stock as current_station_stock
+    FROM filling_requests fr
+    LEFT JOIN customers c ON fr.cid = c.id
+    LEFT JOIN customer_balances cb ON c.id = cb.com_id
+    LEFT JOIN filling_station_stocks fss ON (fr.fs_id = fss.fs_id AND fr.product = fss.product)
+    WHERE fr.id = ? AND fr.status = 'Completed'
+  `;
+
+  const requestResult = await executeQuery(requestQuery, [id]);
+  
+  if (requestResult.length === 0) {
+    throw new Error('Completed request not found or request is not in Completed status');
+  }
+
+  const requestData = requestResult[0];
+  const cid = requestData.cid;
+  const fs_id = requestData.fs_id;
+  const product_id = requestData.product;
+  const aqty = parseFloat(requestData.aqty || 0);
+  // ✅ FIX: totalamt use karo, fallback price * aqty
+  const totalamt = parseFloat(requestData.totalamt || 0) || (parseFloat(requestData.price || 0) * aqty);
+
+  console.log('📋 Request details:', {
+    id, cid, fs_id, product_id, aqty, totalamt,
+    client_type: requestData.client_type,
+    billing_type: requestData.cust_billing_type,
+    current_station_stock: requestData.current_station_stock,
+    payment_status: requestData.payment_status
+  });
+
+  try {
+    // 1. Get amount from filling_history
+    const amountRows = await executeQuery(
+      "SELECT amount FROM filling_history WHERE rid = '" + requestData.rid + "' AND trans_type = 'Outward' LIMIT 1"
+    );
+
+    if (amountRows.length === 0 || amountRows[0].amount <= 0) {
+      throw new Error("Amount not found in filling_history");
+    }
+
+    const amount = parseFloat(amountRows[0].amount);
+
+    // 3. Get current balance
+    const balRows = await executeQuery(
+      "SELECT balance, amtlimit FROM customer_balances WHERE com_id = " + cid
+    );
+
+    if (balRows.length === 0) {
+      throw new Error("Customer balance record not found");
+    }
+
+    const old_balance = parseFloat(balRows[0].balance || 0);
+    const old_amtlimit = parseFloat(balRows[0].amtlimit || 0);
+
+    const new_balance = Math.max(0, old_balance - amount);
+    const new_remaining = old_amtlimit + amount;
+
+    console.log('Balance adjustment for cancellation:', {
+      old_balance, amount, new_balance,
+      old_amtlimit, new_remaining
+    });
+
+    console.log('Updating customer balance (reducing balance, increasing amtlimit)...');
+    await executeQuery(
+      "UPDATE customer_balances SET balance = " + new_balance + ", amtlimit = " + new_remaining + " WHERE com_id = " + cid
+    );
+
+    // Check customer billing type FIRST
+    const custRows = await executeQuery(
+      "SELECT billing_type FROM customers WHERE id = " + cid
+    );
+    
+    const isBillingCustomer = custRows.length > 0 && custRows[0].billing_type == 1;
+    console.log('Customer billing type:', { cid, billing_type: isBillingCustomer ? '1 (Billing)' : '0 (Non-billing)' });
+    
+    // Get stock BEFORE restoration for current_stock (original stock)
+    let currentStock = 0;
+    let availableStock = 0;
+    
+    if (isBillingCustomer) {
+      // Get stock BEFORE restoration from filling_station_stocks
+      const stockCheck = await executeQuery(
+        "SELECT stock FROM filling_station_stocks WHERE fs_id = " + fs_id + " AND product = " + product_id
+      );
+      if (stockCheck.length > 0) {
+        currentStock = parseFloat(stockCheck[0].stock) || 0;
+        availableStock = currentStock + aqty; // Available stock = original stock + returned quantity
+      }
+    } else {
+      // Get stock BEFORE restoration from filling_station_stocks (same table for all customers)
+      const stockCheck = await executeQuery(
+        "SELECT stock FROM filling_station_stocks WHERE fs_id = " + fs_id + " AND product = " + product_id
+      );
+      if (stockCheck.length > 0) {
+        currentStock = parseFloat(stockCheck[0].stock) || 0;
+        availableStock = currentStock + aqty; // Available stock = original stock + returned quantity
+        console.log('Non-billing stock from filling_station_stocks:', { fs_id, product_id, currentStock });
+      } else {
+        // If no record exists, use 0 as current stock
+        currentStock = 0;
+        availableStock = aqty; // Available stock = returned quantity only
+        console.log('Stock record not found in filling_station_stocks, using 0 as current stock:', { fs_id, product_id });
+      }
+    }
+    
+    console.log('Stock BEFORE restoration:', { 
+      currentStock, 
+      returnedQty: aqty, 
+      availableStock 
+    });
+
+    console.log('Restoring stock for all customers (billing and non-billing)...');
+    
+    if (isBillingCustomer) {
+      // For billing customers - update filling_station_stocks
+      const stockRows = await executeQuery(
+        "SELECT stock FROM filling_station_stocks WHERE fs_id = " + fs_id + " AND product = " + product_id
+      );
+
+      if (stockRows.length > 0) {
+        const new_stock = parseFloat(stockRows[0].stock) + aqty;
+        await executeQuery(
+          "UPDATE filling_station_stocks SET stock = " + new_stock + " WHERE fs_id = " + fs_id + " AND product = " + product_id
+        );
+        console.log('Billing customer stock restored:', { old_stock: stockRows[0].stock, added: aqty, new_stock });
+      } else {
+        console.log('Billing stock record not found for fs_id:', fs_id, 'product:', product_id);
+      }
+    } else {
+      // For non-billing customers - update BOTH filling_station_stocks AND non_billing_stocks
+      console.log('Processing non-billing customer stock restore...');
+      
+      // First update filling_station_stocks (main stock table)
+      const stockRows = await executeQuery(
+        "SELECT stock FROM filling_station_stocks WHERE fs_id = " + fs_id + " AND product = " + product_id
+      );
+      
+      if (stockRows.length > 0) {
+        const new_stock = parseFloat(stockRows[0].stock) + aqty;
+        await executeQuery(
+          "UPDATE filling_station_stocks SET stock = " + new_stock + " WHERE fs_id = " + fs_id + " AND product = " + product_id
+        );
+        console.log('Non-billing customer stock restored in filling_station_stocks:', { old_stock: stockRows[0].stock, added: aqty, new_stock });
+      } else {
+        console.log('filling_station_stocks record not found for non-billing customer');
+      }
+      
+      // Also update non_billing_stocks for non-billing tracking
+      const nbStockRows = await executeQuery(
+        "SELECT stock FROM non_billing_stocks WHERE station_id = " + fs_id + " AND product_id = " + product_id
+      );
+
+      if (nbStockRows.length > 0) {
+        const new_nb_stock = parseFloat(nbStockRows[0].stock) + aqty;
+        await executeQuery(
+          "UPDATE non_billing_stocks SET stock = " + new_nb_stock + " WHERE station_id = " + fs_id + " AND product_id = " + product_id
+        );
+        console.log('Non-billing customer stock restored in non_billing_stocks:', { old_stock: nbStockRows[0].stock, added: aqty, new_stock: new_nb_stock });
+      } else {
+        console.log('Non-billing stock record not found, inserting new record...');
+        await executeQuery(
+          "INSERT INTO non_billing_stocks (station_id, product_id, stock, created_at) VALUES (" + fs_id + ", " + product_id + ", " + aqty + ", '" + now + "')"
+        );
+        console.log('Non-billing stock record created with stock:', aqty);
+      }
+    }
+
+    console.log('Updating request status...');
+    const defaultRemarks = 'Completed request cancelled by admin - stock and balance restored';
+    await executeQuery(
+      "UPDATE filling_requests SET status = 'Cancelled', status_updated_by = " + userId + ", updated_at = '" + now + "', remark = '" + defaultRemarks + "' WHERE id = " + id
+    );
+
+    const creditDate = getIndianTime();
+    console.log('Debug INSERT values:', {
+      rid: requestData.rid,
+      fs_id: fs_id,
+      product_id: product_id,
+      trans_type: 'Return',
+      credit: amount,
+      credit_date: creditDate,
+      old_amount: old_balance,
+      new_amount: new_balance,
+      remaining_limit: new_remaining,
+      filling_date: creditDate,
+      cl_id: cid,
+      filling_qty: aqty
+    });
+    
+    console.log('Adding Return entry to filling_history...');
+    
+    console.log('Stock calculation for return:', { 
+      currentStock, 
+      returnedQty: aqty, 
+      availableStock 
+    });
+    
+    const returnQuery = `
+      INSERT INTO filling_history 
+      (rid, fs_id, product_id, trans_type, credit, credit_date, old_amount, new_amount, remaining_limit, filling_date, cl_id, filling_qty, current_stock, available_stock, created_by) 
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `;
+    await executeQuery(returnQuery, [
+      requestData.rid, fs_id, product_id, 'Return', amount, creditDate, old_balance, new_balance, new_remaining, creditDate, cid, aqty, currentStock, availableStock, userId
+    ]);
+    console.log('Return entry added to filling_history with correct stock values');
+    console.log('Return entry added to filling_history');
+
+    // 4. Update filling_history record to Cancelled
+    try {
+      const cancelTime = getIndianTime();
+      const cancelQuery = `
+        UPDATE filling_history 
+        SET trans_type = 'Cancelled', cancelled_date = ?, cancelled_by = ? 
+        WHERE rid = ? AND trans_type = 'Outward'
+      `;
+      await executeQuery(cancelQuery, [cancelTime, userId, requestData.rid]);
+      console.log('Updated filling_history to Cancelled');
+    } catch (historyErr) {
+      console.error('filling_history update failed (non-critical):', historyErr.message);
+      // Non-critical, continue
+    }
+
+    // 5. Update wallet_history if exists
+    try {
+      const walletCheck = await executeQuery(
+        "SELECT id FROM wallet_history WHERE rid = ? LIMIT 1",
+        [requestData.rid]
+      );
+      if (walletCheck.length > 0) {
+        const walletTime = getIndianTime();
+        const walletUpdateQuery = `
+          UPDATE wallet_history 
+          SET type = 5, d_date = ? 
+          WHERE rid = ?
+        `;
+        await executeQuery(walletUpdateQuery, [walletTime, requestData.rid]);
+        console.log('Updated wallet_history for cancellation');
+      }
+    } catch (walletErr) {
+      console.error('wallet_history update failed (non-critical):', walletErr.message);
+    }
+
+    // 6. Create audit log
+    try {
+      const userRows = await executeQuery(
+        "SELECT name FROM users WHERE id = ?",
+        [userId]
+      );
+      const userName = userRows.length > 0 ? userRows[0].name : 'Admin';
+      
+      await createAuditLog({
+        page: 'Filling Details Admin',
+        uniqueCode: `REQ-CANCEL-COMPLETED-${requestData.rid}`,
+        section: 'Cancel Completed Request',
+        userId: userId,
+        userName: userName,
+        action: 'cancel_completed',
+        remarks: `Completed request cancelled by admin. Restored ${aqty}L stock and ₹${totalamt.toFixed(2)} to customer balance.`,
+        oldValue: { 
+          status: 'Completed', 
+          quantity: aqty, 
+          amount: totalamt,
+          stock_before: requestData.current_station_stock
+        },
+        newValue: { 
+          status: 'Cancelled', 
+          stock_restored: aqty,
+          amount_restored: totalamt
+        },
+        recordType: 'filling_request',
+        recordId: parseInt(id)
+      });
+    } catch (auditErr) {
+      console.error('⚠️ Audit log creation failed (non-critical):', auditErr);
+    }
+
+    console.log('Completed request cancellation processed successfully');
+
+    return `Completed request cancelled successfully. ${aqty}L stock and ${totalamt.toFixed(2)} restored.`;
+
+  } catch (error) {
+    console.error('Error in cancellation:', error);
+    throw error;
+  }
+}
 async function handleFileUpload(file, rid, docKey) {
   if (!file || file.size === 0) return null;
   const maxSize = 5 * 1024 * 1000;
