@@ -1,5 +1,4 @@
 'use client';
-
 import { useSession } from "@/context/SessionContext";
 import Footer from "components/Footer";
 import Header from "components/Header";
@@ -7,7 +6,6 @@ import Sidebar from "components/sidebar";
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from "react";
 import { FiArrowLeft, FiEye, FiMessageCircle, FiPlus, FiDollarSign } from "react-icons/fi";
-
 function TInvoiceContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
