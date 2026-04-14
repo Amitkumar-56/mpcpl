@@ -43,7 +43,8 @@ export default function EmployeeHistory() {
     4: "Accountant",
     5: "Admin",
     6: "Driver",
-    7: "Hard Operation"
+    7: "Hard Operation",
+    8: "Security Guard"
   };
 
   // ✅ FIXED: Check permissions first

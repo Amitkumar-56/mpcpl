@@ -53,6 +53,13 @@ function EditEmployeeContent() {
     Remarks: { can_view: false, can_edit: false, can_create: false },
     Items: { can_view: false, can_edit: false, can_create: false },
     "HR Dashboard": { can_view: false, can_edit: false, can_create: false },
+    Manufacturing: { can_view: false, can_edit: false, can_create: false },
+    "Raw Materials": { can_view: false, can_edit: false, can_create: false },
+    "Finished Goods": { can_view: false, can_edit: false, can_create: false },
+    "Tanker Allocation": { can_view: false, can_edit: false, can_create: false },
+    "Lab Testing": { can_view: false, can_edit: false, can_create: false },
+    "Manufacturing Process": { can_view: false, can_edit: false, can_create: false },
+    "Security Gate": { can_view: false, can_edit: false, can_create: false },
   });
   const modules = Object.keys(permissions);
 
@@ -501,6 +508,7 @@ function EditEmployeeContent() {
                       <option value="5">Admin</option>
                       <option value="6">Driver</option>
                       <option value="7">Hard Operation</option>
+                      <option value="8">Security Guard</option>
                     </select>
                   </div>
                 )}

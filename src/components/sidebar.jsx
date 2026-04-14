@@ -15,7 +15,9 @@ import {
   FaFileInvoice,
   FaHistory,
   FaHome,
+  FaIndustry,
   FaMoneyBill,
+  FaShieldAlt,
   FaSignOutAlt,
   FaStickyNote,
   FaTimes,
@@ -139,9 +141,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "NB Stock", icon: <FaBox />, module: "nb_stock", path: "/nb-stock" },
     { name: "Reports", icon: <FaFileAlt />, module: "reports", path: "/reports" },
     { name: "Agent Management", icon: <FaUserTie />, module: "agent_management", path: "/agent-management" },
-  
 
-    
+
+
     { name: "Vehicles", icon: <FaTruckMoving />, module: "vehicles", path: "/vehicles" },
     { name: "LR Management", icon: <FaClipboard />, module: "lr_management", path: "/lr-list" },
     { name: "Loading History", icon: <FaHistory />, module: "history", path: "/loading-unloading-history" },
@@ -150,6 +152,13 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
+    { name: "Manufacturing", icon: <FaIndustry />, module: "manufacturing", path: "/manufacturing" },
+    { name: "Raw Materials", icon: <FaBox />, module: "raw_materials", path: "/manufacturing/raw-materials" },
+    { name: "Finished Goods", icon: <FaIndustry />, module: "finished_goods", path: "/manufacturing/finished-goods" },
+    { name: "Tanker Allocation", icon: <FaTruck />, module: "tanker_allocation", path: "/manufacturing/tanker-allocation" },
+    { name: "Lab Testing", icon: <FaCog />, module: "lab_testing", path: "/manufacturing/lab-testing" },
+    { name: "Manufacturing Process", icon: <FaCog />, module: "manufacturing_process", path: "/manufacturing/process" },
+    { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/security-gate" },
   ], []);
 
   const moduleMapping = useMemo(() => ({
@@ -183,8 +192,14 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     items: "Items",
     tanker_history: "Tanker History",
     deepo_history: "Deepo History",
-    agent_management: "Agent Management"
-
+    agent_management: "Agent Management",
+    manufacturing: "Manufacturing",
+    raw_materials: "Raw Materials",
+    finished_goods: "Finished Goods",
+    tanker_allocation: "Tanker Allocation",
+    lab_testing: "Lab Testing",
+    manufacturing_process: "Manufacturing Process",
+    security_gate: "Security Gate"
   }), []);
 
   // ✅ Role-based menu filtering
@@ -198,17 +213,20 @@ const Sidebar = memo(function Sidebar({ onClose }) {
       return menuItems;
     }
 
-    // ✅ Roles 1 (Staff), 2 (Incharge), 3 (Team Leader), 4 (Accountant), 7 (Hard Operation) - Strictly Follow Permissions
-    if ([1, 2, 3, 4, 7].includes(userRole)) {
+    // ✅ Roles 1 (Staff), 2 (Incharge), 3 (Team Leader), 4 (Accountant), 7 (Hard Operation), 8 (Security Guard) - Strictly Follow Permissions
+    if ([1, 2, 3, 4, 7, 8].includes(userRole)) {
       return menuItems.filter((item) => {
         const backendModuleName = moduleMapping[item.module];
 
         // If we have a mapping and permissions object
         if (backendModuleName && user.permissions && typeof user.permissions === 'object') {
+          // Special case: Manufacturing sidebar item shows if user has ANY manufacturing sub-module permission
+          if (item.module === 'manufacturing') {
+            const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process'];
+            return mfgModules.some(mod => user.permissions[mod]?.can_view === true);
+          }
           // Check if specific permission module exists
           if (user.permissions[backendModuleName]) {
-            // STRICTLY Return the can_view status
-            // "Check role + permissions table... show what is accessed, hide what is not"
             return user.permissions[backendModuleName].can_view === true;
           }
         }
@@ -384,7 +402,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         }}>
           {allowedMenu.length > 0 ? (
             allowedMenu.map((item) => {
-              const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
+              const isActive = pathname === item.path;
               const handleNavClick = (e) => {
                 e.preventDefault();
                 e.stopPropagation();

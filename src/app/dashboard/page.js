@@ -249,8 +249,8 @@ function DashboardContent() {
     try {
       const userRole = sessionUser?.role ? Number(sessionUser.role) : null;
 
-      // For staff/incharge: Don't fetch anything (blank dashboard)
-      if (userRole === 1 || userRole === 2) {
+      // For staff/incharge/security guard: Don't fetch anything (blank dashboard)
+      if (userRole === 1 || userRole === 2 || userRole === 8) {
         return;
       }
 
@@ -762,8 +762,8 @@ function DashboardContent() {
         </div>
 
         <main className="flex-1 p-4 lg:p-6 overflow-auto">
-          {/* Error Alert (Hidden for Staff/Incharge) */}
-          {error && !(sessionUser?.role === 1 || sessionUser?.role === 2) && (
+          {/* Error Alert (Hidden for Staff/Incharge/Security Guard) */}
+          {error && !(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 8) && (
             <div className="mb-4 bg-red-900/50 border border-red-500/50 backdrop-blur-sm rounded-lg p-3 flex items-center justify-between">
               <div className="flex items-center">
                 <BiError className="text-red-400 mr-2" />
@@ -783,7 +783,7 @@ function DashboardContent() {
                   Welcome, {sessionUser?.name}!
                 </h1>
                 <p className="text-gray-300 mt-1 text-sm">
-                  {((sessionUser?.role === 1 || sessionUser?.role === 2))
+                  {((sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 8))
                     ? "Chat and Support Dashboard"
                     : (sessionUser?.role === 6 || (sessionUser?.name && sessionUser.name.toLowerCase().includes('driver')) || (sessionUser?.role && sessionUser.role.toString().toLowerCase().includes('driver')))
                     ? "Driver Dashboard - Chat Support Available"
@@ -835,9 +835,11 @@ function DashboardContent() {
           </div>
 
           {/* Dashboard Content - Available for All Employees */}
-          {(sessionUser?.role === 1 || sessionUser?.role === 2) ? (
+          {(sessionUser?.role === 1 || sessionUser?.role === 2 || sessionUser?.role === 8) ? (
             <div className="mb-6">
-              <h2 className="text-xl font-bold text-white mb-4">Staff Dashboard</h2>
+              <h2 className="text-xl font-bold text-white mb-4">
+                {sessionUser?.role === 8 ? "Security Guard Dashboard" : "Staff Dashboard"}
+              </h2>
               <p className="text-gray-300">Access your modules and chat support from here.</p>
             </div>
           ) : (sessionUser?.role === 6 || (sessionUser?.name && sessionUser.name.toLowerCase().includes('driver')) || (sessionUser?.role && sessionUser.role.toString().toLowerCase().includes('driver'))) ? (

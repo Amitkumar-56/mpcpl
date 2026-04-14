@@ -41,7 +41,14 @@ export async function GET() {
       'Deepo History',
       'Vouchers',
       'Remarks',
-      'Items'
+      'Items',
+      'Manufacturing',
+      'Raw Materials',
+      'Finished Goods',
+      'Tanker Allocation',
+      'Lab Testing',
+      'Manufacturing Process',
+      'Security Gate'
     ];
 
     // Combine and deduplicate

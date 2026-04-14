@@ -159,7 +159,10 @@ export async function GET(request) {
                   user.role === 4 ? 'Accountant' :
                   user.role === 3 ? 'Team Leader' :
                   user.role === 2 ? 'Incharge' :
-                  user.role === 1 ? 'Staff' : 'Employee'
+                  user.role === 1 ? 'Staff' :
+                  user.role === 6 ? 'Driver' :
+                  user.role === 7 ? 'Hard Operation' :
+                  user.role === 8 ? 'Security Guard' : 'Employee'
     });
 
   } catch (error) {

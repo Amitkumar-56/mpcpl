@@ -238,7 +238,7 @@ export async function POST(req) {
           name: name,
           email: email,
           role: role,
-          role_name: role === 1 ? 'Staff' : role === 2 ? 'Incharge' : role === 3 ? 'Team Leader' : role === 4 ? 'Accountant' : role === 5 ? 'Admin' : role === 6 ? 'Driver' : 'Unknown',
+          role_name: role === 1 ? 'Staff' : role === 2 ? 'Incharge' : role === 3 ? 'Team Leader' : role === 4 ? 'Accountant' : role === 5 ? 'Admin' : role === 6 ? 'Driver' : role === 7 ? 'Hard Operation' : role === 8 ? 'Security Guard' : 'Unknown',
           created_by_employee_id: currentUserId,
           created_by_name: creatorName,
           created_by_role: creatorRole

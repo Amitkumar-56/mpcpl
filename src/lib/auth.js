@@ -63,20 +63,20 @@ export function verifyToken(token) {
   }
 }
 
-// 🔑 Check Permissions
+// Check Permissions
 export async function checkPermissions(userId, moduleName, action = 'can_view') {
   try {
-    console.log(`🔐 Checking permissions: User ${userId}, Module: ${moduleName}, Action: ${action}`);
+    console.log(`Checking permissions: User ${userId}, Module: ${moduleName}, Action: ${action}`);
     
     const result = await executeQuery(
-      `SELECT can_view, can_edit, can_delete 
+      `SELECT can_view, can_edit, can_create 
        FROM role_permissions 
        WHERE employee_id = ? AND module_name = ?`,
       [userId, moduleName]
     );
 
     if (result.length === 0) {
-      console.log(`❌ No permission record found for user ${userId} in module ${moduleName}`);
+      console.log(`No permission record found for user ${userId} in module ${moduleName}`);
       return false;
     }
     

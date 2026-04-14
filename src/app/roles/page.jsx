@@ -20,6 +20,7 @@ export default function RoleAccessControl() {
     'Admin',
     'Driver',
     'Hard Operation',
+    'Security Guard',
   ];
 
   // All available modules (matching database module names)
@@ -50,7 +51,14 @@ export default function RoleAccessControl() {
     'Deepo History',
     'Vouchers',
     'Remarks',
-    'Items'
+    'Items',
+    'Manufacturing',
+    'Raw Materials',
+    'Finished Goods',
+    'Tanker Allocation',
+    'Lab Testing',
+    'Manufacturing Process',
+    'Security Gate'
   ];
 
   // Role-wise data (har role ka apna modules & permissions)
@@ -149,7 +157,8 @@ export default function RoleAccessControl() {
           4: 'Accountant',
           5: 'Admin',
           6: 'Driver',
-          7: 'Hard Operation'
+          7: 'Hard Operation',
+          8: 'Security Guard'
         };
 
         const updatedSettings = { ...roleWiseSettings };
