@@ -387,7 +387,8 @@ export default function AttendancePage() {
       2: { name: 'Incharge', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-300' },
       3: { name: 'Team Leader', color: 'bg-green-100 text-green-800', borderColor: 'border-green-300' },
       4: { name: 'Accountant', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-300' },
-      5: { name: 'Admin', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300' }
+      5: { name: 'Admin', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300' },
+      6: { name: 'Driver', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-300' }
     };
     return badges[role] || { name: 'Unknown', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300' };
   };
@@ -398,7 +399,8 @@ export default function AttendancePage() {
       2: 'Incharge',
       3: 'Team Leader',
       4: 'Accountant',
-      5: 'Admin'
+      5: 'Admin',
+      6: 'Driver'
     };
     return icons[role] || 'Unknown';
   };
@@ -456,11 +458,11 @@ export default function AttendancePage() {
   });
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gray-50 overflow-hidden">
       <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
         <Sidebar />
       </div>
-      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
+      <div className="lg:ml-64 flex-1 flex flex-col h-screen overflow-hidden">
         <div className="flex-shrink-0">
           <Header />
         </div>
@@ -572,6 +574,10 @@ export default function AttendancePage() {
                 <div className="flex items-center gap-2 w-full md:w-auto">
                   <span className="px-2 py-1 rounded-full text-xs font-medium border bg-yellow-100 text-yellow-800 border-yellow-300">Accountant</span>
                   <span className="text-xs text-gray-600">Finance Team</span>
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                  <span className="px-2 py-1 rounded-full text-xs font-medium border bg-blue-100 text-blue-800 border-blue-300">Driver</span>
+                  <span className="text-xs text-gray-600">Drivers</span>
                 </div>
                 <div className="flex items-center gap-2 w-full md:w-auto">
                   <span className="px-2 py-1 rounded-full text-xs font-medium border bg-red-100 text-red-800 border-red-300">Admin</span>

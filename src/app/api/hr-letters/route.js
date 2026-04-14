@@ -12,6 +12,7 @@ export async function GET(request) {
     const employeeId = searchParams.get('employee_id');
     const month = searchParams.get('month');
     const year = searchParams.get('year');
+    const includePF = searchParams.get('include_pf') === 'true'; // Default to true if not specified
 
     // Get current user
     const cookieStore = await cookies();
@@ -109,7 +110,7 @@ export async function GET(request) {
             { status: 400 }
           );
         }
-        letterContent = await generateSalarySlip(employeeData, companyDetails, currentDate, month, year);
+        letterContent = await generateSalarySlip(employeeData, companyDetails, currentDate, month, year, includePF);
         fileName = `Salary_Slip_${employeeData.name}_${month}_${year}.pdf`;
         break;
       case 'termination':
@@ -824,28 +825,86 @@ function generateAgreementLetter(employee, company, date) {
 }
 
 // ─── Salary Slip ──────────────────────────────────────────────────────────────
-async function generateSalarySlip(employee, company, date, month, year) {
-  const salary = await executeQuery(
-    `SELECT * FROM salary_records WHERE employee_id = ? AND month = ? AND year = ?`,
-    [employee.id, month, year]
-  );
-
-  const s = salary && salary.length > 0 ? salary[0] : null;
+async function generateSalarySlip(employee, company, date, month, year, includePF = true) {
   const monthName = new Date(year, month - 1).toLocaleDateString('en-US', { month: 'long' });
   const fmt = (n) => parseFloat(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const refNo = `GYANTI/SAL/${year}/${String(month).padStart(2, '0')}/${String(employee.id).padStart(4, '0')}`;
 
+  // Fetch attendance summary data for the employee (should be updated when daily attendance is marked)
+  const attendanceSummary = await executeQuery(
+    `SELECT total_days, present_days, absent_days, leave_days, half_days, worked_days 
+     FROM attendance_summary 
+     WHERE employee_id = ? AND month = ? AND year = ?`,
+    [employee.id, month, year]
+  );
+
+  const attendanceData = attendanceSummary && attendanceSummary.length > 0 ? attendanceSummary[0] : {
+    total_days: 30,
+    present_days: 30,
+    absent_days: 0,
+    leave_days: 0,
+    half_days: 0,
+    worked_days: 30
+  };
+
+  const totalDays = attendanceData.total_days || 30;
+  const presentDays = attendanceData.present_days || 30;
+
+  // Calculate salary components from base salary
+  const baseSalary = parseFloat(employee.salary) || 25000;
+  const basicSalary = baseSalary * 0.4; // 40% Basic
+  const hra = baseSalary * 0.2; // 20% HRA
+  const foodAllowance = baseSalary * 0.15; // 15% Food
+  const fixedIncentive = baseSalary * 0.25; // 25% Incentive
+  const grossSalary = basicSalary + hra + foodAllowance + fixedIncentive;
+
+  // Calculate earned salary based on attendance
+  const perDaySalary = grossSalary / totalDays;
+  const earnedGrossSalary = perDaySalary * presentDays;
+  
+  // Calculate earned components based on attendance
+  const earnedBasic = (basicSalary / totalDays) * presentDays;
+  const earnedHRA = (hra / totalDays) * presentDays;
+  const earnedFood = (foodAllowance / totalDays) * presentDays;
+  const earnedIncentive = (fixedIncentive / totalDays) * presentDays;
+
+  // Calculate deductions based on earned salary
+  const pfDeduction = includePF ? earnedBasic * 0.12 : 0; // 12% PF on earned Basic (only if includePF is true)
+  const esiDeduction = includePF ? Math.min(earnedGrossSalary * 0.0075, 750) : 0; // 0.75% ESI on earned gross, max 750 (only if includePF is true)
+  const tdsDeduction = 0; // Can be calculated based on tax slabs
+  const advanceDeduction = 0; // Can be set based on advances
+  const totalDeduction = pfDeduction + esiDeduction + tdsDeduction + advanceDeduction;
+  const netSalary = earnedGrossSalary - totalDeduction;
+
+  // Create salary object with attendance-based calculations
+  const s = {
+    basic_salary: earnedBasic,
+    hra_amount: earnedHRA,
+    food_allowance: earnedFood,
+    fixed_incentive: earnedIncentive,
+    gross_salary: earnedGrossSalary,
+    pf_deduction: pfDeduction,
+    esi_deduction: esiDeduction,
+    tds_deduction: tdsDeduction,
+    advance_deduction: advanceDeduction,
+    total_deduction: totalDeduction,
+    net_salary: netSalary,
+    total_days: totalDays,
+    present_days: presentDays,
+    earned_salary: netSalary
+  };
+
   const earnings = [
-    ['Basic Salary', s?.basic_salary],
-    ['House Rent Allowance (HRA)', s?.hra_amount],
-    ['Food Allowance', s?.food_allowance],
-    ['Fixed Incentive', s?.fixed_incentive],
+    ['Basic Salary', s.basic_salary],
+    ['House Rent Allowance (HRA)', s.hra_amount],
+    ['Food Allowance', s.food_allowance],
+    ['Fixed Incentive', s.fixed_incentive],
   ];
   const deductions = [
-    ['Provident Fund (Employee)', s?.pf_deduction],
-    ['ESI', s?.esi_deduction],
-    ['Tax Deducted at Source (TDS)', s?.tds_deduction],
-    ['Advance Deduction', s?.advance_deduction],
+    ['Provident Fund (Employee)', s.pf_deduction],
+    ['ESI', s.esi_deduction],
+    ['Tax Deducted at Source (TDS)', s.tds_deduction],
+    ['Advance Deduction', s.advance_deduction],
   ];
 
   return `<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">

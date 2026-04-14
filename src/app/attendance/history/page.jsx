@@ -16,6 +16,12 @@ export default function AttendanceHistoryPage() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalRecords: 0,
+    recordsPerPage: 50
+  });
   const [filters, setFilters] = useState({
     start_date: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
@@ -37,16 +43,21 @@ export default function AttendanceHistoryPage() {
       }
       fetchStations();
       fetchEmployees();
-      fetchHistory();
+      // Reset to page 1 when filters change
+      setPagination(prev => ({ ...prev, currentPage: 1 }));
+      fetchHistory(1);
     }
   }, [user, authLoading, router, filters]);
 
   const fetchStations = async () => {
     try {
-      const response = await fetch('/api/stations');
+      const url = user ? `/api/stations?user_id=${user.id}&role=${user.role}` : '/api/stations';
+      const response = await fetch(url);
       const data = await response.json();
       if (Array.isArray(data)) {
         setStations(data);
+      } else if (data.success && data.stations) {
+        setStations(data.stations);
       } else if (data.success && data.data) {
         setStations(data.data);
       }
@@ -67,7 +78,7 @@ export default function AttendanceHistoryPage() {
     }
   };
 
-  const fetchHistory = async () => {
+  const fetchHistory = async (page = 1) => {
     try {
       setLoading(true);
       setError("");
@@ -75,12 +86,19 @@ export default function AttendanceHistoryPage() {
       if (filters.station_id) url += `&station_id=${filters.station_id}`;
       if (filters.employee_id) url += `&employee_id=${filters.employee_id}`;
       if (filters.marked_by) url += `&marked_by=${filters.marked_by}`;
+      url += `&page=${page}&limit=${pagination.recordsPerPage}`;
       
       const response = await fetch(url);
       const data = await response.json();
       
       if (data.success) {
         setAttendanceHistory(data.data || []);
+        setPagination(prev => ({
+          ...prev,
+          currentPage: page,
+          totalPages: data.totalPages || 1,
+          totalRecords: data.totalRecords || 0
+        }));
       } else {
         setError(data.error || "Failed to fetch attendance history");
       }
@@ -336,7 +354,7 @@ export default function AttendanceHistoryPage() {
                             </div>
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
-                            {record.station_name}
+                            {record.station_name || `Station ${record.station_id}`}
                           </td>
                           <td className="px-4 py-3 text-sm text-gray-900">
                             {record.check_in_time || "-"}
@@ -388,13 +406,45 @@ export default function AttendanceHistoryPage() {
               )}
             </div>
 
+            {/* Pagination */}
+            {pagination.totalPages > 1 && (
+              <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-gray-600">
+                    Showing {((pagination.currentPage - 1) * pagination.recordsPerPage) + 1} to{' '}
+                    {Math.min(pagination.currentPage * pagination.recordsPerPage, pagination.totalRecords)} of{' '}
+                    {pagination.totalRecords} records
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => fetchHistory(pagination.currentPage - 1)}
+                      disabled={pagination.currentPage === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Previous
+                    </button>
+                    <span className="px-3 py-1 text-sm font-medium">
+                      Page {pagination.currentPage} of {pagination.totalPages}
+                    </span>
+                    <button
+                      onClick={() => fetchHistory(pagination.currentPage + 1)}
+                      disabled={pagination.currentPage === pagination.totalPages}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Summary */}
             {attendanceHistory.length > 0 && (
               <div className="mt-4 bg-white rounded-xl shadow-sm border border-gray-200 p-4">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <div className="text-sm text-gray-600">Total Records</div>
-                    <div className="text-2xl font-bold text-gray-900">{attendanceHistory.length}</div>
+                    <div className="text-2xl font-bold text-gray-900">{pagination.totalRecords}</div>
                   </div>
                   <div>
                     <div className="text-sm text-gray-600">Present</div>

@@ -279,6 +279,94 @@ export async function POST(request) {
       }
     }
 
+    // Update attendance_summary table for all affected employees
+    try {
+      const [year, month] = date.split('-');
+      const uniqueEmployeeIds = [...new Set(attendance_data.map(a => a.employee_id))];
+      
+      for (const employeeId of uniqueEmployeeIds) {
+        // Calculate attendance summary for this employee
+        const attendanceStats = await executeQuery(
+          `SELECT 
+            COUNT(*) as total_days,
+            SUM(CASE WHEN status = 'Present' THEN 1 ELSE 0 END) as present_days,
+            SUM(CASE WHEN status = 'Absent' THEN 1 ELSE 0 END) as absent_days,
+            SUM(CASE WHEN status = 'Leave' THEN 1 ELSE 0 END) as leave_days,
+            SUM(CASE WHEN status = 'Half Day' THEN 1 ELSE 0 END) as half_days,
+            SUM(CASE WHEN status IN ('Present', 'Half Day') THEN 1 ELSE 0 END) as worked_days
+          FROM attendance 
+          WHERE employee_id = ? AND MONTH(attendance_date) = ? AND YEAR(attendance_date) = ?`,
+          [employeeId, parseInt(month), parseInt(year)]
+        );
+
+        const stats = attendanceStats[0] || {
+          total_days: 0,
+          present_days: 0,
+          absent_days: 0,
+          leave_days: 0,
+          half_days: 0,
+          worked_days: 0
+        };
+
+        // Calculate working days (excluding Sundays) for the month
+        const firstDay = new Date(parseInt(year), parseInt(month) - 1, 1);
+        const lastDay = new Date(parseInt(year), parseInt(month), 0);
+        const workingDays = Array.from({length: lastDay.getDate()}, (_, i) => i + 1)
+          .filter(day => new Date(parseInt(year), parseInt(month) - 1, day).getDay() !== 0) // Exclude Sundays
+          .length;
+
+        stats.total_days = workingDays;
+
+        // Check if summary record exists
+        const existingSummary = await executeQuery(
+          `SELECT id FROM attendance_summary WHERE employee_id = ? AND month = ? AND year = ?`,
+          [employeeId, parseInt(month), parseInt(year)]
+        );
+
+        if (existingSummary && existingSummary.length > 0) {
+          // Update existing summary
+          await executeQuery(
+            `UPDATE attendance_summary 
+            SET total_days = ?, present_days = ?, absent_days = ?, leave_days = ?, 
+                half_days = ?, worked_days = ?, updated_at = NOW()
+            WHERE employee_id = ? AND month = ? AND year = ?`,
+            [
+              stats.total_days,
+              stats.present_days,
+              stats.absent_days,
+              stats.leave_days,
+              stats.half_days,
+              stats.worked_days,
+              employeeId,
+              parseInt(month),
+              parseInt(year)
+            ]
+          );
+        } else {
+          // Insert new summary
+          await executeQuery(
+            `INSERT INTO attendance_summary 
+            (employee_id, month, year, total_days, present_days, absent_days, leave_days, half_days, worked_days)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              employeeId,
+              parseInt(month),
+              parseInt(year),
+              stats.total_days,
+              stats.present_days,
+              stats.absent_days,
+              stats.leave_days,
+              stats.half_days,
+              stats.worked_days
+            ]
+          );
+        }
+      }
+    } catch (summaryError) {
+      console.error('Error updating attendance summary:', summaryError);
+      // Don't fail the main operation, just log the error
+    }
+
     return NextResponse.json({
       success: true,
       message: `Processed ${attendance_data.length} attendance records. ${results.length} successful, ${errors.length} failed.`,

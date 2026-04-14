@@ -1,4 +1,3 @@
-// src/app/hr-letters/page.jsx
 "use client";
 
 import Footer from "@/components/Footer";
@@ -7,71 +6,58 @@ import Sidebar from "@/components/sidebar";
 import { useSession } from "@/context/SessionContext";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
+import { BiFile, BiCalendar, BiMoney, BiUser, BiCheckCircle, BiDownload, BiArrowBack } from "react-icons/bi";
 
 const LETTER_TYPES = [
   {
     id: "offer",
     name: "Offer Letter",
     description: "Job offer for new candidates",
-    icon: "📄",
-    color: "#1a3c5e",
-    bg: "#e8f0f7",
-    border: "#b8cfe0",
+    icon: BiFile,
+    color: "blue",
   },
   {
     id: "appointment",
     name: "Appointment Letter",
     description: "Confirmation of employment",
-    icon: "✅",
-    color: "#1a3c5e",
-    bg: "#e8f0f7",
-    border: "#b8cfe0",
+    icon: BiCheckCircle,
+    color: "green",
   },
   {
     id: "joining",
     name: "Joining Letter",
     description: "Welcome letter for new joinee",
-    icon: "🎉",
-    color: "#1e4d2b",
-    bg: "#eaf3ec",
-    border: "#b5d8bb",
+    icon: BiUser,
+    color: "purple",
   },
   {
     id: "agreement",
     name: "Employment Agreement",
     description: "Terms and conditions of employment",
-    icon: "📋",
-    color: "#3d1a6e",
-    bg: "#f0ebf8",
-    border: "#c5b0e0",
+    icon: BiFile,
+    color: "indigo",
   },
   {
     id: "salary",
     name: "Salary Slip",
     description: "Monthly salary statement",
-    icon: "💰",
-    color: "#7b3f00",
-    bg: "#fdf0e6",
-    border: "#e8c9a8",
+    icon: BiMoney,
+    color: "yellow",
     requiresMonth: true,
   },
   {
     id: "termination",
     name: "Termination Letter",
     description: "Employment termination notice",
-    icon: "❌",
-    color: "#7a1010",
-    bg: "#fde8e8",
-    border: "#f0b5b5",
+    icon: BiFile,
+    color: "red",
   },
   {
     id: "relieving",
     name: "Relieving Letter",
     description: "Experience & relieving certificate",
-    icon: "🎓",
-    color: "#1a3c5e",
-    bg: "#e8f0f7",
-    border: "#b8cfe0",
+    icon: BiCheckCircle,
+    color: "blue",
   },
 ];
 
@@ -83,27 +69,17 @@ const MONTHS = [
 // Loading fallback component
 function HRLettersLoading() {
   return (
-    <div className="flex min-h-screen bg-gray-50">
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
-        <Sidebar />
-      </div>
-      <div className="lg:ml-64 flex-1 flex flex-col min-h-screen">
-        <div className="flex-shrink-0"><Header /></div>
-        <main className="flex-1 overflow-y-auto hr-page">
-          <div className="container mx-auto px-4 py-0 max-w-6xl">
-            <div className="page-hero">
-              <div className="hero-title">HR Letters Generator</div>
-              <div className="hero-subtitle">Loading...</div>
-            </div>
-            <div className="selection-card">
-              <div className="card-heading">Loading employee data...</div>
-              <div className="flex justify-center py-8">
-                <div className="spinner"></div>
-              </div>
-            </div>
+    <div className="flex h-screen bg-[#f4f6fb]">
+      <div className="flex-1 flex flex-col">
+        <div className="h-16 bg-white shadow-sm animate-pulse" />
+        <div className="flex-1 p-6 overflow-auto space-y-6">
+          <div className="h-10 bg-gray-200 rounded-lg w-1/4 animate-pulse" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {[...Array(6)].map((_, i) => (
+              <div key={i} className="h-32 bg-gray-200 rounded-2xl animate-pulse" />
+            ))}
           </div>
-        </main>
-        <div className="flex-shrink-0"><Footer /></div>
+        </div>
       </div>
     </div>
   );
@@ -121,6 +97,7 @@ function HRLettersContent() {
   const [selectedEmployee, setSelectedEmployee] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [includePF, setIncludePF] = useState(true); // PF option for salary slip
   const [letterPreview, setLetterPreview] = useState(null);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewTitle, setPreviewTitle] = useState("");
@@ -160,7 +137,7 @@ function HRLettersContent() {
       setError("");
 
       let url = `/api/hr-letters?type=${letter.id}&employee_id=${selectedEmployee}`;
-      if (letter.requiresMonth) url += `&month=${selectedMonth}&year=${selectedYear}`;
+      if (letter.requiresMonth) url += `&month=${selectedMonth}&year=${selectedYear}&include_pf=${includePF}`;
 
       const res = await fetch(url);
       const data = await res.json();
@@ -623,15 +600,19 @@ function HRLettersContent() {
                       ))}
                     </select>
                   </div>
+                  <div className="field-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={includePF}
+                        onChange={(e) => setIncludePF(e.target.checked)}
+                        style={{ marginRight: '8px' }}
+                      />
+                      Include PF Deduction <span style={{ color: "#9ca3af", fontWeight: 400 }}>(Salary Slip)</span>
+                    </label>
+                  </div>
                 </div>
               </div>
-
-              {/* Error */}
-              {error && (
-                <div className="error-banner">
-                  <span>⚠️</span> {error}
-                </div>
-              )}
 
               {/* Letters grid */}
               <div className="section-label">Step 2 — Choose Letter Type</div>
@@ -649,7 +630,7 @@ function HRLettersContent() {
                           className="letter-icon"
                           style={{ background: letter.bg }}
                         >
-                          {letter.icon}
+                          <letter.icon />
                         </div>
                         <div className="letter-info">
                           <div className="letter-name">{letter.name}</div>
@@ -667,15 +648,13 @@ function HRLettersContent() {
                       )}
 
                       <button
-                        className="gen-btn"
-                        style={{
-                          background: selectedEmployee
-                            ? `linear-gradient(135deg, ${letter.color}, ${letter.color}cc)`
-                            : "#e5e7eb",
-                          color: selectedEmployee ? "#fff" : "#9ca3af",
-                        }}
+                        className={`w-full rounded-xl font-bold text-sm transition-all duration-200 flex items-center justify-center gap-2 py-3 px-4 border-2 ${
+                          selectedEmployee && !loading
+                            ? "bg-gradient-to-r from-blue-600 to-blue-700 text-white hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl border-blue-500 transform hover:scale-105"
+                            : "bg-gray-200 text-gray-500 cursor-not-allowed border-gray-300"
+                        }`}
                         onClick={() => handleGenerateLetter(letter)}
-                        disabled={loading || !selectedEmployee}
+                        disabled={!selectedEmployee || loading}
                       >
                         {isGenerating ? (
                           <>

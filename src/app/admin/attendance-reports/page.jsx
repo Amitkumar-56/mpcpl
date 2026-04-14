@@ -128,48 +128,162 @@ function AdminReportsContent() {
   };
 
   const generateDriverReport = (driver) => {
-    const reportContent = `
-EMPLOYEE DETAILED REPORT - ${selectedMonth}
-=========================================
-Generated on: ${new Date().toLocaleDateString('en-IN')}
-Employee: ${driver.employee_name} (${driver.role_name})
-Employee ID: ${driver.employee_id || 'N/A'}
-Employee Code: ${driver.emp_code || 'N/A'}
+    // Create HTML content for PDF
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Attendance Report - ${driver.employee_name}</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            line-height: 1.6;
+            color: #333;
+        }
+        .header { 
+            text-align: center; 
+            border-bottom: 2px solid #333; 
+            padding-bottom: 20px; 
+            margin-bottom: 30px;
+        }
+        .header h1 { 
+            color: #2563eb; 
+            margin: 0;
+            font-size: 24px;
+        }
+        .info-section { 
+            margin: 20px 0; 
+            padding: 15px; 
+            background: #f8f9fa; 
+            border-radius: 5px;
+        }
+        .info-section h3 { 
+            color: #1f2937; 
+            margin-top: 0;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 5px;
+        }
+        .summary-grid { 
+            display: grid; 
+            grid-template-columns: 1fr 1fr; 
+            gap: 15px; 
+            margin: 20px 0;
+        }
+        .summary-item { 
+            padding: 10px; 
+            background: #fff; 
+            border: 1px solid #e5e7eb; 
+            border-radius: 5px;
+            text-align: center;
+        }
+        .present { background: #dcfce7; color: #166534; }
+        .absent { background: #fef2f2; color: #dc2626; }
+        .half-day { background: #fef3c7; color: #d97706; }
+        .leave { background: #dbeafe; color: #2563eb; }
+        .footer { 
+            margin-top: 40px; 
+            text-align: center; 
+            font-size: 12px; 
+            color: #6b7280;
+            border-top: 1px solid #e5e7eb;
+            padding-top: 20px;
+        }
+        @media print {
+            body { margin: 10px; }
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>EMPLOYEE ATTENDANCE REPORT</h1>
+        <p><strong>Month:</strong> ${selectedMonth}</p>
+        <p><strong>Generated on:</strong> ${new Date().toLocaleDateString('en-IN')}</p>
+    </div>
 
-ATTENDANCE SUMMARY:
-------------------
-Month: ${selectedMonth}
-Total Attendance Records: ${driver.total_attendance || 0}
-Present Days: ${driver.present_count || 0}
-Absent Days: ${driver.absent_count || 0}
-Half Days: ${driver.half_day_count || 0}
-Leave Days: ${driver.leave_count || 0}
+    <div class="info-section">
+        <h3>Employee Information</h3>
+        <p><strong>Name:</strong> ${driver.employee_name}</p>
+        <p><strong>Role:</strong> ${driver.role_name}</p>
+        <p><strong>Employee ID:</strong> ${driver.employee_id || 'N/A'}</p>
+        <p><strong>Employee Code:</strong> ${driver.emp_code || 'N/A'}</p>
+    </div>
 
-MONTHLY BREAKDOWN:
-${driver.monthly_breakdown ? driver.monthly_breakdown.map(day => 
-  `${day.date}: ${day.status} (${day.attendance_count || 0} records)`
-).join('\n') : 'No detailed breakdown available'}
+    <div class="info-section">
+        <h3>Attendance Summary</h3>
+        <div class="summary-grid">
+            <div class="summary-item present">
+                <strong>Present Days</strong><br>
+                ${driver.present_count || 0}
+            </div>
+            <div class="summary-item absent">
+                <strong>Absent Days</strong><br>
+                ${driver.absent_count || 0}
+            </div>
+            <div class="summary-item half-day">
+                <strong>Half Days</strong><br>
+                ${driver.half_day_count || 0}
+            </div>
+            <div class="summary-item leave">
+                <strong>Leave Days</strong><br>
+                ${driver.leave_count || 0}
+            </div>
+        </div>
+        <p><strong>Total Attendance Records:</strong> ${driver.total_attendance || 0}</p>
+        <p><strong>Attendance Rate:</strong> ${driver.total_attendance > 0 ? Math.round((driver.present_count / driver.total_attendance) * 100) : 0}%</p>
+    </div>
 
-PERFORMANCE METRICS:
-------------------
-Attendance Rate: ${driver.total_attendance > 0 ? Math.round((driver.present_count / driver.total_attendance) * 100) : 0}%
-Punctuality Score: ${driver.present_count > (driver.absent_count + driver.half_day_count) ? 'Good' : 'Needs Improvement'}
-Overall Status: ${driver.present_count > driver.absent_count ? 'Active' : 'Inactive'}
+    <div class="info-section">
+        <h3>Performance Metrics</h3>
+        <p><strong>Punctuality Score:</strong> ${driver.present_count > (driver.absent_count + driver.half_day_count) ? 'Good' : 'Needs Improvement'}</p>
+        <p><strong>Overall Status:</strong> ${driver.present_count > driver.absent_count ? 'Active' : 'Inactive'}</p>
+    </div>
 
-=========================================
-End of Detailed Report
+    ${driver.monthly_breakdown ? `
+    <div class="info-section">
+        <h3>Monthly Breakdown</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr style="background: #f3f4f6;">
+                    <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Date</th>
+                    <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Status</th>
+                    <th style="border: 1px solid #d1d5db; padding: 8px; text-align: left;">Records</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${driver.monthly_breakdown.map(day => `
+                    <tr>
+                        <td style="border: 1px solid #d1d5db; padding: 8px;">${day.date}</td>
+                        <td style="border: 1px solid #d1d5db; padding: 8px;">${day.status}</td>
+                        <td style="border: 1px solid #d1d5db; padding: 8px;">${day.attendance_count || 0}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        </table>
+    </div>
+    ` : ''}
+
+    <div class="footer">
+        <p>This report was generated automatically by the Attendance Management System</p>
+        <p>For any queries, please contact the system administrator</p>
+    </div>
+</body>
+</html>
     `.trim();
 
-    // Create and download report
-    const blob = new Blob([reportContent], { type: 'text/plain' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `detailed_report_${driver.employee_name}_${selectedMonth}.txt`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    window.URL.revokeObjectURL(url);
+    // Create a new window and print as PDF
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(htmlContent);
+    printWindow.document.close();
+    
+    // Wait for content to load, then trigger print
+    printWindow.onload = function() {
+      printWindow.focus();
+      printWindow.print();
+      printWindow.close();
+    };
   };
 
   const filteredData = selectedRole === 'all' 
@@ -257,6 +371,7 @@ End of Detailed Report
                     <option value="Staff">Staff</option>
                     <option value="Incharge">Incharge</option>
                     <option value="Team Leader">Team Leader</option>
+                    <option value="Driver">Driver</option>
                     <option value="Accountant">Accountant</option>
                     <option value="Admin">Admin</option>
                   </select>
@@ -346,6 +461,7 @@ End of Detailed Report
                                 item.role_name === 'Staff' ? 'bg-gray-100 text-gray-800 border-gray-300' :
                                 item.role_name === 'Incharge' ? 'bg-purple-100 text-purple-800 border-purple-300' :
                                 item.role_name === 'Team Leader' ? 'bg-green-100 text-green-800 border-green-300' :
+                                item.role_name === 'Driver' ? 'bg-blue-100 text-blue-800 border-blue-300' :
                                 item.role_name === 'Accountant' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
                                 item.role_name === 'Admin' ? 'bg-red-100 text-red-800 border-red-300' :
                                 'bg-gray-100 text-gray-800 border-gray-300'

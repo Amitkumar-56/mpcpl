@@ -174,6 +174,40 @@ export async function GET(request) {
     // Professional deductions
     const pfDeduction = basicSalary * 0.12; // 12% of Basic
     const esiDeduction = earnedSalary * 0.0075; // 0.75% of Earned
+    
+    // Calculate daily earnings for each day
+    const dailyEarnings = {};
+    for (let day = 1; day <= totalDays; day++) {
+      const attendance = attendanceMap[day];
+      if (attendance) {
+        let dayEarnings = 0;
+        switch(attendance.status) {
+          case 'Present':
+            dayEarnings = perDaySalary;
+            break;
+          case 'Half Day':
+            dayEarnings = perDaySalary / 2;
+            break;
+          case 'Leave':
+            dayEarnings = perDaySalary; // Leave is paid
+            break;
+          case 'Absent':
+            dayEarnings = 0; // No pay for absent
+            break;
+        }
+        dailyEarnings[day] = {
+          ...attendance,
+          dayEarnings: dayEarnings,
+          perDayRate: perDaySalary
+        };
+      } else {
+        dailyEarnings[day] = {
+          status: null,
+          dayEarnings: 0,
+          perDayRate: perDaySalary
+        };
+      }
+    }
 
     return NextResponse.json({
       success: true,
@@ -185,6 +219,7 @@ export async function GET(request) {
         totalWorkingDays,
         weekends,
         attendance: attendanceMap,
+        dailyAttendance: dailyEarnings, // New: Daily attendance with earnings
         summary: {
           presentDays,
           absentDays,

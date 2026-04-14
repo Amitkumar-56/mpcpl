@@ -106,7 +106,8 @@ export default function SalaryPage() {
       2: { name: 'Incharge', color: 'bg-purple-100 text-purple-800', borderColor: 'border-purple-300' },
       3: { name: 'Team Leader', color: 'bg-green-100 text-green-800', borderColor: 'border-green-300' },
       4: { name: 'Accountant', color: 'bg-yellow-100 text-yellow-800', borderColor: 'border-yellow-300' },
-      5: { name: 'Admin', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300' }
+      5: { name: 'Admin', color: 'bg-red-100 text-red-800', borderColor: 'border-red-300' },
+      6: { name: 'Driver', color: 'bg-blue-100 text-blue-800', borderColor: 'border-blue-300' }
     };
     return badges[role] || { name: 'Unknown', color: 'bg-gray-100 text-gray-800', borderColor: 'border-gray-300' };
   };
@@ -274,6 +275,8 @@ export default function SalaryPage() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Employee</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Role</th>
+                        <th className="px-4 py-3 text-left text-sm font-medium text-gray-900">Station</th>
                         <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Total Attendance</th>
                         <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Present</th>
                         <th className="px-4 py-3 text-center text-sm font-medium text-gray-900">Absent</th>
@@ -297,6 +300,16 @@ export default function SalaryPage() {
                                 <div className="text-xs text-gray-500">{employee.emp_code}</div>
                               </div>
                             </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadge(employee.role).color} ${getRoleBadge(employee.role).borderColor}`}>
+                              {getRoleBadge(employee.role).name}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <span className="text-sm text-gray-900">
+                              Multiple Stations
+                            </span>
                           </td>
                           <td className="px-4 py-3 text-center">
                             <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">

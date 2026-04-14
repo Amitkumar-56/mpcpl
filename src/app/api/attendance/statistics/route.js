@@ -42,6 +42,7 @@ export async function GET(request) {
           WHEN 3 THEN 'Team Leader'
           WHEN 4 THEN 'Accountant'
           WHEN 5 THEN 'Admin'
+          WHEN 6 THEN 'Driver'
           ELSE 'Unknown'
         END as role_name,
         ? as month,

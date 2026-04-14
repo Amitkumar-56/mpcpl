@@ -100,7 +100,7 @@ function DriverAttendanceContent() {
       setLoading(true);
       setError("");
       
-      let url = '/api/attendance/employees';
+      let url = '/api/attendance/drivers';
       const params = new URLSearchParams();
       if (selectedStation) params.append('station_id', selectedStation);
       
@@ -108,8 +108,8 @@ function DriverAttendanceContent() {
       const data = await response.json();
       
       if (data.success) {
-        // Filter for staff role (role = 1) - includes drivers
-        const allDrivers = data.employees ? data.employees.filter(emp => emp.role === 1) : [];
+        // Use the drivers data directly from the new API
+        const allDrivers = data.allDrivers || [];
         setDrivers(allDrivers);
       } else {
         setError(data.error || "Failed to fetch drivers");

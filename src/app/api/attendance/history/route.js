@@ -13,6 +13,9 @@ export async function GET(request) {
     const stationId = searchParams.get('station_id');
     const employeeId = searchParams.get('employee_id');
     const markedById = searchParams.get('marked_by');
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 50;
+    const offset = (page - 1) * limit;
 
     // Get current user
     const cookieStore = await cookies();
@@ -173,12 +176,34 @@ export async function GET(request) {
 
     query += ` ORDER BY a.attendance_date DESC, a.created_at DESC`;
 
-    const attendanceHistory = await executeQuery(query, params);
+    // Get total count for pagination
+    const countQuery = query.replace(/SELECT.*?FROM/, 'SELECT COUNT(*) as total FROM').replace(/ORDER BY.*$/, '');
+    const countResult = await executeQuery(countQuery, params);
+    const totalRecords = countResult[0]?.total || 0;
+
+    // Add pagination to main query
+    const paginatedQuery = query + ` LIMIT ? OFFSET ?`;
+    const paginatedParams = [...params, limit, offset];
+
+    const attendanceHistory = await executeQuery(paginatedQuery, paginatedParams);
+
+    // Debug: Check station data
+    console.log('Sample attendance record:', attendanceHistory[0]);
+    console.log('Station data check:', {
+      station_id: attendanceHistory[0]?.station_id,
+      station_name: attendanceHistory[0]?.station_name,
+      hasStationName: !!attendanceHistory[0]?.station_name
+    });
+
+    const totalPages = Math.ceil(totalRecords / limit);
 
     return NextResponse.json({
       success: true,
       data: attendanceHistory,
-      count: attendanceHistory.length
+      totalRecords,
+      totalPages,
+      currentPage: page,
+      recordsPerPage: limit
     });
 
   } catch (error) {

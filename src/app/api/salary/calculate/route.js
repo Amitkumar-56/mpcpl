@@ -25,6 +25,7 @@ export async function GET(request) {
           WHEN 3 THEN 'Team Leader'
           WHEN 4 THEN 'Accountant'
           WHEN 5 THEN 'Admin'
+          WHEN 6 THEN 'Driver'
           ELSE 'Unknown'
         END as role_name
       FROM employee_profile e
@@ -86,7 +87,7 @@ export async function GET(request) {
             halfDays++;
             break;
           case 'Leave':
-            daySalary = employee.salary_per_day / 2; // Half salary for leave
+            daySalary = employee.salary_per_day; // Full salary for leave
             leaveDays++;
             break;
           case 'Absent':
