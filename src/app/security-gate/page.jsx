@@ -1,14 +1,283 @@
-// src/app/security-gate/page.js
+// src/app/security-gate/page.jsx
 "use client";
+import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, Suspense } from 'react';
-import { FaArrowLeft, FaCamera, FaShieldAlt, FaSearch, FaSpinner, FaTruck, FaSignInAlt, FaSignOutAlt, FaEye } from 'react-icons/fa';
+import { 
+  FaArrowLeft, FaCamera, FaShieldAlt, FaSearch, FaSpinner, FaTruck, 
+  FaSignInAlt, FaSignOutAlt, FaEye, FaKey, FaMapMarkerAlt, 
+  FaCheckCircle, FaTimesCircle, FaRedo, FaPlusCircle, FaClock, FaCheck, FaUser, FaPhone, FaInfoCircle, FaClipboardList, FaHistory
+} from 'react-icons/fa';
 import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import Footer from "@/components/Footer";
 
-function SecurityGateContent() {
-  const router = useRouter();
+// --- NEW COMPONENT: MFG REQUEST TERMINAL ---
+function MfgRequestTerminal() {
+  const { user } = useSession();
+  const [vehicleSearch, setVehicleSearch] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchResult, setSearchResult] = useState(null);
+  const [searchDone, setSearchDone] = useState(false);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [form, setForm] = useState({ vehicle_number: '', driver_name: '', driver_phone: '', purpose: '', material_name: '', quantity: '', unit: 'kg' });
+  const [showOtpSection, setShowOtpSection] = useState(false);
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpError, setOtpError] = useState('');
+  const otpRefs = useRef([]);
+  const [showPhotoSection, setShowPhotoSection] = useState(false);
+  const [photoMode, setPhotoMode] = useState('entry');
+  const [capturedPhoto, setCapturedPhoto] = useState(null);
+  const [cameraActive, setCameraActive] = useState(false);
+  const [location, setLocation] = useState({ lat: null, lng: null, name: '' });
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [locationError, setLocationError] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const [recentRequests, setRecentRequests] = useState([]);
+
+  useEffect(() => { fetchRecent(); }, []);
+
+  const fetchRecent = async () => {
+    try {
+      const res = await fetch('/api/manufacturing/entry-requests');
+      const data = await res.json();
+      if (data.success) setRecentRequests(data.data.slice(0, 5));
+    } catch {}
+  };
+
+  const handleSearch = async () => {
+    if (!vehicleSearch.trim()) return alert('Vehicle number daliye!');
+    setSearching(true); setSearchResult(null); setSearchDone(false); setShowOtpSection(false); setShowPhotoSection(false); setShowCreateForm(false);
+    try {
+      const res = await fetch(`/api/manufacturing/entry-requests?vehicle=${encodeURIComponent(vehicleSearch.trim())}`);
+      const data = await res.json();
+      if (data.success && data.data.length > 0) {
+        const activeRequest = data.data.find(r => ['pending_approval', 'pending', 'approved', 'processing'].includes(r.status));
+        setSearchResult(activeRequest || data.data[0]);
+      } else {
+        setSearchResult(null);
+        setForm(prev => ({ ...prev, vehicle_number: vehicleSearch.trim().toUpperCase() }));
+      }
+      setSearchDone(true);
+    } catch { alert('Search fail ho gaya'); }
+    finally { setSearching(false); }
+  };
+
+  const handleCreateRequest = async () => {
+    if (!form.vehicle_number || !form.driver_name) return alert('Pehle details bhariye!');
+    setCreating(true);
+    try {
+      const res = await fetch('/api/manufacturing/entry-requests', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, created_by: user?.id, created_by_name: user?.name, role: user?.role })
+      });
+      const data = await res.json();
+      if (data.success) { alert('✅ Request Admin ko bhej di gayi hai approval ke liye.'); setShowCreateForm(false); handleSearch(); }
+      else alert(data.error);
+    } catch { alert('Error'); } finally { setCreating(false); }
+  };
+
+  const detectLocation = () => {
+    if (!navigator.geolocation) return;
+    setLocationLoading(true);
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      const { latitude, longitude } = pos.coords;
+      setLocation(p => ({ ...p, lat: latitude, lng: longitude }));
+      try {
+        const res = await fetch('/api/get-area', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ lat: latitude, lng: longitude }) });
+        const data = await res.json();
+        setLocation(p => ({ ...p, name: data.success ? data.area_name : `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` }));
+      } catch { setLocation(p => ({ ...p, name: `${latitude.toFixed(4)}, ${longitude.toFixed(4)}` })); }
+      finally { setLocationLoading(false); }
+    }, () => setLocationLoading(false), { timeout: 10000 });
+  };
+
+  const handleOtpChange = (i, v) => { if (!/^\d?$/.test(v)) return; const n = [...otp]; n[i] = v; setOtp(n); setOtpError(''); if (v && i < 5) otpRefs.current[i+1]?.focus(); };
+  const verifyOtp = async () => {
+    const s = otp.join(""); if (s.length !== 6) return; setOtpLoading(true);
+    try {
+      const res = await fetch('/api/manufacturing/entry-requests', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: searchResult.id, action: 'verify_otp', otp_code: s }) });
+      const data = await res.json();
+      if (data.success) { setSearchResult(p => ({ ...p, status: 'approved' })); setShowOtpSection(false); setPhotoMode('entry'); setShowPhotoSection(true); detectLocation(); }
+      else setOtpError(data.error || 'Invalid OTP');
+    } catch { setOtpError('Error'); } finally { setOtpLoading(false); }
+  };
+
+  const startCamera = async () => {
+    setCameraActive(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play(); }
+    } catch { setCameraActive(false); }
+  };
+
+  const captureImage = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+    const canvas = canvasRef.current; const video = videoRef.current;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    setCapturedPhoto(canvas.toDataURL('image/jpeg', 0.7));
+    if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+    setCameraActive(false);
+  };
+
+  const handleSubmit = async () => {
+    if (!capturedPhoto || !location.lat) return alert('Photo and Location mandatory!');
+    setSubmitting(true);
+    try {
+      const action = photoMode === 'entry' ? 'process_entry' : 'process_exit';
+      const res = await fetch('/api/manufacturing/entry-requests', {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: searchResult.id, action, entry_photo: photoMode === 'entry' ? capturedPhoto : undefined, exit_photo: photoMode === 'exit' ? capturedPhoto : undefined, entry_location_lat: location.lat, entry_location_lng: location.lng, entry_location_name: location.name, processed_by: user?.id, processed_by_name: user?.name })
+      });
+      const data = await res.json();
+      if (data.success) { alert('✅ Successful!'); setShowPhotoSection(false); setSearchResult(null); setVehicleSearch(''); }
+      else alert(data.error);
+    } catch { alert('Error'); } finally { setSubmitting(false); }
+  };
+
+  return (
+    <div className="max-w-xl mx-auto py-8">
+      <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 p-6 mb-6">
+        <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-3 ml-1">MFG Vehicle Verification</label>
+        <div className="relative group">
+          <input value={vehicleSearch} onChange={e => setVehicleSearch(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="MH12AB1234" className="w-full pl-14 pr-4 py-5 bg-gray-50 border-2 border-gray-100 rounded-[1.5rem] text-2xl font-black focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all text-gray-800 tracking-[0.2em]" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+          <FaSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 text-xl" />
+        </div>
+        <button onClick={handleSearch} disabled={searching} className="w-full mt-4 bg-cyan-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:bg-cyan-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+          {searching ? <FaSpinner className="animate-spin" /> : 'Search Vehicle'}
+        </button>
+      </div>
+
+      {searchDone && !searchResult && !showCreateForm && (
+        <div className="bg-white rounded-[2rem] p-8 text-center border-2 border-dashed border-red-100 shadow-lg">
+          <FaTimesCircle className="text-red-400 text-4xl mb-4 mx-auto" />
+          <h3 className="font-black text-gray-800 text-xl">Not Found</h3>
+          <p className="text-gray-500 text-sm mb-6">mfg_entry_requests me koi record nahi mila. Naya request banaye?</p>
+          <button onClick={() => setShowCreateForm(true)} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2"><FaPlusCircle /> Nayi Request Banaye</button>
+        </div>
+      )}
+
+      {showCreateForm && (
+        <div className="bg-white rounded-[2rem] shadow-2xl p-6 border animate-in zoom-in duration-300">
+          <h3 className="font-black text-gray-800 text-xl mb-6">Driver & Vehicle Details</h3>
+          <div className="space-y-4">
+            <input disabled value={form.vehicle_number} className="w-full px-4 py-3 bg-gray-50 border rounded-xl font-bold text-gray-400" />
+            <input placeholder="Driver Name *" value={form.driver_name} onChange={e => setForm({...form, driver_name: e.target.value})} className="w-full px-4 py-3 border rounded-xl font-bold" />
+            <input placeholder="Phone" value={form.driver_phone} onChange={e => setForm({...form, driver_phone: e.target.value})} className="w-full px-4 py-3 border rounded-xl font-bold" />
+            <input placeholder="Purpose" value={form.purpose} onChange={e => setForm({...form, purpose: e.target.value})} className="w-full px-4 py-3 border rounded-xl font-bold" />
+            <div className="flex gap-2">
+              <button onClick={() => setShowCreateForm(false)} className="flex-1 py-4 font-bold text-gray-500">Cancel</button>
+              <button onClick={handleCreateRequest} disabled={creating} className="flex-1 bg-cyan-600 text-white py-4 rounded-xl font-bold shadow-lg">Submit</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {searchResult && (
+        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border">
+          <div className={`px-6 py-4 flex justify-between items-center ${searchResult.status === 'pending_approval' ? 'bg-orange-100 text-orange-800' : 'bg-cyan-100 text-cyan-800'}`}>
+            <span className="font-black text-xs uppercase">{searchResult.status}</span>
+            <span className="text-[10px] font-mono font-bold">{searchResult.request_code}</span>
+          </div>
+          <div className="p-6">
+            <div className="text-center mb-6">
+              <h2 className="text-3xl font-black text-gray-800">{searchResult.vehicle_number}</h2>
+              <p className="text-gray-500 font-medium">{searchResult.driver_name || 'No Name'}</p>
+            </div>
+            {searchResult.status === 'pending_approval' && <div className="bg-orange-50 p-4 rounded-xl text-xs font-bold text-orange-800 mb-4">Admin approval ka wait kare.</div>}
+            {searchResult.status === 'pending' && !showOtpSection && <button onClick={() => { setShowOtpSection(true); setTimeout(() => otpRefs.current[0].focus(), 100); }} className="w-full bg-cyan-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase"><FaKey className="inline mr-2"/> Enter OTP</button>}
+            {searchResult.status === 'approved' && !showPhotoSection && <button onClick={() => { setPhotoMode('entry'); setShowPhotoSection(true); detectLocation(); }} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase"><FaCamera className="inline mr-2"/> Start Entry</button>}
+            {searchResult.status === 'processing' && !showPhotoSection && <button onClick={() => { setPhotoMode('exit'); setShowPhotoSection(true); detectLocation(); }} className="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase"><FaSignOutAlt className="inline mr-2"/> Start Exit</button>}
+          </div>
+        </div>
+      )}
+
+      {showOtpSection && (
+        <div className="bg-white rounded-[2rem] shadow-2xl p-6 border-2 border-cyan-100 mt-6">
+          <h3 className="font-black mb-4 flex justify-between">Verify OTP <button onClick={() => setShowOtpSection(false)}><FaTimesCircle/></button></h3>
+          <div className="flex gap-2 mb-6">
+            {otp.map((d, i) => <input key={i} ref={el => otpRefs.current[i] = el} value={d} onChange={e => handleOtpChange(i, e.target.value)} onKeyDown={e => { if (e.key === "Backspace" && !otp[i] && i > 0) otpRefs.current[i-1]?.focus(); }} className="w-full h-14 text-center text-2xl font-black border-2 rounded-xl focus:border-cyan-500 outline-none" />)}
+          </div>
+          {otpError && <p className="text-red-500 text-xs font-bold mb-4 text-center">{otpError}</p>}
+          <button onClick={verifyOtp} disabled={otpLoading} className="w-full bg-black text-white py-4 rounded-xl font-black uppercase">{otpLoading ? <FaSpinner className="animate-spin" /> : 'Confirm'}</button>
+        </div>
+      )}
+
+      {showPhotoSection && (
+        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border mt-6">
+          <div className={`px-6 py-4 flex justify-between items-center text-white ${photoMode === 'entry' ? 'bg-green-600' : 'bg-red-600'}`}>
+            <h3 className="font-black text-sm uppercase">Verification Step</h3>
+            <button onClick={() => { setShowPhotoSection(false); }}><FaTimesCircle/></button>
+          </div>
+          <div className="p-6 space-y-4">
+            <div className="bg-gray-50 p-3 rounded-xl border text-xs font-bold">
+               <span className="text-cyan-600"><FaMapMarkerAlt className="inline"/> GPS:</span> {location.name || 'Detecting...'}
+            </div>
+            <div className="aspect-square bg-slate-100 rounded-2xl overflow-hidden relative shadow-inner">
+               {cameraActive ? (
+                 <>
+                   <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+                   <button onClick={captureImage} className="absolute inset-x-0 bottom-4 w-16 h-16 bg-white rounded-full mx-auto shadow-xl flex items-center justify-center"><div className="w-12 h-12 bg-cyan-500 rounded-full"></div></button>
+                   <canvas ref={createCanvasRef} className="hidden" />
+                 </>
+               ) : capturedPhoto ? (
+                 <div className="relative h-full"><img src={capturedPhoto} className="w-full h-full object-cover" /><button onClick={() => setCapturedPhoto(null)} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full"><FaTimesCircle/></button></div>
+               ) : (
+                 <button onClick={startCamera} className="w-full h-full flex flex-col items-center justify-center gap-2">
+                    <FaCamera size={40} className="text-gray-300"/>
+                    <p className="text-[10px] font-black uppercase text-gray-400">Open Camera</p>
+                 </button>
+               )}
+            </div>
+            <button onClick={handleSubmit} disabled={submitting || !capturedPhoto} className={`w-full py-4 rounded-xl text-white font-black shadow-lg ${photoMode === 'entry' ? 'bg-green-600' : 'bg-red-600'}`}>
+               {submitting ? <FaSpinner className="animate-spin mx-auto"/> : 'Complete Step'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* RECENT MFG LOGS SECTION */}
+      <div className="mt-10 mb-10">
+         <div className="flex justify-between items-center mb-4">
+            <h3 className="font-bold text-gray-800 flex items-center gap-2 text-sm uppercase tracking-widest"><FaHistory className="text-cyan-600"/> Recent Mfg Logs</h3>
+            <button onClick={() => window.location.href='/manufacturing/entry-requests'} className="text-[10px] font-bold text-cyan-600 hover:underline px-3 py-1 bg-cyan-50 rounded-full">VIEW ALL</button>
+         </div>
+         <div className="bg-white rounded-2xl border shadow-sm overflow-hidden">
+            <table className="w-full text-[10px]">
+               <thead className="bg-gray-50 border-b">
+                  <tr>
+                     <th className="px-3 py-3 text-left font-bold text-gray-500 uppercase">Code</th>
+                     <th className="px-3 py-3 text-left font-bold text-gray-500 uppercase">Vehicle</th>
+                     <th className="px-3 py-3 text-left font-bold text-gray-500 uppercase">Driver</th>
+                     <th className="px-3 py-3 text-left font-bold text-gray-500 uppercase">Status</th>
+                  </tr>
+               </thead>
+               <tbody className="divide-y">
+                  {recentRequests.map(r => (
+                    <tr key={r.id} className="hover:bg-gray-50 transition cursor-pointer" onClick={() => { setVehicleSearch(r.vehicle_number); handleSearch(); }}>
+                       <td className="px-3 py-3 font-semibold text-cyan-600">{r.request_code}</td>
+                       <td className="px-3 py-3 font-black text-gray-700">{r.vehicle_number}</td>
+                       <td className="px-3 py-3 font-medium text-gray-500">{r.driver_name || '-'}</td>
+                       <td className="px-3 py-3">
+                          <span className={`px-2 py-0.5 rounded-full font-bold ${r.status === 'completed' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{r.status}</span>
+                       </td>
+                    </tr>
+                  ))}
+               </tbody>
+            </table>
+         </div>
+      </div>
+    </div>
+  );
+}
+
+// --- OLD COMPONENT: TANKER GATE ---
+function TankerGateTerminal() {
   const [entries, setEntries] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -22,14 +291,22 @@ function SecurityGateContent() {
   const [exitPhoto, setExitPhoto] = useState(null);
   const [showExitModal, setShowExitModal] = useState(false);
   const [exitEntry, setExitEntry] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraMode, setCameraMode] = useState('entry');
-  const [form, setForm] = useState({
-    vehicle_number: '', driver_name: '', driver_phone: '', material_type: '',
-    material_name: '', quantity: '', unit: 'kg', direction: 'entry', purpose: '', remarks: '', tanker_code: ''
+  const [form, setForm] = useState({ 
+    vehicle_number: '', 
+    driver_name: '', 
+    driver_phone: '', 
+    material_type: '', 
+    material_name: '', 
+    quantity: '', 
+    unit: 'kg', 
+    direction: 'entry', 
+    purpose: '', 
+    remarks: '', 
+    tanker_code: '' 
   });
 
   useEffect(() => { fetchEntries(); }, [search, filterDirection, filterStatus]);
@@ -43,365 +320,228 @@ function SecurityGateContent() {
       const res = await fetch(`/api/manufacturing/security-gate?${params}`);
       const data = await res.json();
       if (data.success) setEntries(data.data);
-    } catch (err) { console.error(err); }
-    finally { setLoading(false); }
+    } catch { } finally { setLoading(false); }
   };
 
-  const startCamera = async (mode) => {
-    setCameraMode(mode);
-    setCameraActive(true);
+  const startCamera = async (m) => {
+    setCameraMode(m); setCameraActive(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
-      }
-    } catch (err) {
-      console.error('Camera error:', err);
-      alert('Camera access denied. Please allow camera permissions.');
-      setCameraActive(false);
-    }
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (videoRef.current) { videoRef.current.srcObject = s; videoRef.current.play(); }
+    } catch { setCameraActive(false); }
   };
 
   const captureImage = () => {
     if (!videoRef.current || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const video = videoRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    const canvas = canvasRef.current; const video = videoRef.current;
+    canvas.width = video.videoWidth; canvas.height = video.videoHeight;
     canvas.getContext('2d').drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-    if (cameraMode === 'entry') setCapturedPhoto(dataUrl);
-    else setExitPhoto(dataUrl);
-    stopCamera();
-  };
-
-  const stopCamera = () => {
-    if (videoRef.current?.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-    }
+    const d = canvas.toDataURL('image/jpeg', 0.7);
+    if (cameraMode === 'entry') setCapturedPhoto(d); else setExitPhoto(d);
+    if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
     setCameraActive(false);
   };
 
   const handleSave = async () => {
-    if (!form.vehicle_number || !form.direction) return alert('Vehicle number and direction required');
+    if (!form.vehicle_number) return alert('Vehicle number required');
     setSaving(true);
     try {
-      const res = await fetch('/api/manufacturing/security-gate', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, entry_photo: capturedPhoto || null })
-      });
-      const data = await res.json();
-      if (data.success) {
-        setShowModal(false); setCapturedPhoto(null);
-        setForm({ vehicle_number: '', driver_name: '', driver_phone: '', material_type: '', material_name: '', quantity: '', unit: 'kg', direction: 'entry', purpose: '', remarks: '', tanker_code: '' });
-        fetchEntries();
-      } else alert(data.error);
-    } catch (err) { alert('Error saving'); }
-    finally { setSaving(false); }
+      const res = await fetch('/api/manufacturing/security-gate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...form, entry_photo: capturedPhoto || null }) });
+      if ((await res.json()).success) { setShowModal(false); setCapturedPhoto(null); fetchEntries(); }
+    } finally { setSaving(false); }
   };
 
   const handleExit = async () => {
     if (!exitEntry) return;
     try {
-      const res = await fetch('/api/manufacturing/security-gate', {
-        method: 'PUT', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: exitEntry.id, gate_status: 'exited', exit_photo: exitPhoto || null })
-      });
-      const data = await res.json();
-      if (data.success) { setShowExitModal(false); setExitEntry(null); setExitPhoto(null); fetchEntries(); }
-      else alert(data.error);
-    } catch (err) { alert('Error updating'); }
+      const res = await fetch('/api/manufacturing/security-gate', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: exitEntry.id, gate_status: 'exited', exit_photo: exitPhoto || null }) });
+      if ((await res.json()).success) { setShowExitModal(false); setExitEntry(null); setExitPhoto(null); fetchEntries(); }
+    } catch { }
   };
 
-  const updateGateStatus = async (id, gate_status) => {
-    try {
-      const res = await fetch('/api/manufacturing/security-gate', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, gate_status }) });
-      const data = await res.json();
-      if (data.success) fetchEntries();
-      else alert(data.error);
-    } catch (err) { alert('Error updating'); }
+  const updateGateStatus = async (id, s) => {
+    const res = await fetch('/api/manufacturing/security-gate', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, gate_status: s }) });
+    if ((await res.json()).success) fetchEntries();
   };
-
-  const getStatusBadge = (status) => {
-    const colors = {
-      arrived: 'bg-green-100 text-green-800',
-      under_processing: 'bg-blue-100 text-blue-800',
-      ready_to_exit: 'bg-yellow-100 text-yellow-800',
-      exited: 'bg-gray-100 text-gray-800',
-    };
-    return <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${colors[status] || 'bg-gray-100 text-gray-800'}`}>{status?.replace('_', ' ').toUpperCase()}</span>;
-  };
-
-  const formatTime = (t) => t ? new Date(t).toLocaleString('en-IN', { dateStyle: 'short', timeStyle: 'short' }) : '-';
 
   return (
-    <div className="h-screen bg-gray-50 flex overflow-hidden">
+    <div className="space-y-6 max-w-7xl mx-auto px-4 py-6">
+      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border">
+         <h2 className="font-bold text-gray-800 flex items-center gap-2"><FaTruck className="text-cyan-600"/> TANKER GATE LOGS</h2>
+         <div className="flex gap-2">
+            <button onClick={() => { setForm({ ...form, direction: 'entry' }); setShowModal(true); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><FaSignInAlt/> Entry</button>
+            <button onClick={() => { setForm({ ...form, direction: 'exit' }); setShowModal(true); }} className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><FaSignOutAlt/> Exit</button>
+         </div>
+      </div>
+
+      <div className="flex gap-2">
+         <div className="relative flex-1">
+            <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input placeholder="Search tankers..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-cyan-500" />
+         </div>
+         <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 rounded-xl border text-sm outline-none">
+            <option value="">All Status</option>
+            <option value="arrived">Arrived</option>
+            <option value="under_processing">Processing</option>
+            <option value="ready_to_exit">Ready</option>
+            <option value="exited">Exited</option>
+         </select>
+      </div>
+
+      <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+         <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+               <thead className="bg-gray-50 border-b">
+                  <tr>{['Code', 'Vehicle', 'Driver', 'Material', 'Direction', 'Status', 'Actions'].map(h => <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 uppercase">{h}</th>)}</tr>
+               </thead>
+               <tbody className="divide-y">
+                  {entries.length > 0 ? entries.map(e => (
+                    <tr key={e.id} className="hover:bg-gray-50">
+                      <td className="px-3 py-3 font-semibold text-cyan-600">{e.entry_code}</td>
+                      <td className="px-3 py-3 font-bold">{e.vehicle_number}</td>
+                      <td className="px-3 py-3">{e.driver_name || '-'}</td>
+                      <td className="px-3 py-3">{e.material_name || '-'}</td>
+                      <td className="px-3 py-3">{e.direction === 'entry' ? '↓ IN' : '↑ OUT'}</td>
+                      <td className="px-3 py-3"><span className="px-2 py-0.5 rounded-full bg-gray-100 font-bold">{e.gate_status}</span></td>
+                      <td className="px-3 py-3 flex gap-1">
+                         <button onClick={() => { setViewEntry(e); setShowPhotoModal(true); }} className="p-1.5 bg-gray-100 rounded hover:bg-gray-200"><FaEye/></button>
+                         {e.gate_status === 'arrived' && <button onClick={() => updateGateStatus(e.id, 'under_processing')} className="bg-blue-500 text-white px-2 py-0.5 rounded">Processing</button>}
+                         {e.gate_status === 'under_processing' && <button onClick={() => updateGateStatus(e.id, 'ready_to_exit')} className="bg-yellow-500 text-white px-2 py-0.5 rounded">Ready</button>}
+                         {e.gate_status === 'ready_to_exit' && <button onClick={() => { setExitEntry(e); setShowExitModal(true); }} className="bg-red-500 text-white px-2 py-0.5 rounded">Exit</button>}
+                      </td>
+                    </tr>
+                  )) : <tr><td colSpan={7} className="p-8 text-center text-gray-400">No logs found</td></tr>}
+               </tbody>
+            </table>
+         </div>
+      </div>
+
+      {showModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-lg w-full p-5 shadow-xl max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">{form.direction === 'entry' ? 'Gate Entry' : 'Gate Exit'}</h2>
+            <div className="space-y-3">
+              <input value={form.vehicle_number} onChange={e => setForm({ ...form, vehicle_number: e.target.value.toUpperCase() })} placeholder="Vehicle Number *" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              <div className="grid grid-cols-2 gap-2">
+                <input value={form.driver_name} onChange={e => setForm({ ...form, driver_name: e.target.value })} placeholder="Driver Name" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                <input value={form.driver_phone} onChange={e => setForm({ ...form, driver_phone: e.target.value })} placeholder="Driver Phone" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input value={form.material_name} onChange={e => setForm({ ...form, material_name: e.target.value })} placeholder="Material Name" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                <input value={form.purpose} onChange={e => setForm({ ...form, purpose: e.target.value })} placeholder="Purpose (e.g. Delivery)" className="w-full px-3 py-2 border rounded-lg text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} placeholder="Quantity" className="w-full px-3 py-2 border rounded-lg text-sm" />
+                <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full px-3 py-2 border rounded-lg text-sm bg-white">
+                  <option value="kg">KG</option>
+                  <option value="litre">Litre</option>
+                  <option value="pcs">Pcs</option>
+                </select>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3 border">
+                {cameraActive ? (
+                  <div><video ref={videoRef} className="w-full rounded-lg max-h-60 object-cover" autoPlay muted playsInline /><div className="flex gap-2 mt-2"><button onClick={captureImage} className="flex-1 bg-green-500 text-white py-2 rounded-lg font-bold"><FaCamera/> Capture</button></div></div>
+                ) : capturedPhoto ? (
+                  <div><img src={capturedPhoto} className="w-full rounded-lg max-h-48 object-cover" /><button onClick={() => setCapturedPhoto(null)} className="mt-2 text-red-500">Remove</button></div>
+                ) : (
+                  <button onClick={() => startCamera('entry')} className="bg-cyan-500 text-white py-2 px-4 rounded-lg font-bold">Open Camera</button>
+                )}
+              </div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2 pt-3 border-t">
+              <button onClick={() => { setShowModal(false); }} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button onClick={handleSave} className="px-5 py-2 bg-cyan-500 text-white rounded-lg font-bold">{saving ? '...' : 'Submit'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showExitModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl">
+            <h2 className="text-xl font-bold mb-4">Exit Capture</h2>
+            {cameraActive ? (
+              <div><video ref={videoRef} className="w-full rounded-lg max-h-60 object-cover" autoPlay muted playsInline /><button onClick={captureImage} className="w-full bg-green-500 text-white py-3 rounded-xl mt-3 font-bold">Capture</button></div>
+            ) : exitPhoto ? (
+              <div><img src={exitPhoto} className="w-full rounded-lg max-h-48 object-cover" /><button onClick={() => setExitPhoto(null)} className="mt-2 text-red-500">Retake</button></div>
+            ) : (
+              <button onClick={() => startCamera('exit')} className="w-full bg-red-500 text-white py-4 rounded-xl font-bold">Open Camera</button>
+            )}
+            <div className="flex justify-end gap-2 mt-5 pt-3 border-t">
+              <button onClick={() => setShowExitModal(false)} className="px-4 py-2 border rounded-lg">Cancel</button>
+              <button onClick={handleExit} className="px-5 py-2 bg-red-500 text-white rounded-lg font-bold">Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPhotoModal && viewEntry && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setShowPhotoModal(false)}>
+          <div className="bg-white rounded-xl max-w-2xl w-full p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-bold mb-4">Photos - {viewEntry.vehicle_number}</h3>
+            <div className="grid grid-cols-2 gap-4">
+               {viewEntry.entry_photo && <div><p className="text-xs font-bold mb-1">Entry Photo</p><img src={viewEntry.entry_photo} className="w-full rounded border-2 border-green-500"/></div>}
+               {viewEntry.exit_photo && <div><p className="text-xs font-bold mb-1">Exit Photo</p><img src={viewEntry.exit_photo} className="w-full rounded border-2 border-red-500"/></div>}
+            </div>
+            <button onClick={() => setShowPhotoModal(false)} className="mt-4 px-4 py-2 bg-gray-100 rounded-lg w-full font-bold">Close</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// --- MAIN PAGE WRAPPER ---
+export default function SecurityGatePage() {
+  const [activeTab, setActiveTab] = useState('mfg'); // 'mfg' or 'tanker'
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  return (
+    <div className="h-screen bg-[#f8fafc] flex overflow-hidden">
       <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
       <div className="flex-1 flex flex-col">
         <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         <main className="flex-1 overflow-y-auto">
-          <div className="bg-gradient-to-r from-cyan-700 to-cyan-500 px-4 sm:px-6 md:px-8 py-4 sm:py-6 text-white">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div className="flex items-center gap-3">
+          {/* Top Level Hero Header */}
+          <div className="bg-gradient-to-br from-cyan-900 via-cyan-800 to-cyan-600 px-4 sm:px-6 py-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+            <div className="max-w-7xl mx-auto relative z-10 flex flex-col sm:flex-row justify-between items-center gap-6">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-xl">
                   <FaShieldAlt className="text-2xl" />
-                  <div>
-                    <h1 className="text-xl sm:text-2xl font-bold">Security Gate - Entry / Exit</h1>
-                    <p className="text-xs text-cyan-100 mt-0.5">Tanker entry & exit with photo capture</p>
-                  </div>
                 </div>
-                <div className="flex gap-2">
-                  <button onClick={() => { setForm({ ...form, direction: 'entry' }); setShowModal(true); }}
-                    className="bg-green-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-green-600 transition flex items-center gap-2 text-sm shadow-md">
-                    <FaSignInAlt /> New Entry
-                  </button>
-                  <button onClick={() => { setForm({ ...form, direction: 'exit' }); setShowModal(true); }}
-                    className="bg-red-500 text-white px-3 sm:px-4 py-2 rounded-xl font-semibold hover:bg-red-600 transition flex items-center gap-2 text-sm shadow-md">
-                    <FaSignOutAlt /> New Exit
-                  </button>
+                <div>
+                  <h1 className="text-xl font-black tracking-tight uppercase">Security Gateway Control</h1>
+                  <p className="text-cyan-200 text-[10px] font-bold tracking-widest opacity-80 uppercase">Select Terminal below</p>
                 </div>
+              </div>
+
+              {/* TAB SWITCHER */}
+              <div className="bg-black/20 p-1 rounded-2xl flex items-center gap-1 backdrop-blur-lg border border-white/10">
+                <button 
+                  onClick={() => setActiveTab('mfg')} 
+                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-widest flex items-center gap-2 ${activeTab === 'mfg' ? 'bg-cyan-500 text-white shadow-lg' : 'hover:bg-white/5 text-cyan-100/60'}`}
+                >
+                  <FaClipboardList/> Mfg Entry
+                </button>
+                <button 
+                  onClick={() => setActiveTab('tanker')} 
+                    className={`px-6 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-widest flex items-center gap-2 ${activeTab === 'tanker' ? 'bg-cyan-500 text-white shadow-lg' : 'hover:bg-white/5 text-cyan-100/60'}`}
+                >
+                  <FaTruck/> Tanker Gate
+                </button>
               </div>
             </div>
           </div>
 
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6">
-            {/* Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
-              {[
-                { label: 'Total Entries', value: entries.length, color: 'bg-cyan-100 text-cyan-600', icon: <FaTruck /> },
-                { label: 'Inside Facility', value: entries.filter(e => ['arrived', 'under_processing'].includes(e.gate_status)).length, color: 'bg-green-100 text-green-600', icon: <FaSignInAlt /> },
-                { label: 'Ready to Exit', value: entries.filter(e => e.gate_status === 'ready_to_exit').length, color: 'bg-yellow-100 text-yellow-600', icon: <FaSignOutAlt /> },
-                { label: 'Exited', value: entries.filter(e => e.gate_status === 'exited').length, color: 'bg-gray-100 text-gray-600', icon: <FaShieldAlt /> },
-              ].map((c, i) => (
-                <div key={i} className="bg-white rounded-xl p-3 border shadow-sm flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded-lg ${c.color} flex items-center justify-center text-base`}>{c.icon}</div>
-                  <div>
-                    <div className="text-xl font-bold text-gray-800">{c.value}</div>
-                    <div className="text-[11px] text-gray-500 font-medium">{c.label}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <div className="relative flex-1">
-                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
-                <input placeholder="Search vehicle, driver, code..." value={search} onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm" />
-              </div>
-              <select value={filterDirection} onChange={e => setFilterDirection(e.target.value)}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm min-w-[130px]">
-                <option value="">All Directions</option>
-                <option value="entry">Entry</option>
-                <option value="exit">Exit</option>
-              </select>
-              <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm min-w-[140px]">
-                <option value="">All Status</option>
-                <option value="arrived">Arrived</option>
-                <option value="under_processing">Processing</option>
-                <option value="ready_to_exit">Ready to Exit</option>
-                <option value="exited">Exited</option>
-              </select>
-            </div>
-
-            {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-              {loading ? (
-                <div className="p-12 text-center"><FaSpinner className="animate-spin text-cyan-500 text-3xl mx-auto" /></div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead className="bg-gray-50 border-b">
-                      <tr>
-                        {['Code', 'Vehicle', 'Driver', 'Material', 'Qty', 'Direction', 'Entry Time', 'Exit Time', 'Status', 'Photo', 'Actions'].map(h => (
-                          <th key={h} className="px-3 py-3 text-left text-xs font-semibold text-gray-600 uppercase whitespace-nowrap">{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y">
-                      {entries.length > 0 ? entries.map(e => (
-                        <tr key={e.id} className="hover:bg-gray-50 transition">
-                          <td className="px-3 py-3 font-semibold text-cyan-600 whitespace-nowrap">{e.entry_code}</td>
-                          <td className="px-3 py-3 font-medium text-gray-800 whitespace-nowrap">{e.vehicle_number}</td>
-                          <td className="px-3 py-3 text-gray-500 whitespace-nowrap">
-                            <div>{e.driver_name || '-'}</div>
-                            {e.driver_phone && <div className="text-xs">{e.driver_phone}</div>}
-                          </td>
-                          <td className="px-3 py-3 text-gray-500 whitespace-nowrap">{e.material_name || e.material_type || '-'}</td>
-                          <td className="px-3 py-3 font-medium text-gray-800 whitespace-nowrap">{e.quantity > 0 ? `${parseFloat(e.quantity).toFixed(2)} ${e.unit}` : '-'}</td>
-                          <td className="px-3 py-3 whitespace-nowrap">
-                            <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${e.direction === 'entry' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                              {e.direction === 'entry' ? '↓ IN' : '↑ OUT'}
-                            </span>
-                          </td>
-                          <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTime(e.entry_time)}</td>
-                          <td className="px-3 py-3 text-xs text-gray-500 whitespace-nowrap">{formatTime(e.exit_time)}</td>
-                          <td className="px-3 py-3 whitespace-nowrap">{getStatusBadge(e.gate_status)}</td>
-                          <td className="px-3 py-3 whitespace-nowrap">
-                            {(e.entry_photo || e.exit_photo) ? (
-                              <button onClick={() => { setViewEntry(e); setShowPhotoModal(true); }}
-                                className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-3 py-1.5 rounded-lg text-xs font-medium transition flex items-center gap-1">
-                                <FaEye className="text-xs" /> View
-                              </button>
-                            ) : <span className="text-gray-400 text-xs">No photo</span>}
-                          </td>
-                          <td className="px-3 py-3 whitespace-nowrap">
-                            <div className="flex gap-1 flex-wrap">
-                              {e.gate_status === 'arrived' && (
-                                <button onClick={() => updateGateStatus(e.id, 'under_processing')}
-                                  className="bg-blue-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-blue-600 transition">Processing</button>
-                              )}
-                              {e.gate_status === 'under_processing' && (
-                                <button onClick={() => updateGateStatus(e.id, 'ready_to_exit')}
-                                  className="bg-yellow-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-yellow-600 transition">Ready</button>
-                              )}
-                              {e.gate_status === 'ready_to_exit' && (
-                                <button onClick={() => { setExitEntry(e); setShowExitModal(true); }}
-                                  className="bg-red-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-red-600 transition">Exit + Photo</button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      )) : (
-                        <tr><td colSpan={11} className="p-8 text-center text-gray-400">No gate entries found</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+          <div className="pb-20">
+             <Suspense fallback={<div className="p-20 text-center"><FaSpinner className="animate-spin text-cyan-500 text-4xl mx-auto"/></div>}>
+                {activeTab === 'mfg' ? <MfgRequestTerminal /> : <TankerGateTerminal />}
+             </Suspense>
           </div>
         </main>
         <Footer />
       </div>
-
-      {/* Modal components remain similar but with Tailwind classes */}
-      {/* Entry Modal, Exit Modal, View Photo Modal - keeping them concise */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => { if (e.target === e.currentTarget) { setShowModal(false); stopCamera(); } }}>
-          <div className="bg-white rounded-xl max-w-lg w-full p-5 shadow-xl max-h-[90vh] overflow-y-auto">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">{form.direction === 'entry' ? '🟢 Gate Entry' : '🔴 Gate Exit'}</h2>
-            <div className="space-y-3">
-              {/* Form fields similar to previous implementation with Tailwind */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input value={form.vehicle_number} onChange={e => setForm({ ...form, vehicle_number: e.target.value.toUpperCase() })} placeholder="Vehicle Number *"
-                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                <input value={form.tanker_code} onChange={e => setForm({ ...form, tanker_code: e.target.value })} placeholder="Tanker Code"
-                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <input value={form.driver_name} onChange={e => setForm({ ...form, driver_name: e.target.value })} placeholder="Driver Name"
-                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-                <input value={form.driver_phone} onChange={e => setForm({ ...form, driver_phone: e.target.value })} placeholder="Driver Phone"
-                  className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500" />
-              </div>
-              {/* Camera Section */}
-              <div className="bg-gray-50 rounded-lg p-3 border">
-                <label className="text-sm font-semibold text-gray-700 block mb-2">📷 Photo</label>
-                {cameraActive ? (
-                  <div>
-                    <video ref={videoRef} className="w-full rounded-lg max-h-60 object-cover" autoPlay muted playsInline />
-                    <canvas ref={canvasRef} className="hidden" />
-                    <div className="flex gap-2 mt-2">
-                      <button onClick={captureImage} className="flex-1 bg-green-500 text-white py-2 rounded-lg font-semibold text-sm flex items-center justify-center gap-2"><FaCamera /> Capture</button>
-                      <button onClick={stopCamera} className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold text-sm">Cancel</button>
-                    </div>
-                  </div>
-                ) : capturedPhoto ? (
-                  <div>
-                    <img src={capturedPhoto} alt="Captured" className="w-full rounded-lg max-h-48 object-cover" />
-                    <button onClick={() => setCapturedPhoto(null)} className="mt-2 bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-sm">Remove</button>
-                  </div>
-                ) : (
-                  <button onClick={() => startCamera('entry')} className="bg-cyan-500 text-white py-2 px-4 rounded-lg font-semibold text-sm flex items-center gap-2"><FaCamera /> Open Camera</button>
-                )}
-              </div>
-            </div>
-            <div className="mt-5 flex justify-end gap-3 pt-3 border-t">
-              <button onClick={() => { setShowModal(false); stopCamera(); }} className="px-4 py-2 border rounded-lg text-gray-600 hover:bg-gray-50 text-sm font-medium">Cancel</button>
-              <button onClick={handleSave} disabled={saving} className="px-5 py-2 bg-cyan-500 text-white rounded-lg hover:bg-cyan-600 text-sm font-semibold disabled:opacity-50">
-                {saving ? 'Saving...' : 'Submit'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Exit Modal */}
-      {showExitModal && exitEntry && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={e => { if (e.target === e.currentTarget) { setShowExitModal(false); stopCamera(); } }}>
-          <div className="bg-white rounded-xl max-w-md w-full p-5 shadow-xl">
-            <h2 className="text-xl font-bold text-gray-900 mb-1">🔴 Exit - Capture Photo</h2>
-            <p className="text-sm text-gray-500 mb-4">Vehicle: {exitEntry.vehicle_number}</p>
-            {cameraActive ? (
-              <div>
-                <video ref={videoRef} className="w-full rounded-lg max-h-64 object-cover" autoPlay muted playsInline />
-                <canvas ref={canvasRef} className="hidden" />
-                <div className="flex gap-2 mt-3">
-                  <button onClick={captureImage} className="flex-1 bg-green-500 text-white py-2 rounded-lg font-semibold flex items-center justify-center gap-2"><FaCamera /> Capture</button>
-                  <button onClick={stopCamera} className="bg-red-500 text-white px-4 py-2 rounded-lg font-semibold">Cancel</button>
-                </div>
-              </div>
-            ) : exitPhoto ? (
-              <div>
-                <img src={exitPhoto} alt="Exit" className="w-full rounded-lg max-h-48 object-cover" />
-                <button onClick={() => setExitPhoto(null)} className="mt-2 bg-yellow-100 text-yellow-700 px-3 py-1.5 rounded-lg text-sm">Retake</button>
-              </div>
-            ) : (
-              <button onClick={() => startCamera('exit')} className="w-full bg-red-500 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2"><FaCamera /> Capture Exit Photo</button>
-            )}
-            <div className="flex justify-end gap-3 mt-5 pt-3 border-t">
-              <button onClick={() => { setShowExitModal(false); stopCamera(); }} className="px-4 py-2 border rounded-lg text-gray-600">Cancel</button>
-              <button onClick={handleExit} className="px-5 py-2 bg-red-500 text-white rounded-lg font-semibold">Confirm Exit</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Photo Modal */}
-      {showPhotoModal && viewEntry && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setShowPhotoModal(false)}>
-          <div className="bg-white rounded-xl max-w-2xl w-full p-5 shadow-xl" onClick={e => e.stopPropagation()}>
-            <h2 className="text-lg font-bold text-gray-900 mb-3">Photos - {viewEntry.entry_code}</h2>
-            <div className={`grid ${viewEntry.entry_photo && viewEntry.exit_photo ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-4`}>
-              {viewEntry.entry_photo && (
-                <div>
-                  <h4 className="text-sm font-semibold text-green-600 mb-2">🟢 Entry Photo</h4>
-                  <img src={viewEntry.entry_photo} alt="Entry" className="w-full rounded-lg border-2 border-green-200" />
-                </div>
-              )}
-              {viewEntry.exit_photo && (
-                <div>
-                  <h4 className="text-sm font-semibold text-red-600 mb-2">🔴 Exit Photo</h4>
-                  <img src={viewEntry.exit_photo} alt="Exit" className="w-full rounded-lg border-2 border-red-200" />
-                </div>
-              )}
-            </div>
-            <div className="mt-4 text-right">
-              <button onClick={() => setShowPhotoModal(false)} className="px-4 py-2 border rounded-lg text-gray-600">Close</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
-  );
-}
-
-function LoadingFallback() {
-  return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <FaSpinner className="animate-spin text-cyan-500 text-4xl" />
-    </div>
-  );
-}
-
-export default function SecurityGatePage() {
-  return (
-    <Suspense fallback={<LoadingFallback />}>
-      <SecurityGateContent />
-    </Suspense>
   );
 }

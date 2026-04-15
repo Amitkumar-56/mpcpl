@@ -9,9 +9,50 @@ export async function GET(req) {
     const vehicle_no = searchParams.get('vehicle_no') || '';
     const from = searchParams.get('from') || '';
     const to = searchParams.get('to') || '';
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 10;
+    const offset = (page - 1) * limit;
     const doExport = searchParams.get('export') === '1';
 
     // Base query: read from voucher_history joined with vouchers and optional item details
+    let baseSql = `
+      FROM voucher_history vh
+      LEFT JOIN vouchers v ON vh.row_id = v.voucher_id
+      LEFT JOIN employee_profile ep ON v.emp_id = ep.id
+      LEFT JOIN vouchers_items vi ON vi.voucher_id = v.voucher_id AND vi.amount = vh.amount
+      WHERE 1=1
+    `;
+    const params = [];
+
+    if (q) {
+      baseSql += ` AND (vi.item_details LIKE ? OR v.voucher_no LIKE ? OR ep.name LIKE ? OR vh.type LIKE ?)`;
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
+    if (emp_id) {
+      baseSql += ` AND v.emp_id = ?`;
+      params.push(emp_id);
+    }
+    if (vehicle_no) {
+      baseSql += ` AND v.vehicle_no LIKE ?`;
+      params.push(`%${vehicle_no}%`);
+    }
+    if (from) {
+      baseSql += ` AND DATE(v.exp_date) >= ?`;
+      params.push(from);
+    }
+    if (to) {
+      baseSql += ` AND DATE(v.exp_date) <= ?`;
+      params.push(to);
+    }
+
+    // Get total count
+    const countSql = `SELECT COUNT(*) as total ${baseSql}`;
+    const countResult = await executeQuery(countSql, params);
+    const totalRecords = countResult[0].total;
+    const totalPages = Math.ceil(totalRecords / limit);
+
+    // Get paginated rows
     let sql = `
       SELECT vh.id as history_id,
              vh.row_id as voucher_id,
@@ -26,37 +67,14 @@ export async function GET(req) {
              v.vehicle_no,
              v.driver_name,
              vi.item_details
-      FROM voucher_history vh
-      LEFT JOIN vouchers v ON vh.row_id = v.voucher_id
-      LEFT JOIN employee_profile ep ON v.emp_id = ep.id
-      LEFT JOIN vouchers_items vi ON vi.voucher_id = v.voucher_id AND vi.amount = vh.amount
-      WHERE 1=1
+      ${baseSql}
+      ORDER BY vh.created_at DESC, v.exp_date DESC, v.voucher_id DESC
     `;
-    const params = [];
 
-    if (q) {
-      sql += ` AND (vi.item_details LIKE ? OR v.voucher_no LIKE ? OR ep.name LIKE ? OR vh.type LIKE ?)`;
-      const like = `%${q}%`;
-      params.push(like, like, like, like);
+    if (!doExport) {
+      sql += ` LIMIT ? OFFSET ?`;
+      params.push(limit, offset);
     }
-    if (emp_id) {
-      sql += ` AND v.emp_id = ?`;
-      params.push(emp_id);
-    }
-    if (vehicle_no) {
-      sql += ` AND v.vehicle_no LIKE ?`;
-      params.push(`%${vehicle_no}%`);
-    }
-    if (from) {
-      sql += ` AND DATE(v.exp_date) >= ?`;
-      params.push(from);
-    }
-    if (to) {
-      sql += ` AND DATE(v.exp_date) <= ?`;
-      params.push(to);
-    }
-
-    sql += ` ORDER BY vh.created_at DESC, v.exp_date DESC, v.voucher_id DESC`;
 
     const rows = await executeQuery(sql, params);
 
@@ -102,7 +120,18 @@ export async function GET(req) {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, rows }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    return new Response(JSON.stringify({ 
+      success: true, 
+      rows,
+      pagination: {
+        total_records: totalRecords,
+        total_pages: totalPages,
+        current_page: page,
+        limit: limit,
+        has_next: page < totalPages,
+        has_prev: page > 1
+      }
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     console.error('voucher-history-cash API error:', error);
     return new Response(JSON.stringify({ success: false, error: error.message }), { status: 500, headers: { 'Content-Type': 'application/json' } });

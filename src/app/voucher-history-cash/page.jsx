@@ -10,12 +10,19 @@ export default function VoucherHistoryCash() {
   const [rows, setRows] = useState([]);
   const [q, setQ] = useState('');
   const [empId, setEmpId] = useState('');
-  const [vehicle, setVehicle] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [loading, setLoading] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [logModal, setLogModal] = useState({ open: false, voucherId: null, rows: [] });
+  const [pagination, setPagination] = useState({
+    current_page: 1,
+    total_pages: 1,
+    total_records: 0,
+    limit: 10,
+    has_next: false,
+    has_prev: false
+  });
 
   useEffect(() => {
     fetchEmployees();
@@ -37,23 +44,35 @@ export default function VoucherHistoryCash() {
     const params = new URLSearchParams();
     params.set('q', opts.q ?? q);
     if (opts.empId ?? empId) params.set('emp_id', opts.empId ?? empId);
-    if (opts.vehicle ?? vehicle) params.set('vehicle_no', opts.vehicle ?? vehicle);
     if (opts.from ?? from) params.set('from', opts.from ?? from);
     if (opts.to ?? to) params.set('to', opts.to ?? to);
+    params.set('page', opts.page ?? pagination.current_page);
+    params.set('limit', opts.limit ?? pagination.limit);
     return '/api/voucher-history-cash?' + params.toString();
   };
 
-  const fetchData = async () => {
+  const fetchData = async (targetPage = 1) => {
     try {
       setLoading(true);
-      const res = await fetch(buildUrl());
+      const res = await fetch(buildUrl({ page: targetPage }));
       const data = await res.json();
-      if (data.success) setRows(data.rows || []);
+      if (data.success) {
+        setRows(data.rows || []);
+        if (data.pagination) setPagination(data.pagination);
+      }
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetFilters = () => {
+    setQ('');
+    setEmpId('');
+    setFrom('');
+    setTo('');
+    fetchData(1);
   };
 
   const openLog = async (voucherId) => {
@@ -71,7 +90,7 @@ export default function VoucherHistoryCash() {
   const closeLog = () => setLogModal({ open: false, voucherId: null, rows: [] });
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       {/* Fixed Sidebar like other pages */}
       <div className="fixed left-0 top-0 h-screen w-64 z-30">
         <Sidebar />
@@ -82,21 +101,21 @@ export default function VoucherHistoryCash() {
           <Header />
         </div>
 
-        <main className="flex-1 p-4 mt-16 overflow-auto">
+        <main className="flex-1 p-4 mt-32 overflow-y-auto overflow-x-hidden">
           <div className="max-w-7xl mx-auto">
             <div className="mb-4 flex flex-col md:flex-row gap-2 md:gap-3 items-stretch md:items-center">
-              <input value={q} onChange={e=>setQ(e.target.value)} placeholder="Search item, voucher no or employee" className="border px-3 py-2 rounded w-full md:w-72 text-sm" />
-              <select value={empId} onChange={e=>setEmpId(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm">
+              <input value={q} onChange={e => setQ(e.target.value)} placeholder="Search item, voucher no or employee" className="border px-3 py-2 rounded w-full md:w-72 text-sm" />
+              <select value={empId} onChange={e => setEmpId(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm">
                 <option value="">All Employees</option>
                 {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
               </select>
-              <input value={vehicle} onChange={e=>setVehicle(e.target.value)} placeholder="Vehicle No" className="border px-3 py-2 rounded w-full md:w-40 text-sm" />
-              <input type="date" value={from} onChange={e=>setFrom(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm" />
-              <input type="date" value={to} onChange={e=>setTo(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm" />
+              <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm" />
+              <input type="date" value={to} onChange={e => setTo(e.target.value)} className="border px-3 py-2 rounded w-full md:w-auto text-sm" />
               <div className="flex gap-2 w-full md:w-auto">
-                <button onClick={fetchData} className="flex-1 md:flex-none bg-blue-600 text-white px-3 md:px-4 py-2 rounded text-sm font-medium">Filter</button>
-                <ExportButton 
-                  data={rows} 
+                <button onClick={() => fetchData(1)} className="flex-1 md:flex-none bg-blue-600 text-white px-3 md:px-4 py-2 rounded text-sm font-medium">Filter</button>
+                <button onClick={resetFilters} className="flex-1 md:flex-none bg-gray-500 text-white px-3 md:px-4 py-2 rounded text-sm font-medium">Clear</button>
+                <ExportButton
+                  data={rows}
                   fileName={`voucher_history_cash_${new Date().toISOString().split('T')[0]}`}
                   columns={[
                     { field: 'voucher_no', header: 'Voucher No' },
@@ -123,7 +142,6 @@ export default function VoucherHistoryCash() {
                     <th className="px-2 md:px-4 py-2 text-left whitespace-nowrap hidden md:table-cell">Driver</th>
                     <th className="px-2 md:px-4 py-2 text-left whitespace-nowrap hidden lg:table-cell">Item</th>
                     <th className="px-2 md:px-4 py-2 text-right whitespace-nowrap">Amount</th>
-                    <th className="px-2 md:px-4 py-2 text-center whitespace-nowrap">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -132,23 +150,54 @@ export default function VoucherHistoryCash() {
                   ) : rows.length === 0 ? (
                     <tr><td colSpan={9} className="p-6 text-center">No records</td></tr>
                   ) : rows.map((r, i) => (
-                    <tr key={`${r.history_id}-${i}`} className={i%2? 'bg-gray-50':''}>
-                      <td className="px-2 md:px-4 py-2 text-xs md:text-sm">{i+1}</td>
+                    <tr key={`${r.history_id}-${i}`} className={i % 2 ? 'bg-gray-50' : ''}>
+                      <td className="px-2 md:px-4 py-2 text-xs md:text-sm">{i + 1}</td>
                       <td className="px-2 md:px-4 py-2 text-xs md:text-sm font-medium">{r.voucher_no}</td>
                       <td className="px-2 md:px-4 py-2 text-xs md:text-sm">{r.exp_date ? new Date(r.exp_date).toLocaleDateString('en-IN') : ''}</td>
                       <td className="px-2 md:px-4 py-2 text-xs md:text-sm">{r.emp_name || r.emp_id}</td>
                       <td className="px-2 md:px-4 py-2 text-xs md:text-sm">{r.vehicle_no}</td>
                       <td className="px-2 md:px-4 py-2 text-xs md:text-sm hidden md:table-cell">{r.driver_name || ''}</td>
                       <td className="px-2 md:px-4 py-2 text-xs md:text-sm hidden lg:table-cell">{r.item_details || r.history_type}</td>
-                      <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-right font-medium">₹{parseFloat(r.history_amount||0).toFixed(2)}</td>
-                      <td className="px-2 md:px-4 py-2 text-center">
-                        <button onClick={()=>openLog(r.voucher_id)} className="text-sm text-blue-600 underline">View Log</button>
-                      </td>
+                      <td className="px-2 md:px-4 py-2 text-xs md:text-sm text-right font-medium">₹{parseFloat(r.history_amount || 0).toFixed(2)}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+
+            {/* Pagination Controls */}
+            {pagination.total_pages > 1 && (
+              <div className="bg-white rounded shadow p-3 mt-4 flex flex-col sm:flex-row justify-between items-center gap-3">
+                <div className="text-sm text-gray-600">
+                  Showing {((pagination.current_page - 1) * pagination.limit) + 1} to {Math.min(pagination.current_page * pagination.limit, pagination.total_records)} of {pagination.total_records} records
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => fetchData(pagination.current_page - 1)}
+                    disabled={!pagination.has_prev}
+                    className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+                  >
+                    Previous
+                  </button>
+                  {[...Array(pagination.total_pages)].map((_, i) => (
+                    <button
+                      key={i + 1}
+                      onClick={() => fetchData(i + 1)}
+                      className={`px-3 py-1 border rounded text-sm ${pagination.current_page === i + 1 ? 'bg-blue-600 text-white' : 'hover:bg-gray-50'}`}
+                    >
+                      {i + 1}
+                    </button>
+                  )).slice(Math.max(0, pagination.current_page - 3), Math.min(pagination.total_pages, pagination.current_page + 2))}
+                  <button
+                    onClick={() => fetchData(pagination.current_page + 1)}
+                    disabled={!pagination.has_next}
+                    className="px-3 py-1 border rounded disabled:opacity-50 text-sm hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </main>
         {/* Log Modal */}
@@ -175,11 +224,11 @@ export default function VoucherHistoryCash() {
                     </thead>
                     <tbody>
                       {logModal.rows.map((lr, idx) => (
-                        <tr key={lr.id} className={idx%2? 'bg-gray-50':''}>
-                          <td className="px-3 py-2">{idx+1}</td>
+                        <tr key={lr.id} className={idx % 2 ? 'bg-gray-50' : ''}>
+                          <td className="px-3 py-2">{idx + 1}</td>
                           <td className="px-3 py-2">{lr.type}</td>
                           <td className="px-3 py-2">{lr.user_name || lr.user_id}</td>
-                          <td className="px-3 py-2">₹{parseFloat(lr.amount||0).toFixed(2)}</td>
+                          <td className="px-3 py-2">₹{parseFloat(lr.amount || 0).toFixed(2)}</td>
                           <td className="px-3 py-2">{lr.created_at ? new Date(lr.created_at).toLocaleString('en-IN') : ''}</td>
                         </tr>
                       ))}

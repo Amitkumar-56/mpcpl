@@ -22,7 +22,7 @@ export async function GET() {
         otp_code VARCHAR(10) NULL,
         otp_generated_at TIMESTAMP NULL,
         otp_verified TINYINT(1) DEFAULT 0,
-        status ENUM('pending', 'approved', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
+        status ENUM('pending_approval', 'pending', 'approved', 'processing', 'completed', 'cancelled') DEFAULT 'pending',
         entry_photo LONGTEXT NULL,
         exit_photo LONGTEXT NULL,
         entry_location_lat DECIMAL(10,8) NULL,

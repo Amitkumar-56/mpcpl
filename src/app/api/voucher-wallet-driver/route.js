@@ -19,7 +19,7 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = parseInt(searchParams.get('limit')) || 10;
     const offset = (page - 1) * limit;
-    
+
     const userId = session.user_id;
     const role = session.role;
     const fs_id = session.fs_id;
@@ -149,9 +149,9 @@ export async function GET(request) {
         WHERE module_name = 'Vouchers' AND (role = ? OR employee_id = ?)
         LIMIT 1
       `;
-      
+
       const permissionsResult = await executeQuery(permissionsQuery, [role, userId]);
-      
+
       if (permissionsResult.length > 0) {
         permissions = permissionsResult[0];
       }
@@ -182,7 +182,7 @@ export async function GET(request) {
   } catch (error) {
     console.error('Error in voucher-wallet-driver API:', error);
     return NextResponse.json(
-      { 
+      {
         success: false,
         error: 'Internal server error: ' + error.message,
         vouchers: [],

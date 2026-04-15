@@ -26,11 +26,11 @@ function VoucherLogs({ voucherId }) {
         setLoading(true);
         setError(null);
         const response = await fetch(`/api/audit-logs?record_type=voucher&record_id=${voucherId}`);
-        
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        
+
         const result = await response.json();
         if (result.success) {
           // API returns data array
@@ -45,7 +45,7 @@ function VoucherLogs({ voucherId }) {
         setLoading(false);
       }
     };
-    
+
     fetchLogs();
   }, [voucherId]);
 
@@ -118,10 +118,10 @@ function VoucherWalletDriverContent() {
     has_next: false,
     has_prev: false
   });
-  
+
   const searchParams = useSearchParams();
   const emp_id = searchParams.get('emp_id');
-  
+
   const toggleVoucherLogs = (voucherId) => {
     setExpandedVouchers(prev => ({
       ...prev,
@@ -138,7 +138,7 @@ function VoucherWalletDriverContent() {
       setFilteredVouchers(vouchers);
     } else {
       const query = searchQuery.toLowerCase().trim();
-      const filtered = vouchers.filter(voucher => 
+      const filtered = vouchers.filter(voucher =>
         (voucher.voucher_no && voucher.voucher_no.toLowerCase().includes(query)) ||
         (voucher.vehicle_no && voucher.vehicle_no.toLowerCase().includes(query)) ||
         (voucher.emp_name && voucher.emp_name.toLowerCase().includes(query)) ||
@@ -152,30 +152,30 @@ function VoucherWalletDriverContent() {
     try {
       setLoading(true);
       setError(null);
-      
+
       const params = new URLSearchParams();
       if (emp_id) params.append('emp_id', emp_id);
       params.append('page', page.toString());
       params.append('limit', limit.toString());
-      
+
       const response = await fetch(`/api/voucher-wallet-driver?${params.toString()}`);
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || `HTTP ${response.status}`);
       }
-      
+
       if (!data.success) {
         throw new Error(data.error || 'Failed to fetch data');
       }
-      
+
       setVouchers(data.vouchers || []);
       setPermissions(data.permissions);
       setDriverName(data.driver_name);
       if (data.pagination) {
         setPagination(data.pagination);
       }
-      
+
     } catch (error) {
       console.error('Error fetching vouchers:', error);
       setError(error.message);
@@ -226,7 +226,7 @@ function VoucherWalletDriverContent() {
         <div className="flex-shrink-0">
           <Header />
         </div>
-        <div className="flex-1 overflow-y-auto min-h-0">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
           <div className="p-4 md:p-6 max-w-full">
             {/* Title */}
             <div className="mb-6">
@@ -271,7 +271,7 @@ function VoucherWalletDriverContent() {
                 <span className="text-lg">←</span>
                 <span className="hidden sm:inline">Back</span>
               </button>
-              <Link 
+              <Link
                 href="/voucher-activity"
                 className="px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg text-sm flex items-center gap-2 touch-target"
               >
@@ -280,7 +280,7 @@ function VoucherWalletDriverContent() {
                 </svg>
                 <span className="hidden sm:inline">Activity Log</span>
               </Link>
-              <Link 
+              <Link
                 href="/voucher-advance-history"
                 className="px-4 py-2 bg-yellow-600 hover:bg-yellow-700 text-white rounded-lg text-sm flex items-center gap-2 touch-target"
               >
@@ -289,14 +289,14 @@ function VoucherWalletDriverContent() {
                 </svg>
                 <span className="hidden sm:inline">All Advance History</span>
               </Link>
-              <Link 
-                href="/dashboard"
-                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm flex items-center gap-2 touch-target"
+              <Link
+                href="/voucher-history-cash"
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm flex items-center gap-2 touch-target"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span className="hidden sm:inline">Dashboard</span>
+                <span className="hidden sm:inline">Voucher Cash History</span>
               </Link>
             </div>
 
@@ -380,8 +380,8 @@ function VoucherWalletDriverContent() {
                 <div className="flex justify-between items-center">
                   <h2 className="font-bold text-gray-800">Vouchers List</h2>
                   <span className="text-sm text-gray-600">
-                    {searchQuery 
-                      ? `${filteredVouchers.length} of ${pagination.total_records} vouchers` 
+                    {searchQuery
+                      ? `${filteredVouchers.length} of ${pagination.total_records} vouchers`
                       : `Page ${pagination.current_page} of ${pagination.total_pages} (${pagination.total_records} total vouchers)`
                     }
                   </span>
@@ -410,86 +410,86 @@ function VoucherWalletDriverContent() {
                     <tbody className="divide-y divide-gray-200">
                       {filteredVouchers.map((voucher, idx) => (
                         <React.Fragment key={voucher.voucher_id || idx}>
-                        <tr className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm text-gray-900">{idx + 1}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{voucher.voucher_no || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{formatDate(voucher.exp_date)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{voucher.vehicle_no || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm">
-                            {voucher.emp_id ? (
-                              <Link 
-                                href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
-                                className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
-                              >
-                                {voucher.emp_name || 'N/A'}
-                              </Link>
-                            ) : (
-                              <span className="text-gray-900">{voucher.emp_name || 'N/A'}</span>
-                            )}
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{voucher.driver_phone || 'N/A'}</td>
-                          <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(voucher.advance)}</td>
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(voucher.total_expense)}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span className={`font-medium ${parseFloat(voucher.remaining_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                              {formatCurrency(voucher.remaining_amount)}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm">
-                            <div className="flex flex-col gap-1 min-w-[100px]">
-                              <Link
-                                href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
-                                className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs text-center"
-                              >
-                                Edit
-                              </Link>
-                              <Link
-                                href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
-                                className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs text-center"
-                              >
-                                Items
-                              </Link>
-                              <Link
-                                href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
-                                className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs text-center"
-                              >
-                                Print
-                              </Link>
-                            </div>
-                          </td>
-                          <td className="px-3 sm:px-4 py-3 text-sm">
-                            <button
-                              onClick={() => toggleVoucherLogs(voucher.voucher_id || idx)}
-                              className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                              title="View Activity Logs"
-                            >
-                              {expandedVouchers[voucher.voucher_id || idx] ? (
-                                <>
-                                  <BiChevronUp size={18} className="sm:inline" />
-                                  <span className="ml-1 text-xs hidden sm:inline">Hide</span>
-                                </>
+                          <tr className="hover:bg-gray-50">
+                            <td className="px-4 py-3 text-sm text-gray-900">{idx + 1}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{voucher.voucher_no || 'N/A'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{formatDate(voucher.exp_date)}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{voucher.vehicle_no || 'N/A'}</td>
+                            <td className="px-4 py-3 text-sm">
+                              {voucher.emp_id ? (
+                                <Link
+                                  href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
+                                  className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
+                                >
+                                  {voucher.emp_name || 'N/A'}
+                                </Link>
                               ) : (
-                                <>
-                                  <BiChevronDown size={18} className="sm:inline" />
-                                  <span className="ml-1 text-xs hidden sm:inline">Logs</span>
-                                </>
+                                <span className="text-gray-900">{voucher.emp_name || 'N/A'}</span>
                               )}
-                            </button>
-                          </td>
-                        </tr>
-                        {/* Expandable Logs Row */}
-                        {expandedVouchers[voucher.voucher_id || idx] && (
-                          <tr className="bg-gray-50">
-                            <td colSpan="12" className="px-3 sm:px-4 py-4">
-                              <div className="max-w-full sm:max-w-4xl">
-                                <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for Voucher #{voucher.voucher_no || voucher.voucher_id}</h3>
-                                <div className="overflow-x-auto">
-                                  <VoucherLogs voucherId={voucher.voucher_id} />
-                                </div>
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{voucher.driver_phone || 'N/A'}</td>
+                            <td className="px-4 py-3 text-sm text-gray-900">{formatCurrency(voucher.advance)}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900">{formatCurrency(voucher.total_expense)}</td>
+                            <td className="px-4 py-3 text-sm">
+                              <span className={`font-medium ${parseFloat(voucher.remaining_amount || 0) > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                                {formatCurrency(voucher.remaining_amount)}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-sm">
+                              <div className="flex flex-col gap-1 min-w-[100px]">
+                                <Link
+                                  href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
+                                  className="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-xs text-center"
+                                >
+                                  Edit
+                                </Link>
+                                <Link
+                                  href={`/voucher-items?voucher_id=${voucher.voucher_id}`}
+                                  className="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-xs text-center"
+                                >
+                                  Items
+                                </Link>
+                                <Link
+                                  href={`/voucher-print?voucher_id=${voucher.voucher_id}`}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded text-xs text-center"
+                                >
+                                  Print
+                                </Link>
                               </div>
                             </td>
+                            <td className="px-3 sm:px-4 py-3 text-sm">
+                              <button
+                                onClick={() => toggleVoucherLogs(voucher.voucher_id || idx)}
+                                className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
+                                title="View Activity Logs"
+                              >
+                                {expandedVouchers[voucher.voucher_id || idx] ? (
+                                  <>
+                                    <BiChevronUp size={18} className="sm:inline" />
+                                    <span className="ml-1 text-xs hidden sm:inline">Hide</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <BiChevronDown size={18} className="sm:inline" />
+                                    <span className="ml-1 text-xs hidden sm:inline">Logs</span>
+                                  </>
+                                )}
+                              </button>
+                            </td>
                           </tr>
-                        )}
+                          {/* Expandable Logs Row */}
+                          {expandedVouchers[voucher.voucher_id || idx] && (
+                            <tr className="bg-gray-50">
+                              <td colSpan="12" className="px-3 sm:px-4 py-4">
+                                <div className="max-w-full sm:max-w-4xl">
+                                  <h3 className="text-xs sm:text-sm font-semibold text-gray-700 mb-2 sm:mb-3">Activity Logs for Voucher #{voucher.voucher_no || voucher.voucher_id}</h3>
+                                  <div className="overflow-x-auto">
+                                    <VoucherLogs voucherId={voucher.voucher_id} />
+                                  </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
                         </React.Fragment>
                       ))}
                     </tbody>
@@ -509,7 +509,7 @@ function VoucherWalletDriverContent() {
                         </div>
                         <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-1 rounded">#{idx + 1}</span>
                       </div>
-                      
+
                       <div className="grid grid-cols-2 gap-3 text-sm mb-3">
                         <div>
                           <p className="text-gray-500 text-xs">Vehicle</p>
@@ -518,7 +518,7 @@ function VoucherWalletDriverContent() {
                         <div>
                           <p className="text-gray-500 text-xs">Driver</p>
                           {voucher.emp_id ? (
-                            <Link 
+                            <Link
                               href={`/voucher-wallet-driver-emp?emp_id=${voucher.emp_id}`}
                               className="text-blue-600 hover:text-blue-800 hover:underline font-medium"
                             >
@@ -537,7 +537,7 @@ function VoucherWalletDriverContent() {
                           <p className="font-medium text-gray-900">{formatCurrency(voucher.advance)}</p>
                         </div>
                       </div>
-                      
+
                       <div className="border-t border-gray-200 pt-3 mt-3">
                         <div className="flex justify-between items-center mb-2">
                           <span className="text-gray-600 text-sm">Total Expense:</span>
@@ -550,7 +550,7 @@ function VoucherWalletDriverContent() {
                           </span>
                         </div>
                       </div>
-                      
+
                       <div className="flex flex-col gap-2 mt-4 pt-3 border-t border-gray-200">
                         <Link
                           href={`/edit-voucher?voucher_id=${voucher.voucher_id}`}
@@ -571,7 +571,7 @@ function VoucherWalletDriverContent() {
                           Print
                         </Link>
                       </div>
-                      
+
                       {/* Mobile Logs Section */}
                       <div className="mt-3 pt-3 border-t border-gray-200">
                         <button
@@ -646,7 +646,7 @@ function VoucherWalletDriverContent() {
                     </select>
                     <span className="text-sm text-gray-600">entries</span>
                   </div>
-                  
+
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-gray-600">
                       Showing {((pagination.current_page - 1) * pagination.limit) + 1} to {Math.min(pagination.current_page * pagination.limit, pagination.total_records)} of {pagination.total_records} entries
@@ -668,7 +668,7 @@ function VoucherWalletDriverContent() {
                     >
                       Previous
                     </button>
-                    
+
                     <div className="flex items-center gap-1">
                       {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
                         let pageNum;
@@ -681,23 +681,22 @@ function VoucherWalletDriverContent() {
                         } else {
                           pageNum = pagination.current_page - 2 + i;
                         }
-                        
+
                         return (
                           <button
                             key={pageNum}
                             onClick={() => handlePageChange(pageNum)}
-                            className={`px-3 py-1 text-sm border rounded ${
-                              pageNum === pagination.current_page
-                                ? 'bg-blue-600 text-white border-blue-600'
-                                : 'hover:bg-gray-50'
-                            }`}
+                            className={`px-3 py-1 text-sm border rounded ${pageNum === pagination.current_page
+                              ? 'bg-blue-600 text-white border-blue-600'
+                              : 'hover:bg-gray-50'
+                              }`}
                           >
                             {pageNum}
                           </button>
                         );
                       })}
                     </div>
-                    
+
                     <button
                       onClick={() => handlePageChange(pagination.current_page + 1)}
                       disabled={!pagination.has_next}

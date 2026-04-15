@@ -354,6 +354,38 @@ function ManufacturingEntryRequestsContent() {
     quantity: '', unit: 'kg', remarks: ''
   });
   const [createdOtp, setCreatedOtp] = useState(null);
+  
+  // Create Modal Camera
+  const [capturedCreatePhoto, setCapturedCreatePhoto] = useState(null);
+  const [createCameraActive, setCreateCameraActive] = useState(false);
+  const createVideoRef = useRef(null);
+  const createCanvasRef = useRef(null);
+
+  const startCreateCamera = async () => {
+    setCreateCameraActive(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      if (createVideoRef.current) { createVideoRef.current.srcObject = stream; createVideoRef.current.play(); }
+    } catch (err) { alert('Camera access denied'); setCreateCameraActive(false); }
+  };
+
+  const captureCreateImage = () => {
+    if (!createVideoRef.current || !createCanvasRef.current) return;
+    const canvas = createCanvasRef.current;
+    const video = createVideoRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d').drawImage(video, 0, 0);
+    setCapturedCreatePhoto(canvas.toDataURL('image/jpeg', 0.7));
+    stopCreateCamera();
+  };
+
+  const stopCreateCamera = () => {
+    if (createVideoRef.current?.srcObject) {
+      createVideoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    }
+    setCreateCameraActive(false);
+  };
 
   // OTP Modal
   const [showOtpModal, setShowOtpModal] = useState(false);
@@ -381,18 +413,18 @@ function ManufacturingEntryRequestsContent() {
 
   const checkPermissions = async () => {
     if (!user) return;
-    if (Number(user.role) === 5) {
+    const roleNum = Number(user.role) || Number(user.roleid);
+    
+    // Admins (5) and Security Guards (8) can always create entry requests
+    if (roleNum === 5 || roleNum === 8) {
       setPermissions({ can_view: true, can_edit: true, can_create: true });
       return;
     }
+
     if (user.permissions?.['Manufacturing Entry'] || user.permissions?.['Security Gate']) {
       const p = user.permissions['Manufacturing Entry'] || user.permissions['Security Gate'] || {};
       setPermissions({ can_view: !!p.can_view, can_edit: !!p.can_edit, can_create: !!p.can_create });
       return;
-    }
-    // Fallback: Security Guard can view & edit
-    if (Number(user.role) === 8) {
-      setPermissions({ can_view: true, can_edit: true, can_create: false });
     }
   };
 
@@ -408,6 +440,29 @@ function ManufacturingEntryRequestsContent() {
     finally { setLoading(false); }
   };
 
+  // Notification for new requests
+  useEffect(() => {
+    if (isAdmin && entries.length > 0) {
+      const waiting = entries.filter(e => e.status === 'pending_approval');
+      if (waiting.length > 0) {
+        // Only notify if notification permission is granted
+        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          // Check if we already notified about the latest one
+          const latestId = Math.max(...waiting.map(w => w.id));
+          const lastNotified = localStorage.getItem('last_mfg_entry_notified');
+          
+          if (lastNotified !== String(latestId)) {
+            new Notification('New Entry Request', {
+              body: `${waiting.length} vehicles waiting for approval.`,
+              icon: '/favicon.png'
+            });
+            localStorage.setItem('last_mfg_entry_notified', String(latestId));
+          }
+        }
+      }
+    }
+  }, [entries, isAdmin]);
+
   const handleCreate = async () => {
     if (!form.vehicle_number) return alert('Vehicle number is required');
     if (form.vehicle_number.includes(' ')) return alert('❌ Vehicle number me spaces nahi hone chahiye!');
@@ -419,14 +474,20 @@ function ManufacturingEntryRequestsContent() {
         body: JSON.stringify({
           ...form,
           created_by: user?.id,
-          created_by_name: user?.name
+          created_by_name: user?.name,
+          role: user?.role,
+          entry_photo: capturedCreatePhoto || null
         })
       });
       const data = await res.json();
       if (data.success) {
-        setCreatedOtp(data.otp_code);
-        alert(`✅ Request created!\n\nCode: ${data.request_code}\nOTP: ${data.otp_code}\n\nYe OTP Security Guard ko dijiye.`);
+        if (Number(user?.role) === 8) {
+           alert(`✅ Request created and sent to Admin for approval!\n\nCode: ${data.request_code}\nOnce approved, you will get the OTP.`);
+        } else {
+           alert(`✅ Request created!\n\nCode: ${data.request_code}\nOTP: ${data.otp_code}`);
+        }
         setForm({ vehicle_number: '', driver_name: '', driver_phone: '', purpose: '', material_type: '', material_name: '', quantity: '', unit: 'kg', remarks: '' });
+        setCapturedCreatePhoto(null);
         setShowCreateModal(false);
         fetchEntries();
       } else alert(data.error);
@@ -444,6 +505,22 @@ function ManufacturingEntryRequestsContent() {
       setShowPhotoModal(true);
     }
     fetchEntries();
+  };
+
+  const handleApprove = async (req) => {
+    if (!confirm(`Approve karna hai ${req.vehicle_number} ki request?`)) return;
+    try {
+      const res = await fetch('/api/manufacturing/entry-requests', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: req.id, action: 'approve' })
+      });
+      const data = await res.json();
+      if (data.success) {
+        alert('✅ Request approved!');
+        fetchEntries();
+      } else alert(data.error);
+    } catch { alert('Error approving'); }
   };
 
   const handlePhotoSubmit = async (photoData) => {
@@ -515,6 +592,7 @@ function ManufacturingEntryRequestsContent() {
 
   const getStatusBadge = (status) => {
     const colors = {
+      pending_approval: 'bg-orange-100 text-orange-800 border-orange-200',
       pending: 'bg-yellow-100 text-yellow-800',
       approved: 'bg-blue-100 text-blue-800',
       processing: 'bg-green-100 text-green-800',
@@ -522,7 +600,8 @@ function ManufacturingEntryRequestsContent() {
       cancelled: 'bg-red-100 text-red-700',
     };
     const labels = {
-      pending: '⏳ Pending',
+      pending_approval: '⏳ Waiting Approval',
+      pending: '⏳ Pending OTP',
       approved: '✓ Approved',
       processing: '🔄 Inside',
       completed: '✅ Completed',
@@ -536,6 +615,7 @@ function ManufacturingEntryRequestsContent() {
   const summaryStats = {
     total: entries.length,
     pending: entries.filter(e => e.status === 'pending').length,
+    waiting: entries.filter(e => e.status === 'pending_approval').length,
     inside: entries.filter(e => ['approved', 'processing'].includes(e.status)).length,
     completed: entries.filter(e => e.status === 'completed').length,
   };
@@ -579,10 +659,10 @@ function ManufacturingEntryRequestsContent() {
             {/* Summary Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               {[
-                { label: 'Total Requests', value: summaryStats.total, icon: <FaClipboardList />, color: 'bg-blue-100 text-blue-600' },
-                { label: 'Pending', value: summaryStats.pending, icon: <FaClock />, color: 'bg-yellow-100 text-yellow-600' },
+                { label: 'Total', value: summaryStats.total, icon: <FaClipboardList />, color: 'bg-blue-100 text-blue-600' },
+                { label: 'Waiting Approval', value: summaryStats.waiting, icon: <FaShieldAlt />, color: 'bg-orange-100 text-orange-600' },
+                { label: 'Pending OTP', value: summaryStats.pending, icon: <FaClock />, color: 'bg-yellow-100 text-yellow-600' },
                 { label: 'Inside Facility', value: summaryStats.inside, icon: <FaTruck />, color: 'bg-green-100 text-green-600' },
-                { label: 'Completed', value: summaryStats.completed, icon: <FaCheckCircle />, color: 'bg-gray-100 text-gray-600' },
               ].map((c, i) => (
                 <div key={i} className="bg-white rounded-xl p-3 border shadow-sm flex items-center gap-3 hover:shadow-md transition">
                   <div className={`w-9 h-9 rounded-lg ${c.color} flex items-center justify-center text-sm`}>{c.icon}</div>
@@ -611,7 +691,8 @@ function ManufacturingEntryRequestsContent() {
                 className="px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm min-w-[140px]"
               >
                 <option value="">All Status</option>
-                <option value="pending">Pending</option>
+                <option value="pending_approval">Waiting Approval</option>
+                <option value="pending">Pending OTP</option>
                 <option value="approved">Approved</option>
                 <option value="processing">Inside</option>
                 <option value="completed">Completed</option>
@@ -648,6 +729,11 @@ function ManufacturingEntryRequestsContent() {
                     <button onClick={() => { setDetailRequest(e); setShowDetailModal(true); }} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 transition flex items-center gap-1">
                       <FaEye /> View
                     </button>
+                    {e.status === 'pending_approval' && isAdmin && (
+                      <button onClick={() => handleApprove(e)} className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-600 transition flex items-center gap-1">
+                        <FaCheckCircle /> Approve
+                      </button>
+                    )}
                     {e.status === 'pending' && (isSecurityGuard || isAdmin) && (
                       <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-cyan-600 transition flex items-center gap-1">
                         <FaKey /> OTP Verify
@@ -721,6 +807,11 @@ function ManufacturingEntryRequestsContent() {
                               <button onClick={() => { setDetailRequest(e); setShowDetailModal(true); }} className="bg-gray-100 text-gray-600 px-2 py-1 rounded text-xs font-semibold hover:bg-gray-200 transition" title="View Details">
                                 <FaEye />
                               </button>
+                              {e.status === 'pending_approval' && isAdmin && (
+                                <button onClick={() => handleApprove(e)} className="bg-orange-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-orange-600 transition" title="Approve Request">
+                                  <FaCheckCircle />
+                                </button>
+                              )}
                               {e.status === 'pending' && (isSecurityGuard || isAdmin) && (
                                 <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="bg-cyan-500 text-white px-2 py-1 rounded text-xs font-semibold hover:bg-cyan-600 transition" title="Verify OTP">
                                   <FaKey />
@@ -873,6 +964,34 @@ function ManufacturingEntryRequestsContent() {
                   rows={2}
                   className="w-full px-3 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none"
                 />
+              </div>
+
+              {/* Camera Section for Create Modal */}
+              <div className="bg-gray-50 rounded-xl p-4 border border-dashed border-gray-300">
+                 <div className="flex items-center gap-2 mb-3">
+                   <FaCamera className={capturedCreatePhoto ? 'text-green-500' : 'text-gray-400'} />
+                   <span className="text-sm font-semibold text-gray-700">Vehicle/Driver Photo</span>
+                 </div>
+                 {createCameraActive ? (
+                   <div>
+                     <video ref={createVideoRef} className="w-full rounded-xl max-h-48 object-cover bg-black" autoPlay muted playsInline />
+                     <canvas ref={createCanvasRef} className="hidden" />
+                     <button onClick={captureCreateImage} className="w-full mt-3 bg-green-500 text-white py-2.5 rounded-xl font-bold flex items-center justify-center gap-2">
+                       <FaCamera /> Capture Photo
+                     </button>
+                   </div>
+                 ) : capturedCreatePhoto ? (
+                   <div className="relative">
+                     <img src={capturedCreatePhoto} className="w-full rounded-xl max-h-40 object-cover border-2 border-green-200" />
+                     <button onClick={() => setCapturedCreatePhoto(null)} className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded-full text-xs">
+                       <FaTimesCircle />
+                     </button>
+                   </div>
+                 ) : (
+                   <button onClick={startCreateCamera} className="w-full bg-cyan-100 text-cyan-700 border border-cyan-300 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-cyan-200 transition">
+                     <FaCamera /> Open Camera
+                   </button>
+                 )}
               </div>
 
               <div className="flex gap-3 pt-2">

@@ -46,7 +46,7 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { vehicle_number, driver_name, driver_phone, purpose, material_type, material_name, quantity, unit, remarks, created_by, created_by_name } = body;
+    const { vehicle_number, driver_name, driver_phone, purpose, material_type, material_name, quantity, unit, remarks, created_by, created_by_name, role } = body;
 
     if (!vehicle_number) {
       return NextResponse.json({ success: false, error: "Vehicle number is required" }, { status: 400 });
@@ -69,10 +69,13 @@ export async function POST(request) {
     // Generate 6-digit OTP
     const otp_code = String(Math.floor(100000 + Math.random() * 900000));
 
+    // Status handling: If Security Guard (role 8) creates it, it needs approval
+    const initialStatus = Number(role) === 8 ? 'pending_approval' : 'pending';
+
     const result = await executeQuery(
       `INSERT INTO mfg_entry_requests (request_code, vehicle_number, driver_name, driver_phone, purpose, material_type, material_name, quantity, unit, remarks, otp_code, otp_generated_at, status, created_by, created_by_name)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), 'pending', ?, ?)`,
-      [request_code, vehicle_number.toUpperCase().replace(/\s+/g, ''), driver_name || null, driver_phone || null, purpose || null, material_type || null, material_name || null, quantity || 0, unit || 'kg', remarks || null, otp_code, created_by || null, created_by_name || null]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?)`,
+      [request_code, vehicle_number.toUpperCase().replace(/\s+/g, ''), driver_name || null, driver_phone || null, purpose || null, material_type || null, material_name || null, quantity || 0, unit || 'kg', remarks || null, otp_code, initialStatus, created_by || null, created_by_name || null]
     );
 
     return NextResponse.json({
@@ -102,6 +105,15 @@ export async function PUT(request) {
     const [currentRequest] = await executeQuery("SELECT * FROM mfg_entry_requests WHERE id = ?", [id]);
     if (!currentRequest) {
       return NextResponse.json({ success: false, error: "Request not found" }, { status: 404 });
+    }
+
+    // Action: approve - Admin/TL approves the request created by Security Guard
+    if (action === 'approve') {
+      await executeQuery(
+        "UPDATE mfg_entry_requests SET status = 'pending' WHERE id = ?",
+        [id]
+      );
+      return NextResponse.json({ success: true, message: "Request approved and OTP ready" });
     }
 
     // Action: verify_otp - Security guard verifies OTP
