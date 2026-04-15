@@ -25,7 +25,7 @@ export async function getConnection() {
 export async function executeQuery(query, params = []) {
   let connection;
   let retries = 3;
-  
+
   while (retries > 0) {
     try {
       connection = await getConnection();
@@ -53,7 +53,7 @@ export async function executeTransaction(callback) {
   try {
     // Use query() instead of execute() for transaction commands
     await connection.query('START TRANSACTION');
-    
+
     try {
       const result = await callback(connection);
       await connection.query('COMMIT');

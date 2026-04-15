@@ -1,15 +1,58 @@
 'use client';
 
 import { useSession } from '@/context/SessionContext';
-import Footer from 'components/Footer';
-import Header from 'components/Header';
-import Sidebar from 'components/sidebar';
+import Footer from '@/components/Footer';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import React from 'react';
 import { FaEdit, FaEye, FaPlus, FaToggleOff, FaToggleOn, FaKey } from 'react-icons/fa';
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
 import EntityLogs from "@/components/EntityLogs";
+
+// Error Boundary Component
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('Employee Page Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="bg-red-50 border border-red-200 rounded-lg p-4 m-4">
+          <h3 className="text-red-800 font-semibold mb-2">Something went wrong</h3>
+          <p className="text-red-600 text-sm mb-2">
+            There was an error loading this section. Please refresh the page.
+          </p>
+          <details className="text-red-500 text-xs">
+            <summary>Error details</summary>
+            <pre className="mt-2 whitespace-pre-wrap">
+              {this.state.error?.toString()}
+            </pre>
+          </details>
+          <button
+            onClick={() => this.setState({ hasError: false, error: null })}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+          >
+            Try Again
+          </button>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 export default function EmployeeHistory() {
   const [employees, setEmployees] = useState([]);
@@ -45,6 +88,12 @@ export default function EmployeeHistory() {
     6: "Driver",
     7: "Hard Operation",
     8: "Security Guard"
+  };
+
+  // Safe role name getter
+  const getRoleName = (role) => {
+    if (role === null || role === undefined) return 'Unknown';
+    return roleNames[role] || `Role ${role}`;
   };
 
   // ✅ FIXED: Check permissions first
@@ -98,7 +147,7 @@ export default function EmployeeHistory() {
       console.log('🔐 Employees List Permission check:', {
         userId: user.id,
         role: user.role,
-        roleName: roleNames[user.role] || 'Unknown',
+        roleName: getRoleName(user.role),
         permissions: data
       });
 
@@ -291,7 +340,7 @@ export default function EmployeeHistory() {
                 You don't have permission to view employees.
               </p>
               <p className="text-sm text-gray-500 mb-6">
-                Your Role: <span className="font-semibold">{user ? roleNames[user.role] || user.role : 'Unknown'}</span>
+                Your Role: <span className="font-semibold">{user ? getRoleName(user.role) : 'Unknown'}</span>
               </p>
               <button
                 onClick={() => router.push('/dashboard')}
@@ -307,7 +356,8 @@ export default function EmployeeHistory() {
   }
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <ErrorBoundary>
+      <div className="flex min-h-screen bg-gray-50">
       {/* Fixed Sidebar */}
       <div className="fixed left-0 top-0 h-screen hidden md:block">
         <Sidebar activePage="Employees" />
@@ -640,7 +690,9 @@ export default function EmployeeHistory() {
                           </button>
                           {expandedEmployees[emp.id] && (
                             <div className="mt-3 pt-3 border-t border-gray-200">
+                              <div className="entity-logs-wrapper">
                               <EntityLogs entityType="employee" entityId={emp.id} />
+                            </div>
                             </div>
                           )}
                         </div>
@@ -817,7 +869,9 @@ export default function EmployeeHistory() {
                               <td colSpan="8" className="p-4">
                                 <div className="max-w-4xl">
                                   <h3 className="text-sm font-semibold text-gray-700 mb-3">Activity Logs for {emp.name}</h3>
-                                  <EntityLogs entityType="employee" entityId={emp.id} />
+                                  <div className="entity-logs-wrapper">
+                              <EntityLogs entityType="employee" entityId={emp.id} />
+                            </div>
                                 </div>
                               </td>
                             </tr>
@@ -850,6 +904,7 @@ export default function EmployeeHistory() {
           <Footer />
         </div>
       </div>
-    </div>
+      </div>
+    </ErrorBoundary>
   );
 }

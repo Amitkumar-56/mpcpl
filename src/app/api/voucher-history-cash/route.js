@@ -48,6 +48,13 @@ export async function GET(req) {
 
     // Get total count
     const countSql = `SELECT COUNT(*) as total ${baseSql}`;
+    
+    // Debug logging for count query
+    console.log('=== Count Query Debug ===');
+    console.log('Count SQL:', countSql);
+    console.log('Count Params:', params);
+    console.log('Count placeholders:', (countSql.match(/\?/g) || []).length);
+    
     const countResult = await executeQuery(countSql, params);
     const totalRecords = countResult[0].total;
     const totalPages = Math.ceil(totalRecords / limit);
@@ -77,6 +84,13 @@ export async function GET(req) {
       sql += ` LIMIT ? OFFSET ?`;
       mainParams.push(limit, offset);
     }
+
+    // Debug logging
+    console.log('=== Voucher History Cash Query Debug ===');
+    console.log('Main SQL:', sql);
+    console.log('Main Params:', mainParams);
+    console.log('Param count:', mainParams.length);
+    console.log('Expected placeholders:', (sql.match(/\?/g) || []).length);
 
     const rows = await executeQuery(sql, mainParams);
 
