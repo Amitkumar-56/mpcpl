@@ -71,12 +71,14 @@ export async function GET(req) {
       ORDER BY vh.created_at DESC, v.exp_date DESC, v.voucher_id DESC
     `;
 
+    // Create separate params array for the main query
+    const mainParams = [...params];
     if (!doExport) {
       sql += ` LIMIT ? OFFSET ?`;
-      params.push(limit, offset);
+      mainParams.push(limit, offset);
     }
 
-    const rows = await executeQuery(sql, params);
+    const rows = await executeQuery(sql, mainParams);
 
     if (doExport) {
       const workbook = new ExcelJS.Workbook();

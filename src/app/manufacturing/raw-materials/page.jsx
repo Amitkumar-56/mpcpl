@@ -105,8 +105,50 @@ function RawMaterialsContent() {
               </select>
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+            {/* Mobile Card View */}
+            <div className="block sm:hidden space-y-3">
+              {loading ? (
+                <div className="p-12 text-center"><FaSpinner className="animate-spin text-blue-500 text-3xl mx-auto" /></div>
+              ) : materials.length > 0 ? materials.map((m) => {
+                const isLow = m.current_stock <= m.min_stock_level && m.min_stock_level > 0;
+                return (
+                  <div key={m.id} className="bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition">
+                    <div className="flex justify-between items-start mb-3">
+                      <div>
+                        <span className="text-sm font-bold text-blue-600">{m.material_code}</span>
+                        <h3 className="font-semibold text-gray-800 mt-1">{m.material_name}</h3>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${m.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {m.status === 'active' ? 'Active' : 'Inactive'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
+                      <div><span className="font-medium text-gray-700">Category:</span> 
+                        <span className={`ml-1 px-1.5 py-0.5 rounded text-xs font-semibold ${getCategoryColor(m.category)}`}>{getCategoryLabel(m.category)}</span>
+                      </div>
+                      <div><span className="font-medium text-gray-700">Unit:</span> {m.unit?.toUpperCase()}</div>
+                      <div><span className="font-medium text-gray-700">Current Stock:</span> 
+                        <span className={`font-semibold ml-1 ${isLow ? 'text-red-600' : 'text-gray-800'}`}>
+                          {parseFloat(m.current_stock).toFixed(2)} {isLow && <span className="text-xs text-red-500 ml-1">⚠ LOW</span>}
+                        </span>
+                      </div>
+                      <div><span className="font-medium text-gray-700">Min Level:</span> {parseFloat(m.min_stock_level).toFixed(2)}</div>
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => openEdit(m)} className="bg-blue-50 text-blue-600 hover:bg-blue-100 p-2 rounded-lg transition"><FaEdit className="text-xs" /></button>
+                      <button onClick={() => handleDelete(m.id)} className="bg-red-50 text-red-600 hover:bg-red-100 p-2 rounded-lg transition"><FaTrash className="text-xs" /></button>
+                    </div>
+                  </div>
+                );
+              }) : (
+                <div className="bg-white rounded-xl p-8 text-center text-gray-400 border">No raw materials found. Click "Add Material" to create one.</div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm border overflow-hidden">
               {loading ? (
                 <div className="p-12 text-center"><FaSpinner className="animate-spin text-blue-500 text-3xl mx-auto" /></div>
               ) : (

@@ -75,7 +75,7 @@ const OtpModal = ({ request, onClose, onVerify }) => {
 
   return (
     <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3">
-      <div className="bg-white rounded-2xl w-full max-w-md mx-auto shadow-2xl overflow-hidden">
+      <div className="bg-white rounded-2xl w-full max-w-md mx-auto shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-cyan-600 to-cyan-500 px-5 py-4 text-white">
           <div className="flex justify-between items-center">
@@ -725,39 +725,43 @@ function ManufacturingEntryRequestsContent() {
                     </div>
                   )}
                   {/* Action Buttons */}
-                  <div className="flex gap-2 flex-wrap">
-                    <button onClick={() => { setDetailRequest(e); setShowDetailModal(true); }} className="bg-gray-100 text-gray-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-gray-200 transition flex items-center gap-1">
-                      <FaEye /> View
-                    </button>
-                    {e.status === 'pending_approval' && isAdmin && (
-                      <button onClick={() => handleApprove(e)} className="bg-orange-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-orange-600 transition flex items-center gap-1">
-                        <FaCheckCircle /> Approve
+                  <div className="space-y-2">
+                    <div className="flex gap-2 flex-wrap">
+                      <button onClick={() => { setDetailRequest(e); setShowDetailModal(true); }} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-gray-200 transition flex items-center gap-1 flex-1 justify-center">
+                        <FaEye /> View
                       </button>
-                    )}
-                    {e.status === 'pending' && (isSecurityGuard || isAdmin) && (
-                      <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="bg-cyan-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-cyan-600 transition flex items-center gap-1">
-                        <FaKey /> OTP Verify
-                      </button>
-                    )}
-                    {e.status === 'approved' && (isSecurityGuard || isAdmin) && (
-                      <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-green-600 transition flex items-center gap-1">
-                        <FaCamera /> Entry Photo
-                      </button>
-                    )}
-                    {e.status === 'processing' && (isSecurityGuard || isAdmin) && (
-                      <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-600 transition flex items-center gap-1">
-                        <FaSignOutAlt /> Exit
-                      </button>
-                    )}
+                      {e.status === 'pending_approval' && isAdmin && (
+                        <button onClick={() => handleApprove(e)} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-orange-600 transition flex items-center gap-1 flex-1 justify-center">
+                          <FaCheckCircle /> Approve
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {e.status === 'pending' && (isSecurityGuard || isAdmin) && (
+                        <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-cyan-600 transition flex items-center gap-1 flex-1 justify-center">
+                          <FaKey /> OTP Verify
+                        </button>
+                      )}
+                      {e.status === 'approved' && (isSecurityGuard || isAdmin) && (
+                        <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-green-600 transition flex items-center gap-1 flex-1 justify-center">
+                          <FaCamera /> Entry Photo
+                        </button>
+                      )}
+                      {e.status === 'processing' && (isSecurityGuard || isAdmin) && (
+                        <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-red-600 transition flex items-center gap-1 flex-1 justify-center">
+                          <FaSignOutAlt /> Exit
+                        </button>
+                      )}
+                    </div>
                     {e.status === 'pending' && isAdmin && (
-                      <>
-                        <button onClick={() => handleRegenerateOtp(e)} className="bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-amber-200 transition flex items-center gap-1">
+                      <div className="flex gap-2 flex-wrap">
+                        <button onClick={() => handleRegenerateOtp(e)} className="bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-amber-200 transition flex items-center gap-1 flex-1 justify-center">
                           <FaRedo /> Re-OTP
                         </button>
-                        <button onClick={() => handleCancel(e)} className="bg-red-100 text-red-600 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-200 transition flex items-center gap-1">
+                        <button onClick={() => handleCancel(e)} className="bg-red-100 text-red-600 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-red-200 transition flex items-center gap-1 flex-1 justify-center">
                           <FaBan /> Cancel
                         </button>
-                      </>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -857,7 +861,7 @@ function ManufacturingEntryRequestsContent() {
       {/* Create Request Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-3 z-50" onClick={e => { if (e.target === e.currentTarget) setShowCreateModal(false); }}>
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[92vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[92vh] overflow-y-auto flex flex-col">
             <div className="bg-gradient-to-r from-cyan-600 to-cyan-500 px-5 py-4 text-white rounded-t-2xl">
               <h2 className="text-lg font-bold">🚛 New Entry Request</h2>
               <p className="text-cyan-100 text-xs mt-0.5">Vehicle ke liye entry permission create kare</p>
@@ -1030,7 +1034,7 @@ function ManufacturingEntryRequestsContent() {
       {/* Detail Modal */}
       {showDetailModal && detailRequest && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-3 z-50" onClick={() => setShowDetailModal(false)}>
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl max-h-[90vh] overflow-y-auto flex flex-col" onClick={e => e.stopPropagation()}>
             <div className="bg-gradient-to-r from-slate-700 to-slate-600 px-5 py-4 text-white rounded-t-2xl flex justify-between items-center">
               <div>
                 <h3 className="font-bold text-lg">📋 Request Details</h3>

@@ -137,8 +137,44 @@ function LabTestingContent() {
               ))}
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-xl border shadow-sm overflow-hidden">
+            {/* Mobile Card View */}
+            <div className="block sm:hidden space-y-3">
+              {loading ? (
+                <div className="p-12 text-center"><FaSpinner className="animate-spin text-purple-600 text-3xl mx-auto" /></div>
+              ) : tests.length > 0 ? tests.map(t => (
+                <div key={t.id} className="bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <span className="text-sm font-bold text-purple-600">{t.test_code}</span>
+                      <h3 className="font-semibold text-gray-800 mt-1">{t.test_method}</h3>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {getStatusBadge(t.result_status)}
+                      <button onClick={() => openEdit(t)} className="bg-purple-50 text-purple-600 hover:bg-purple-100 p-2 rounded-lg transition">
+                        <FaEdit className="text-xs" />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-2">
+                    <div><span className="font-medium text-gray-700">Batch:</span> {t.batch_code}</div>
+                    <div><span className="font-medium text-gray-700">Product:</span> {t.product_name || '-'}</div>
+                    <div><span className="font-medium text-gray-700">Date:</span> {t.test_date ? new Date(t.test_date).toLocaleDateString('en-IN') : '-'}</div>
+                    <div><span className="font-medium text-gray-700">Tested By:</span> {t.tested_by || '-'}</div>
+                  </div>
+                  {t.result_value && (
+                    <div className="text-xs">
+                      <span className="font-medium text-gray-700">Result:</span> 
+                      <span className="font-semibold text-gray-900 ml-1">{t.result_value}</span>
+                    </div>
+                  )}
+                </div>
+              )) : (
+                <div className="bg-white rounded-xl p-8 text-center text-gray-400 border">No lab tests found. Click "New Test" to create one.</div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-white rounded-xl border shadow-sm overflow-hidden">
               {loading ? (
                 <div className="p-12 flex justify-center"><FaSpinner className="animate-spin text-purple-600 text-4xl" /></div>
               ) : (

@@ -131,8 +131,44 @@ function TankerAllocationContent() {
               </select>
             </div>
 
-            {/* Table */}
-            <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
+            {/* Mobile Card View */}
+            <div className="block sm:hidden space-y-3">
+              {loading ? (
+                <div className="p-12 text-center"><FaSpinner className="animate-spin text-amber-500 text-3xl mx-auto" /></div>
+              ) : allocations.length > 0 ? allocations.map(a => (
+                <div key={a.id} className="bg-white rounded-xl p-4 border shadow-sm hover:shadow-md transition">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <span className="text-sm font-bold text-amber-600">{a.tanker_code}</span>
+                      <h3 className="font-semibold text-gray-800 mt-1">{a.vehicle_number}</h3>
+                    </div>
+                    <div className="flex flex-col items-end gap-2">
+                      {getStatusBadge(a.status)}
+                      <span className={`px-2 py-1 rounded-lg text-xs font-semibold ${a.tanker_type === 'type_a_raw' ? 'bg-blue-100 text-blue-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                        {a.tanker_type === 'type_a_raw' ? 'Type-A' : 'Other'}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
+                    <div><span className="font-medium text-gray-700">Driver:</span> {a.driver_name || '-'}</div>
+                    <div><span className="font-medium text-gray-700">Material:</span> {a.material_name || a.raw_material_name || '-'}</div>
+                    <div><span className="font-medium text-gray-700">Quantity:</span> {parseFloat(a.quantity || 0).toFixed(2)} {a.unit?.toUpperCase()}</div>
+                    <div><span className="font-medium text-gray-700">Date:</span> {a.allocation_date ? new Date(a.allocation_date).toLocaleDateString('en-IN') : '-'}</div>
+                  </div>
+                  {a.status !== 'completed' && nextStatus[a.status] && (
+                    <button onClick={() => updateStatus(a.id, nextStatus[a.status])}
+                      className="w-full bg-amber-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-amber-600 transition">
+                      → {nextStatus[a.status].replace('_', ' ')}
+                    </button>
+                  )}
+                </div>
+              )) : (
+                <div className="bg-white rounded-xl p-8 text-center text-gray-400 border">No tanker allocations found</div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <div className="hidden sm:block bg-white rounded-xl shadow-sm border overflow-hidden">
               {loading ? (
                 <div className="p-12 text-center"><FaSpinner className="animate-spin text-amber-500 text-3xl mx-auto" /></div>
               ) : (
