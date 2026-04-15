@@ -63,16 +63,19 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
 
   // ── Socket ──────────────────────────────────────────────────
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      // Use PWA enhanced notifications if available
-      if (isPWAStandalone()) {
-        initializePWANotifications();
-      } else {
-        requestNotificationPermission();
-        initializeNotifications();
+    const initNotifs = async () => {
+      if (typeof window !== 'undefined') {
+        // Use PWA enhanced notifications if available
+        if (isPWAStandalone()) {
+          await initializePWANotifications();
+        } else {
+          await requestNotificationPermission();
+          await initializeNotifications();
+        }
+        forceInitializeAudio();
       }
-      forceInitializeAudio();
-    }
+    };
+    initNotifs();
     if (!sessionUser?.id) return;
     let socketInstance;
 
@@ -106,9 +109,10 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             showChatNotificationPWA(s.requester_name, 'wants to chat', { 
               body: 'New chat request',
               tag: 'chat-request'
-            });
+            }).catch(e => console.log('Notif error:', e));
           } else {
-            showChatNotification(`${s.requester_name} wants to chat`, 'New chat request');
+            showChatNotification(`${s.requester_name} wants to chat`, 'New chat request')
+              .catch(e => console.log('Notif error:', e));
           }
         });
 
@@ -140,9 +144,10 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
               showChatNotificationPWA(senderName, messageText, {
                 tag: `chat-${senderName}`,
                 renotify: true
-              });
+              }).catch(e => console.log('Notif error:', e));
             } else {
-              showChatNotification(senderName, messageText);
+              showChatNotification(senderName, messageText)
+                .catch(e => console.log('Notif error:', e));
             }
             setNotificationCount(p => p + 1);
             setLastNotification({ senderName, message: messageText });

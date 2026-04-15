@@ -62,28 +62,13 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
   // Initialize notifications on component mount
   useEffect(() => {
-    console.log('🔔 Initializing chat notifications...');
-    const notifStatus = initializeNotifications();
-    console.log('🔔 Notification status:', notifStatus);
-    
-    // If permission denied, show manual request button
-    if (notifStatus === false) {
-      console.log('🔔 Permission denied, showing manual request button');
-      // Add a button to manually request permission
-      const requestPermissionBtn = document.createElement('button');
-      requestPermissionBtn.textContent = '🔔 Enable Notifications';
-      requestPermissionBtn.className = 'fixed bottom-4 right-4 bg-purple-600 text-white px-4 py-2 rounded-lg shadow-lg z-50 hover:bg-purple-700 transition-colors';
-      requestPermissionBtn.onclick = async () => {
-        const granted = await Notification.requestPermission();
-        if (granted === 'granted') {
-          requestPermissionBtn.remove();
-          console.log('🔔 Permission granted manually!');
-        }
-      };
-      document.body.appendChild(requestPermissionBtn);
-    }
-    
-    forceInitializeAudio();
+    const init = async () => {
+      console.log('🔔 Initializing chat notifications...');
+      const notifStatus = await initializeNotifications();
+      console.log('🔔 Notification status:', notifStatus);
+      forceInitializeAudio();
+    };
+    init();
   }, []);
 
   // Initialize audio on component mount and user interactions
@@ -123,13 +108,13 @@ export default function ChatWidget({ showChat, setShowChat }) {
   }, []);
 
   // Show browser notification for new messages
-  const showBrowserNotification = (customerName, message) => {
+  const showBrowserNotification = async (customerName, message) => {
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
-      // Show notification even if page is visible, but not if actively viewing this chat
+      // Don't notify if actively viewing this chat
       if (selectedCustomer && selectedCustomer.customerName === customerName && showChat && !chatMinimized) return;
       
-      // Use PWA notification utility
-      showChatNotification(customerName, message);
+      // Use Service Worker notification (works in PWA background!)
+      await showChatNotification(customerName, message);
     }
   };
 
@@ -146,21 +131,8 @@ export default function ChatWidget({ showChat, setShowChat }) {
   // Initialize audio context on first user interaction
 
   const initAudioContext = () => {
-
-    if (!audioContextRef.current) {
-
-      try {
-
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-
-      } catch (error) {
-
-        console.log('Audio context initialization failed:', error);
-
-      }
-
-    }
-
+    // Audio is now handled by sound.js utility
+    forceInitializeAudio();
   };
 
   
@@ -171,45 +143,9 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
     try {
 
-      // Try using the imported utility first
+      // Use the sound utility (Audio element + Web Audio API fallback)
 
       playBeep();
-
-      
-
-      // Also try with audio context if available
-
-      if (audioContextRef.current && audioContextRef.current.state === 'running') {
-
-        const oscillator = audioContextRef.current.createOscillator();
-
-        const gainNode = audioContextRef.current.createGain();
-
-        
-
-        oscillator.connect(gainNode);
-
-        gainNode.connect(audioContextRef.current.destination);
-
-        
-
-        oscillator.frequency.value = 800;
-
-        oscillator.type = 'sine';
-
-        
-
-        gainNode.gain.setValueAtTime(0.3, audioContextRef.current.currentTime);
-
-        gainNode.gain.exponentialRampToValueAtTime(0.01, audioContextRef.current.currentTime + 0.2);
-
-        
-
-        oscillator.start();
-
-        oscillator.stop(audioContextRef.current.currentTime + 0.2);
-
-      }
 
     } catch (error) {
 
@@ -403,14 +339,17 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
             }
 
-            // Show browser notification for new messages
+            // Show browser notification for new messages (via Service Worker)
             if (!isCurrentChat) {
               console.log('🔔 Attempting to show notification for:', data.customerName, data.message);
-              const notificationResult = showChatNotification(
+              showChatNotification(
                 data.customerName || `Customer ${data.customerId}`,
                 data.message
-              );
-              console.log('🔔 Notification result:', notificationResult);
+              ).then(result => {
+                console.log('🔔 Notification result:', result);
+              }).catch(err => {
+                console.log('🔔 Notification error:', err);
+              });
             }
 
             // Always play sound for new messages (unless actively viewing this chat)

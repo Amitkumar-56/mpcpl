@@ -555,7 +555,7 @@ function DashboardContent() {
             showChatNotification(
               data.customerName || 'Customer',
               data.message || data.text || 'You have a new chat message'
-            );
+            ).catch(() => {});
           }
         });
 
@@ -697,6 +697,17 @@ function DashboardContent() {
       loadActiveChatSessions();
     }
   }, [showChat, loadActiveChatSessions]);
+
+  // Listen for notification clicks to auto-open employee chat
+  useEffect(() => {
+    const handleOpenEmployeeChat = () => {
+      console.log('Dashboard: Opening employee chat from notification click');
+      setShowEmployeeChat(true);
+      setEmployeeChatNotifCount(0);
+    };
+    window.addEventListener('openEmployeeChat', handleOpenEmployeeChat);
+    return () => window.removeEventListener('openEmployeeChat', handleOpenEmployeeChat);
+  }, []);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {

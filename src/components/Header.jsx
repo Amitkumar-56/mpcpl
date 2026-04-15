@@ -2,6 +2,8 @@
 
 import { useSession } from '@/context/SessionContext';
 import { useSidebar } from '@/context/SidebarContext';
+import { initializeNotifications, showChatNotification } from '@/utils/notifications';
+import { forceInitializeAudio, playBeep } from '@/utils/sound';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FaBell, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
@@ -48,6 +50,10 @@ export default function Header({ onMenuToggle }) {
   useEffect(() => {
     const isCustomer = pathname.startsWith('/cst');
     if (!user || isCustomer || pathname === '/login') return;
+
+    // Initialize notifications on mount
+    initializeNotifications().catch(() => {});
+    forceInitializeAudio();
     
     let s;
     (async () => {
@@ -64,11 +70,14 @@ export default function Header({ onMenuToggle }) {
           role: user.role,
         });
       });
+
+      // Customer chat message notifications
       s.on('customer_message_notification', (data) => {
         console.log('Header: Received customer_message_notification:', data);
         setNotifCount((c) => c + 1);
         setNotifications((list) => [{
           id: `${data.messageId}`,
+          type: 'customer_chat',
           customerId: data.customerId,
           customerName: data.customerName,
           text: data.text,
@@ -76,16 +85,67 @@ export default function Header({ onMenuToggle }) {
           status: data.status,
         }, ...list].slice(0, 20));
         
-        // If not on dashboard, show notification and redirect to dashboard
-        if (pathname !== '/dashboard') {
-          // Optionally redirect to dashboard with chat open
-          // router.push('/dashboard?chat=true&customerId=' + data.customerId);
-        }
+        // Show browser notification with customer name
+        playBeep();
+        showChatNotification(
+          data.customerName || 'Customer',
+          data.text || 'New message'
+        ).catch(() => {});
       });
+
+      // Employee-to-Employee chat message notifications
+      s.on('employee_chat_message_received', (msg) => {
+        console.log('Header: Employee chat message received:', msg);
+        const senderName = msg.sender_name || 'Employee';
+        const messageText = msg.message || 'New message';
+        
+        setNotifCount((c) => c + 1);
+        setNotifications((list) => [{
+          id: `emp_msg_${msg.id}`,
+          type: 'employee_chat',
+          senderId: msg.sender_id,
+          senderName: senderName,
+          text: messageText,
+          timestamp: msg.created_at || new Date().toISOString(),
+          sessionId: msg.session_id,
+        }, ...list].slice(0, 20));
+        
+        // Show browser/PWA notification with sender name
+        playBeep();
+        showChatNotification(
+          senderName,
+          messageText
+        ).catch(() => {});
+      });
+
+      // Employee chat request notifications
+      s.on('employee_chat_request_received', (sessionData) => {
+        console.log('Header: Employee chat request received:', sessionData);
+        const requesterName = sessionData.requester_name || 'Employee';
+        
+        setNotifCount((c) => c + 1);
+        setNotifications((list) => [{
+          id: `emp_req_${sessionData.id}`,
+          type: 'employee_chat_request',
+          senderId: sessionData.requester_id,
+          senderName: requesterName,
+          text: `${requesterName} wants to chat with you`,
+          timestamp: sessionData.created_at || new Date().toISOString(),
+          sessionId: sessionData.id,
+        }, ...list].slice(0, 20));
+        
+        playBeep();
+        showChatNotification(
+          requesterName,
+          'Wants to chat with you'
+        ).catch(() => {});
+      });
+
       s.on('new_customer', (data) => {
         setNotifCount((c) => c + 1);
         setNotifications((list) => [{
           id: `new_customer_${data.customerId}`,
+          type: 'new_customer',
           customerId: data.customerId,
           customerName: data.name,
           text: `New customer registered`,
@@ -100,6 +160,7 @@ export default function Header({ onMenuToggle }) {
         setNotifCount((c) => c + 1);
         setNotifications((list) => [{
           id: `password_change_${data.type}_${data.employeeId || data.customerId}_${Date.now()}`,
+          type: 'password_change',
           employeeId: data.employeeId,
           customerId: data.customerId,
           employeeName: data.employeeName,
@@ -113,6 +174,7 @@ export default function Header({ onMenuToggle }) {
       s.on('chat_assigned', (data) => {
         setNotifications((list) => [{
           id: `assigned-${data.customerId}`,
+          type: 'chat_assigned',
           customerId: data.customerId,
           customerName: data.employeeName,
           text: 'Chat assigned',
@@ -122,7 +184,19 @@ export default function Header({ onMenuToggle }) {
       });
       setEmpSocket(s);
     })();
-    return () => { try { s && s.disconnect(); } catch (e) {} };
+
+    // Listen for notification clicks from Service Worker
+    const handleNotifClick = (event) => {
+      console.log('Header: Notification click event from SW:', event.detail);
+      // Dispatch event to open employee chat dashboard
+      window.dispatchEvent(new CustomEvent('openEmployeeChat'));
+    };
+    window.addEventListener('openChatFromNotification', handleNotifClick);
+
+    return () => {
+      try { s && s.disconnect(); } catch (e) {}
+      window.removeEventListener('openChatFromNotification', handleNotifClick);
+    };
   }, [user, pathname]);
 
   // Don't show header on login page
@@ -232,15 +306,36 @@ export default function Header({ onMenuToggle }) {
                     <div className="px-4 py-6 text-center text-gray-500">No notifications</div>
                   ) : (
                     notifications.map((n, index) => (
-                      <div key={`notification-${n.id}-${index}`} className="px-4 py-3 border-b border-gray-100">
-                        <p className="text-sm font-medium text-gray-800">{n.customerName || 'Customer'} • #{n.customerId}</p>
-                        <p className="text-xs text-gray-600 mt-1">{n.text}</p>
-                        <div className="mt-2 flex items-center justify-between">
-                          <span className="text-[11px] text-gray-500">{new Date(n.timestamp).toLocaleString()}</span>
-                          <button 
-                            onClick={() => acceptChat(n.customerId)}
-                            className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Accept</button>
+                      <div key={`notification-${n.id}-${index}`} className="px-4 py-3 border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors">
+                        <div className="flex items-start gap-2">
+                          {/* Icon based on type */}
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
+                            n.type === 'employee_chat' ? 'bg-yellow-500' :
+                            n.type === 'employee_chat_request' ? 'bg-green-500' :
+                            n.type === 'customer_chat' ? 'bg-blue-500' :
+                            n.type === 'password_change' ? 'bg-red-500' :
+                            'bg-gray-500'
+                          }`}>
+                            {(n.senderName || n.customerName || '?').charAt(0).toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-gray-800 truncate">
+                              {n.senderName || n.customerName || n.employeeName || 'Unknown'}
+                              {n.type === 'employee_chat' && <span className="text-xs text-yellow-600 ml-1">• Employee</span>}
+                              {n.type === 'customer_chat' && <span className="text-xs text-blue-600 ml-1">• Customer</span>}
+                              {n.type === 'employee_chat_request' && <span className="text-xs text-green-600 ml-1">• Chat Request</span>}
+                            </p>
+                            <p className="text-xs text-gray-600 mt-0.5 truncate">{n.text}</p>
+                            <span className="text-[10px] text-gray-400">{new Date(n.timestamp).toLocaleString()}</span>
+                          </div>
                         </div>
+                        {n.type === 'customer_chat' && (
+                          <div className="mt-2 flex justify-end">
+                            <button 
+                              onClick={() => acceptChat(n.customerId)}
+                              className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Accept</button>
+                          </div>
+                        )}
                       </div>
                     ))
                   )}

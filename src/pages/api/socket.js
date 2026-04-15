@@ -421,6 +421,15 @@ export default function SocketHandler(req, res) {
 
             });
 
+            // Also emit employee_message event (ChatBox listens on this)
+            io.to(`customer_${customerId}`).emit("employee_message", {
+              customerId,
+              message: savedMessage.text,
+              employeeId: savedMessage.employee_id,
+              employeeName: savedMessage.employee_name || employeeName,
+              messageId: savedMessage.id,
+            });
+
             socket.emit("message_sent", {
 
               messageId: savedMessage.id,

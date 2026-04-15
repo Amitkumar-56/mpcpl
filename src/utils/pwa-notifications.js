@@ -1,20 +1,30 @@
 // PWA Enhanced Notifications Utility
-// Special handling for PWA installed apps
+// Uses Service Worker showNotification() for reliable mobile/PWA notifications
 
 // Check if running in PWA standalone mode
 export const isPWAStandalone = () => {
   if (typeof window === 'undefined') return false;
-  return window.matchMedia('(display-mode: standalone)').matches;
+  return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
 };
 
 // Check if running in PWA
 export const isPWA = () => {
   if (typeof window === 'undefined') return false;
-  return isPWAStandalone() || window.navigator.standalone;
+  return isPWAStandalone();
 };
 
-// Enhanced PWA notification
-export const showPWANotification = (title, message, options = {}) => {
+// Get active service worker registration
+const getSWRegistration = async () => {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
+  try {
+    return await navigator.serviceWorker.ready;
+  } catch {
+    return null;
+  }
+};
+
+// Enhanced PWA notification via Service Worker
+export const showPWANotification = async (title, message, options = {}) => {
   if (typeof window === 'undefined' || !('Notification' in window)) {
     console.log('Notifications not supported');
     return false;
@@ -27,15 +37,17 @@ export const showPWANotification = (title, message, options = {}) => {
 
   try {
     const isStandalone = isPWAStandalone();
-    
+    const registration = await getSWRegistration();
+
     const notificationOptions = {
       body: message,
       icon: '/LOGO_NEW.jpg',
       badge: '/favicon.png',
-      tag: `pwa-${title}`, // Prevent duplicate notifications
-      requireInteraction: isStandalone, // Keep notification in PWA
+      tag: options.tag || `pwa-${title}-${Date.now()}`,
+      renotify: options.renotify !== false,
+      requireInteraction: isStandalone,
       silent: false,
-      vibrate: isStandalone ? [200, 100, 200] : undefined,
+      vibrate: [200, 100, 200, 100, 200],
       data: {
         title: title,
         message: message,
@@ -43,81 +55,43 @@ export const showPWANotification = (title, message, options = {}) => {
         timestamp: Date.now(),
         isPWA: isStandalone
       },
-      // PWA specific actions
-      actions: isStandalone ? [
-        {
-          action: 'open-chat',
-          title: 'Open Chat',
-          icon: '/LOGO_NEW.jpg'
-        },
-        {
-          action: 'dismiss',
-          title: 'Dismiss',
-          icon: '/favicon.png'
-        }
-      ] : [],
+      actions: [
+        { action: 'open-chat', title: '💬 Open Chat' },
+        { action: 'dismiss', title: '✕ Dismiss' }
+      ],
       ...options
     };
 
-    const notification = new Notification(title, notificationOptions);
-
-    // Enhanced click handling for PWA
-    notification.onclick = () => {
-      console.log('Notification clicked:', { title, isStandalone });
-      
-      // Focus or open window
-      if (isStandalone) {
-        // In PWA, just focus the window
-        window.focus();
-        
-        // Try to open chat widget
-        const chatWidget = document.querySelector('[data-chat-widget]');
-        const chatToggle = document.querySelector('[data-chat-toggle]');
-        
-        if (chatWidget) {
-          chatWidget.scrollIntoView({ behavior: 'smooth' });
-          // Try to focus on chat input
-          const chatInput = chatWidget.querySelector('input[type="text"]');
-          if (chatInput) {
-            setTimeout(() => chatInput.focus(), 500);
-          }
-        } else if (chatToggle) {
-          chatToggle.click();
-        }
-      } else {
-        // In browser, focus window
-        window.focus();
-      }
-      
-      notification.close();
-    };
-
-    // Handle notification actions (PWA only)
-    if (isStandalone) {
-      notification.addEventListener('notificationclick', (event) => {
-        console.log('PWA Notification action:', event.action);
-        
-        if (event.action === 'open-chat') {
-          window.focus();
-          const chatToggle = document.querySelector('[data-chat-toggle]');
-          if (chatToggle) {
-            chatToggle.click();
-          }
-        } else if (event.action === 'dismiss') {
-          // Just close
-        }
-        
-        notification.close();
-      });
+    // Use Service Worker showNotification (works in background!)
+    if (registration) {
+      await registration.showNotification(title, notificationOptions);
+      console.log('PWA Notification via SW shown:', { title, message, isStandalone });
+      return true;
     }
 
-    // Auto-close timing
-    const autoCloseTime = isStandalone ? 15000 : 8000; // Longer in PWA
-    setTimeout(() => {
-      notification.close();
-    }, autoCloseTime);
+    // Fallback: send message to SW to show notification
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({
+        type: 'SHOW_NOTIFICATION',
+        title,
+        body: message,
+        senderName: options.senderName || title,
+        tag: notificationOptions.tag,
+        url: window.location.href
+      });
+      console.log('PWA Notification sent to SW:', { title, message });
+      return true;
+    }
 
-    console.log('PWA Notification shown:', { title, message, isStandalone });
+    // Last fallback: new Notification API
+    const notification = new Notification(title, notificationOptions);
+    notification.onclick = () => {
+      window.focus();
+      notification.close();
+    };
+    setTimeout(() => notification.close(), isStandalone ? 15000 : 8000);
+
+    console.log('PWA Notification (fallback) shown:', { title, message, isStandalone });
     return true;
   } catch (error) {
     console.error('Error showing PWA notification:', error);
@@ -139,28 +113,21 @@ export const requestPWANotificationPermission = async () => {
 
   if (Notification.permission !== 'denied') {
     try {
-      // In PWA, show a more descriptive prompt
-      const isStandalone = isPWAStandalone();
-      if (isStandalone) {
-        console.log('PWA: Requesting notification permission for standalone app');
-      }
-      
       const permission = await Notification.requestPermission();
       console.log('PWA: Notification permission result:', permission);
-      
-      if (permission === 'granted' && isStandalone) {
+
+      if (permission === 'granted' && isPWAStandalone()) {
         // Show a welcome notification in PWA
         showPWANotification(
-          'MPCL Chat Ready',
+          '✅ MPCL Chat Ready',
           'Notifications enabled! You will receive chat alerts.',
           {
-            icon: '/LOGO_NEW.jpg',
             tag: 'pwa-welcome',
             requireInteraction: false
           }
         );
       }
-      
+
       return permission === 'granted';
     } catch (error) {
       console.error('PWA: Error requesting notification permission:', error);
@@ -175,59 +142,35 @@ export const requestPWANotificationPermission = async () => {
 // Initialize PWA notifications
 export const initializePWANotifications = async () => {
   console.log('PWA: Initializing notifications...');
-  
+
   const isStandalone = isPWAStandalone();
   console.log('PWA: Standalone mode:', isStandalone);
-  
+
+  // Service worker notification handlers are injected via next-pwa customWorkerDir
+  // No separate SW registration needed
+
   // Request permission
   const granted = await requestPWANotificationPermission();
-  
+
   if (granted) {
     console.log('PWA: Notifications ready');
-    
-    // In PWA, register for background sync if available
-    if ('serviceWorker' in navigator && 'sync' in window.ServiceWorkerRegistration.prototype) {
-      try {
-        const registration = await navigator.serviceWorker.ready;
-        console.log('PWA: Background sync available');
-        return registration;
-      } catch (error) {
-        console.log('PWA: Background sync not available');
-      }
-    }
   } else {
     console.log('PWA: Notifications not available');
   }
-  
+
   return granted;
 };
 
 // Show chat notification with PWA enhancements
-export const showChatNotificationPWA = (senderName, message, options = {}) => {
-  const isStandalone = isPWAStandalone();
-  
+export const showChatNotificationPWA = async (senderName, message, options = {}) => {
   return showPWANotification(
-    `New message from ${senderName}`,
+    `💬 ${senderName}`,
     message,
     {
       ...options,
-      // Enhanced options for PWA
-      tag: `chat-${senderName}`,
-      renotify: true, // Show new notification even if same tag exists
-      silent: false,
-      // Custom actions for chat
-      actions: isStandalone ? [
-        {
-          action: 'reply',
-          title: 'Reply',
-          icon: '/LOGO_NEW.jpg'
-        },
-        {
-          action: 'open-chat',
-          title: 'Open Chat',
-          icon: '/favicon.png'
-        }
-      ] : []
+      tag: options.tag || `chat-${senderName}`,
+      renotify: true,
+      senderName: senderName
     }
   );
 };

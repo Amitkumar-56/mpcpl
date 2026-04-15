@@ -58,31 +58,9 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
     };
   }, []);
 
-  // Create notification sound programmatically
-  useEffect(() => {
-    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
-    const playBeep = () => {
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-      
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-      
-      oscillator.frequency.value = 800;
-      oscillator.type = 'sine';
-      
-      gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.2);
-      
-      oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.2);
-    };
+  // Audio element ref for notification sound (handled by sound.js utility)
+  // No need for manual AudioContext — playBeep() handles everything
 
-    // Store playBeep function for use
-    if (audioRef.current) {
-      audioRef.current.playBeep = playBeep;
-    }
-  }, []);
 
   // Initialize socket connection
   useEffect(() => {
@@ -116,12 +94,13 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
         speakMessage("नया मैसेज आया है", "hi-IN");
       }
 
-      // Show PWA notification if chat is closed
+      // Show PWA notification if chat is closed (async — runs in background)
       if (!showChat && data.message) {
         const senderName = userRole === 'customer' 
           ? (selectedEmployee?.name || 'Employee') 
           : (customerName || 'Customer');
-        showChatNotification(senderName, data.message.text || data.message);
+        showChatNotification(senderName, data.message.text || data.message)
+          .catch(err => console.log('Notification error:', err));
       }
 
       // Add message to state (with deduplication)
@@ -168,12 +147,12 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
           speakMessage("नया मैसेज आया है", "hi-IN");
         }
 
-        // Show PWA notification if chat is closed
+        // Show PWA notification if chat is closed (async — runs in background)
         if (!showChat && data.message) {
           showChatNotification(
             data.employeeName || 'Employee', 
             data.message
-          );
+          ).catch(err => console.log('Notification error:', err));
         }
 
         // Add message to state

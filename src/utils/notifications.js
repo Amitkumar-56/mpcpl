@@ -1,4 +1,49 @@
 // PWA Notification utility for chat messages
+// Uses Service Worker showNotification() for reliable mobile/PWA notifications
+
+let swRegistration = null;
+let notificationPermissionGranted = false;
+
+// Register custom service worker and store registration
+const registerServiceWorker = async () => {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+    console.log('🔔 Service Worker not supported');
+    return null;
+  }
+
+  try {
+    // First, try to get the existing SW registration (from next-pwa)
+    const existingReg = await navigator.serviceWorker.getRegistration('/');
+    if (existingReg) {
+      swRegistration = existingReg;
+      console.log('🔔 Using existing Service Worker registration:', existingReg.scope);
+    } else {
+      // Register our custom SW as fallback
+      const registration = await navigator.serviceWorker.register('/custom-sw.js', {
+        scope: '/'
+      });
+      swRegistration = registration;
+      console.log('🔔 Custom Service Worker registered:', registration.scope);
+    }
+
+    // Listen for notification click messages from SW
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      if (event.data?.type === 'NOTIFICATION_CLICK') {
+        console.log('🔔 Notification clicked, opening chat...');
+        window.focus();
+        // Dispatch event so chat components can react
+        window.dispatchEvent(new CustomEvent('openChatFromNotification', {
+          detail: event.data
+        }));
+      }
+    });
+
+    return swRegistration;
+  } catch (error) {
+    console.error('🔔 Service Worker registration failed:', error);
+    return null;
+  }
+};
 
 // Request notification permission
 export const requestNotificationPermission = async () => {
@@ -8,6 +53,7 @@ export const requestNotificationPermission = async () => {
   }
 
   if (Notification.permission === 'granted') {
+    notificationPermissionGranted = true;
     console.log('🔔 Notification permission already granted');
     return true;
   }
@@ -15,8 +61,9 @@ export const requestNotificationPermission = async () => {
   if (Notification.permission !== 'denied') {
     try {
       const permission = await Notification.requestPermission();
+      notificationPermissionGranted = permission === 'granted';
       console.log('🔔 Notification permission:', permission);
-      return permission === 'granted';
+      return notificationPermissionGranted;
     } catch (error) {
       console.error('🔔 Error requesting notification permission:', error);
       return false;
@@ -27,155 +74,143 @@ export const requestNotificationPermission = async () => {
   return false;
 };
 
-// Show PWA notification for new chat messages
-export const showChatNotification = (customerName, message, options = {}) => {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    console.log('Notifications not supported');
-    return false;
-  }
+// Get active service worker registration
+const getServiceWorkerRegistration = async () => {
+  if (swRegistration) return swRegistration;
 
-  if (Notification.permission !== 'granted') {
-    console.log('Notification permission not granted');
-    return false;
-  }
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
 
   try {
-    // Check if running in PWA standalone mode
-    const isPWA = window.matchMedia('(display-mode: standalone)').matches;
-    
-    const notificationOptions = {
-      body: message,
+    // Try to get any active registration
+    const registration = await navigator.serviceWorker.ready;
+    if (registration) {
+      swRegistration = registration;
+      return registration;
+    }
+  } catch (e) {
+    console.log('🔔 No active service worker registration');
+  }
+
+  return null;
+};
+
+// Show notification using Service Worker (works in PWA background!)
+const showNotificationViaSW = async (title, body, options = {}) => {
+  try {
+    const registration = await getServiceWorkerRegistration();
+
+    if (registration) {
+      // Use SW showNotification — this works when app is backgrounded!
+      await registration.showNotification(title, {
+        body: body,
+        icon: '/LOGO_NEW.jpg',
+        badge: '/favicon.png',
+        tag: options.tag || `chat-${Date.now()}`,
+        renotify: options.renotify !== false,
+        requireInteraction: true,
+        silent: false,
+        vibrate: [200, 100, 200, 100, 200],
+        data: {
+          url: options.url || window.location.href,
+          senderName: options.senderName || title,
+          timestamp: Date.now()
+        },
+        actions: [
+          { action: 'open-chat', title: '💬 Open Chat' },
+          { action: 'dismiss', title: '✕ Dismiss' }
+        ],
+        ...options
+      });
+
+      console.log('🔔 SW Notification shown:', title, body);
+      return true;
+    }
+  } catch (error) {
+    console.error('🔔 SW notification failed:', error);
+  }
+
+  return false;
+};
+
+// Fallback: use new Notification() API (works in browser foreground)
+const showNotificationFallback = (title, body, options = {}) => {
+  try {
+    if (typeof window === 'undefined' || !('Notification' in window)) return false;
+    if (Notification.permission !== 'granted') return false;
+
+    const notification = new Notification(title, {
+      body: body,
       icon: '/LOGO_NEW.jpg',
       badge: '/favicon.png',
-      tag: `chat-${customerName}`, // Prevent duplicate notifications
-      requireInteraction: true, // Keep notification until user interacts
-      silent: false, // Play sound/vibrate
-      vibrate: [200, 100, 200], // Vibration pattern for mobile
-      data: {
-        customerName: customerName,
-        url: window.location.href,
-        timestamp: Date.now()
-      },
-      actions: isPWA ? [
-        {
-          action: 'open-chat',
-          title: 'Open Chat',
-          icon: '/LOGO_NEW.jpg'
-        },
-        {
-          action: 'dismiss',
-          title: 'Dismiss',
-          icon: '/favicon.png'
-        }
-      ] : [],
+      tag: options.tag || `chat-${Date.now()}`,
+      requireInteraction: true,
+      silent: false,
+      vibrate: [200, 100, 200, 100, 200],
       ...options
-    };
+    });
 
-    const notification = new Notification(`New message from ${customerName}`, notificationOptions);
-
-    // Handle notification click
     notification.onclick = () => {
       window.focus();
-      // If chat is open, focus on it
-      const chatElement = document.querySelector('[data-chat-widget]');
-      if (chatElement) {
-        chatElement.focus();
-        chatElement.scrollIntoView({ behavior: 'smooth' });
-      }
       notification.close();
+      window.dispatchEvent(new CustomEvent('openChatFromNotification', {
+        detail: { action: 'open-chat' }
+      }));
     };
 
-    // Handle notification actions (PWA only)
-    if (isPWA) {
-      notification.addEventListener('notificationclick', (event) => {
-        if (event.action === 'open-chat') {
-          window.focus();
-          // Open chat widget
-          const chatButton = document.querySelector('[data-chat-toggle]');
-          if (chatButton) {
-            chatButton.click();
-          }
-        }
-        notification.close();
-      });
-    }
+    // Auto-close after 15 seconds
+    setTimeout(() => notification.close(), 15000);
 
-    // Auto-close after 8 seconds for non-PWA, longer for PWA
-    const autoCloseTime = isPWA ? 12000 : 8000;
-    setTimeout(() => {
-      notification.close();
-    }, autoCloseTime);
-
-    console.log('Chat notification shown:', { customerName, message, isPWA });
+    console.log('🔔 Fallback notification shown:', title, body);
     return true;
   } catch (error) {
-    console.error('Error showing notification:', error);
+    console.error('🔔 Fallback notification failed:', error);
     return false;
   }
 };
 
-// Show notification for new chat requests
-export const showChatRequestNotification = (customerName, options = {}) => {
-  if (typeof window === 'undefined' || !('Notification' in window)) {
-    console.log('🔔 Notifications not supported');
-    return false;
-  }
+// Show PWA notification for new chat messages (main export)
+export const showChatNotification = async (senderName, message, options = {}) => {
+  if (typeof window === 'undefined') return false;
+
+  // Don't show notification if page is visible and user is actively viewing
+  // (caller should handle this check)
 
   if (Notification.permission !== 'granted') {
-    console.log('🔔 Notification permission not granted');
+    console.log('🔔 Permission not granted, cannot show notification');
     return false;
   }
 
-  try {
-    const notification = new Notification(`🆕 New chat request from ${customerName}`, {
-      body: 'Customer is waiting to connect with you',
-      icon: '/favicon.png',
-      badge: '/favicon.png',
-      tag: `chat-request-${customerName}`,
-      requireInteraction: true,
-      silent: false,
-      vibrate: [200, 100, 200, 100, 200], // Longer vibration for requests
-      actions: [
-        {
-          action: 'accept',
-          title: 'Accept Chat'
-        },
-        {
-          action: 'dismiss',
-          title: 'Dismiss'
-        }
-      ],
-      ...options
-    });
+  const title = `💬 ${senderName}`;
+  const body = message || 'New message received';
+  const notifOptions = {
+    tag: `chat-${senderName}`,
+    renotify: true,
+    senderName: senderName,
+    ...options
+  };
 
-    // Handle notification click
-    notification.onclick = () => {
-      window.focus();
-      notification.close();
-    };
+  // Try Service Worker first (works in background!)
+  const swResult = await showNotificationViaSW(title, body, notifOptions);
+  if (swResult) return true;
 
-    // Handle action buttons
-    notification.addEventListener('notificationclick', (event) => {
-      if (event.action === 'accept') {
-        // Trigger chat acceptance
-        window.dispatchEvent(new CustomEvent('acceptChatRequest', {
-          detail: { customerName }
-        }));
-      }
-      notification.close();
-    });
+  // Fallback to old API
+  return showNotificationFallback(title, body, notifOptions);
+};
 
-    // Auto-close after 12 seconds (longer for requests)
-    setTimeout(() => {
-      notification.close();
-    }, 12000);
+// Show notification for new chat requests
+export const showChatRequestNotification = async (customerName, options = {}) => {
+  const title = `🆕 New chat request — ${customerName}`;
+  const body = 'Customer is waiting to connect with you';
+  const notifOptions = {
+    tag: `chat-request-${customerName}`,
+    renotify: true,
+    senderName: customerName,
+    ...options
+  };
 
-    console.log('🔔 Chat request notification shown:', customerName);
-    return true;
-  } catch (error) {
-    console.error('🔔 Error showing chat request notification:', error);
-    return false;
-  }
+  const swResult = await showNotificationViaSW(title, body, notifOptions);
+  if (swResult) return true;
+  return showNotificationFallback(title, body, notifOptions);
 };
 
 // Check if notifications are supported and permission granted
@@ -198,14 +233,17 @@ export const checkNotificationSupport = () => {
 // Initialize notifications on app load
 export const initializeNotifications = async () => {
   const status = checkNotificationSupport();
-  
+
   if (!status.supported) {
     console.log('🔔 Notifications not supported in this browser');
     return false;
   }
 
+  // Register our custom service worker
+  await registerServiceWorker();
+
   if (status.canShow) {
-    console.log('🔔 Notifications ready');
+    console.log('🔔 Notifications ready (SW + permission granted)');
     return true;
   }
 
@@ -220,10 +258,10 @@ export const initializeNotifications = async () => {
 };
 
 // Show notification for unread messages count
-export const showUnreadCountNotification = (count, customerNames = []) => {
+export const showUnreadCountNotification = async (count, customerNames = []) => {
   if (count <= 0) return false;
 
-  const namesText = customerNames.length > 0 
+  const namesText = customerNames.length > 0
     ? ` from ${customerNames.slice(0, 3).join(', ')}${customerNames.length > 3 ? ' and others' : ''}`
     : '';
 

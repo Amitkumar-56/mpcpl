@@ -24,6 +24,7 @@ export default withPWA({
   register: true,
   skipWaiting: true,
   disable: false, // Keep PWA enabled
+  customWorkerDir: 'worker', // Injects push/notification handlers into SW
   buildExcludes: [/middleware-manifest\.json$/],
   runtimeCaching: [
     {
