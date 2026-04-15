@@ -159,6 +159,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Lab Testing", icon: <FaCog />, module: "lab_testing", path: "/manufacturing/lab-testing" },
     { name: "Manufacturing Process", icon: <FaCog />, module: "manufacturing_process", path: "/manufacturing/process" },
     { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/security-gate" },
+    { name: "Vehicle Entry", icon: <FaTruck />, module: "manufacturing_entry", path: "/manufacturing/entry-requests" },
   ], []);
 
   const moduleMapping = useMemo(() => ({
@@ -199,7 +200,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     tanker_allocation: "Tanker Allocation",
     lab_testing: "Lab Testing",
     manufacturing_process: "Manufacturing Process",
-    security_gate: "Security Gate"
+    security_gate: "Security Gate",
+    manufacturing_entry: "Manufacturing Entry"
   }), []);
 
   // ✅ Role-based menu filtering
@@ -222,7 +224,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         if (backendModuleName && user.permissions && typeof user.permissions === 'object') {
           // Special case: Manufacturing sidebar item shows if user has ANY manufacturing sub-module permission
           if (item.module === 'manufacturing') {
-            const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process'];
+            const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Manufacturing Entry'];
             return mfgModules.some(mod => user.permissions[mod]?.can_view === true);
           }
           // Check if specific permission module exists

@@ -3,7 +3,7 @@
 import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, Suspense } from 'react';
-import { FaBox, FaClipboardList, FaCog, FaFlask, FaIndustry, FaShieldAlt, FaTruck, FaArrowRight, FaChartLine, FaSpinner, FaLock } from 'react-icons/fa';
+import { FaBox, FaClipboardList, FaCog, FaFlask, FaIndustry, FaShieldAlt, FaTruck, FaArrowRight, FaChartLine, FaSpinner, FaLock, FaClipboardCheck } from 'react-icons/fa';
 import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import Footer from "@/components/Footer";
@@ -30,20 +30,20 @@ function ManufacturingDashboardContent() {
     if (Number(user.role) === 5) {
       setPermissions({
         'Raw Materials': true, 'Finished Goods': true, 'Tanker Allocation': true,
-        'Lab Testing': true, 'Manufacturing Process': true, 'Security Gate': true, 'Manufacturing': true
+        'Lab Testing': true, 'Manufacturing Process': true, 'Security Gate': true, 'Manufacturing': true, 'Manufacturing Entry': true
       });
       return;
     }
     if (user.permissions && typeof user.permissions === 'object') {
       const perms = {};
-      ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Security Gate'].forEach(mod => {
+      ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Security Gate', 'Manufacturing Entry'].forEach(mod => {
         perms[mod] = user.permissions[mod]?.can_view === true;
       });
       setPermissions(perms);
       return;
     }
     try {
-      const modules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Security Gate'];
+      const modules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Security Gate', 'Manufacturing Entry'];
       const results = await Promise.all(modules.map(mod => fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(mod)}&action=can_view`).then(r => r.json()).then(d => ({ mod, allowed: d.allowed })).catch(() => ({ mod, allowed: false }))));
       const perms = {};
       results.forEach(r => { perms[r.mod] = r.allowed; });
@@ -73,6 +73,7 @@ function ManufacturingDashboardContent() {
     { title: 'Lab Testing', desc: 'Test batches & quality control', icon: <FaFlask />, path: '/manufacturing/lab-testing', color: 'purple', permKey: 'Lab Testing' },
     { title: 'Manufacturing Process', desc: 'Batch processing & production', icon: <FaCog />, path: '/manufacturing/process', color: 'red', permKey: 'Manufacturing Process' },
     { title: 'Security Gate', desc: 'Entry/Exit management', icon: <FaShieldAlt />, path: '/security-gate', color: 'cyan', permKey: 'Security Gate' },
+    { title: 'Vehicle Entry', desc: 'Vehicle entry permission & processing', icon: <FaClipboardCheck />, path: '/manufacturing/entry-requests', color: 'teal', permKey: 'Manufacturing Entry' },
   ];
 
   const visibleModules = allModules.filter(mod => hasPermission(mod.permKey));
@@ -86,6 +87,7 @@ function ManufacturingDashboardContent() {
     { label: 'Gate Entries', value: stats?.gateEntries || 0, icon: <FaShieldAlt />, color: 'cyan', permKey: 'Security Gate' },
     { label: 'Total Batches', value: stats?.totalBatches || 0, icon: <FaChartLine />, color: 'pink', permKey: 'Manufacturing Process' },
     { label: 'Completed', value: stats?.completedBatches || 0, icon: <FaClipboardList />, color: 'teal', permKey: 'Manufacturing Process' },
+    { label: 'Entry Requests', value: stats?.entryRequests || 0, icon: <FaClipboardCheck />, color: 'indigo', permKey: 'Manufacturing Entry' },
   ];
 
   const visibleStats = statCards.filter(card => hasPermission(card.permKey));
@@ -114,6 +116,7 @@ function ManufacturingDashboardContent() {
     cyan: 'bg-cyan-100 text-cyan-600',
     pink: 'bg-pink-100 text-pink-600',
     teal: 'bg-teal-100 text-teal-600',
+    indigo: 'bg-indigo-100 text-indigo-600',
   };
 
   const gradientClasses = {
@@ -123,6 +126,7 @@ function ManufacturingDashboardContent() {
     purple: 'from-purple-600 to-purple-500',
     red: 'from-red-600 to-red-500',
     cyan: 'from-cyan-600 to-cyan-500',
+    teal: 'from-teal-600 to-teal-500',
   };
 
   if (loading) {

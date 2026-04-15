@@ -13,6 +13,7 @@ export async function GET() {
     const [pendingTests] = await executeQuery("SELECT COUNT(*) as count FROM mfg_lab_tests WHERE result_status='pending'").catch(() => [{ count: 0 }]);
     const [tankerAllocations] = await executeQuery("SELECT COUNT(*) as count FROM mfg_tanker_allocation WHERE status IN ('allocated','in_transit','arrived')").catch(() => [{ count: 0 }]);
     const [gateEntries] = await executeQuery("SELECT COUNT(*) as count FROM security_gate_entries WHERE gate_status IN ('arrived','under_processing')").catch(() => [{ count: 0 }]);
+    const [entryRequests] = await executeQuery("SELECT COUNT(*) as count FROM mfg_entry_requests WHERE status IN ('pending','approved','processing')").catch(() => [{ count: 0 }]);
 
     // Recent batches
     const recentBatches = await executeQuery(
@@ -36,6 +37,7 @@ export async function GET() {
           pendingTests: pendingTests?.count || 0,
           tankerAllocations: tankerAllocations?.count || 0,
           gateEntries: gateEntries?.count || 0,
+          entryRequests: entryRequests?.count || 0,
         },
         recentBatches,
         recentGateEntries,
