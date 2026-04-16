@@ -8,6 +8,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FaBell, FaComments, FaKey, FaSignOutAlt, FaTimes, FaUser } from 'react-icons/fa';
 import { io } from 'socket.io-client';
+import { toast } from 'react-hot-toast';
 
 export default function Header({ onMenuToggle }) {
   const { user, logout, loading } = useSession();
@@ -17,6 +18,29 @@ export default function Header({ onMenuToggle }) {
   const [notifCount, setNotifCount] = useState(0);
   const [notifications, setNotifications] = useState([]);
   const [empSocket, setEmpSocket] = useState(null);
+  const [notifPermission, setNotifPermission] = useState('default');
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      setNotifPermission(Notification.permission);
+    }
+  }, []);
+
+  const handleRequestPermission = async () => {
+    const granted = await requestNotificationPermission();
+    setNotifPermission(Notification.permission);
+    if (granted) {
+      toast.success('Notifications enabled!');
+      showChatNotification('System', 'Notifications are working! 🎉');
+    } else {
+      toast.error('Notification permission denied. Please allow it in browser settings.');
+    }
+  };
+
+  const handleTestNotification = () => {
+    showChatNotification('Test Message', 'This is a test notification from MPCL Chat');
+    playBeep();
+  };
   const router = useRouter();
   const pathname = usePathname();
 
@@ -89,7 +113,8 @@ export default function Header({ onMenuToggle }) {
         playBeep();
         showChatNotification(
           data.customerName || 'Customer',
-          data.text || 'New message'
+          data.text || 'New message',
+          { customerId: data.customerId, url: '/dashboard' }
         ).catch(() => {});
       });
 
@@ -113,7 +138,11 @@ export default function Header({ onMenuToggle }) {
         
         // Play sound + show notification (debounced in sound.js to prevent double-play)
         playBeep();
-        showChatNotification(senderName, messageText).catch(() => {});
+        showChatNotification(
+          senderName, 
+          messageText,
+          { sessionId: msg.session_id, senderId: msg.sender_id }
+        ).catch(() => {});
       });
 
       // Employee chat request notifications
@@ -135,7 +164,8 @@ export default function Header({ onMenuToggle }) {
         playBeep();
         showChatNotification(
           requesterName,
-          'Wants to chat with you'
+          'Wants to chat with you',
+          { sessionId: sessionData.id, senderId: sessionData.requester_id }
         ).catch(() => {});
       });
 
@@ -186,8 +216,15 @@ export default function Header({ onMenuToggle }) {
     // Listen for notification clicks from Service Worker
     const handleNotifClick = (event) => {
       console.log('Header: Notification click event from SW:', event.detail);
-      // Dispatch event to open employee chat dashboard
-      window.dispatchEvent(new CustomEvent('openEmployeeChat'));
+      const data = event.detail?.data || {};
+      // Dispatch standardized event to open chat components (ChatBox and EmployeeChatDashboard)
+      window.dispatchEvent(new CustomEvent('openEmployeeChat', { 
+        detail: { 
+          sessionId: data.sessionId, 
+          senderId: data.senderId,
+          customerId: data.customerId
+        } 
+      }));
     };
     window.addEventListener('openChatFromNotification', handleNotifClick);
 
@@ -301,6 +338,26 @@ export default function Header({ onMenuToggle }) {
                     onClick={() => { setNotifCount(0); setNotifications([]); }}
                     className="text-xs text-blue-600 hover:underline">Clear</button>
                 </div>
+
+                {/* Notification status / settings */}
+                <div className="px-4 py-2 border-b bg-gray-50 flex items-center justify-between text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <span>Browser Alerts:</span>
+                    <span className={`font-medium ${notifPermission === 'granted' ? 'text-green-600' : 'text-red-500'}`}>
+                      {notifPermission === 'granted' ? 'ON' : notifPermission === 'denied' ? 'Blocked' : 'Off'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {notifPermission === 'granted' ? (
+                      <button onClick={handleTestNotification} className="text-blue-600 hover:underline">Test</button>
+                    ) : (
+                      <button onClick={handleRequestPermission} className="text-blue-600 font-bold hover:underline">
+                        {notifPermission === 'denied' ? 'How to allow?' : 'Enable'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 <div className="max-h-64 overflow-y-auto">
                   {notifications.length === 0 ? (
                     <div className="px-4 py-6 text-center text-gray-500">No notifications</div>

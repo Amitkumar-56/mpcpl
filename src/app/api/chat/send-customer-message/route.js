@@ -4,16 +4,16 @@ import { NextResponse } from "next/server";
 
 export async function POST(request) {
   try {
-    const { customerId, text, customerName } = await request.json();
+    const { customerId, text, customerName, messageType = 'text', filePath = null } = await request.json();
 
     if (!customerId || !text) {
       return NextResponse.json({ success: false, error: 'Customer ID and text are required' }, { status: 400 });
     }
 
-    // Save message
+    // Save message with type and path
     const result = await executeQuery(
-      `INSERT INTO messages (text, sender, customer_id, status) VALUES (?, 'customer', ?, 'sent')`,
-      [text, customerId]
+      `INSERT INTO messages (text, sender, customer_id, status, message_type, file_path) VALUES (?, 'customer', ?, 'sent', ?, ?)`,
+      [text, customerId, messageType, filePath]
     );
 
     // Update chat session
@@ -42,6 +42,8 @@ export async function POST(request) {
           customer_id: savedMessage.customer_id,
           status: savedMessage.status,
           timestamp: savedMessage.timestamp,
+          message_type: savedMessage.message_type,
+          file_path: savedMessage.file_path,
         };
         io.to(`customer_${customerId}`).emit('new_message', { message: messageData });
         io.to('employees').emit('customer_message_notification', {
@@ -52,6 +54,8 @@ export async function POST(request) {
           text: savedMessage.text,
           timestamp: savedMessage.timestamp,
           status: savedMessage.status,
+          message_type: savedMessage.message_type,
+          file_path: savedMessage.file_path,
         });
       }
     } catch (e) {}

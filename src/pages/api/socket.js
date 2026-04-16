@@ -114,141 +114,82 @@ export default function SocketHandler(req, res) {
         });
 
         socket.on("customer_message", async (data) => {
-
           try {
-
-            const { customerId, text, customerName, tempId, messageId } = data;
-
+            const { customerId, text, customerName, tempId, messageId, messageType = 'text', filePath = null } = data;
             if (!customerId || !text) {
-
               socket.emit("error", { message: "Customer ID and text are required" });
-
               return;
-
             }
 
             let savedMessage;
-
             if (messageId) {
-
               const [row] = await executeQuery(
-
                 `SELECT m.*, c.name as customer_name 
-
                  FROM messages m 
-
                  LEFT JOIN customers c ON m.customer_id = c.id 
-
                  WHERE m.id = ?`,
-
                 [messageId]
-
               );
-
               savedMessage = row;
-
             } else {
-
               const result = await executeQuery(
-
-                `INSERT INTO messages (text, sender, customer_id, status, timestamp) 
-
-                 VALUES (?, 'customer', ?, 'sent', NOW())`,
-
-                [text, customerId]
-
+                `INSERT INTO messages (text, sender, customer_id, status, timestamp, message_type, file_path) 
+                 VALUES (?, 'customer', ?, 'sent', NOW(), ?, ?)`,
+                [text, customerId, messageType, filePath]
               );
-
               await executeQuery(
-
                 `INSERT INTO chat_sessions (customer_id, last_message_at, status) 
-
                  VALUES (?, NOW(), 'active') 
-
                  ON DUPLICATE KEY UPDATE last_message_at = NOW(), status = 'active'`,
-
                 [customerId]
-
               );
-
               const [row] = await executeQuery(
-
                 `SELECT m.*, c.name as customer_name 
-
                  FROM messages m 
-
                  LEFT JOIN customers c ON m.customer_id = c.id 
-
                  WHERE m.id = ?`,
-
                 [result.insertId]
-
               );
-
               savedMessage = row;
-
             }
 
             const messageData = {
-
               id: savedMessage.id,
-
               text: savedMessage.text,
-
               sender: savedMessage.sender,
-
               customer_id: savedMessage.customer_id,
-
               status: savedMessage.status,
-
               timestamp: savedMessage.timestamp,
-
+              message_type: savedMessage.message_type || messageType,
+              file_path: savedMessage.file_path || filePath,
             };
 
             io.to(`customer_${customerId}`).emit("new_message", {
-
               message: messageData,
-
             });
 
             // Broadcast to employees except drivers (role 6)
-
             io.to("employees").except("role_6").emit("customer_message_notification", {
-
               type: "new_customer_message",
-
               customerId,
-
               customerName: savedMessage.customer_name || customerName,
-
               messageId: savedMessage.id,
-
               text: savedMessage.text,
-
               timestamp: savedMessage.timestamp,
-
               status: savedMessage.status,
-
+              message_type: savedMessage.message_type || messageType,
+              file_path: savedMessage.file_path || filePath,
             });
 
             socket.emit("message_sent", {
-
               messageId: savedMessage.id,
-
               tempId: tempId,
-
               status: "sent",
-
             });
-
           } catch (error) {
-
             console.error('Customer message error:', error);
-
             socket.emit("error", { message: "Failed to send message" });
-
           }
-
         });
 
         socket.on("employee_join", (data) => {
@@ -322,103 +263,59 @@ export default function SocketHandler(req, res) {
         });
 
         socket.on("employee_message", async (data) => {
-
           try {
-
-            const { customerId, text, employeeId, employeeName, messageId } = data;
-
+            const { customerId, text, employeeId, employeeName, messageId, messageType = 'text', filePath = null } = data;
             if (!customerId || !text || !employeeId) {
-
               socket.emit("error", { message: "Customer ID, text and employee ID are required" });
-
               return;
-
             }
 
             let savedMessage;
-
             if (messageId) {
-
               const [row] = await executeQuery(
-
                 `SELECT m.*, ep.name as employee_name 
-
                  FROM messages m 
-
                  LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
-
                  WHERE m.id = ?`,
-
                 [messageId]
-
               );
-
               savedMessage = row;
-
             } else {
-
               const result = await executeQuery(
-
-                `INSERT INTO messages (text, sender, customer_id, employee_id, status, timestamp) 
-
-                 VALUES (?, 'employee', ?, ?, 'delivered', NOW())`,
-
-                [text, customerId, employeeId]
-
+                `INSERT INTO messages (text, sender, customer_id, employee_id, status, timestamp, message_type, file_path) 
+                 VALUES (?, 'employee', ?, ?, 'delivered', NOW(), ?, ?)`,
+                [text, customerId, employeeId, messageType, filePath]
               );
-
               await executeQuery(
-
                 `UPDATE chat_sessions SET employee_id = ?, last_message_at = NOW(), status = 'active' 
-
                  WHERE customer_id = ?`,
-
                 [employeeId, customerId]
-
               );
-
               const [row] = await executeQuery(
-
                 `SELECT m.*, ep.name as employee_name 
-
                  FROM messages m 
-
                  LEFT JOIN employee_profile ep ON m.employee_id = ep.id 
-
                  WHERE m.id = ?`,
-
                 [result.insertId]
-
               );
-
               savedMessage = row;
-
             }
 
             const messageData = {
-
               id: savedMessage.id,
-
               text: savedMessage.text,
-
               sender: savedMessage.sender,
-
               customer_id: savedMessage.customer_id,
-
               employee_id: savedMessage.employee_id,
-
               status: savedMessage.status,
-
               timestamp: savedMessage.timestamp,
-
               employee_name: savedMessage.employee_name || employeeName,
-
+              message_type: savedMessage.message_type || messageType,
+              file_path: savedMessage.file_path || filePath,
             };
 
             io.to(`customer_${customerId}`).emit("new_message", {
-
               message: messageData,
-
             });
 
             // Also emit employee_message event (ChatBox listens on this)
@@ -428,24 +325,18 @@ export default function SocketHandler(req, res) {
               employeeId: savedMessage.employee_id,
               employeeName: savedMessage.employee_name || employeeName,
               messageId: savedMessage.id,
+              message_type: savedMessage.message_type || messageType,
+              file_path: savedMessage.file_path || filePath,
             });
 
             socket.emit("message_sent", {
-
               messageId: savedMessage.id,
-
               status: "delivered",
-
             });
-
           } catch (error) {
-
             console.error('Employee message error:', error);
-
             socket.emit("error", { message: "Failed to send message" });
-
           }
-
         });
 
         socket.on("internal_message", async (data) => {

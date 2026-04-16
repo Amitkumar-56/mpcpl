@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { BiChevronDown, BiMessageRounded, BiSend, BiUser, BiX } from 'react-icons/bi';
+import { BiChevronDown, BiMessageRounded, BiSend, BiUser, BiX, BiImage, BiPaperclip, BiFile, BiDownload } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 import { playBeep, forceInitializeAudio, speakMessage } from '@/utils/sound';
 import { initializeNotifications, showChatNotification, requestNotificationPermission } from '@/utils/notifications';
@@ -17,14 +17,17 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
   const [sending, setSending] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
   const [socket, setSocket] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const messagesEndRef = useRef(null);
-  const audioRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const [ringing, setRinging] = useState(false);
   const ringIntervalRef = useRef(null);
+  const pollingRef = useRef(null);
+  const [connected, setConnected] = useState(false);
 
   // Initialize notifications on component mount
   useEffect(() => {
-    // Use PWA enhanced notifications if available
     if (isPWAStandalone()) {
       initializePWANotifications();
     } else {
@@ -35,174 +38,127 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
   // Initialize audio on component mount and user interactions
   useEffect(() => {
-    // Force initialize audio on first user interaction
     const handleUserInteraction = () => {
       forceInitializeAudio();
-      // Remove listeners after first interaction
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('scroll', handleUserInteraction);
-      document.removeEventListener('mousemove', handleUserInteraction);
     };
-
     document.addEventListener('click', handleUserInteraction);
     document.addEventListener('keydown', handleUserInteraction);
-    document.addEventListener('scroll', handleUserInteraction);
-    document.addEventListener('mousemove', handleUserInteraction);
-
     return () => {
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('scroll', handleUserInteraction);
-      document.removeEventListener('mousemove', handleUserInteraction);
     };
   }, []);
 
-  // Audio element ref for notification sound (handled by sound.js utility)
-  // No need for manual AudioContext — playBeep() handles everything
-
-
-  // Initialize socket connection
+  // Stable Socket Connection
   useEffect(() => {
+    if (!customerId) return;
+
+    let socketInstance;
+
     const initialize = async () => {
-      try { await fetch('/api/socket'); } catch (e) {}
-      const newSocket = io({
+      try { await fetch('/api/socket'); } catch (e) { }
+      
+      socketInstance = io({
         path: '/api/socket',
         transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 10,
+        reconnectionDelay: 1000,
       });
 
-      newSocket.on('connect', () => {
-        console.log('✅ Chat socket connected');
-        if (customerId) {
-          newSocket.emit('customer_join', { customerId, customerName });
-        }
+      socketInstance.on('connect', () => {
+        console.log('✅ Chat socket connected:', socketInstance.id);
+        setConnected(true);
+        socketInstance.emit('customer_join', { customerId, customerName });
       });
 
-      newSocket.on('disconnect', () => {
+      socketInstance.on('disconnect', () => {
         console.log('❌ Chat socket disconnected');
+        setConnected(false);
       });
 
-      // Listen for new messages
-      newSocket.on('new_message', (data) => {
-      console.log('📨 New message received:', data);
-      
-      // Play notification sound using utility
-      playBeep();
-      
-      // Voice announcement - "Message aaya hai"
-      if (!showChat) {
-        speakMessage("नया मैसेज आया है", "hi-IN");
-      }
+      // Unified Message Handler
+      const handleNewMessage = (data) => {
+        const message = data.message || data;
+        if (!message) return;
 
-      // Show PWA notification if chat is closed (async — runs in background)
-      if (!showChat && data.message) {
-        const senderName = userRole === 'customer' 
-          ? (selectedEmployee?.name || 'Employee') 
-          : (customerName || 'Customer');
-        showChatNotification(senderName, data.message.text || data.message)
-          .catch(err => console.log('Notification error:', err));
-      }
+        console.log('📨 Message received via socket:', message);
 
-      // Add message to state (with deduplication)
-      setMessages(prev => {
-        const message = data.message;
-        if (!message) return prev;
-        
-        // Check for duplicate by ID or tempId
-        const existsById = message.id && prev.some(m => m.id === message.id);
-        const existsByTempId = message.tempId && prev.some(m => m.tempId === message.tempId);
-        
-        if (existsById || existsByTempId) {
-          return prev; // Don't add duplicate
-        }
-        
-        return [...prev, message];
-      });
-
-      // Update unread count if chat is closed
-      if (!showChat) {
-        setUnreadCount(prev => prev + 1);
-        if (!ringing) {
-          setRinging(true);
-          if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
-          ringIntervalRef.current = setInterval(() => {
-            playBeep();
-            speakMessage("नया मैसेज आया है", "hi-IN");
-          }, 4000); // Every 4 seconds for voice
-        }
-      }
-
-        scrollToBottom();
-      });
-
-      // Listen for employee messages (for customer side)
-      newSocket.on('employee_message', (data) => {
-        console.log('📨 Employee message received by customer:', data);
-        
-        // Play notification sound for customer
-        playBeep();
-        
-        // Voice announcement for customer
-        if (!showChat) {
-          speakMessage("नया मैसेज आया है", "hi-IN");
-        }
-
-        // Show PWA notification if chat is closed (async — runs in background)
-        if (!showChat && data.message) {
-          showChatNotification(
-            data.employeeName || 'Employee', 
-            data.message
-          ).catch(err => console.log('Notification error:', err));
-        }
-
-        // Add message to state
         setMessages(prev => {
-          const message = {
-            id: data.messageId,
-            text: data.message,
-            sender: 'employee',
-            employee_id: data.employeeId,
-            customer_id: data.customerId,
-            timestamp: new Date().toISOString(),
-            status: 'sent'
-          };
+          // Robust deduplication
+          const id = message.id || message.messageId;
+          const tempId = message.tempId;
           
-          // Check for duplicate
-          const exists = prev.some(m => m.id === message.id);
+          const exists = prev.some(m => 
+            (id && m.id === id) || 
+            (tempId && m.tempId === tempId) ||
+            (m.text === message.text && m.sender === message.sender && Math.abs(new Date(m.timestamp) - new Date(message.timestamp)) < 1000)
+          );
+
           if (exists) return prev;
-          
-          return [...prev, message];
+          return [...prev, {
+            ...message,
+            id: id || message.id,
+            text: message.text || message.message,
+          }];
         });
 
-        // Update unread count if chat is closed
+        // Notifications
         if (!showChat) {
+          playBeep();
+          speakMessage("नया मैसेज आया है", "hi-IN");
           setUnreadCount(prev => prev + 1);
+          
+          const senderName = message.sender === 'employee' 
+            ? (message.employee_name || 'Employee') 
+            : (customerName || 'Customer');
+
+          showChatNotification(senderName, message.text || message.message || 'New message')
+            .catch(err => console.log('Notification error:', err));
+
           if (!ringing) {
             setRinging(true);
             if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
             ringIntervalRef.current = setInterval(() => {
               playBeep();
               speakMessage("नया मैसेज आया है", "hi-IN");
-            }, 4000);
+            }, 5000);
           }
         }
-
+        
         scrollToBottom();
-      });
-
-      setSocket(newSocket);
-
-      return () => {
-        newSocket.close();
-        if (ringIntervalRef.current) {
-          clearInterval(ringIntervalRef.current);
-          ringIntervalRef.current = null;
-        }
       };
-    };
-    initialize();
-  }, [customerId, ringing, showChat]);
 
+      socketInstance.on('new_message', handleNewMessage);
+      socketInstance.on('employee_message', handleNewMessage);
+      
+      setSocket(socketInstance);
+    };
+
+    initialize();
+
+    return () => {
+      if (socketInstance) socketInstance.disconnect();
+      if (ringIntervalRef.current) clearInterval(ringIntervalRef.current);
+    };
+  }, [customerId, customerName]);
+
+  // Polling Fallback (Keep sync even if socket drops)
+  useEffect(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    
+    if (selectedEmployee && customerId) {
+      pollingRef.current = setInterval(fetchMessages, 10000); // Every 10 seconds fallback
+    }
+
+    return () => {
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, [selectedEmployee, customerId]);
+
+  // Handle ringing stop
   useEffect(() => {
     if (showChat || unreadCount === 0) {
       if (ringIntervalRef.current) {
@@ -212,6 +168,22 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
       setRinging(false);
     }
   }, [showChat, unreadCount]);
+
+  // Listen for notification clicks to open chat
+  useEffect(() => {
+    const handleOpenChat = (e) => {
+      setShowChat(true);
+      if (e.detail?.customerId && e.detail.customerId === customerId) {
+        // Already on this customer's chat
+      }
+    };
+    window.addEventListener('openChatFromNotification', handleOpenChat);
+    window.addEventListener('openEmployeeChat', handleOpenChat);
+    return () => {
+      window.removeEventListener('openChatFromNotification', handleOpenChat);
+      window.removeEventListener('openEmployeeChat', handleOpenChat);
+    };
+  }, [customerId]);
 
   // Fetch employees list
   useEffect(() => {
@@ -226,7 +198,6 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
         console.error('Error fetching employees:', error);
       }
     };
-
     fetchEmployees();
   }, []);
 
@@ -234,6 +205,7 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
   useEffect(() => {
     if (selectedEmployee && customerId) {
       fetchMessages();
+      markAsRead();
     }
   }, [selectedEmployee, customerId]);
 
@@ -247,57 +219,25 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
   const fetchMessages = async () => {
     if (!selectedEmployee || !customerId) return;
-
-    setLoading(true);
     try {
       const response = await fetch(`/api/chat/messages?customerId=${customerId}&employeeId=${selectedEmployee.id}`);
       const data = await response.json();
       if (data.success) {
-        const fetchedMessages = data.messages || [];
-        
-        // Remove duplicates based on message ID
-        const seenIds = new Set();
-        const uniqueMessages = fetchedMessages.filter(msg => {
-          const key = msg.id || msg.tempId;
-          if (!key) return true; // Keep messages without ID
-          if (seenIds.has(key)) {
-            return false; // Skip duplicate
-          }
-          seenIds.add(key);
-          return true;
-        });
-
-        // Merge with existing messages and remove duplicates
         setMessages(prev => {
-          const allMessages = [...prev, ...uniqueMessages];
-          const mergedSeenIds = new Set();
-          const mergedUnique = allMessages.filter(msg => {
-            const key = msg.id || msg.tempId;
-            if (!key) return true;
-            if (mergedSeenIds.has(key)) {
-              return false;
-            }
-            mergedSeenIds.add(key);
+          const fresh = data.messages || [];
+          const combined = [...prev, ...fresh];
+          const seen = new Set();
+          const unique = combined.filter(m => {
+            const key = m.id || m.tempId;
+            if (seen.has(key)) return false;
+            seen.add(key);
             return true;
           });
-
-          // Sort by timestamp (newest first)
-          mergedUnique.sort((a, b) => {
-            const timeA = new Date(a.timestamp).getTime();
-            const timeB = new Date(b.timestamp).getTime();
-            return timeB - timeA;
-          });
-
-          return mergedUnique;
+          return unique.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
         });
-        
         scrollToBottom();
       }
-    } catch (error) {
-      console.error('Error fetching messages:', error);
-    } finally {
-      setLoading(false);
-    }
+    } catch (e) { console.error(e); }
   };
 
   const markAsRead = async () => {
@@ -308,13 +248,11 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customerId, userId: selectedEmployee.id, userType: 'customer' })
       });
-    } catch (error) {
-      console.error('Error marking as read:', error);
-    }
+    } catch (e) { }
   };
 
-  const sendMessage = async () => {
-    const messageText = newMessage.trim();
+  const sendMessage = async (overrideText = null, isFile = false, filePath = null, fileType = 'text') => {
+    const messageText = overrideText || newMessage.trim();
     if (!messageText || !selectedEmployee || !customerId || !socket) return;
 
     setSending(true);
@@ -327,115 +265,80 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
       employee_id: selectedEmployee.id,
       status: 'sending',
       timestamp: new Date().toISOString(),
+      message_type: fileType,
+      file_path: filePath
     };
 
-    // Check for duplicate before adding
-    const isDuplicate = messages.some(m => 
-      m.tempId === tempId || (m.text === messageText && m.sender === (userRole === 'customer' ? 'customer' : 'employee'))
-    );
-    
-    if (!isDuplicate) {
-      setMessages(prev => [...prev, tempMessage]);
-    }
-    
-    setNewMessage('');
+    setMessages(prev => [...prev, tempMessage]);
+    if (!overrideText) setNewMessage('');
     scrollToBottom();
 
     try {
-      if (userRole === 'customer') {
-        // Customer sending to employee
-        const response = await fetch('/api/chat/send-customer-message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customerId,
-            text: messageText,
-            employeeId: selectedEmployee.id
-          })
+      const apiEndpoint = userRole === 'customer' ? '/api/chat/send-customer-message' : '/api/chat/send-message';
+      const response = await fetch(apiEndpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerId,
+          text: messageText,
+          employeeId: selectedEmployee.id,
+          employeeName: userRole === 'employee' ? selectedEmployee.name : undefined,
+          messageType: fileType,
+          filePath: filePath
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        setMessages(prev => prev.map(msg => 
+          msg.tempId === tempId ? { ...msg, id: data.messageId, status: 'sent', tempId: undefined } : msg
+        ));
+        
+        socket.emit(userRole === 'customer' ? 'customer_message' : 'employee_message', {
+          customerId,
+          text: messageText,
+          customerName,
+          employeeId: selectedEmployee.id,
+          employeeName: selectedEmployee.name,
+          tempId: tempId,
+          messageId: data.messageId,
+          messageType: fileType,
+          filePath: filePath
         });
-
-        const data = await response.json();
-        if (data.success) {
-          // Update temp message with real ID and remove duplicates
-          setMessages(prev => {
-            const updated = prev.map(msg =>
-              msg.tempId === tempId
-                ? { ...msg, id: data.messageId, status: 'sent', tempId: undefined }
-                : msg
-            );
-
-            // Remove duplicates by ID
-            const seenIds = new Set();
-            return updated.filter(msg => {
-              const key = msg.id || msg.tempId;
-              if (!key) return true;
-              if (seenIds.has(key)) {
-                return false;
-              }
-              seenIds.add(key);
-              return true;
-            });
-          });
-          if (socket) {
-            socket.emit('customer_message', {
-              customerId,
-              text: messageText,
-              customerName,
-              tempId: tempId,
-              messageId: data.messageId
-            });
-          }
-        } else {
-          throw new Error(data.error || 'Failed to send message');
-        }
-      } else {
-        // Employee sending to customer
-        const response = await fetch('/api/chat/send-message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            customerId,
-            text: messageText,
-            employeeId: selectedEmployee.id,
-            employeeName: selectedEmployee.name
-          })
-        });
-
-        const data = await response.json();
-        if (data.success) {
-          setMessages(prev =>
-            prev.map(msg =>
-              msg.tempId === tempId
-                ? { ...msg, id: data.messageId, status: 'sent', tempId: undefined }
-                : msg
-            )
-          );
-          
-          // Emit socket event for employee message to notify customer
-          if (socket) {
-            socket.emit('employee_message', {
-              customerId,
-              message: messageText,
-              employeeId: selectedEmployee.id,
-              employeeName: selectedEmployee.name,
-              messageId: data.messageId
-            });
-            console.log('📨 Employee message sent via socket:', messageText);
-          }
-        } else {
-          throw new Error(data.error || 'Failed to send message');
-        }
       }
     } catch (error) {
       console.error('Error sending message:', error);
-      setMessages(prev =>
-        prev.map(msg =>
-          msg.tempId === tempId ? { ...msg, status: 'failed' } : msg
-        )
-      );
+      setMessages(prev => prev.map(msg => msg.tempId === tempId ? { ...msg, status: 'failed' } : msg));
     } finally {
       setSending(false);
     }
+  };
+
+  const handleFileUpload = async (file, type) => {
+    if (!file || !selectedEmployee || !customerId) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('customerId', customerId);
+
+      const res = await fetch('/api/chat/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        const msgType = type === 'image' ? 'image' : 'file';
+        await sendMessage(data.fileName || file.name, true, data.filePath, msgType);
+      } else {
+        alert(data.error || 'Upload failed');
+      }
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('File upload failed');
+    }
+    setUploading(false);
   };
 
   const scrollToBottom = () => {
@@ -451,22 +354,60 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
     }
   };
 
+  // Message Content Renderer
+  const MessageContent = ({ msg }) => {
+    const isMe = msg.sender === (userRole === 'customer' ? 'customer' : 'employee');
+    
+    if (msg.message_type === 'image' && msg.file_path) {
+      return (
+        <div className="space-y-1">
+          <img 
+            src={msg.file_path} 
+            alt="Shared" 
+            className="rounded-lg max-w-full max-h-48 cursor-pointer hover:opacity-90"
+            onClick={() => window.open(msg.file_path, '_blank')}
+          />
+          {msg.text && <p className="text-sm">{msg.text}</p>}
+        </div>
+      );
+    }
+
+    if (msg.message_type === 'file' && msg.file_path) {
+      return (
+        <a 
+          href={msg.file_path} 
+          target="_blank" 
+          rel="noopener noreferrer"
+          className={`flex items-center gap-2 p-2 rounded ${isMe ? 'bg-blue-700' : 'bg-gray-300'}`}
+        >
+          <BiFile className="text-xl" />
+          <div className="min-w-0 flex-1">
+            <p className="text-xs truncate font-medium">{msg.text || 'File'}</p>
+          </div>
+          <BiDownload className="text-lg" />
+        </a>
+      );
+    }
+
+    return <p className="text-sm border-spacing-2">{msg.text}</p>;
+  };
+
   return (
     <>
-      {/* Notification Sound - Programmatic */}
-      <div ref={audioRef} style={{ display: 'none' }} />
+      {/* Hidden Inputs */}
+      <input ref={imageInputRef} type="file" accept="image/*" className="hidden" onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0], 'image')} />
+      <input ref={fileInputRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={e => e.target.files[0] && handleFileUpload(e.target.files[0], 'file')} />
 
-      {/* Chat Toggle Button */}
+      {/* Chat Toggle */}
       <div className="fixed bottom-20 right-20 z-50">
         <button
           onClick={() => setShowChat(!showChat)}
-          className="bg-blue-600 text-white rounded-full p-3 shadow-lg hover:bg-blue-700 transition-all relative"
-          title="Open Chat"
+          className="bg-blue-600 text-white rounded-full p-4 shadow-2xl hover:bg-blue-700 transition-all transform hover:scale-110 relative"
         >
-          <BiMessageRounded className="w-6 h-6" />
+          <BiMessageRounded className="w-7 h-7" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-pulse">
-              {unreadCount > 9 ? '9+' : unreadCount}
+            <span className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold animate-bounce shadow-md">
+              {unreadCount}
             </span>
           )}
         </button>
@@ -474,147 +415,113 @@ export default function ChatBox({ customerId, customerName, userRole = 'customer
 
       {/* Chat Window */}
       {showChat && (
-        <div className="fixed bottom-32 right-20 w-80 h-64 bg-white rounded-lg shadow-2xl z-50 flex flex-col">
+        <div className="fixed bottom-32 right-6 sm:right-20 w-[calc(100vw-3rem)] sm:w-80 h-[500px] bg-white rounded-2xl shadow-[0_10px_40px_rgba(0,0,0,0.2)] z-50 flex flex-col overflow-hidden border border-gray-100">
           {/* Header */}
-          <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-4 rounded-t-lg flex items-center justify-between">
+          <div className="bg-gradient-to-r from-blue-600 to-blue-800 text-white p-4 flex items-center justify-between shadow-md">
             <div className="flex items-center gap-3">
-              <BiMessageRounded className="w-5 h-5" />
-              <div>
-                <h3 className="font-semibold">Chat</h3>
-                {selectedEmployee && (
-                  <p className="text-xs text-blue-100">
-                    {selectedEmployee.name} ({selectedEmployee.role_name})
-                  </p>
-                )}
+              <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center font-bold">
+                {selectedEmployee ? selectedEmployee.name.charAt(0) : '?'}
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-semibold truncate">{selectedEmployee ? selectedEmployee.name : 'MPCL Chat'}</h3>
+                <p className="text-[10px] text-blue-100 uppercase tracking-wider">{connected ? 'Online' : 'Reconnecting...'}</p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => speakMessage("नया मैसेज आया है", "hi-IN")}
-                className="hover:bg-blue-800 rounded-full p-1 transition"
-                title="Test Voice"
-              >
-                🗣️
-              </button>
-              <button
-                onClick={playBeep}
-                className="hover:bg-blue-800 rounded-full p-1 transition"
-                title="Test Sound"
-              >
-                🔊
-              </button>
-              <button
-                onClick={() => setShowChat(false)}
-                className="hover:bg-blue-800 rounded-full p-1 transition"
-              >
-                <BiX className="w-5 h-5" />
-              </button>
-            </div>
+            <button onClick={() => setShowChat(false)} className="hover:bg-white/20 rounded-full p-1 transition"><BiX className="w-5 h-5" /></button>
           </div>
 
-          {/* Employee Selection Dropdown */}
+          {/* Employee Selection */}
           {!selectedEmployee && (
-            <div className="p-4 border-b">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Employee to Chat
-              </label>
+            <div className="p-6 flex-1 flex flex-col justify-center text-center">
+              <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                <BiUser className="w-8 h-8" />
+              </div>
+              <h4 className="text-lg font-bold text-gray-800 mb-2">Connect with Us</h4>
+              <p className="text-sm text-gray-500 mb-6">Select an employee to start a conversation</p>
               <div className="relative">
                 <select
                   onChange={(e) => {
                     const emp = employees.find(em => em.id == e.target.value);
-                    setSelectedEmployee(emp);
+                    if (emp) setSelectedEmployee(emp);
                   }}
-                  className="w-full p-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 appearance-none bg-white"
+                  className="w-full p-3 pl-4 pr-10 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 appearance-none bg-gray-50 text-gray-700"
                 >
-                  <option value="">Choose an employee...</option>
-                  {employees.map(emp => (
-                    <option key={emp.id} value={emp.id}>
-                      {emp.name} - {emp.role_name}
-                    </option>
-                  ))}
+                  <option value="">Select Employee...</option>
+                  {employees.map(emp => <option key={emp.id} value={emp.id}>{emp.name}</option>)}
                 </select>
-                <BiChevronDown className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none" />
+                <BiChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
               </div>
             </div>
           )}
 
-          {/* Messages Area */}
+          {/* Chat Messages */}
           {selectedEmployee && (
             <>
-                <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 flex flex-col-reverse">
-                  {loading ? (
-                    <div className="text-center text-gray-500 py-8">Loading messages...</div>
-                  ) : messages.length === 0 ? (
-                    <div className="text-center text-gray-500 py-8">
-                      No messages yet. Start the conversation!
-                    </div>
-                  ) : (
-                    [...messages].reverse().map((msg, idx) => (
-                    <div
-                      key={msg.id || msg.tempId || idx}
-                      className={`flex ${msg.sender === (userRole === 'customer' ? 'customer' : 'employee') ? 'justify-end' : 'justify-start'}`}
-                    >
-                      <div
-                        className={`max-w-[75%] rounded-lg px-4 py-2 ${
-                          msg.sender === (userRole === 'customer' ? 'customer' : 'employee')
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-200 text-gray-800'
-                        } ${msg.status === 'failed' ? 'opacity-50' : ''}`}
-                      >
-                        <p className="text-sm">{msg.text}</p>
-                        <p className={`text-xs mt-1 ${
-                          msg.sender === (userRole === 'customer' ? 'customer' : 'employee')
-                            ? 'text-blue-100'
-                            : 'text-gray-500'
+              <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50 flex flex-col">
+                {loading ? (
+                  <div className="flex justify-center py-10"><div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div></div>
+                ) : messages.length === 0 ? (
+                  <div className="text-center text-gray-400 py-10 px-4">
+                    <p className="text-sm">No messages yet. Say hi! 👋</p>
+                  </div>
+                ) : (
+                  messages.map((msg, idx) => {
+                    const isMe = msg.sender === (userRole === 'customer' ? 'customer' : 'employee');
+                    return (
+                      <div key={msg.id || msg.tempId || idx} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[85%] rounded-2xl px-4 py-2.5 shadow-sm ${
+                          isMe ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white text-gray-800 rounded-bl-none border border-gray-100'
                         }`}>
-                          {new Date(msg.timestamp).toLocaleTimeString('en-IN', {
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
+                          <MessageContent msg={msg} />
+                          <div className={`text-[10px] mt-1 flex items-center gap-1 ${isMe ? 'text-blue-100 justify-end' : 'text-gray-400'}`}>
+                            {new Date(msg.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            {isMe && <span className="text-[8px]">{msg.status === 'sending' ? '⌛' : '✓'}</span>}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
-              {/* Input Area */}
-              <div className="p-4 border-t bg-white">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={newMessage}
-                    onChange={(e) => setNewMessage(e.target.value)}
-                    onKeyPress={handleKeyPress}
-                    placeholder="Type a message..."
-                    className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    disabled={sending}
-                  />
+              {/* Input */}
+              <div className="p-4 bg-white border-t border-gray-100">
+                <div className="flex items-end gap-2">
+                  <div className="flex flex-col gap-2">
+                     <button 
+                      onClick={() => imageInputRef.current.click()}
+                      className="p-2 text-gray-400 hover:text-blue-600 transition"
+                      title="Send Image"
+                    >
+                      <BiImage className="w-5 h-5" />
+                    </button>
+                  </div>
+                  <div className="flex-1 relative">
+                    <textarea
+                      value={newMessage}
+                      onChange={(e) => setNewMessage(e.target.value)}
+                      onKeyPress={handleKeyPress}
+                      rows={1}
+                      placeholder="Type message..."
+                      className="w-full px-4 py-2 border border-gray-200 rounded-2xl focus:ring-2 focus:ring-blue-500 resize-none max-h-32 text-sm"
+                      disabled={sending || uploading}
+                    />
+                  </div>
                   <button
-                    onClick={sendMessage}
-                    disabled={!newMessage.trim() || sending}
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+                    onClick={() => sendMessage()}
+                    disabled={(!newMessage.trim() && !uploading) || sending}
+                    className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 disabled:opacity-50 transition shadow-lg shadow-blue-200"
                   >
                     <BiSend className="w-5 h-5" />
                   </button>
                 </div>
+                {uploading && <div className="mt-2 h-1 w-full bg-blue-100 rounded-full overflow-hidden leading-snug"><div className="h-full bg-blue-600 animate-progress"></div></div>}
               </div>
             </>
-          )}
-
-          {/* No Employee Selected Message */}
-          {!selectedEmployee && (
-            <div className="flex-1 flex items-center justify-center p-8 text-gray-500 text-center">
-              <div>
-                <BiUser className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                <p>Please select an employee to start chatting</p>
-              </div>
-            </div>
           )}
         </div>
       )}
     </>
   );
 }
-

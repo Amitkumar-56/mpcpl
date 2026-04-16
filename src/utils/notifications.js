@@ -111,8 +111,11 @@ const showNotificationViaSW = async (title, body, options = {}) => {
         silent: false,
         vibrate: [200, 100, 200, 100, 200],
         data: {
-          url: options.url || window.location.href,
+          url: options.url || (typeof window !== 'undefined' ? window.location.href : '/'),
           senderName: options.senderName || title,
+          sessionId: options.sessionId,
+          senderId: options.senderId,
+          customerId: options.customerId,
           timestamp: Date.now()
         },
         actions: [
@@ -175,8 +178,13 @@ export const showChatNotification = async (senderName, message, options = {}) =>
   // Don't show notification if page is visible and user is actively viewing
   // (caller should handle this check)
 
+  if (Notification.permission === 'default') {
+    const granted = await requestNotificationPermission();
+    if (!granted) return false;
+  }
+
   if (Notification.permission !== 'granted') {
-    console.log('🔔 Permission not granted, cannot show notification');
+    console.warn('🔔 Notification permission denied/blocked');
     return false;
   }
 
