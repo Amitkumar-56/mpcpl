@@ -284,21 +284,23 @@ export default function Header({ onMenuToggle }) {
         {/* User Profile Section */}
         <div className="flex items-center gap-4">
           {/* Notification with badge */}
-          <div className="relative hidden sm:block notif-dropdown">
+          <div className="relative notif-dropdown">
             <button 
               onClick={() => setShowNotifMenu((v) => !v)}
               className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
               <FaBell className="text-xl" />
-              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                {notifCount}
-              </span>
+              {notifCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center animate-pulse">
+                  {notifCount > 99 ? '99+' : notifCount}
+                </span>
+              )}
             </button>
             {showNotifMenu && (
-              <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2">
+              <div className="absolute right-0 mt-2 w-[90vw] sm:w-80 max-w-[320px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2">
                 <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
                   <span className="font-semibold text-gray-900">Notifications</span>
                   <button 
-                    onClick={() => { setNotifCount(0); }}
+                    onClick={() => { setNotifCount(0); setNotifications([]); }}
                     className="text-xs text-blue-600 hover:underline">Clear</button>
                 </div>
                 <div className="max-h-64 overflow-y-auto">
@@ -306,7 +308,20 @@ export default function Header({ onMenuToggle }) {
                     <div className="px-4 py-6 text-center text-gray-500">No notifications</div>
                   ) : (
                     notifications.map((n, index) => (
-                      <div key={`notification-${n.id}-${index}`} className="px-4 py-3 border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors">
+                      <div key={`notification-${n.id}-${index}`} 
+                        onClick={() => {
+                          // Open employee chat when clicking employee notifications
+                          if (n.type === 'employee_chat' || n.type === 'employee_chat_request') {
+                            window.dispatchEvent(new CustomEvent('openEmployeeChat', { detail: { sessionId: n.sessionId, senderId: n.senderId } }));
+                            setShowNotifMenu(false);
+                          }
+                          // Navigate to dashboard for customer chat
+                          if (n.type === 'customer_chat') {
+                            router.push('/dashboard');
+                            setShowNotifMenu(false);
+                          }
+                        }}
+                        className="px-3 py-2.5 border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors">
                         <div className="flex items-start gap-2">
                           {/* Icon based on type */}
                           <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${

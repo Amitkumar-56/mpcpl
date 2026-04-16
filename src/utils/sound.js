@@ -51,28 +51,28 @@ const generateNotificationSound = () => {
       const t = i / sampleRate;
       let val = 0;
       
-      // Tone 1: 880 Hz (A5)
+      // Tone 1: 880 Hz (A5) - LOUD
       if (t < 0.12) {
-        const env = Math.exp(-t * 15);
-        val = Math.sin(2 * Math.PI * 880 * t) * 0.6 * env;
+        const env = Math.exp(-t * 10);
+        val = Math.sin(2 * Math.PI * 880 * t) * 1.0 * env;
       }
       // Gap
       else if (t < 0.18) {
         val = 0;
       }
-      // Tone 2: 1100 Hz (C#6)
+      // Tone 2: 1100 Hz (C#6) - LOUD
       else if (t < 0.30) {
-        const env = Math.exp(-(t - 0.18) * 12);
-        val = Math.sin(2 * Math.PI * 1100 * t) * 0.7 * env;
+        const env = Math.exp(-(t - 0.18) * 8);
+        val = Math.sin(2 * Math.PI * 1100 * t) * 1.0 * env;
       }
       // Gap
       else if (t < 0.35) {
         val = 0;
       }
-      // Tone 3: 1320 Hz (E6)
+      // Tone 3: 1320 Hz (E6) - LOUD
       else if (t < 0.6) {
-        const env = Math.exp(-(t - 0.35) * 6);
-        val = Math.sin(2 * Math.PI * 1320 * t) * 0.5 * env;
+        const env = Math.exp(-(t - 0.35) * 5);
+        val = Math.sin(2 * Math.PI * 1320 * t) * 0.9 * env;
       }
       
       const sample = Math.max(-32768, Math.min(32767, Math.round(val * 32767)));
@@ -275,9 +275,9 @@ const playWebAudioBeep = () => {
     };
 
     const now = ctx.currentTime;
-    playTone(880, now, 0.12, 0.5);       // A5
-    playTone(1100, now + 0.15, 0.12, 0.6); // C#6
-    playTone(1320, now + 0.30, 0.20, 0.4); // E6
+    playTone(880, now, 0.15, 1.0);         // A5 - LOUD
+    playTone(1100, now + 0.18, 0.15, 1.0); // C#6 - LOUD
+    playTone(1320, now + 0.36, 0.25, 0.9); // E6 - LOUD
 
     console.log('🔊 Web Audio API notification chime played');
     return true;

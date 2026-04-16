@@ -367,6 +367,35 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
     return () => clearInterval(iv);
   }, [sessionUser?.id]);
 
+  // Listen for 'openEmployeeChat' event from Header notification click
+  useEffect(() => {
+    const handleOpenFromNotif = (e) => {
+      console.log('EmployeeChatDashboard: Opening from notification click', e.detail);
+      if (!showChat) setShowChat(true);
+      // If sessionId provided, find and select that session
+      if (e.detail?.sessionId) {
+        const session = chatSessions.find(s => s.id === e.detail.sessionId);
+        if (session) {
+          setSelectedSession(session);
+          setSelectedEmployee(null);
+          setSidebarOpen(false);
+        }
+      } else if (e.detail?.senderId) {
+        // Find session with this sender
+        const session = chatSessions.find(s => 
+          s.requester_id === e.detail.senderId || s.responder_id === e.detail.senderId
+        );
+        if (session) {
+          setSelectedSession(session);
+          setSelectedEmployee(null);
+          setSidebarOpen(false);
+        }
+      }
+    };
+    window.addEventListener('openEmployeeChat', handleOpenFromNotif);
+    return () => window.removeEventListener('openEmployeeChat', handleOpenFromNotif);
+  }, [showChat, chatSessions, setShowChat]);
+
   if (!showChat) return null;
 
   const chatPartnerName = selectedEmployee?.name ||
@@ -393,10 +422,10 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
       */}
       <div className="
         fixed z-50
-        bottom-20 left-0 right-0
+        bottom-0 left-0 right-0
         sm:bottom-4 sm:right-4 sm:left-auto
         w-full sm:w-[500px]
-        h-[58vh] sm:h-[480px]
+        h-[70vh] sm:h-[480px]
         bg-white rounded-t-2xl sm:rounded-2xl
         shadow-2xl border border-gray-200
         flex flex-col overflow-hidden
@@ -417,16 +446,27 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             <BiMessageRounded size={16} className="flex-shrink-0" />
 
             <span className="font-semibold text-sm truncate">
-              {isChatOpen && chatPartnerName ? chatPartnerName : 
-               unreadCount > 0 && lastNotification ? 
-                 `${lastNotification.senderName} (${unreadCount})` : 
-                 'Employee Chat'}
+              {isChatOpen && chatPartnerName ? chatPartnerName : 'Employee Chat'}
             </span>
 
-            {unreadCount > 0 && !isChatOpen && (
-              <span className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center flex-shrink-0">
-                {unreadCount}
-              </span>
+            {unreadCount > 0 && (
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Find the first session with unread messages and open it
+                  const unreadSession = chatSessions.find(s => (s.unread_count || 0) > 0);
+                  if (unreadSession) {
+                    setSelectedSession(unreadSession);
+                    setSelectedEmployee(null);
+                    setSidebarOpen(false);
+                  } else {
+                    setSidebarOpen(true);
+                  }
+                }}
+                className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center flex-shrink-0 animate-pulse hover:bg-red-600 transition-colors"
+              >
+                {unreadCount} new
+              </button>
             )}
           </div>
 
