@@ -1042,14 +1042,13 @@ function DashboardContent() {
         />
       )}
 
-      {/* Employee Chat Widget */}
-      {showEmployeeChat && (
-        <EmployeeChatDashboard
-          showChat={showEmployeeChat}
-          setShowChat={setShowEmployeeChat}
-          setEmployeeChatNotifCount={setEmployeeChatNotifCount}
-        />
-      )}
+
+      {/* Employee Chat Widget - always mounted so socket stays connected for notifications */}
+      <EmployeeChatDashboard
+        showChat={showEmployeeChat}
+        setShowChat={setShowEmployeeChat}
+        setEmployeeChatNotifCount={setEmployeeChatNotifCount}
+      />
     </div>
   );
 }

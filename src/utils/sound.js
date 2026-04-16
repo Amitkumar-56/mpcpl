@@ -203,12 +203,24 @@ export const speakMessage = (text, lang = 'hi-IN') => {
   }
 };
 
+// Debounce for playBeep - prevents double-play from multiple socket connections
+let lastBeepTime = 0;
+const BEEP_DEBOUNCE = 500; // 500ms
+
 // Play notification sound using Audio element (most reliable)
 export const playBeep = () => {
   if (typeof window === 'undefined') {
     console.log('🔇 Not in browser environment');
     return false;
   }
+
+  // Debounce: prevent double-play when multiple sockets receive same message
+  const now = Date.now();
+  if (now - lastBeepTime < BEEP_DEBOUNCE) {
+    console.log('🔊 Sound debounced (duplicate prevented)');
+    return true;
+  }
+  lastBeepTime = now;
 
   let played = false;
 

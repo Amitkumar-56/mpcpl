@@ -734,65 +734,41 @@ export default function SocketHandler(req, res) {
           }
         });
 
+        // Employee chat message - BROADCAST ONLY (message already saved via HTTP POST)
         socket.on("employee_chat_message", async (data) => {
           try {
-            const { sessionId, senderId, receiverId, message, messageType = 'text' } = data;
+            const { sessionId, senderId, receiverId, message, messageType = 'text', savedMessage, savedMessageId } = data;
 
-            if (!sessionId || !senderId || !receiverId || !message) {
+            if (!receiverId || !senderId) {
               socket.emit("error", { message: "Missing required fields" });
               return;
             }
 
-            // Save message to database
-            const result = await executeQuery(
-              `INSERT INTO chat_messages (session_id, sender_id, receiver_id, message, message_type, status) 
-               VALUES (?, ?, ?, ?, ?, 'sent')`,
-              [sessionId, senderId, receiverId, message, messageType]
-            );
+            // Message was already saved via HTTP POST - just broadcast for real-time delivery
+            const messageData = savedMessage || {
+              id: savedMessageId,
+              session_id: sessionId,
+              sender_id: parseInt(senderId),
+              receiver_id: parseInt(receiverId),
+              message: message,
+              message_type: messageType,
+              status: 'sent',
+              created_at: new Date().toISOString(),
+            };
 
-            if (result.affectedRows > 0) {
-              // Update session timestamp
-              await executeQuery(
-                `UPDATE employee_sessions SET updated_at = NOW() WHERE id = ?`,
-                [sessionId]
-              );
+            // Broadcast to receiver for real-time display
+            io.to(`employee_${receiverId}`).emit('employee_chat_message_received', messageData);
 
-              // Get complete message with employee details
-              const messageDetails = await executeQuery(
-                `SELECT 
-                  cm.id,
-                  cm.session_id,
-                  cm.sender_id,
-                  cm.receiver_id,
-                  cm.message,
-                  cm.message_type,
-                  cm.status,
-                  cm.created_at,
-                  sender.name as sender_name,
-                  sender.picture as sender_picture,
-                  receiver.name as receiver_name,
-                  receiver.picture as receiver_picture
-                FROM chat_messages cm
-                LEFT JOIN employee_profile sender ON cm.sender_id = sender.id
-                LEFT JOIN employee_profile receiver ON cm.receiver_id = receiver.id
-                WHERE cm.id = ?`,
-                [result.insertId]
-              );
+            // Confirm to sender
+            socket.emit('employee_chat_message_sent', { 
+              messageId: messageData.id, 
+              status: 'sent' 
+            });
 
-              const messageData = messageDetails[0];
-
-              // Send message to receiver
-              io.to(`employee_${receiverId}`).emit('employee_chat_message_received', messageData);
-
-              // Send confirmation to sender
-              socket.emit('employee_chat_message_sent', messageData);
-
-              console.log(`💬 Employee chat message: ${senderId} -> ${receiverId} (session: ${sessionId})`);
-            }
-
+            console.log(`💬 Employee chat broadcast: ${senderId} → ${receiverId} (session: ${sessionId})`);
           } catch (error) {
-            console.error('Employee chat message error:', error);
-            socket.emit("error", { message: "Failed to send message" });
+            console.error('Employee chat broadcast error:', error);
+            socket.emit("error", { message: "Failed to broadcast message" });
           }
         });
 
@@ -811,6 +787,29 @@ export default function SocketHandler(req, res) {
 
           } catch (error) {
             console.error('Employee chat typing error:', error);
+          }
+        });
+
+        // Delivery confirmation - receiver confirms they got the message
+        socket.on("employee_chat_delivered", async (data) => {
+          try {
+            const { messageIds, senderId, sessionId } = data;
+            if (!messageIds?.length || !senderId) return;
+
+            const placeholders = messageIds.map(() => '?').join(',');
+            await executeQuery(
+              `UPDATE chat_messages SET status = 'delivered' WHERE id IN (${placeholders}) AND status = 'sent'`,
+              messageIds
+            );
+
+            // Notify sender about delivery status
+            io.to(`employee_${senderId}`).emit('employee_chat_status_update', {
+              sessionId,
+              messageIds,
+              status: 'delivered'
+            });
+          } catch (error) {
+            console.error('Delivery confirmation error:', error);
           }
         });
 

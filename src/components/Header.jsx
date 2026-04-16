@@ -94,6 +94,7 @@ export default function Header({ onMenuToggle }) {
       });
 
       // Employee-to-Employee chat message notifications
+      // Sound debounce in sound.js prevents double-play when ChatDashboard also handles it
       s.on('employee_chat_message_received', (msg) => {
         console.log('Header: Employee chat message received:', msg);
         const senderName = msg.sender_name || 'Employee';
@@ -110,12 +111,9 @@ export default function Header({ onMenuToggle }) {
           sessionId: msg.session_id,
         }, ...list].slice(0, 20));
         
-        // Show browser/PWA notification with sender name
+        // Play sound + show notification (debounced in sound.js to prevent double-play)
         playBeep();
-        showChatNotification(
-          senderName,
-          messageText
-        ).catch(() => {});
+        showChatNotification(senderName, messageText).catch(() => {});
       });
 
       // Employee chat request notifications

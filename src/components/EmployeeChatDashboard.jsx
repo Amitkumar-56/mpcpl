@@ -4,68 +4,253 @@ import { useSession } from '@/context/SessionContext';
 import { initializeNotifications, showChatNotification, requestNotificationPermission } from '@/utils/notifications';
 import { initializePWANotifications, showChatNotificationPWA, isPWAStandalone } from '@/utils/pwa-notifications';
 import { forceInitializeAudio, playBeep } from '@/utils/sound';
-import { useEffect, useRef, useState } from 'react';
-import { BiMenu, BiMessageRounded, BiSearch, BiSend, BiX } from 'react-icons/bi';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BiArrowBack, BiCheck, BiCheckDouble, BiFile, BiImage,
+  BiMenu, BiMessageRounded, BiPaperclip, BiSearch,
+  BiSend, BiTime, BiX, BiDownload
+} from 'react-icons/bi';
 import { io } from 'socket.io-client';
 
+const POLL_INTERVAL = 3000;
+const SESSION_POLL_INTERVAL = 15000;
+
+// ─── Deduplication Utility ──────────────────────────────
+const deduplicateMessages = (msgs) => {
+  const seen = new Map();
+  const result = [];
+  for (const msg of msgs) {
+    // Always keep temp messages (they have temp_ prefix)
+    if (String(msg.id).startsWith('temp_')) {
+      result.push(msg);
+      continue;
+    }
+    // Deduplicate by ID
+    const idKey = String(msg.id);
+    if (seen.has(idKey)) continue;
+    // Also check for content duplicates (same sender + message within 2 seconds)
+    const contentKey = `${msg.sender_id}_${msg.message}_${msg.message_type || 'text'}`;
+    const existingTime = seen.get(contentKey);
+    if (existingTime && Math.abs(new Date(msg.created_at) - existingTime) < 2000) {
+      continue; // Skip content duplicate
+    }
+    seen.set(idKey, true);
+    seen.set(contentKey, new Date(msg.created_at));
+    result.push(msg);
+  }
+  return result;
+};
+
+// ─── Status Tick Component ──────────────────────────────
+const StatusTick = ({ status }) => {
+  switch (status) {
+    case 'sending': return <BiTime className="inline text-[10px] opacity-60" />;
+    case 'sent': return <BiCheck className="inline text-[11px]" />;
+    case 'delivered': return <BiCheckDouble className="inline text-[11px]" />;
+    case 'read': return <BiCheckDouble className="inline text-[11px] text-blue-400" />;
+    case 'failed': return <span className="text-red-400 text-[10px] font-bold">!</span>;
+    default: return <BiCheck className="inline text-[10px]" />;
+  }
+};
+
+// ─── Message Content Renderer ───────────────────────────
+const MessageContent = ({ msg }) => {
+  if (msg.message_type === 'image' && msg.file_path) {
+    return (
+      <div>
+        <img
+          src={msg.file_path}
+          alt="Shared"
+          className="max-w-full rounded-lg max-h-52 cursor-pointer object-cover hover:opacity-90 transition-opacity"
+          onClick={() => window.open(msg.file_path, '_blank')}
+          loading="lazy"
+        />
+        {msg.message && !msg.message.startsWith('temp_') && (
+          <p className="mt-1.5 text-xs break-words">{msg.message}</p>
+        )}
+      </div>
+    );
+  }
+
+  if (msg.message_type === 'file' && msg.file_path) {
+    return (
+      <a
+        href={msg.file_path}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg bg-black/5 hover:bg-black/10 transition-colors"
+      >
+        <div className="w-9 h-9 rounded-lg bg-red-500/15 flex items-center justify-center flex-shrink-0">
+          <BiFile className="text-red-500 text-lg" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs font-medium truncate">{msg.message || 'Document'}</p>
+          <p className="text-[10px] opacity-60">PDF Document</p>
+        </div>
+        <BiDownload className="text-sm opacity-50 flex-shrink-0" />
+      </a>
+    );
+  }
+
+  return <p className="break-words leading-relaxed whitespace-pre-wrap">{msg.message}</p>;
+};
+
+
 export default function EmployeeChatDashboard({ showChat, setShowChat, setEmployeeChatNotifCount }) {
-  const { user: sessionUser } = useSession();
+  const { user } = useSession();
+
+  // ── State ─────────────────────────────────────────────
   const [socket, setSocket] = useState(null);
-  const [socketConnected, setSocketConnected] = useState(false);
-
-  const [chatSessions, setChatSessions] = useState([]);
-  const [selectedSession, setSelectedSession] = useState(null);
+  const [connected, setConnected] = useState(false);
+  const [sessions, setSessions] = useState([]);
+  const [activeSession, setActiveSession] = useState(null);
   const [messages, setMessages] = useState({});
-  const [newMessage, setNewMessage] = useState('');
-  const [loadingMessages, setLoadingMessages] = useState(false);
-
-  const [availableEmployees, setAvailableEmployees] = useState([]);
-  const [searchEmployee, setSearchEmployee] = useState('');
-  const [loadingEmployees, setLoadingEmployees] = useState(false);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-
-  // Sidebar: mobile default hidden, desktop always visible
+  const [input, setInput] = useState('');
+  const [employees, setEmployees] = useState([]);
+  const [search, setSearch] = useState('');
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
+  const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingEmployees, setLoadingEmployees] = useState(false);
+  const [typingMap, setTypingMap] = useState({});
+  const [uploadingFile, setUploadingFile] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [notificationCount, setNotificationCount] = useState(0);
-  const [lastNotification, setLastNotification] = useState(null);
-  const [typingIndicators, setTypingIndicators] = useState({});
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
 
+  // ── Refs ───────────────────────────────────────────────
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const pollingRef = useRef(null);
+  const sessionPollingRef = useRef(null);
+  const activeSessionRef = useRef(null);
+  const showChatRef = useRef(false);
+  const typingTimeoutRef = useRef(null);
+
+  // Keep refs in sync
+  useEffect(() => { activeSessionRef.current = activeSession; }, [activeSession]);
+  useEffect(() => { showChatRef.current = showChat; }, [showChat]);
+
+  // Forward unread count to parent
   useEffect(() => {
     if (typeof setEmployeeChatNotifCount === 'function') {
       setEmployeeChatNotifCount(unreadCount);
     }
   }, [unreadCount, setEmployeeChatNotifCount]);
 
-  const messagesEndRef = useRef(null);
-
-  // Handle user interaction for audio initialization
+  // Audio initialization on first user interaction
   useEffect(() => {
-    const handleUserInteraction = () => {
+    const handleInteraction = () => {
       forceInitializeAudio();
-      // Remove listeners after first interaction
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
     };
-
-    document.addEventListener('click', handleUserInteraction);
-    document.addEventListener('keydown', handleUserInteraction);
-    document.addEventListener('touchstart', handleUserInteraction);
-
+    document.addEventListener('click', handleInteraction);
+    document.addEventListener('keydown', handleInteraction);
+    document.addEventListener('touchstart', handleInteraction);
     return () => {
-      document.removeEventListener('click', handleUserInteraction);
-      document.removeEventListener('keydown', handleUserInteraction);
-      document.removeEventListener('touchstart', handleUserInteraction);
+      document.removeEventListener('click', handleInteraction);
+      document.removeEventListener('keydown', handleInteraction);
+      document.removeEventListener('touchstart', handleInteraction);
     };
   }, []);
 
-  // ── Socket ──────────────────────────────────────────────────
+  // ── API HELPERS ────────────────────────────────────────
+
+  const fetchSessions = useCallback(async () => {
+    if (!user?.id) return [];
+    try {
+      const res = await fetch('/api/employee-chat/sessions');
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (data.success) {
+        setSessions(data.sessions || []);
+        const total = (data.sessions || []).reduce((sum, s) => sum + (s.unread_count || 0), 0);
+        setUnreadCount(total);
+        return data.sessions;
+      }
+    } catch { /* ignore */ }
+    return [];
+  }, [user?.id]);
+
+  const fetchMessages = useCallback(async (sessionId) => {
+    if (!user?.id || !sessionId) return [];
+    try {
+      const res = await fetch(`/api/employee-chat/messages?sessionId=${sessionId}`, {
+        headers: { 'Cache-Control': 'no-cache' }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      if (data.success) return data.messages || [];
+    } catch { /* ignore */ }
+    return [];
+  }, [user?.id]);
+
+  const fetchEmployees = useCallback(async () => {
+    if (!user?.id) return;
+    setLoadingEmployees(true);
+    try {
+      const url = search
+        ? `/api/employee-chat/employees?search=${encodeURIComponent(search)}`
+        : '/api/employee-chat/employees';
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          setEmployees((data.employees || []).filter(e => String(e.id) !== String(user.id)));
+        }
+      }
+    } catch { /* ignore */ }
+    setLoadingEmployees(false);
+  }, [user?.id, search]);
+
+  const markAsRead = useCallback(async (sessionId) => {
+    if (!user?.id || !sessionId) return;
+    try {
+      const res = await fetch('/api/employee-chat/mark-read', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionId, employeeId: user.id })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          fetchSessions();
+          // Emit via socket so sender gets blue ticks
+          if (socket?.connected) {
+            socket.emit('employee_chat_mark_read', {
+              sessionId,
+              employeeId: String(user.id)
+            });
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  }, [user?.id, socket, fetchSessions]);
+
+  // ── LOAD MESSAGES ──────────────────────────────────────
+
+  const loadMessagesForSession = useCallback(async (sessionId) => {
+    setLoadingMessages(true);
+    const msgs = await fetchMessages(sessionId);
+    setMessages(prev => {
+      const tempMsgs = (prev[sessionId] || []).filter(m => String(m.id).startsWith('temp_'));
+      const filteredTemps = tempMsgs.filter(temp =>
+        !msgs.some(f => f.message === temp.message && String(f.sender_id) === String(temp.sender_id))
+      );
+      return { ...prev, [sessionId]: [...msgs, ...filteredTemps] };
+    });
+    setLoadingMessages(false);
+  }, [fetchMessages]);
+
+  // ── SOCKET SETUP ───────────────────────────────────────
+
   useEffect(() => {
-    const initNotifs = async () => {
+    if (!user?.id) return;
+
+    // Initialize notifications
+    (async () => {
       if (typeof window !== 'undefined') {
-        // Use PWA enhanced notifications if available
         if (isPWAStandalone()) {
           await initializePWANotifications();
         } else {
@@ -74,9 +259,8 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
         }
         forceInitializeAudio();
       }
-    };
-    initNotifs();
-    if (!sessionUser?.id) return;
+    })();
+
     let socketInstance;
 
     const init = async () => {
@@ -86,406 +270,521 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
           path: '/api/socket',
           transports: ['websocket', 'polling'],
           reconnection: true,
-          reconnectionAttempts: 5,
+          reconnectionAttempts: Infinity,
           reconnectionDelay: 1000,
+          reconnectionDelayMax: 5000,
         });
 
         socketInstance.on('connect', () => {
+          console.log('🟢 Chat socket connected:', socketInstance.id);
           setSocket(socketInstance);
-          setSocketConnected(true);
+          setConnected(true);
           socketInstance.emit('employee_join', {
-            employeeId: String(sessionUser.id),
-            employeeName: sessionUser.name || 'Employee',
-            role: sessionUser.role,
+            employeeId: String(user.id),
+            employeeName: user.name || 'Employee',
+            role: user.role,
           });
         });
 
-        socketInstance.on('connect_error', () => setSocketConnected(false));
-        socketInstance.on('disconnect', () => setSocketConnected(false));
+        socketInstance.on('connect_error', () => setConnected(false));
+        socketInstance.on('disconnect', () => setConnected(false));
 
-        socketInstance.on('employee_chat_request_received', (s) => {
-          loadChatSessions(); playBeep();
-          if (isPWAStandalone()) {
-            showChatNotificationPWA(s.requester_name, 'wants to chat', { 
-              body: 'New chat request',
-              tag: 'chat-request'
-            }).catch(e => console.log('Notif error:', e));
-          } else {
-            showChatNotification(`${s.requester_name} wants to chat`, 'New chat request')
-              .catch(e => console.log('Notif error:', e));
-          }
-        });
-
-        socketInstance.on('employee_chat_response_received', (d) => {
-          loadChatSessions();
-          if (d.action === 'accept' && selectedSession?.id === d.sessionId) loadMessages(d.sessionId);
-        });
-
+        // ── Real-time message from another employee ──
         socketInstance.on('employee_chat_message_received', (msg) => {
+          console.log('📨 Chat message received:', msg);
+          const sessionId = msg.session_id;
+          const senderName = msg.sender_name || 'Employee';
+          const text = msg.message || 'New message';
+
+          // Deduplicate and add message to state
           setMessages(prev => {
-            const cur = prev[msg.session_id] || [];
-            const exists = cur.some(m =>
+            const current = prev[sessionId] || [];
+            const exists = current.some(m =>
               m.id === msg.id ||
-              (m.message === msg.message && m.sender_id === msg.sender_id &&
-               Math.abs(new Date(m.created_at) - new Date(msg.created_at)) < 1000)
+              (m.message === msg.message && String(m.sender_id) === String(msg.sender_id) &&
+                Math.abs(new Date(m.created_at) - new Date(msg.created_at)) < 2000)
             );
-            return exists ? prev : { ...prev, [msg.session_id]: [...cur, msg] };
+            if (exists) return prev;
+            return { ...prev, [sessionId]: [...current, msg] };
           });
 
-          const senderName = msg.sender_name || 'Someone';
-          const messageText = msg.message || 'New message received';
+          // Send delivery confirmation
+          socketInstance.emit('employee_chat_delivered', {
+            messageIds: [msg.id],
+            senderId: String(msg.sender_id),
+            sessionId: sessionId
+          });
 
-          if (selectedSession?.id === msg.session_id) {
-            markMessagesAsRead(msg.session_id);
-            setNotificationCount(0); setLastNotification(null);
+          // ALWAYS play notification sound for incoming messages (debounce prevents double from Header)
+          playBeep();
+
+          // Show browser notification
+          if (isPWAStandalone()) {
+            showChatNotificationPWA(senderName, text, {
+              tag: `emp-chat-${senderName}`,
+              renotify: true
+            }).catch(() => { });
           } else {
-            // Use PWA enhanced notifications in standalone mode
-            if (isPWAStandalone()) {
-              showChatNotificationPWA(senderName, messageText, {
-                tag: `chat-${senderName}`,
-                renotify: true
-              }).catch(e => console.log('Notif error:', e));
-            } else {
-              showChatNotification(senderName, messageText)
-                .catch(e => console.log('Notif error:', e));
-            }
-            setNotificationCount(p => p + 1);
-            setLastNotification({ senderName, message: messageText });
+            showChatNotification(senderName, text).catch(() => { });
+          }
+
+          // If viewing this session, mark as read; otherwise increment unread
+          if (activeSessionRef.current?.id === sessionId && showChatRef.current) {
+            markAsRead(sessionId);
+          } else {
             setUnreadCount(p => p + 1);
-            loadChatSessions();
-            playBeep();
+          }
+
+          // Refresh sessions list
+          fetchSessions();
+        });
+
+        // ── Message status updates (delivered / read) ──
+        socketInstance.on('employee_chat_status_update', (data) => {
+          const { sessionId, messageIds, status } = data;
+          if (!messageIds || !sessionId) return;
+          setMessages(prev => {
+            const current = prev[sessionId];
+            if (!current) return prev;
+            return {
+              ...prev,
+              [sessionId]: current.map(m =>
+                messageIds.includes(m.id) ? { ...m, status } : m
+              )
+            };
+          });
+        });
+
+        // ── Messages read by other party (blue ticks) ──
+        socketInstance.on('employee_chat_messages_read', (data) => {
+          const { sessionId, readBy } = data;
+          if (!sessionId) return;
+          setMessages(prev => {
+            const current = prev[sessionId];
+            if (!current) return prev;
+            return {
+              ...prev,
+              [sessionId]: current.map(m =>
+                String(m.sender_id) === String(user.id) && String(m.receiver_id) === String(readBy)
+                  ? { ...m, status: 'read' }
+                  : m
+              )
+            };
+          });
+          fetchSessions();
+        });
+
+        // ── Chat request received ──
+        socketInstance.on('employee_chat_request_received', (session) => {
+          fetchSessions();
+          playBeep();
+          const name = session.requester_name || 'Employee';
+          if (isPWAStandalone()) {
+            showChatNotificationPWA(name, 'Wants to chat with you', { tag: 'chat-request', renotify: true }).catch(() => { });
+          } else {
+            showChatNotification(name, 'Wants to chat with you').catch(() => { });
           }
         });
 
-        socketInstance.on('employee_chat_typing_indicator', (d) => {
-          setTypingIndicators(p => ({ ...p, [d.sessionId]: d.isTyping ? d.senderName : null }));
-          if (d.isTyping) setTimeout(() => setTypingIndicators(p => ({ ...p, [d.sessionId]: null })), 3000);
+        // ── Chat response received ──
+        socketInstance.on('employee_chat_response_received', (data) => {
+          fetchSessions();
+          if (data.action === 'accept' && activeSessionRef.current?.id === data.sessionId) {
+            loadMessagesForSession(data.sessionId);
+          }
         });
 
-        socketInstance.on('employee_chat_messages_read', () => loadChatSessions());
-      } catch { setSocketConnected(false); }
+        // ── Typing indicators ──
+        socketInstance.on('employee_chat_typing_indicator', (data) => {
+          setTypingMap(p => ({ ...p, [data.sessionId]: data.isTyping ? data.senderName : null }));
+          if (data.isTyping) {
+            setTimeout(() => setTypingMap(p => ({ ...p, [data.sessionId]: null })), 3000);
+          }
+        });
+
+      } catch (err) {
+        console.error('Socket init error:', err);
+        setConnected(false);
+      }
     };
 
     init();
-    return () => { if (socketInstance) { socketInstance.disconnect(); setSocketConnected(false); } };
-  }, [sessionUser]);
-
-  // ── API helpers ─────────────────────────────────────────────
-  const loadChatSessions = async () => {
-    if (!sessionUser?.id) return [];
-    try {
-      const res = await fetch('/api/employee-chat/sessions');
-      if (res.ok) {
-        const d = await res.json();
-        if (d.success) {
-          setChatSessions(d.sessions);
-          setUnreadCount(d.sessions.reduce((t, s) => t + (s.unread_count || 0), 0));
-          return d.sessions;
-        }
+    return () => {
+      if (socketInstance) {
+        socketInstance.disconnect();
+        setConnected(false);
       }
-    } catch {}
-    return [];
-  };
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
-  const loadAvailableEmployees = async () => {
-    if (!sessionUser?.id) return;
-    setLoadingEmployees(true);
-    try {
-      const url = searchEmployee
-        ? `/api/employee-chat/employees?search=${encodeURIComponent(searchEmployee)}`
-        : '/api/employee-chat/employees';
-      const res = await fetch(url);
-      if (res.ok) {
-        const d = await res.json();
-        if (d.success) setAvailableEmployees((d.employees || []).filter(e => String(e.id) !== String(sessionUser.id)));
-        else setAvailableEmployees([]);
-      } else setAvailableEmployees([]);
-    } catch { setAvailableEmployees([]); }
-    finally { setLoadingEmployees(false); }
-  };
+  // ── POLLING ────────────────────────────────────────────
 
-  const loadMessages = async (sessionId) => {
-    if (!sessionUser?.id || !sessionId) return;
-    setLoadingMessages(true);
-    try {
-      const res = await fetch(`/api/employee-chat/messages?sessionId=${sessionId}`, {
-        headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' }
-      });
-      const d = await res.json();
-      if (d.success) setMessages(p => ({ ...p, [sessionId]: d.messages || [] }));
-    } catch { setMessages(p => ({ ...p, [sessionId]: [] })); }
-    finally { setLoadingMessages(false); }
-  };
+  // Poll messages for active session (real-time fallback)
+  useEffect(() => {
+    if (pollingRef.current) clearInterval(pollingRef.current);
 
-  const markMessagesAsRead = async (sessionId) => {
-    if (!sessionUser?.id || !sessionId) return;
+    if (showChat && activeSession?.id && user?.id) {
+      const poll = async () => {
+        const fresh = await fetchMessages(activeSession.id);
+        if (fresh.length > 0) {
+          setMessages(prev => {
+            const current = prev[activeSession.id] || [];
+            const tempMsgs = current.filter(m => String(m.id).startsWith('temp_'));
+            const filteredTemps = tempMsgs.filter(temp =>
+              !fresh.some(f => f.message === temp.message && String(f.sender_id) === String(temp.sender_id))
+            );
+            return { ...prev, [activeSession.id]: [...fresh, ...filteredTemps] };
+          });
+        }
+      };
+      pollingRef.current = setInterval(poll, POLL_INTERVAL);
+    }
+
+    return () => { if (pollingRef.current) clearInterval(pollingRef.current); };
+  }, [showChat, activeSession?.id, user?.id, fetchMessages]);
+
+  // Poll sessions periodically
+  useEffect(() => {
+    if (sessionPollingRef.current) clearInterval(sessionPollingRef.current);
+    if (user?.id) {
+      sessionPollingRef.current = setInterval(fetchSessions, SESSION_POLL_INTERVAL);
+    }
+    return () => { if (sessionPollingRef.current) clearInterval(sessionPollingRef.current); };
+  }, [user?.id, fetchSessions]);
+
+  // ── SEND MESSAGE ───────────────────────────────────────
+
+  const sendMessage = async (messageText, messageType = 'text', filePath = null) => {
+    const text = messageText?.trim();
+    if (!text || !activeSession || !user?.id) return;
+
+    const receiverId = activeSession.requester_id === user.id
+      ? activeSession.responder_id
+      : activeSession.requester_id;
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+
+    // Optimistic update
+    const optimisticMsg = {
+      id: tempId,
+      session_id: activeSession.id,
+      sender_id: user.id,
+      receiver_id: receiverId,
+      message: text,
+      message_type: messageType,
+      file_path: filePath,
+      status: 'sending',
+      created_at: new Date().toISOString(),
+      sender_name: user.name,
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [activeSession.id]: [...(prev[activeSession.id] || []), optimisticMsg]
+    }));
+    setInput('');
+
     try {
-      const res = await fetch('/api/employee-chat/mark-read', {
+      // Save via HTTP POST (single source of truth)
+      const res = await fetch('/api/employee-chat/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, employeeId: sessionUser.id })
+        body: JSON.stringify({
+          sessionId: activeSession.id,
+          message: text,
+          messageType,
+          filePath
+        })
       });
-      const result = res.ok ? await res.json() : null;
-      if (result?.success) {
-        await loadChatSessions();
-        setNotificationCount(0);
-        setLastNotification(null);
+
+      if (!res.ok) throw new Error('Failed to send');
+
+      const result = await res.json();
+      if (!result.success || !result.message) throw new Error('Failed to send');
+
+      const savedMsg = result.message;
+
+      // Replace temp message with saved one (status: sent = single tick)
+      setMessages(prev => ({
+        ...prev,
+        [activeSession.id]: (prev[activeSession.id] || []).map(m =>
+          m.id === tempId ? { ...savedMsg, status: 'sent' } : m
+        )
+      }));
+
+      // Broadcast via socket for instant delivery to receiver
+      if (socket?.connected) {
+        socket.emit('employee_chat_message', {
+          sessionId: activeSession.id,
+          senderId: String(user.id),
+          receiverId: String(receiverId),
+          message: text,
+          messageType,
+          savedMessageId: savedMsg.id,
+          savedMessage: { ...savedMsg, status: 'sent', sender_name: user.name }
+        });
       }
-    } catch {}
+
+    } catch (error) {
+      console.error('Send message failed:', error);
+      setMessages(prev => ({
+        ...prev,
+        [activeSession.id]: (prev[activeSession.id] || []).map(m =>
+          m.id === tempId ? { ...m, status: 'failed' } : m
+        )
+      }));
+    }
   };
 
-  const sendChatRequest = async (employeeId, messageText = '') => {
-    if (!sessionUser?.id || String(employeeId) === String(sessionUser.id)) return;
+  // ── FILE UPLOAD ────────────────────────────────────────
+
+  const handleFileUpload = async (file, type) => {
+    if (!file || !activeSession) return;
+    setUploadingFile(true);
+    setShowAttachMenu(false);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('sessionId', String(activeSession.id));
+
+      const res = await fetch('/api/employee-chat/upload', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (!res.ok) throw new Error('Upload failed');
+      const data = await res.json();
+      if (!data.success) throw new Error('Upload failed');
+
+      const msgType = type === 'image' ? 'image' : 'file';
+      await sendMessage(data.fileName || file.name, msgType, data.filePath);
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      alert('File upload failed. Please try again.');
+    }
+    setUploadingFile(false);
+  };
+
+  // ── START CHAT ─────────────────────────────────────────
+
+  const startChat = async (employeeId) => {
+    if (!user?.id || String(employeeId) === String(user.id)) return;
     try {
       const res = await fetch('/api/employee-chat/sessions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ responderId: employeeId, requestMessage: messageText || 'Would like to start a chat' })
+        body: JSON.stringify({ responderId: employeeId, requestMessage: 'Hello!' })
       });
       const result = await res.json();
-      if (result.success) {
-        setNewMessage('');
-        if (result.session) {
-          setSelectedSession(result.session);
-          setSelectedEmployee(null);
-        } else {
-          const sessions = await loadChatSessions();
-          setTimeout(() => {
-            const s = sessions.find(s =>
-              (s.requester_id === sessionUser.id && s.responder_id === employeeId) ||
-              (s.requester_id === employeeId && s.responder_id === sessionUser.id)
-            );
-            if (s) { setSelectedSession(s); setSelectedEmployee(null); }
-          }, 1000);
-        }
+      if (result.success && result.session) {
+        setActiveSession(result.session);
+        setSidebarOpen(false);
+        await fetchSessions();
       }
-    } catch {}
+    } catch (error) {
+      console.error('Start chat error:', error);
+    }
   };
 
-  const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedSession || !socket) return;
-    const tempId = `temp_${Date.now()}`;
-    const receiverId = selectedSession.requester_id === sessionUser.id
-      ? selectedSession.responder_id : selectedSession.requester_id;
+  // ── TYPING ─────────────────────────────────────────────
 
-    setMessages(p => ({
-      ...p,
-      [selectedSession.id]: [...(p[selectedSession.id] || []), {
-        id: tempId, session_id: selectedSession.id, sender_id: sessionUser.id,
-        receiver_id: receiverId, message: newMessage.trim(),
-        status: 'sending', created_at: new Date().toISOString()
-      }]
-    }));
-    const toSend = newMessage.trim();
-    setNewMessage('');
+  const handleTyping = () => {
+    if (!activeSession || !socket?.connected) return;
+    const receiverId = activeSession.requester_id === user.id
+      ? activeSession.responder_id
+      : activeSession.requester_id;
 
-    try {
-      const res = await fetch('/api/employee-chat/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId: selectedSession.id, message: toSend })
+    socket.emit('employee_chat_typing', {
+      sessionId: activeSession.id,
+      receiverId: String(receiverId),
+      isTyping: true,
+      senderName: user.name
+    });
+
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('employee_chat_typing', {
+        sessionId: activeSession.id,
+        receiverId: String(receiverId),
+        isTyping: false,
+        senderName: user.name
       });
-      if (res.ok) {
-        const result = await res.json();
-        if (result.success && result.message) {
-          setMessages(p => {
-            const cur = p[selectedSession.id] || [];
-            const exists = cur.some(m =>
-              m.id === result.message.id ||
-              (m.message === result.message.message && m.sender_id === result.message.sender_id &&
-               Math.abs(new Date(m.created_at) - new Date(result.message.created_at)) < 1000)
-            );
-            if (exists) return p;
-            return { ...p, [selectedSession.id]: cur.map(m => m.id === tempId ? { ...result.message, status: 'sent' } : m) };
-          });
-          socket.emit('employee_chat_message', { sessionId: selectedSession.id, senderId: sessionUser.id, receiverId, message: toSend });
-          setTimeout(() => {
-            setMessages(p => ({
-              ...p,
-              [selectedSession.id]: p[selectedSession.id].map(m =>
-                m.id === result.message.id ? { ...m, status: 'delivered' } : m)
-            }));
-          }, 1000);
-        } else {
-          setMessages(p => ({ ...p, [selectedSession.id]: p[selectedSession.id].map(m => m.id === tempId ? { ...m, status: 'failed' } : m) }));
-        }
-      }
-    } catch {
-      setMessages(p => ({ ...p, [selectedSession.id]: p[selectedSession.id].map(m => m.id === tempId ? { ...m, status: 'failed' } : m) }));
-    }
+    }, 2000);
   };
 
-  const handleTyping = (isTyping) => {
-    if (!selectedSession || !socket) return;
-    const receiverId = selectedSession.requester_id === sessionUser.id
-      ? selectedSession.responder_id : selectedSession.requester_id;
-    socket.emit('employee_chat_typing', { sessionId: selectedSession.id, receiverId, isTyping, senderName: sessionUser.name });
-    if (isTyping) setTimeout(() => socket.emit('employee_chat_typing', { sessionId: selectedSession.id, receiverId, isTyping: false, senderName: sessionUser.name }), 2000);
-  };
+  // ── EFFECTS ────────────────────────────────────────────
 
-  const handleEmployeeSelect = (emp) => {
-    setSelectedEmployee(emp);
-    setSidebarOpen(false); // Close sidebar after selection on mobile
-    sendChatRequest(emp.id, 'Hello! I would like to chat with you.');
-  };
-
-  // ── Effects ─────────────────────────────────────────────────
+  // Load data when chat opens
   useEffect(() => {
-    if (showChat && sessionUser?.id) {
-      loadChatSessions();
-      loadAvailableEmployees();
-      const saved = localStorage.getItem(`employee_chat_messages_${sessionUser.id}`);
-      if (saved) { try { setMessages(JSON.parse(saved)); } catch {} }
+    if (showChat && user?.id) {
+      fetchSessions();
+      fetchEmployees();
     }
-  }, [showChat, sessionUser?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showChat, user?.id]);
 
+  // Reload employees on search change
   useEffect(() => {
-    if (sessionUser?.id && Object.keys(messages).length > 0)
-      localStorage.setItem(`employee_chat_messages_${sessionUser.id}`, JSON.stringify(messages));
-  }, [messages, sessionUser?.id]);
+    if (showChat && user?.id) fetchEmployees();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search]);
 
+  // Load messages when active session changes
   useEffect(() => {
-    if (showChat && sessionUser?.id) loadAvailableEmployees();
-  }, [showChat, sessionUser?.id, searchEmployee]);
-
-  useEffect(() => {
-    if (selectedSession && sessionUser?.id) {
-      loadMessages(selectedSession.id);
-      markMessagesAsRead(selectedSession.id);
-      setNotificationCount(0);
-      setLastNotification(null);
+    if (activeSession?.id && user?.id) {
+      loadMessagesForSession(activeSession.id);
+      markAsRead(activeSession.id);
     }
-  }, [selectedSession, sessionUser?.id]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSession?.id]);
 
+  // Scroll to bottom on new messages
   useEffect(() => {
-    if (messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, selectedSession]);
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, activeSession?.id]);
 
+  // Listen for notification click events to open specific chat
   useEffect(() => {
-    if (!sessionUser?.id) return;
-    const iv = setInterval(loadChatSessions, 30000);
-    return () => clearInterval(iv);
-  }, [sessionUser?.id]);
-
-  // Listen for 'openEmployeeChat' event from Header notification click
-  useEffect(() => {
-    const handleOpenFromNotif = (e) => {
-      console.log('EmployeeChatDashboard: Opening from notification click', e.detail);
+    const handleOpenChat = (e) => {
       if (!showChat) setShowChat(true);
-      // If sessionId provided, find and select that session
       if (e.detail?.sessionId) {
-        const session = chatSessions.find(s => s.id === e.detail.sessionId);
-        if (session) {
-          setSelectedSession(session);
-          setSelectedEmployee(null);
-          setSidebarOpen(false);
-        }
+        const session = sessions.find(s => s.id === e.detail.sessionId);
+        if (session) { setActiveSession(session); setSidebarOpen(false); }
       } else if (e.detail?.senderId) {
-        // Find session with this sender
-        const session = chatSessions.find(s => 
+        const session = sessions.find(s =>
           s.requester_id === e.detail.senderId || s.responder_id === e.detail.senderId
         );
-        if (session) {
-          setSelectedSession(session);
-          setSelectedEmployee(null);
-          setSidebarOpen(false);
-        }
+        if (session) { setActiveSession(session); setSidebarOpen(false); }
       }
     };
-    window.addEventListener('openEmployeeChat', handleOpenFromNotif);
-    return () => window.removeEventListener('openEmployeeChat', handleOpenFromNotif);
-  }, [showChat, chatSessions, setShowChat]);
+    window.addEventListener('openEmployeeChat', handleOpenChat);
+    return () => window.removeEventListener('openEmployeeChat', handleOpenChat);
+  }, [showChat, sessions, setShowChat]);
+
+  // ── RENDER ─────────────────────────────────────────────
 
   if (!showChat) return null;
 
-  const chatPartnerName = selectedEmployee?.name ||
-    (selectedSession?.requester_id === sessionUser?.id
-      ? selectedSession?.responder_name
-      : selectedSession?.requester_name);
+  const chatPartner = activeSession
+    ? (activeSession.requester_id === user?.id
+      ? { name: activeSession.responder_name, id: activeSession.responder_id }
+      : { name: activeSession.requester_name, id: activeSession.requester_id })
+    : null;
 
-  const isChatOpen = selectedEmployee || selectedSession;
+  const activeMessages = activeSession ? deduplicateMessages(messages[activeSession.id] || []) : [];
+  const isChatActive = activeSession?.status === 'active';
 
   return (
     <>
-      {/* Backdrop — closes sidebar on mobile tap outside */}
+      {/* Backdrop on mobile when sidebar is open */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/25 sm:hidden"
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm sm:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
-      {/*
-        Chat window:
-          Mobile  → bottom sheet, full width, 58vh tall, rounded top corners
-          Desktop → fixed bottom-right, 500px × 480px, fully rounded
-      */}
+      {/* ── Hidden file inputs ── */}
+      <input
+        ref={imageInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/gif,image/webp"
+        className="hidden"
+        onChange={e => {
+          if (e.target.files[0]) handleFileUpload(e.target.files[0], 'image');
+          e.target.value = '';
+        }}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/pdf"
+        className="hidden"
+        onChange={e => {
+          if (e.target.files[0]) handleFileUpload(e.target.files[0], 'file');
+          e.target.value = '';
+        }}
+      />
+
+      {/* ── MAIN CHAT WINDOW ── */}
       <div className="
         fixed z-50
         bottom-0 left-0 right-0
         sm:bottom-4 sm:right-4 sm:left-auto
-        w-full sm:w-[500px]
-        h-[70vh] sm:h-[480px]
+        w-full sm:w-[460px]
+        h-[75vh] sm:h-[540px]
         bg-white rounded-t-2xl sm:rounded-2xl
-        shadow-2xl border border-gray-200
+        shadow-2xl border border-gray-200/80
         flex flex-col overflow-hidden
-      ">
+      " style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
 
         {/* ── Header ── */}
-        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5 bg-yellow-500 text-white">
+        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5"
+          style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
           <div className="flex items-center gap-2 min-w-0">
-            {/* Hamburger toggle */}
             <button
               onClick={() => setSidebarOpen(o => !o)}
-              className="p-1.5 rounded-lg hover:bg-yellow-600 transition-colors flex-shrink-0"
+              className="p-1.5 rounded-lg hover:bg-white/15 transition-colors flex-shrink-0 text-white"
               aria-label="Toggle employee list"
             >
               <BiMenu size={18} />
             </button>
 
-            <BiMessageRounded size={16} className="flex-shrink-0" />
+            {activeSession && chatPartner ? (
+              <div className="flex items-center gap-2 min-w-0">
+                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 ring-2 ring-white/30">
+                  {chatPartner.name?.charAt(0)?.toUpperCase() || '?'}
+                </div>
+                <div className="min-w-0">
+                  <p className="font-semibold text-sm text-white truncate">{chatPartner.name}</p>
+                  <p className="text-[10px] text-emerald-200">
+                    {typingMap[activeSession.id]
+                      ? <span className="italic animate-pulse">typing...</span>
+                      : connected ? 'Online' : 'Connecting...'}
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <BiMessageRounded size={16} className="text-white" />
+                <span className="font-semibold text-sm text-white">Employee Chat</span>
+              </div>
+            )}
 
-            <span className="font-semibold text-sm truncate">
-              {isChatOpen && chatPartnerName ? chatPartnerName : 'Employee Chat'}
-            </span>
-
-            {unreadCount > 0 && (
-              <button 
+            {unreadCount > 0 && !activeSession && (
+              <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  // Find the first session with unread messages and open it
-                  const unreadSession = chatSessions.find(s => (s.unread_count || 0) > 0);
+                  const unreadSession = sessions.find(s => (s.unread_count || 0) > 0);
                   if (unreadSession) {
-                    setSelectedSession(unreadSession);
-                    setSelectedEmployee(null);
+                    setActiveSession(unreadSession);
                     setSidebarOpen(false);
                   } else {
                     setSidebarOpen(true);
                   }
                 }}
-                className="bg-red-500 text-white text-[10px] font-bold rounded-full px-1.5 py-0.5 min-w-[18px] text-center flex-shrink-0 animate-pulse hover:bg-red-600 transition-colors"
+                className="bg-red-500 text-white text-[10px] font-bold rounded-full px-2 py-0.5 min-w-[20px] text-center flex-shrink-0 animate-pulse hover:bg-red-600 transition-colors"
               >
-                {unreadCount} new
+                {unreadCount}
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-2 flex-shrink-0">
+          <div className="flex items-center gap-1.5 flex-shrink-0">
             <span
-              className={`w-2 h-2 rounded-full ${socketConnected ? 'bg-green-300' : 'bg-red-400'}`}
-              title={socketConnected ? 'Connected' : 'Disconnected'}
+              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-300 shadow-[0_0_6px_rgba(134,239,172,0.6)]' : 'bg-red-400 animate-pulse'}`}
+              title={connected ? 'Connected' : 'Disconnected'}
             />
             <button
-              onClick={() => { setShowChat(false); setNotificationCount(0); setLastNotification(null); }}
-              className="p-1.5 rounded-lg hover:bg-yellow-600 transition-colors relative"
-              aria-label="Close"
+              onClick={() => { setShowChat(false); }}
+              className="p-1.5 rounded-lg hover:bg-white/15 transition-colors text-white"
+              aria-label="Close chat"
             >
               <BiX size={18} />
-              {notificationCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] rounded-full w-3.5 h-3.5 flex items-center justify-center">
-                  {notificationCount}
-                </span>
-              )}
             </button>
           </div>
         </div>
@@ -493,28 +792,21 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
         {/* ── Body ── */}
         <div className="flex-1 flex min-h-0 relative overflow-hidden">
 
-          {/*
-            ══ SIDEBAR ══
-            Mobile  : absolute overlay, slides in from left on toggle
-            Desktop : always visible, fixed 190px width
-          */}
+          {/* ══ SIDEBAR ══ */}
           <div className={`
             flex-col bg-gray-50 border-r border-gray-200 z-30
             absolute inset-y-0 left-0
-            w-[210px]
+            w-[220px]
             transition-transform duration-200 ease-in-out
             ${sidebarOpen ? 'translate-x-0 flex' : '-translate-x-full hidden'}
-            sm:relative sm:flex sm:translate-x-0 sm:w-[185px]
+            sm:relative sm:flex sm:translate-x-0 sm:w-[190px]
           `}>
+            {/* Sidebar Header */}
             <div className="p-2.5 border-b bg-white flex-shrink-0">
               <div className="flex items-center justify-between mb-1.5">
-                <span className="font-semibold text-xs text-gray-700">Employees</span>
-                <button
-                  onClick={() => setSidebarOpen(false)}
-                  className="sm:hidden text-gray-400 hover:text-gray-600"
-                  aria-label="Close sidebar"
-                >
-                  <BiX size={14} />
+                <span className="font-semibold text-xs text-gray-700">Contacts</span>
+                <button onClick={() => setSidebarOpen(false)} className="sm:hidden text-gray-400 hover:text-gray-600" aria-label="Close sidebar">
+                  <BiX size={16} />
                 </button>
               </div>
               <div className="relative">
@@ -522,255 +814,316 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
                 <input
                   type="text"
                   placeholder="Search..."
-                  value={searchEmployee}
-                  onChange={e => setSearchEmployee(e.target.value)}
-                  className="w-full pl-6 pr-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-gray-50"
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-7 pr-2 py-1.5 border rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 bg-gray-50"
                 />
               </div>
             </div>
 
+            {/* Sidebar Content */}
             <div className="flex-1 overflow-y-auto">
-              {/* Available Employees */}
-              {availableEmployees.length > 0 && (
+
+              {/* Active Chats Section */}
+              {sessions.length > 0 && (
                 <div>
-                  <div className="px-2.5 py-1.5 bg-gray-100">
-                    <span className="text-[10px] font-semibold text-gray-600">All Employees</span>
+                  <div className="px-2.5 py-1.5 bg-emerald-50 border-b">
+                    <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider">Recent Chats</span>
                   </div>
-                  {availableEmployees.filter(emp => {
-                    // Filter out employees who are already in active chats
-                    const isInActiveChat = chatSessions.some(session => 
-                      (session.requester_id === emp.id || session.responder_id === emp.id)
-                    );
-                    return !isInActiveChat;
-                  }).map(emp => {
-                    const isActive =
-                      selectedEmployee?.id === emp.id ||
-                      selectedSession?.requester_id === emp.id ||
-                      selectedSession?.responder_id === emp.id;
-                    return (
-                      <button
-                        key={emp.id}
-                        onClick={() => handleEmployeeSelect(emp)}
-                        className={`
-                          w-full flex items-center gap-2 px-2.5 py-2.5
-                          hover:bg-white border-b border-gray-100 transition-colors text-left
-                          ${isActive ? 'bg-yellow-50 border-l-[3px] border-l-yellow-500' : ''}
-                        `}
-                      >
-                        <div className="w-7 h-7 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                          {emp.name.charAt(0).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="font-medium text-xs truncate text-gray-800">{emp.name}</div>
-                          <div className="text-[10px] text-gray-400 truncate">{emp.role || 'Employee'}</div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              
-              {/* Chat Sessions with Unread Count */}
-              {chatSessions.length > 0 && (
-                <div className="border-t border-gray-200">
-                  <div className="px-2.5 py-1.5 bg-gray-100">
-                    <span className="text-[10px] font-semibold text-gray-600">Active Chats</span>
-                  </div>
-                  {chatSessions.map(session => {
-                    const partnerName = session.requester_id === sessionUser?.id 
-                      ? session.responder_name 
-                      : session.requester_name;
-                    const partnerId = session.requester_id === sessionUser?.id 
-                      ? session.responder_id 
-                      : session.requester_id;
-                    const isActive = selectedSession?.id === session.id;
-                    const unreadCount = session.unread_count || 0;
-                    
+                  {sessions.map(session => {
+                    const partnerName = session.requester_id === user?.id ? session.responder_name : session.requester_name;
+                    const isActive = activeSession?.id === session.id;
+                    const unread = session.unread_count || 0;
+                    const lastMsg = session.last_message;
+
                     return (
                       <button
                         key={session.id}
                         onClick={() => {
-                          setSelectedSession(session);
-                          setSelectedEmployee(null);
+                          setActiveSession(session);
                           setSidebarOpen(false);
                         }}
                         className={`
-                          w-full flex items-center gap-2 px-2.5 py-2
-                          hover:bg-white border-b border-gray-100 transition-colors text-left
-                          ${isActive ? 'bg-yellow-50 border-l-[3px] border-l-yellow-500' : ''}
+                          w-full flex items-center gap-2.5 px-2.5 py-3
+                          border-b border-gray-100/80 transition-all text-left
+                          ${isActive ? 'bg-emerald-50 border-l-[3px] border-l-emerald-500' : 'hover:bg-gray-100'}
+                          ${unread > 0 ? 'bg-emerald-50/50' : ''}
                         `}
                       >
-                        <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center text-white font-bold text-[10px] flex-shrink-0">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0 ${isActive ? 'bg-emerald-600 ring-2 ring-emerald-300' : 'bg-emerald-500'}`}>
                           {partnerName?.charAt(0)?.toUpperCase() || '?'}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <div className="font-medium text-xs truncate text-gray-800">{partnerName}</div>
-                          <div className="text-[9px] text-gray-400 truncate">
-                            {session.last_message?.substring(0, 20) || 'No messages'}...
+                          <div className="flex items-center justify-between">
+                            <p className={`text-xs truncate ${unread > 0 ? 'font-bold text-gray-900' : 'font-medium text-gray-700'}`}>{partnerName}</p>
+                            {unread > 0 && (
+                              <span className="bg-emerald-500 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center flex-shrink-0 ml-1">
+                                {unread}
+                              </span>
+                            )}
                           </div>
+                          <p className="text-[10px] text-gray-400 truncate mt-0.5">
+                            {lastMsg ? lastMsg.substring(0, 25) + (lastMsg.length > 25 ? '...' : '') : 'No messages yet'}
+                          </p>
                         </div>
-                        {unreadCount > 0 && (
-                          <span className="bg-red-500 text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center flex-shrink-0">
-                            {unreadCount}
-                          </span>
-                        )}
                       </button>
                     );
                   })}
                 </div>
               )}
-              
-              {loadingEmployees ? (
-                <p className="text-center py-5 text-xs text-gray-400">Loading...</p>
-              ) : chatSessions.length === 0 && availableEmployees.length === 0 ? (
-                <p className="text-center py-6 text-xs text-gray-400 px-3">
-                  {searchEmployee ? 'No results' : 'No employees'}
+
+              {/* All Employees Section */}
+              {(() => {
+                const filteredEmps = employees.filter(emp => {
+                  return !sessions.some(session =>
+                    session.requester_id === emp.id || session.responder_id === emp.id
+                  );
+                });
+                
+                return filteredEmps.length > 0 && (
+                  <div>
+                    <div className="px-2.5 py-1.5 bg-gray-100 border-b">
+                      <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wider">All Employees</span>
+                    </div>
+                    {filteredEmps.map(emp => (
+                      <button
+                        key={emp.id}
+                        onClick={() => {
+                          startChat(emp.id);
+                          setSidebarOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2.5 hover:bg-emerald-50 border-b border-gray-100/60 transition-colors text-left"
+                      >
+                        <div className="w-7 h-7 bg-gray-400 rounded-full flex items-center justify-center text-white font-bold text-[10px] flex-shrink-0">
+                          {emp.name.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-xs truncate text-gray-800">{emp.name}</p>
+                          <p className="text-[10px] text-gray-400">{emp.role || 'Employee'}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {loadingEmployees && (
+                <div className="flex items-center justify-center py-8">
+                  <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              )}
+
+              {!loadingEmployees && sessions.length === 0 && employees.length === 0 && (
+                <p className="text-center py-8 text-xs text-gray-400 px-3">
+                  {search ? 'No results found' : 'No employees available'}
                 </p>
-              ) : null}
+              )}
             </div>
           </div>
 
           {/* ══ CHAT AREA ══ */}
           <div className="flex-1 flex flex-col bg-white min-w-0">
-            {isChatOpen ? (
+            {activeSession ? (
               <>
-                {/* Sub-header */}
-                <div className="flex-shrink-0 flex items-center gap-2 px-3 py-2 border-b bg-gray-50">
-                  <div className="w-7 h-7 bg-yellow-500 rounded-full flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                    {chatPartnerName?.charAt(0)?.toUpperCase() || '?'}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-xs truncate">{chatPartnerName}</div>
-                    <div className="text-[10px] text-gray-400">
-                      {selectedSession?.status === 'pending' ? '⏳ Pending'
-                        : selectedSession?.status === 'active' ? '🟢 Active'
-                        : '💬 Starting...'}
+                {/* Chat sub-header */}
+                <div className="flex-shrink-0 flex items-center justify-between px-3 py-2 border-b bg-gray-50/80">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="w-7 h-7 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                      {chatPartner?.name?.charAt(0)?.toUpperCase() || '?'}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-xs truncate text-gray-900">{chatPartner?.name}</p>
+                      <p className="text-[10px] text-gray-400">
+                        {activeSession.status === 'pending' ? '⏳ Pending approval'
+                          : activeSession.status === 'active' ? '🟢 Active chat'
+                            : '💬 Chat'}
+                      </p>
                     </div>
                   </div>
-                  {/* Back button — clear selection */}
                   <button
-                    onClick={() => { setSelectedEmployee(null); setSelectedSession(null); }}
-                    className="text-gray-400 hover:text-gray-600 text-xs px-3 py-1 rounded hover:bg-gray-200 transition-colors flex-shrink-0 font-medium"
-                    aria-label="Back to employee list"
+                    onClick={() => { setActiveSession(null); }}
+                    className="text-gray-400 hover:text-gray-600 text-xs px-2.5 py-1 rounded-lg hover:bg-gray-200 transition-colors flex-shrink-0 font-medium flex items-center gap-1"
+                    aria-label="Back"
                   >
-                    Back
+                    <BiArrowBack size={12} />
+                    <span className="hidden sm:inline">Back</span>
                   </button>
                 </div>
 
-                {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-2.5 space-y-1.5 bg-gray-50">
+                {/* Messages area */}
+                <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1"
+                  style={{
+                    backgroundImage: 'radial-gradient(circle at 50% 50%, #f0fdf4 0%, #f9fafb 100%)',
+                    backgroundSize: '100% 100%'
+                  }}>
+
                   {loadingMessages && (
-                    <p className="text-center py-3 text-xs text-gray-400">Loading messages...</p>
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                    </div>
                   )}
-                  {selectedSession && (messages[selectedSession.id] || []).map((msg, i) => {
-                    const isMine = msg.sender_id === sessionUser.id;
+
+                  {activeMessages.length === 0 && !loadingMessages && (
+                    <div className="flex flex-col items-center justify-center h-full gap-2 py-12 text-gray-400">
+                      <span className="text-4xl">💬</span>
+                      <span className="text-xs">No messages yet. Say hello!</span>
+                    </div>
+                  )}
+
+                  {activeMessages.map((msg, i) => {
+                    const isMine = String(msg.sender_id) === String(user.id);
                     return (
                       <div key={`${msg.id}_${i}`} className={`flex ${isMine ? 'justify-end' : 'justify-start'}`}>
                         <div className={`
-                          max-w-[80%] px-3 py-1.5 rounded-2xl text-xs shadow-sm
+                          max-w-[78%] px-3 py-2 rounded-2xl text-xs relative
                           ${isMine
-                            ? 'bg-yellow-500 text-white rounded-br-sm'
-                            : 'bg-white text-gray-800 border border-gray-200 rounded-bl-sm'}
+                            ? 'bg-emerald-500 text-white rounded-br-md shadow-sm'
+                            : 'bg-white text-gray-800 border border-gray-200 rounded-bl-md shadow-sm'}
+                          ${msg.status === 'failed' ? 'opacity-60 border-2 border-red-300' : ''}
+                          ${msg.message_type === 'image' || msg.message_type === 'file' ? 'p-1.5' : ''}
                         `}>
-                          <div className="break-words leading-relaxed">{msg.message}</div>
-                          <div className={`text-[9px] mt-0.5 flex items-center gap-0.5 justify-end ${isMine ? 'text-yellow-100' : 'text-gray-400'}`}>
-                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          <MessageContent msg={msg} />
+                          <div className={`flex items-center gap-1 justify-end mt-1 ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
+                            <span className="text-[9px]">
+                              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </span>
                             {isMine && (
                               <span className="ml-0.5">
-                                {msg.status === 'sending' && '⏳'}
-                                {msg.status === 'sent' && '✓'}
-                                {msg.status === 'delivered' && '✓✓'}
-                                {msg.status === 'read' && <span className="text-blue-200">✓✓</span>}
-                                {msg.status === 'failed' && <span className="text-red-300">✕</span>}
+                                <StatusTick status={msg.status} />
                               </span>
                             )}
                           </div>
+                          {msg.status === 'failed' && (
+                            <button
+                              onClick={() => sendMessage(msg.message, msg.message_type, msg.file_path)}
+                              className="text-[9px] text-red-200 underline mt-0.5 hover:text-white"
+                            >
+                              Retry
+                            </button>
+                          )}
                         </div>
                       </div>
                     );
                   })}
-                  {selectedSession && typingIndicators[selectedSession.id] && (
+
+                  {/* Typing indicator */}
+                  {activeSession && typingMap[activeSession.id] && (
                     <div className="flex justify-start">
-                      <div className="bg-white text-gray-400 px-3 py-1.5 rounded-2xl text-xs border border-gray-200 italic">
-                        {typingIndicators[selectedSession.id]} typing…
+                      <div className="bg-white text-gray-400 px-3 py-2 rounded-2xl text-xs border border-gray-200 rounded-bl-md shadow-sm">
+                        <div className="flex items-center gap-1.5">
+                          <span className="italic">{typingMap[activeSession.id]}</span>
+                          <span className="flex gap-0.5">
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                            <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                          </span>
+                        </div>
                       </div>
                     </div>
                   )}
-                  {!selectedSession && (
-                    <div className="flex flex-col items-center justify-center h-full gap-2 py-8 text-gray-400">
-                      <span className="text-3xl">💬</span>
-                      <span className="text-xs">Starting chat with {selectedEmployee?.name}…</span>
-                    </div>
-                  )}
+
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Message Input */}
+                {/* ── Message Input ── */}
                 <div className="flex-shrink-0 p-2.5 border-t bg-white">
-                  {selectedSession?.status === 'active' ? (
-                    <div className="flex gap-2 items-center">
+                  {isChatActive ? (
+                    <div className="flex gap-2 items-end">
+                      {/* Attachment button */}
+                      <div className="relative flex-shrink-0">
+                        <button
+                          onClick={() => setShowAttachMenu(p => !p)}
+                          disabled={uploadingFile}
+                          className={`p-2 rounded-full transition-colors ${showAttachMenu ? 'bg-emerald-100 text-emerald-600' : 'text-gray-400 hover:text-emerald-500 hover:bg-gray-100'}`}
+                          aria-label="Attach file"
+                        >
+                          {uploadingFile ? (
+                            <div className="w-4 h-4 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <BiPaperclip size={18} className="rotate-45" />
+                          )}
+                        </button>
+
+                        {/* Attachment menu popup */}
+                        {showAttachMenu && (
+                          <div className="absolute bottom-12 left-0 bg-white rounded-xl shadow-xl border border-gray-200 py-1.5 w-36 z-10 animate-in fade-in">
+                            <button
+                              onClick={() => { imageInputRef.current?.click(); setShowAttachMenu(false); }}
+                              className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs text-gray-700 hover:bg-emerald-50 transition-colors"
+                            >
+                              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                                <BiImage className="text-blue-500 text-sm" />
+                              </div>
+                              <span className="font-medium">Photo</span>
+                            </button>
+                            <button
+                              onClick={() => { fileInputRef.current?.click(); setShowAttachMenu(false); }}
+                              className="flex items-center gap-2.5 w-full px-3 py-2.5 text-xs text-gray-700 hover:bg-emerald-50 transition-colors"
+                            >
+                              <div className="w-7 h-7 rounded-full bg-red-100 flex items-center justify-center">
+                                <BiFile className="text-red-500 text-sm" />
+                              </div>
+                              <span className="font-medium">PDF</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Text input */}
                       <input
                         type="text"
-                        value={newMessage}
-                        onChange={e => { setNewMessage(e.target.value); handleTyping(true); }}
-                        onKeyUp={() => handleTyping(false)}
-                        onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-                        placeholder="Type a message…"
-                        disabled={!socketConnected}
-                        autoFocus
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-gray-50"
-                      />
-                      <button
-                        onClick={sendMessage}
-                        disabled={!newMessage.trim() || !socketConnected}
-                        className="bg-yellow-500 text-white p-2 rounded-full hover:bg-yellow-600 disabled:opacity-40 transition-colors flex-shrink-0"
-                      >
-                        <BiSend size={15} />
-                      </button>
-                    </div>
-                  ) : selectedSession?.status === 'pending' ? (
-                    <div className="text-center text-xs text-gray-500 py-2 bg-gray-50 rounded-xl px-3">
-                      {selectedSession.responder_id === sessionUser?.id
-                        ? '⏳ Accept or reject this request'
-                        : '⏳ Waiting for response…'}
-                    </div>
-                  ) : (
-                    <div className="flex gap-2 items-center">
-                      <input
-                        type="text"
-                        value={newMessage}
-                        onChange={e => setNewMessage(e.target.value)}
+                        value={input}
+                        onChange={e => { setInput(e.target.value); handleTyping(); }}
                         onKeyDown={e => {
-                          if (e.key === 'Enter' && !e.shiftKey && newMessage.trim() && selectedEmployee) {
+                          if (e.key === 'Enter' && !e.shiftKey && input.trim()) {
                             e.preventDefault();
-                            sendChatRequest(selectedEmployee.id, newMessage.trim());
+                            sendMessage(input);
                           }
                         }}
-                        placeholder="Type to start chat…"
+                        placeholder="Type a message..."
+                        disabled={!connected}
                         autoFocus
-                        className="flex-1 px-3 py-2 border border-gray-300 rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-yellow-400 bg-gray-50"
+                        className="flex-1 px-4 py-2.5 border border-gray-200 rounded-full text-xs focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent bg-gray-50 disabled:opacity-50"
                       />
+
+                      {/* Send button */}
                       <button
-                        onClick={() => { if (newMessage.trim() && selectedEmployee) sendChatRequest(selectedEmployee.id, newMessage.trim()); }}
-                        disabled={!newMessage.trim()}
-                        className="bg-yellow-500 text-white p-2 rounded-full hover:bg-yellow-600 disabled:opacity-40 transition-colors flex-shrink-0"
+                        onClick={() => sendMessage(input)}
+                        disabled={!input.trim() || !connected}
+                        className="bg-emerald-500 text-white p-2.5 rounded-full hover:bg-emerald-600 disabled:opacity-40 disabled:hover:bg-emerald-500 transition-all flex-shrink-0 shadow-sm active:scale-95"
                       >
-                        <BiSend size={15} />
+                        <BiSend size={16} />
                       </button>
+                    </div>
+                  ) : activeSession?.status === 'pending' ? (
+                    <div className="text-center text-xs text-gray-500 py-3 bg-amber-50 rounded-xl px-3 border border-amber-200">
+                      {activeSession.responder_id === user?.id
+                        ? '⏳ Accept this chat request to start messaging'
+                        : '⏳ Waiting for the other person to accept...'}
+                    </div>
+                  ) : (
+                    <div className="text-center text-xs text-gray-400 py-3">
+                      Chat session not active
                     </div>
                   )}
                 </div>
               </>
             ) : (
-              /* No chat selected — prompt to open sidebar */
-              <div className="flex-1 flex flex-col items-center justify-center text-center gap-2 px-4 bg-gray-50">
-                <BiMessageRounded size={36} className="text-gray-300" />
-                <p className="text-gray-500 text-xs font-medium">Select an employee to start chatting</p>
+              /* ── No chat selected ── */
+              <div className="flex-1 flex flex-col items-center justify-center text-center gap-3 px-6"
+                style={{ background: 'linear-gradient(180deg, #f0fdf4 0%, #f9fafb 100%)' }}>
+                <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
+                  <BiMessageRounded size={28} className="text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-gray-700 text-sm font-semibold">Employee Chat</p>
+                  <p className="text-gray-400 text-xs mt-1">Select a contact to start chatting</p>
+                </div>
                 <button
                   onClick={() => setSidebarOpen(true)}
-                  className="mt-1 px-4 py-2 bg-yellow-500 text-white text-xs rounded-full hover:bg-yellow-600 transition-colors font-semibold"
+                  className="mt-2 px-5 py-2.5 bg-emerald-500 text-white text-xs rounded-full hover:bg-emerald-600 transition-all font-semibold shadow-sm active:scale-95"
                 >
-                  👥 Open Employee List
+                  👥 Browse Contacts
                 </button>
               </div>
             )}
