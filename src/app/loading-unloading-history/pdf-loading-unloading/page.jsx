@@ -329,7 +329,7 @@ function PdfLoadingUnloadingContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 print:p-0 print:m-0 print:min-h-0 print:bg-white print:overflow-hidden">
+    <div className="min-h-screen bg-gray-50 py-8 print:p-0 print:m-0 print:min-h-auto print:bg-white print:overflow-visible">
       {/* Action Buttons */}
       <div className="flex justify-center gap-4 mb-6 print:hidden">
         <button
@@ -360,7 +360,7 @@ function PdfLoadingUnloadingContent() {
       </div>
 
       {/* PDF Content */}
-      <div id="pdf-content" className="bg-white rounded-lg shadow-lg p-6 mx-auto max-w-4xl print:shadow-none print:p-0">
+      <div id="pdf-content" className="bg-white rounded-lg shadow-lg p-6 mx-auto max-w-4xl print:shadow-none print:p-6 print:max-w-none print:mx-0 print:rounded-none">
 
         {/* Header */}
         <div className="flex items-center justify-between mb-4 print:flex print:justify-between">
@@ -694,75 +694,180 @@ function PdfLoadingUnloadingContent() {
         @media print {
           @page {
             size: A4;
-            margin: 0mm;
+            margin: 10mm;
           }
           
-          /* Hide everything by default */
-          body * {
-            visibility: hidden;
-          }
-          
-          /* Unhide the PDF content and its children */
-          #pdf-content, #pdf-content * {
-            visibility: visible;
-          }
-
-          /* Reset body/html */
-          html, body {
-            height: 100%;
-            margin: 0 !important;
-            padding: 0 !important;
-            overflow: hidden !important;
-          }
-          
-          /* Position the content to top-left */
-          #pdf-content {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 100%;
-            margin: 0 !important;
-            padding: 10mm !important; /* modest padding for readability */
-            
-            /* Use zoom for layout-aware scaling (Chrome/Edge) */
-            zoom: 75%; 
-          }
-          
-          /* Hide buttons specifically (redundant but safe) */
+          /* Hide action buttons */
           .print\\:hidden {
             display: none !important;
           }
-
-          /* Compact spacing */
-          h2, h3, h4, p, td, th {
-              padding-top: 1px !important;
-              padding-bottom: 1px !important;
-              margin-bottom: 2px !important;
-          }
-          hr {
-              margin: 4px 0 !important;
-          }
-          .mb-4, .mb-6 {
-              margin-bottom: 8px !important;
-          }
-          .mt-8 {
-              margin-top: 8px !important;
-          }
-          .pt-4, .pt-6 {
-              padding-top: 8px !important;
-          }
-          .h-16, .w-16 {
-              height: 40px !important;
-              width: 40px !important;
-          }
-          .h-20 {
-              height: 60px !important;
+          
+          /* Reset body and html */
+          html, body {
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            font-size: 10pt !important;
+            line-height: 1.2 !important;
           }
           
-          /* Hide external wrapper background */
+          /* Main content container */
+          body {
+            display: block !important;
+            visibility: visible !important;
+          }
+          
+          /* PDF content container */
+          #pdf-content {
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            background: white !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+          }
+          
+          /* Ensure all content is visible */
+          #pdf-content * {
+            visibility: visible !important;
+          }
+          
+          /* Typography adjustments */
+          h2 {
+            font-size: 14pt !important;
+            margin-bottom: 8px !important;
+            margin-top: 8px !important;
+          }
+          
+          h3 {
+            font-size: 12pt !important;
+            margin-bottom: 6px !important;
+            margin-top: 6px !important;
+          }
+          
+          h4 {
+            font-size: 11pt !important;
+            margin-bottom: 4px !important;
+            margin-top: 4px !important;
+          }
+          
+          p {
+            font-size: 9pt !important;
+            margin-bottom: 3px !important;
+            margin-top: 3px !important;
+          }
+          
+          /* Table adjustments */
+          table {
+            font-size: 8pt !important;
+            border-collapse: collapse !important;
+            page-break-inside: avoid !important;
+          }
+          
+          td, th {
+            padding: 3px !important;
+            border: 1px solid #000 !important;
+            vertical-align: top !important;
+          }
+          
+          th {
+            background-color: #f5f5f5 !important;
+            font-weight: bold !important;
+          }
+          
+          /* Spacing adjustments */
+          .mb-4, .mb-6 {
+            margin-bottom: 6px !important;
+          }
+          
+          .mt-8 {
+            margin-top: 6px !important;
+          }
+          
+          .pt-4, .pt-6 {
+            padding-top: 4px !important;
+          }
+          
+          /* Logo and stamp sizing */
+          .h-12 {
+            height: 30px !important;
+          }
+          
+          .h-16, .w-16 {
+            height: 35px !important;
+            width: 35px !important;
+          }
+          
+          .h-20 {
+            height: 50px !important;
+          }
+          
+          /* Footer adjustments */
+          .border-t {
+            border-top: 1px solid #000 !important;
+            margin-top: 10px !important;
+            padding-top: 6px !important;
+          }
+          
+          /* Notes section */
+          .bg-yellow-50 {
+            background: white !important;
+            border: 1px solid #000 !important;
+            padding: 6px !important;
+            margin: 6px 0 !important;
+          }
+          
+          .bg-yellow-50 h4 {
+            color: #000 !important;
+            margin-bottom: 4px !important;
+          }
+          
+          .bg-yellow-50 ol {
+            margin: 0 !important;
+            padding-left: 15px !important;
+          }
+          
+          .bg-yellow-50 li {
+            font-size: 8pt !important;
+            margin-bottom: 2px !important;
+            line-height: 1.1 !important;
+          }
+          
+          /* Hide iframes and external content */
+          iframe {
+            display: none !important;
+          }
+          
+          .pdf-attachment-container {
+            display: none !important;
+          }
+          
+          /* Page break for large content */
+          .mt-8 {
+            page-break-inside: avoid !important;
+          }
+          
+          /* Ensure no overflow */
+          body, #pdf-content {
+            overflow: visible !important;
+            height: auto !important;
+          }
+          
+          /* Remove shadows and backgrounds */
+          .shadow-lg, .shadow-sm {
+            box-shadow: none !important;
+          }
+          
+          .bg-gray-50 {
+            background: white !important;
+          }
+          
+          /* Hide external wrapper */
           .min-h-screen {
-              min-height: 0 !important;
-              background-color: white !important;
+            min-height: auto !important;
+            background: white !important;
+            padding: 0 !important;
           }
         }
       `}</style>

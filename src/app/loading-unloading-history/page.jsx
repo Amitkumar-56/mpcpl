@@ -69,6 +69,8 @@ function LoadingUnloadingContent() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [expandedId, setExpandedId] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pagination, setPagination] = useState(null);
   const router = useRouter();
   const { user } = useSession();
 
@@ -100,6 +102,13 @@ function LoadingUnloadingContent() {
     };
   }, [user, router]);
 
+  // Refetch data when page changes
+  useEffect(() => {
+    if (user && !loading) {
+      fetchData();
+    }
+  }, [currentPage]);
+
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -115,7 +124,7 @@ function LoadingUnloadingContent() {
 
       const sp = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
       const sid = sp ? sp.get('shipment_id') : null;
-      const apiUrl = `/api/loading-unloading-history?user_id=${user.id}&role=${user.role || ''}${sid ? `&shipment_id=${sid}` : ''}`;
+      const apiUrl = `/api/loading-unloading-history?user_id=${user.id}&role=${user.role || ''}&page=${currentPage}&limit=10${sid ? `&shipment_id=${sid}` : ''}`;
       console.log('API URL:', apiUrl);
 
       const response = await fetch(apiUrl, {
@@ -159,6 +168,7 @@ function LoadingUnloadingContent() {
         permissions: result.permissions || { can_view: 0, can_edit: 0, can_create: 0 },
         summary: result.summary || { total: 0, completed: 0, pending: 0, drivers: 0 }
       });
+      setPagination(result.pagination || null);
 
     } catch (err) {
       console.error('Fetch error details:', err);
@@ -174,6 +184,24 @@ function LoadingUnloadingContent() {
 
   const toggleExpand = (id) => {
     setExpandedId(prev => (prev === id ? null : id));
+  };
+
+  const handlePageChange = (newPage) => {
+    if (newPage >= 1 && pagination && newPage <= pagination.totalPages) {
+      setCurrentPage(newPage);
+    }
+  };
+
+  const handlePrevPage = () => {
+    if (pagination && pagination.hasPrevPage) {
+      setCurrentPage(prev => prev - 1);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (pagination && pagination.hasNextPage) {
+      setCurrentPage(prev => prev + 1);
+    }
   };
 
   // Show loading skeleton
@@ -345,133 +373,125 @@ function LoadingUnloadingContent() {
               </div>
 
               {shipments.length > 0 ? (
-                <div className="overflow-x-auto scrollbar-none">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          ID
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Tanker
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Driver
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Dispatch From
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Mobile
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Customer Name
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Loading Date
-                        </th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                          Net Wt
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {shipments.map((shipment, index) => (
-                        <Fragment key={shipment.id || shipment.shipment_id || index}>
-                          <tr key={(shipment.id || shipment.shipment_id || index) + '-row'} className="hover:bg-gray-50">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              #{shipment.id || shipment.shipment_id || 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {shipment.tanker || shipment.tanker_number || '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {shipment.driver || shipment.driver_name || '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {shipment.dispatch || shipment.dispatch_from || '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {shipment.driver_mobile || '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {shipment.consignee || '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {shipment.final_loading_datetime
-                                ? new Date(shipment.final_loading_datetime).toLocaleDateString('en-GB')
-                                : '-'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <button
-                                onClick={() => toggleExpand(shipment.id || shipment.shipment_id || index)}
-                                className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
-                                aria-expanded={expandedId === (shipment.id || shipment.shipment_id || index)}
-                              >
-                                {shipment.net_weight_loading || '0'}
-                                {expandedId === (shipment.id || shipment.shipment_id || index) ? (
-                                  <svg className="w-4 h-4 ml-1.5" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                  </svg>
-                                ) : (
-                                  <svg className="w-4 h-4 ml-1.5 transform -rotate-90" viewBox="0 0 20 20" fill="currentColor">
-                                    <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
-                                  </svg>
-                                )}
-                              </button>
-                            </td>
-                          </tr>
-                          {expandedId === (shipment.id || shipment.shipment_id || index) && (
-                            <tr key={(shipment.id || shipment.shipment_id || index) + '-details'} className="bg-gray-50">
-                              <td colSpan={8} className="px-6 py-4">
-                                <div className="space-y-4">
-                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <div className="p-3 border border-gray-200 rounded">
-                                      <div className="text-xs text-gray-500">Logs</div>
-                                      <div className="text-sm font-semibold text-gray-900">
-                                        <div>Entered By (Loading): {shipment.entered_by_loading || '-'}</div>
-                                        <div className="mt-1">Entered By (Unloading): {shipment.entered_by_unloading || '-'}</div>
+                <div className="overflow-x-auto border border-gray-200 rounded-b-lg">
+                  <div className="max-h-96 overflow-y-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            ID
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tanker
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Driver
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Dispatch From
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Mobile
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Customer Name
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Loading Date
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Net Wt
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {shipments.map((shipment, index) => (
+                          <Fragment key={shipment.id || shipment.shipment_id || index}>
+                            <tr key={(shipment.id || shipment.shipment_id || index) + '-row'} className="hover:bg-gray-50">
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                                #{shipment.id || shipment.shipment_id || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {shipment.tanker || shipment.tanker_number || '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {shipment.driver || shipment.driver_name || '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {shipment.dispatch || shipment.dispatch_from || '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {shipment.driver_mobile || '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {shipment.consignee || '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                                {shipment.final_loading_datetime
+                                  ? new Date(shipment.final_loading_datetime).toLocaleDateString('en-GB')
+                                  : '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                <button
+                                  onClick={() => toggleExpand(shipment.id || shipment.shipment_id || index)}
+                                  className="inline-flex items-center px-3 py-1.5 rounded-md bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors"
+                                  aria-expanded={expandedId === (shipment.id || shipment.shipment_id || index)}
+                                >
+                                  {shipment.net_weight_loading || '0'}
+                                  {expandedId === (shipment.id || shipment.shipment_id || index) ? (
+                                    <svg className="w-4 h-4 ml-1.5" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                  ) : (
+                                    <svg className="w-4 h-4 ml-1.5 transform -rotate-90" viewBox="0 0 20 20" fill="currentColor">
+                                      <path fillRule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                  )}
+                                </button>
+                              </td>
+                            </tr>
+                            {expandedId === (shipment.id || shipment.shipment_id || index) && (
+                              <tr key={(shipment.id || shipment.shipment_id || index) + '-details'} className="bg-gray-50">
+                                <td colSpan={8} className="px-6 py-4">
+                                  <div className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                      <div className="p-3 border border-gray-200 rounded">
+                                        <div className="text-xs text-gray-500">Logs</div>
+                                        <div className="text-sm font-semibold text-gray-900">
+                                          <div>Entered By (Loading): {shipment.entered_by_loading || '-'}</div>
+                                          <div className="mt-1">Entered By (Unloading): {shipment.entered_by_unloading || '-'}</div>
+                                        </div>
                                       </div>
-                                    </div>
-                                    <div className="p-3 border border-gray-200 rounded">
-                                      <div className="text-xs text-gray-500">Actions</div>
-                                      <div className="text-sm font-semibold text-blue-600">
-                                        <div className="flex items-center space-x-4">
-                                          <Link
-                                            href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                            target="_blank"
-                                            className="hover:text-blue-800"
-                                          >
-                                            View
-                                          </Link>
-                                          {/* TEMPORARY: Always show Edit button for testing */}
-                                          <Link
-                                            href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                            className="text-gray-600 hover:text-gray-800"
-                                          >
-                                            Edit
-                                          </Link>
-                                          {/* ORIGINAL PERMISSION CHECK - Commented out for testing */}
-                                          {/* {(permissions?.can_edit === 1 || user?.role === 5) && (
-                                          <Link
-                                            href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
-                                            className="text-gray-600 hover:text-gray-800"
-                                          >
-                                            Edit
-                                          </Link>
-                                        )} */}
+                                      <div className="p-3 border border-gray-200 rounded">
+                                        <div className="text-xs text-gray-500">Actions</div>
+                                        <div className="text-sm font-semibold text-blue-600">
+                                          <div className="flex items-center space-x-4">
+                                            <Link
+                                              href={`/loading-unloading-history/pdf-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
+                                              target="_blank"
+                                              className="hover:text-blue-800"
+                                            >
+                                              View
+                                            </Link>
+                                            <Link
+                                              href={`/loading-unloading-history/edit-loading-unloading?shipment_id=${shipment.id || shipment.shipment_id}`}
+                                              className="text-gray-600 hover:text-gray-800"
+                                            >
+                                              Edit
+                                            </Link>
+                                          </div>
                                         </div>
                                       </div>
                                     </div>
                                   </div>
-                                </div>
-                              </td>
-                            </tr>
-                          )}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
+                                </td>
+                              </tr>
+                            )}
+                          </Fragment>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 </div>
               ) : (
                 <div className="p-12 text-center">
@@ -488,6 +508,72 @@ function LoadingUnloadingContent() {
                       Create First Record
                     </Link>
                   )}
+                </div>
+              )}
+
+              {/* Pagination Controls */}
+              {pagination && pagination.totalPages > 1 && (
+                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                  <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                    <div className="text-sm text-gray-600">
+                      Showing {((pagination.currentPage - 1) * pagination.recordsPerPage) + 1} to{' '}
+                      {Math.min(pagination.currentPage * pagination.recordsPerPage, pagination.totalRecords)} of{' '}
+                      {pagination.totalRecords} records
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {/* Previous Button */}
+                      <button
+                        onClick={handlePrevPage}
+                        disabled={!pagination.hasPrevPage}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+
+                      {/* Page Numbers */}
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, pagination.totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (pagination.totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (pagination.currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (pagination.currentPage >= pagination.totalPages - 2) {
+                            pageNum = pagination.totalPages - 4 + i;
+                          } else {
+                            pageNum = pagination.currentPage - 2 + i;
+                          }
+
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => handlePageChange(pageNum)}
+                              className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                                pageNum === pagination.currentPage
+                                  ? 'bg-blue-600 text-white'
+                                  : 'text-gray-700 bg-white border border-gray-300 hover:bg-gray-50'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Next Button */}
+                      <button
+                        onClick={handleNextPage}
+                        disabled={!pagination.hasNextPage}
+                        className="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

@@ -10,7 +10,10 @@ export async function GET(request) {
     const userRole = searchParams.get('role');
 
     const shipmentIdFilter = searchParams.get('shipment_id');
-    console.log('📊 Request Params:', { userId, userRole, shipmentIdFilter });
+    const page = parseInt(searchParams.get('page')) || 1;
+    const limit = parseInt(searchParams.get('limit')) || 10;
+    const offset = (page - 1) * limit;
+    console.log('📊 Request Params:', { userId, userRole, shipmentIdFilter, page, limit });
 
     // Check if user is authenticated
     if (!userId) {
@@ -142,36 +145,44 @@ export async function GET(request) {
       `;
       const params = [];
       if (shipmentIdFilter) {
-        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT 100`;
-        params.push(parseInt(shipmentIdFilter));
+        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        params.push(parseInt(shipmentIdFilter), limit, offset);
       } else {
-        shipmentQuery += ` ORDER BY created_at DESC LIMIT 100`;
+        shipmentQuery += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
       }
       shipmentResult = await executeQuery(shipmentQuery, params) || [];
-      console.log(`✅ Found ${shipmentResult.length} shipment records`);
+      console.log(`✅ Found ${shipmentResult.length} shipment records for page ${page}`);
       
-      // If no results, try basic query
+      // If no results, try basic query with pagination
       if (shipmentResult.length === 0) {
-        const basicQuery = `SELECT * FROM shipment_records LIMIT 100`;
-        shipmentResult = await executeQuery(basicQuery) || [];
+        const basicQuery = `SELECT * FROM shipment_records ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        shipmentResult = await executeQuery(basicQuery, [limit, offset]) || [];
       }
     } catch (err) {
       console.error('❌ Error in shipment query:', err);
       shipmentResult = [];
     }
 
-    // Get summary data
-    const summary = { total: 0, completed: 0, pending: 0, drivers: 0 };
-
+    // Get total count for pagination
+    let totalCount = 0;
     try {
-      const totalQuery = "SELECT COUNT(*) as total FROM shipment_records";
-      const totalResult = await executeQuery(totalQuery);
-      if (totalResult && totalResult.length > 0) {
-        summary.total = parseInt(totalResult[0].total) || 0;
+      let countQuery = "SELECT COUNT(*) as total FROM shipment_records";
+      const countParams = [];
+      if (shipmentIdFilter) {
+        countQuery += " WHERE shipment_id = ?";
+        countParams.push(parseInt(shipmentIdFilter));
+      }
+      const countResult = await executeQuery(countQuery, countParams);
+      if (countResult && countResult.length > 0) {
+        totalCount = parseInt(countResult[0].total) || 0;
       }
     } catch (err) {
       console.error('Error in total count:', err);
     }
+
+    // Get summary data
+    const summary = { total: totalCount, completed: 0, pending: 0, drivers: 0 };
 
     try {
       const completedQuery = `
@@ -216,17 +227,30 @@ export async function GET(request) {
       console.error('Error in drivers count:', err);
     }
 
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limit);
+    const pagination = {
+      currentPage: page,
+      totalPages: totalPages,
+      totalRecords: totalCount,
+      recordsPerPage: limit,
+      hasNextPage: page < totalPages,
+      hasPrevPage: page > 1
+    };
+
     console.log('📊 Final Response:', {
       shipmentsCount: shipmentResult.length,
       summary,
-      permissions: finalPermissions
+      permissions: finalPermissions,
+      pagination
     });
 
     return NextResponse.json({
       success: true,
       shipments: shipmentResult,
       permissions: finalPermissions,
-      summary: summary
+      summary: summary,
+      pagination: pagination
     });
 
   } catch (error) {
