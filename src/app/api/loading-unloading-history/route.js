@@ -11,8 +11,8 @@ export async function GET(request) {
 
     const shipmentIdFilter = searchParams.get('shipment_id');
     const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 10;
-    const offset = (page - 1) * limit;
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit')) || 10, 1), 100); // Between 1-100
+    const offset = Math.max((page - 1) * limit, 0); // Ensure non-negative
     console.log('📊 Request Params:', { userId, userRole, shipmentIdFilter, page, limit });
 
     // Check if user is authenticated
@@ -145,19 +145,19 @@ export async function GET(request) {
       `;
       const params = [];
       if (shipmentIdFilter) {
-        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        params.push(parseInt(shipmentIdFilter), limit, offset);
+        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+        params.push(parseInt(shipmentIdFilter));
       } else {
-        shipmentQuery += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        params.push(limit, offset);
+        shipmentQuery += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+        // No params needed for this case
       }
       shipmentResult = await executeQuery(shipmentQuery, params) || [];
       console.log(`✅ Found ${shipmentResult.length} shipment records for page ${page}`);
       
       // If no results, try basic query with pagination
       if (shipmentResult.length === 0) {
-        const basicQuery = `SELECT * FROM shipment_records ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        shipmentResult = await executeQuery(basicQuery, [limit, offset]) || [];
+        const basicQuery = `SELECT * FROM shipment_records ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+        shipmentResult = await executeQuery(basicQuery, []) || [];
       }
     } catch (err) {
       console.error('❌ Error in shipment query:', err);
