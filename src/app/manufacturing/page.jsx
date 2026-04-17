@@ -16,7 +16,6 @@ function ManufacturingDashboardContent() {
   const [recentGate, setRecentGate] = useState([]);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState({});
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -132,9 +131,9 @@ function ManufacturingDashboardContent() {
   if (loading) {
     return (
       <div className="h-screen bg-gray-50 flex overflow-hidden">
-        <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-        <div className="flex-1 flex flex-col">
-          <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+        <Sidebar />
+        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+          <Header />
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
               <FaSpinner className="animate-spin text-blue-500 text-4xl mx-auto" />
@@ -149,9 +148,9 @@ function ManufacturingDashboardContent() {
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-      <div className="flex-1 flex flex-col">
-        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Header />
         <main className="flex-1 overflow-y-auto">
           <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 sm:px-6 md:px-8 py-6 text-white">
             <div className="max-w-7xl mx-auto">

@@ -2,11 +2,27 @@
 import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { BiArrowBack, BiChevronDown, BiChevronUp, BiSave } from "react-icons/bi";
+import { useEffect, useState, useMemo, use } from 'react';
+import { 
+  ChevronLeft, 
+  Save, 
+  Search, 
+  ChevronDown, 
+  ChevronUp, 
+  Users, 
+  Package, 
+  IndianRupee,
+  Activity,
+  UserCheck,
+  CheckCircle2,
+  X,
+  Plus,
+  ArrowRight,
+  Info
+} from "lucide-react";
 
 export default function AgentAllocation({ params }) {
-    const { id: agentId } = params;
+    const { id: agentId } = use(params);
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -23,48 +39,33 @@ export default function AgentAllocation({ params }) {
 
     const fetchData = async () => {
         try {
+            setLoading(true);
             const response = await fetch(`/api/agent-management/allocate?agentId=${agentId}`);
             if (response.ok) {
                 const data = await response.json();
                 
-                if (!data.customers || data.customers.length === 0) {
-                    console.warn("No customers found in response");
-                }
-                
-                if (!data.products || data.products.length === 0) {
-                    console.warn("No products found in response");
-                }
-                
-                setCustomers(data.customers || []);
+                const rawCustomers = data.customers || [];
+                const uniqueCustomers = Array.from(new Map(rawCustomers.map(item => [item.id, item])).values());
+                setCustomers(uniqueCustomers);
                 setProducts(data.products || []);
                 
-                // Process existing commissions
                 const initialAssignments = {};
-                
-                // Initialize for all customers first (unselected)
                 (data.customers || []).forEach(c => {
                     initialAssignments[c.id] = { selected: false, rates: {} };
                 });
 
-                // Apply existing commissions
                 (data.commissions || []).forEach(comm => {
                     if (!initialAssignments[comm.customer_id]) {
                         initialAssignments[comm.customer_id] = { selected: true, rates: {} };
                     }
                     initialAssignments[comm.customer_id].selected = true;
-                    // Use product_code_id as key for rates
                     initialAssignments[comm.customer_id].rates[comm.product_code_id] = comm.commission_rate;
                 });
                 
                 setAssignments(initialAssignments);
-            } else {
-                const errorData = await response.json().catch(() => ({}));
-                console.error("Failed to fetch data:", errorData.error || response.statusText);
-                alert(`Failed to load data: ${errorData.error || response.statusText}`);
             }
         } catch (error) {
             console.error("Error fetching data:", error);
-            alert(`Error loading data: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -78,7 +79,6 @@ export default function AgentAllocation({ params }) {
                 selected: !prev[customerId].selected
             }
         }));
-        // Auto expand if selected
         if (!assignments[customerId].selected) {
              setExpandedCustomer(customerId);
         }
@@ -103,15 +103,10 @@ export default function AgentAllocation({ params }) {
             const fullPayload = {
                 agentId,
                 assignments: Object.entries(assignments).map(([customerId, data]) => {
-                    // Map rates back to product structure
-                    // We need to find which product ID belongs to which code ID
-                    // Iterate through all products and their codes
                     const productRates = [];
-                    
                     products.forEach(p => {
-                        p.codes.forEach(code => {
+                        (p.codes || []).forEach(code => {
                             const rateValue = data.rates[code.id];
-                            // Include rate even if 0, but skip if empty/null/undefined
                             if (rateValue !== undefined && rateValue !== null && rateValue !== '') {
                                 productRates.push({
                                     productId: p.id,
@@ -137,17 +132,13 @@ export default function AgentAllocation({ params }) {
             });
 
             if (response.ok) {
-                const result = await response.json();
-                alert("Allocations saved successfully!");
+                alert("Allocations updated successfully!");
                 router.push('/agent-management');
             } else {
-                const errorData = await response.json().catch(() => ({}));
-                alert(`Failed to save allocations: ${errorData.error || response.statusText}`);
-                console.error("Save error:", errorData);
+                alert("Failed to save changes.");
             }
         } catch (error) {
-            console.error("Error saving:", error);
-            alert("Error saving allocations.");
+            alert("Network error.");
         } finally {
             setSaving(false);
         }
@@ -157,15 +148,28 @@ export default function AgentAllocation({ params }) {
         setExpandedCustomer(expandedCustomer === customerId ? null : customerId);
     };
 
-    const filteredCustomers = customers.filter(c => 
-        c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        (c.phone && c.phone.includes(searchTerm))
-    );
+    const filteredCustomers = useMemo(() => {
+        return customers.filter(c => 
+            c.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+            (c.phone && c.phone.includes(searchTerm))
+        );
+    }, [customers, searchTerm]);
 
-    if (loading) return <div className="p-6">Loading...</div>;
+    const activeCount = Object.values(assignments).filter(a => a.selected).length;
+
+    if (loading) {
+        return (
+            <div className="flex h-screen bg-gray-50 items-center justify-center">
+                <div className="flex flex-col items-center gap-4">
+                    <div className="w-12 h-12 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="text-gray-500 font-medium italic">Preparing allocation catalog...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
-        <div className="flex h-screen bg-gray-100 overflow-hidden">
+        <div className="flex h-screen bg-gray-50/50 overflow-hidden">
             <div className="hidden md:block w-64 flex-shrink-0">
                  <Sidebar />
             </div>
@@ -173,137 +177,153 @@ export default function AgentAllocation({ params }) {
             <div className="flex flex-col flex-1 overflow-hidden">
                 <Header />
                 
-                <main className="flex-1 p-6 overflow-auto">
-                    <div className="flex items-center justify-between mb-6">
+                <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-none animate-fade-in relative">
+                    {/* Header */}
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <button 
                                 onClick={() => router.back()}
-                                className="p-2 rounded-full hover:bg-gray-200"
+                                className="p-2.5 bg-white rounded-xl shadow-sm border border-gray-200 text-gray-400 hover:text-blue-600 hover:border-blue-100 transition"
                             >
-                                <BiArrowBack className="text-xl" />
+                                <ChevronLeft className="w-5 h-5" />
                             </button>
-                            <h1 className="text-2xl font-bold text-gray-800">Allocate Customers & Commissions</h1>
+                            <div>
+                              <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Customer Allocation</h1>
+                              <p className="text-sm text-gray-500 font-medium">Link customers and define commission structures.</p>
+                            </div>
                         </div>
-                        <button 
-                            onClick={handleSave}
-                            disabled={saving}
-                            className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                        >
-                            <BiSave />
-                            {saving ? "Saving..." : "Save Changes"}
-                        </button>
+                        
+                        <div className="flex items-center gap-3">
+                           <div className="hidden sm:flex bg-white px-4 py-2 rounded-2xl border border-gray-200 shadow-sm items-center gap-2">
+                              <UserCheck className="w-4 h-4 text-emerald-500" />
+                              <span className="text-xs font-black text-gray-900">{activeCount} ALLOCATED</span>
+                           </div>
+                           <button 
+                                onClick={handleSave}
+                                disabled={saving}
+                                className="flex-1 md:flex-none flex items-center justify-center gap-3 bg-emerald-600 text-white px-8 py-3.5 rounded-2xl font-black hover:bg-emerald-700 transition shadow-xl shadow-emerald-100 disabled:opacity-50"
+                            >
+                                {saving ? (
+                                   <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                ) : (
+                                  <>
+                                    <Save className="w-5 h-5" /> Commit Changes
+                                  </>
+                                )}
+                            </button>
+                        </div>
                     </div>
 
-                    <div className="bg-white rounded-lg shadow p-6 mb-6">
-                        <div className="mb-4">
-                            <input
-                                type="text"
-                                placeholder="Search customers..."
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500"
-                            />
+                    {/* Search & Stats Card */}
+                    <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-5">
+                       <div className="relative">
+                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                          <input
+                              type="text"
+                              placeholder="Search for customers by name or contact..."
+                              value={searchTerm}
+                              onChange={(e) => setSearchTerm(e.target.value)}
+                              className="w-full pl-12 pr-4 py-3.5 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-50/50 transition text-sm font-medium"
+                          />
+                       </div>
+                    </div>
+
+                    {/* Customer List Section */}
+                    <div className="space-y-4 pb-20">
+                      {filteredCustomers.length === 0 ? (
+                          <div className="bg-white rounded-3xl p-20 text-center border border-gray-100 shadow-sm">
+                              <Users className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                              <p className="text-gray-400 font-medium italic">No matching customers found in your scope.</p>
+                              <button onClick={() => setSearchTerm("")} className="text-blue-600 font-bold mt-4 hover:underline text-sm">Clear Filter</button>
+                          </div>
+                      ) : (
+                        <div className="grid grid-cols-1 gap-4">
+                          {filteredCustomers.map((customer, idx) => {
+                              const isAssigned = assignments[customer.id]?.selected;
+                              const isExpanded = expandedCustomer === customer.id;
+
+                              return (
+                                  <div key={`${customer.id}-${idx}`} className={`rounded-3xl border-2 transition-all ${isAssigned ? 'border-blue-500/20 bg-blue-50/20 shadow-lg shadow-blue-50/50' : 'border-white bg-white shadow-sm hover:border-gray-100'}`}>
+                                      <div className="flex items-center justify-between p-5 sm:p-6">
+                                          <div className="flex items-center gap-5">
+                                              <button 
+                                                onClick={() => handleCustomerToggle(customer.id)}
+                                                className={`w-10 h-10 rounded-xl flex items-center justify-center transition-all ${isAssigned ? 'bg-blue-600 text-white shadow-lg shadow-blue-100' : 'bg-gray-100 text-gray-300'}`}
+                                              >
+                                                <CheckCircle2 className="w-6 h-6" />
+                                              </button>
+                                              
+                                              <div>
+                                                  <div className="flex items-center flex-wrap gap-2">
+                                                      <h3 className="font-black text-gray-900 sm:text-lg">{customer.name}</h3>
+                                                      {customer.assigned_agent_id && String(customer.assigned_agent_id) !== String(agentId) && (
+                                                          <span className="bg-orange-50 text-orange-600 text-[10px] font-black px-2 py-0.5 rounded border border-orange-100 uppercase tracking-widest">
+                                                              CONFLICT: {customer.assigned_agent_name}
+                                                          </span>
+                                                      )}
+                                                  </div>
+                                                  <p className="text-xs font-bold text-gray-400 flex items-center gap-2 mt-1">
+                                                     <Activity className="w-3 h-3" /> {customer.client_type || 'STANDARD'} • <span className="font-mono">{customer.phone}</span>
+                                                  </p>
+                                              </div>
+                                          </div>
+                                          
+                                          {isAssigned && (
+                                              <button 
+                                                  onClick={() => toggleExpand(customer.id)}
+                                                  className={`p-3 rounded-2xl transition-colors ${isExpanded ? 'bg-blue-600 text-white' : 'bg-white border border-gray-100 text-blue-600 shadow-sm'}`}
+                                              >
+                                                  {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
+                                              </button>
+                                          )}
+                                      </div>
+
+                                      {isAssigned && isExpanded && (
+                                          <div className="p-6 border-t border-blue-100 bg-white/50 backdrop-blur-md rounded-b-[24px] animate-slide-up space-y-6">
+                                              <div className="flex items-center gap-2 text-blue-800 bg-blue-50 p-4 rounded-2xl border border-blue-100">
+                                                 <Info className="w-5 h-5 flex-shrink-0" />
+                                                 <p className="text-xs font-semibold">Define specific commission rates (₹/Unit) for each product code assigned to this customer.</p>
+                                              </div>
+
+                                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                                                  {products.map(product => (
+                                                      <div key={product.id} className="bg-white p-5 rounded-2xl border border-gray-100 shadow-sm space-y-4">
+                                                          <div className="flex items-center gap-3 border-b border-gray-50 pb-3">
+                                                             <div className="w-8 h-8 bg-gray-50 rounded-lg flex items-center justify-center text-gray-400">
+                                                                <Package className="w-4 h-4" />
+                                                             </div>
+                                                             <h5 className="text-sm font-black text-gray-800 uppercase tracking-tight">{product.pname}</h5>
+                                                          </div>
+                                                          
+                                                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                              {(product.codes || []).map(code => (
+                                                                  <div key={code.id} className="space-y-1.5">
+                                                                      <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1">{code.pcode}</label>
+                                                                      <div className="relative group">
+                                                                          <IndianRupee className="absolute left-3.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-500 group-focus-within:text-blue-600 transition" />
+                                                                          <input
+                                                                              type="number"
+                                                                              step="0.01"
+                                                                              min="0"
+                                                                              value={assignments[customer.id]?.rates[code.id] || ''}
+                                                                              onChange={(e) => handleRateChange(customer.id, code.id, e.target.value)}
+                                                                              className="w-full pl-9 pr-3 py-2.5 bg-gray-50 border border-gray-100 rounded-xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition text-sm font-mono font-bold"
+                                                                              placeholder="0.00"
+                                                                          />
+                                                                      </div>
+                                                                  </div>
+                                                              ))}
+                                                          </div>
+                                                      </div>
+                                                  ))}
+                                              </div>
+                                          </div>
+                                      )}
+                                  </div>
+                              );
+                          })}
                         </div>
-
-                        {filteredCustomers.length === 0 ? (
-                            <div className="text-center py-8 text-gray-500">
-                                {searchTerm ? (
-                                    <>
-                                        No customers found matching "{searchTerm}".{" "}
-                                        <button 
-                                            onClick={() => setSearchTerm("")}
-                                            className="text-blue-600 hover:underline"
-                                        >
-                                            Clear search
-                                        </button>
-                                    </>
-                                ) : (
-                                    <>
-                                        No customers available.{" "}
-                                        <button 
-                                            onClick={fetchData}
-                                            className="text-blue-600 hover:underline"
-                                        >
-                                            Refresh
-                                        </button>
-                                    </>
-                                )}
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                            {filteredCustomers.map(customer => {
-                                const isAssigned = assignments[customer.id]?.selected;
-                                const isExpanded = expandedCustomer === customer.id;
-
-                                return (
-                                    <div key={customer.id} className={`border rounded-lg ${isAssigned ? 'border-blue-200 bg-blue-50' : 'border-gray-200'}`}>
-                                        <div className="flex items-center justify-between p-4">
-                                            <div className="flex items-center gap-4">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={isAssigned}
-                                                    onChange={() => handleCustomerToggle(customer.id)}
-                                                    className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500"
-                                                />
-                                                <div>
-                                                    <div className="flex items-center gap-2">
-                                                        <h3 className="font-semibold text-gray-800">{customer.name}</h3>
-                                                        {customer.assigned_agent_id && String(customer.assigned_agent_id) !== String(agentId) && (
-                                                            <span className="bg-yellow-100 text-yellow-800 text-xs px-2 py-0.5 rounded border border-yellow-200">
-                                                                Assigned to: {customer.assigned_agent_name} {customer.assigned_agent_last_name}
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <p className="text-sm text-gray-500">{customer.client_type} • {customer.phone}</p>
-                                                </div>
-                                            </div>
-                                            
-                                            {isAssigned && (
-                                                <button 
-                                                    onClick={() => toggleExpand(customer.id)}
-                                                    className="p-2 hover:bg-blue-100 rounded-full text-blue-600"
-                                                >
-                                                    {isExpanded ? <BiChevronUp size={24} /> : <BiChevronDown size={24} />}
-                                                </button>
-                                            )}
-                                        </div>
-
-                                        {isAssigned && isExpanded && (
-                                            <div className="p-4 border-t border-blue-100 bg-white">
-                                                <h4 className="text-sm font-semibold text-gray-600 mb-3">Commission Rates (₹ Per Liter/Unit for each Product Code)</h4>
-                                                <div className="space-y-4">
-                                                    {products.map(product => (
-                                                        <div key={product.id} className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                                                            <h5 className="text-sm font-bold text-gray-700 mb-2">{product.pname}</h5>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                                                                {product.codes && product.codes.map(code => (
-                                                                    <div key={code.id} className="flex flex-col">
-                                                                        <label className="text-xs text-gray-500 mb-1">{code.pcode}</label>
-                                                                        <div className="relative">
-                                                                            <span className="absolute left-3 top-2 text-gray-400">₹</span>
-                                                                            <input
-                                                                                type="number"
-                                                                                step="0.01"
-                                                                                min="0"
-                                                                                value={assignments[customer.id]?.rates[code.id] || ''}
-                                                                                onChange={(e) => handleRateChange(customer.id, code.id, e.target.value)}
-                                                                                className="w-full pl-6 pr-3 py-2 border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 text-sm"
-                                                                                placeholder="0.00"
-                                                                            />
-                                                                        </div>
-                                                                    </div>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            </div>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                            </div>
-                        )}
+                      )}
                     </div>
                 </main>
             </div>

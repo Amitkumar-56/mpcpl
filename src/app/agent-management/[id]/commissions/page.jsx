@@ -10,11 +10,6 @@ export default function AgentCommissionsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [showPaymentModal, setShowPaymentModal] = useState(false);
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [tdsAmount, setTdsAmount] = useState("");
-  const [paymentRemarks, setPaymentRemarks] = useState("");
-  const [submitting, setSubmitting] = useState(false);
   const [activeTab, setActiveTab] = useState('history');
   const [paymentLogs, setPaymentLogs] = useState([]);
 
@@ -50,53 +45,21 @@ export default function AgentCommissionsPage() {
     }
   };
 
-  const handlePayment = async (e) => {
-    e.preventDefault();
-    if (!paymentAmount) return;
-
-    setSubmitting(true);
-    try {
-      const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
-      const res = await fetch("/api/agent-management/payments", {
-        method: "POST",
-        headers: (() => {
-          const h = { "Content-Type": "application/json" };
-          if (token) h.Authorization = `Bearer ${token.trim()}`;
-          return h;
-        })(),
-        credentials: 'include',
-        body: JSON.stringify({
-          agentId: id,
-          amount: parseFloat(paymentAmount),
-          tdsAmount: tdsAmount ? parseFloat(tdsAmount) : 0,
-          remarks: paymentRemarks,
-        }),
-      });
-
-      if (res.ok) {
-        setShowPaymentModal(false);
-        setPaymentAmount("");
-        setTdsAmount("");
-        setPaymentRemarks("");
-        fetchData(); // Refresh data including logs
-        alert("Payment recorded successfully!");
-      } else {
-        const errorData = await res.json();
-        alert(errorData.error || "Failed to record payment");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Error recording payment");
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
   const handleExport = () => {
     window.open(`/api/agent-management/export-commissions?agentId=${id}`, "_blank");
   };
 
-  if (loading) return <div className="p-6">Loading...</div>;
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="flex flex-col items-center">
+        <svg className="animate-spin h-10 w-10 text-blue-600 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <p className="text-gray-500 font-medium">Loading data...</p>
+      </div>
+    </div>
+  );
   if (!data) return <div className="p-6">Error loading data</div>;
 
   const { history, payments, summary } = data;
@@ -111,7 +74,7 @@ export default function AgentCommissionsPage() {
           <Header />
         </div>
 
-        <div className="p-6 mt-16 flex-1">
+        <div className="p-6 mt-20 flex-1">
           <div className="flex justify-between items-center mb-6">
             <div className="flex items-center gap-4">
               <Link href="/agent-management" className="text-blue-600 hover:underline">
@@ -125,12 +88,6 @@ export default function AgentCommissionsPage() {
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
               >
                 Export Excel
-              </button>
-              <button
-                onClick={() => setShowPaymentModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition"
-              >
-                Record Payment
               </button>
             </div>
           </div>
@@ -182,16 +139,6 @@ export default function AgentCommissionsPage() {
                   }`}
                 >
                   Payment History
-                </button>
-                <button
-                  onClick={() => setActiveTab('logs')}
-                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
-                    activeTab === 'logs'
-                      ? 'border-blue-500 text-blue-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
-                >
-                  Payment Logs
                 </button>
                 <button
                   onClick={() => setActiveTab('logs')}
@@ -432,69 +379,6 @@ export default function AgentCommissionsPage() {
           </div>
         </div>
 
-        {/* Payment Modal */}
-        {showPaymentModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-md">
-              <h2 className="text-xl font-bold mb-4">Record Payment</h2>
-              <form onSubmit={handlePayment}>
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-2">Amount (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                  />
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-2">TDS (₹)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={tdsAmount}
-                    onChange={(e) => setTdsAmount(e.target.value)}
-                  />
-                  <p className="text-xs text-gray-600 mt-1">
-                    Net Pay: ₹{(
-                      Math.max(0, (parseFloat(paymentAmount || 0) || 0) - (parseFloat(tdsAmount || 0) || 0))
-                    ).toFixed(2)}
-                  </p>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-gray-700 mb-2">Remarks</label>
-                  <textarea
-                    className="w-full border rounded px-3 py-2 focus:ring-2 focus:ring-blue-500 outline-none"
-                    rows="3"
-                    value={paymentRemarks}
-                    onChange={(e) => setPaymentRemarks(e.target.value)}
-                    placeholder="Transaction ID, Check No, etc."
-                  ></textarea>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowPaymentModal(false)}
-                    className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={submitting}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {submitting ? "Saving..." : "Save Payment"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
       </div>
     </div>
   );

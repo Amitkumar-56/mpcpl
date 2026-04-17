@@ -15,7 +15,6 @@ function FinishedGoodsContent() {
   const [editItem, setEditItem] = useState(null);
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [form, setForm] = useState({ product_name: '', category: '', unit: 'kg', current_stock: 0, description: '' });
 
   useEffect(() => { fetchGoods(); }, [search]);
@@ -52,11 +51,11 @@ function FinishedGoodsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-      <div className="flex-1 flex flex-col">
-        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
-        <main className="flex-1">
+    <div className="h-screen bg-gray-50 flex overflow-hidden">
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Header />
+        <main className="flex-1 overflow-y-auto">
           <div className="bg-gradient-to-r from-emerald-700 to-emerald-500 px-4 sm:px-6 md:px-8 py-4 sm:py-6 text-white">
             <div className="max-w-7xl mx-auto">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">

@@ -100,25 +100,36 @@ async function ensurePaymentLogsTable() {
     console.log("agent_payments tds/net columns check:", e.message);
   }
 
-  // Ensure TDS and net_amount columns exist on agent_payment_logs
+  // Ensure tds_status column exists on agent_payments
+  try {
+    const cols = await executeQuery(`
+      SELECT COLUMN_NAME 
+      FROM INFORMATION_SCHEMA.COLUMNS 
+      WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'agent_payments'
+        AND COLUMN_NAME = 'tds_status'
+    `);
+    if (cols.length === 0) {
+      await executeQuery(`ALTER TABLE agent_payments ADD COLUMN tds_status VARCHAR(20) DEFAULT 'unpaid'`);
+    }
+  } catch (e) {
+    console.log("agent_payments tds_status column check:", e.message);
+  }
+
+  // Ensure tds_status column exists on agent_payment_logs
   try {
     const cols = await executeQuery(`
       SELECT COLUMN_NAME 
       FROM INFORMATION_SCHEMA.COLUMNS 
       WHERE TABLE_SCHEMA = DATABASE() 
       AND TABLE_NAME = 'agent_payment_logs'
-        AND COLUMN_NAME IN ('tds_amount','net_amount')
+        AND COLUMN_NAME = 'tds_status'
     `);
-    const hasTds = cols.some(c => c.COLUMN_NAME === 'tds_amount');
-    const hasNet = cols.some(c => c.COLUMN_NAME === 'net_amount');
-    if (!hasTds) {
-      await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN tds_amount DECIMAL(10,2) DEFAULT 0`);
-    }
-    if (!hasNet) {
-      await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN net_amount DECIMAL(10,2) DEFAULT NULL`);
+    if (cols.length === 0) {
+      await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN tds_status VARCHAR(20) DEFAULT 'unpaid'`);
     }
   } catch (e) {
-    console.log("agent_payment_logs tds/net columns check:", e.message);
+    console.log("agent_payment_logs tds_status column check:", e.message);
   }
 }
 
@@ -130,6 +141,8 @@ export async function GET(request) {
     await ensurePaymentLogsTable();
 
     if (agentId) {
+      console.log("Fetching TDS for agent:", agentId);
+      
       // Get payment history for specific agent with customer details
       const payments = await executeQuery(`
         SELECT 
@@ -139,6 +152,7 @@ export async function GET(request) {
           ap.amount,
           ap.tds_amount,
           ap.net_amount,
+          ap.tds_status,
           ap.remarks,
           ap.payment_date,
           a.first_name,
@@ -153,55 +167,63 @@ export async function GET(request) {
         ORDER BY ap.payment_date DESC
       `, [agentId]);
 
+      console.log("Payments found:", payments.length);
+
       // Get payment logs with customer details
       const logs = await executeQuery(`
         SELECT 
           apl.*,
           apl.tds_amount,
           apl.net_amount,
+          apl.tds_status,
           a.first_name,
           a.last_name,
           a.agent_id as agent_code,
           c.name as customer_name,
           c.phone as customer_phone
         FROM agent_payment_logs apl
+        LEFT JOIN agent_payments ap ON apl.payment_id = ap.id
         LEFT JOIN agents a ON apl.agent_id = a.id
         LEFT JOIN customers c ON apl.customer_id = c.id
         WHERE apl.agent_id = ?
         ORDER BY apl.payment_date DESC
       `, [agentId]);
 
-      return NextResponse.json({
-        payments: payments || [],
-        logs: logs || []
-      }, { status: 200 });
+      console.log("Logs found:", logs.length);
+      console.log("TDS logs:", logs.filter(l => parseFloat(l.tds_amount || 0) > 0));
+
+      return NextResponse.json({ payments, logs });
+    } else {
+      console.log("Fetching all TDS logs");
+      
+      // Get all payment logs with agent and customer details
+      const logs = await executeQuery(`
+        SELECT 
+          apl.*,
+          apl.tds_amount,
+          apl.net_amount,
+          apl.tds_status,
+          a.first_name,
+          a.last_name,
+          a.agent_id as agent_code,
+          c.name as customer_name,
+          c.phone as customer_phone
+        FROM agent_payment_logs apl
+        LEFT JOIN agent_payments ap ON apl.payment_id = ap.id
+        LEFT JOIN agents a ON apl.agent_id = a.id
+        LEFT JOIN customers c ON apl.customer_id = c.id
+        ORDER BY apl.payment_date DESC
+      `);
+
+      console.log("All logs found:", logs.length);
+      console.log("All TDS logs:", logs.filter(l => parseFloat(l.tds_amount || 0) > 0));
+
+      return NextResponse.json({ logs });
     }
-
-    // Get all payments
-    const allPayments = await executeQuery(`
-      SELECT 
-        ap.id,
-        ap.agent_id,
-        ap.amount,
-        ap.tds_amount,
-        ap.net_amount,
-        ap.remarks,
-        ap.payment_date,
-        a.first_name,
-        a.last_name,
-        a.agent_id as agent_code
-      FROM agent_payments ap
-      LEFT JOIN agents a ON ap.agent_id = a.id
-      ORDER BY ap.payment_date DESC
-    `);
-
-    return NextResponse.json({
-      payments: allPayments || []
-    }, { status: 200 });
   } catch (error) {
-    console.error("Error fetching payments:", error);
+    console.error("Failed to fetch payment history:", error);
     return NextResponse.json(
-      { error: "Failed to fetch payments: " + error.message },
+      { error: "Failed to fetch payment history" },
       { status: 500 }
     );
   }
@@ -336,24 +358,37 @@ export async function POST(request) {
 
     await ensurePaymentLogsTable();
 
-    // Insert payment record (with optional customer_id)
-    // If customer_id is not provided, use NULL (column should be nullable)
+    // Validate customer_id if provided
+    let validCustomerId = null;
+    if (customerId && customerId !== "" && customerId !== null && customerId !== "null") {
+      // Check if customer exists
+      const customerCheck = await executeQuery(
+        `SELECT id FROM customers WHERE id = ?`,
+        [parseInt(customerId)]
+      );
+      if (customerCheck.length > 0) {
+        validCustomerId = parseInt(customerId);
+      }
+    }
+
     const grossAmount = parseFloat(amount);
     const tds = tdsAmount !== undefined && tdsAmount !== null ? parseFloat(tdsAmount) : 0;
     const netAmount = Math.max(0, grossAmount - (isNaN(tds) ? 0 : tds));
+    
+    // Insert without customer_id if it's not valid (avoid foreign key constraint)
     const result = await executeQuery(
       `INSERT INTO agent_payments (agent_id, customer_id, amount, tds_amount, net_amount, remarks, payment_date) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [agentId, customerId ? parseInt(customerId) : null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, remarks || ""]
+      [agentId, validCustomerId, grossAmount, isNaN(tds) ? 0 : tds, netAmount, remarks || ""]
     );
 
     const paymentId = result.insertId;
 
-    // Get customer name if customer_id is provided
+    // Get customer name if valid customer_id is provided
     let customerName = null;
-    if (customerId) {
+    if (validCustomerId) {
       const customerResult = await executeQuery(
         `SELECT name FROM customers WHERE id = ?`,
-        [customerId]
+        [validCustomerId]
       );
       if (customerResult.length > 0) {
         customerName = customerResult[0].name;
@@ -364,13 +399,114 @@ export async function POST(request) {
     await executeQuery(
       `INSERT INTO agent_payment_logs (payment_id, agent_id, customer_id, amount, tds_amount, net_amount, paid_by_user_id, paid_by_user_name, remarks, payment_date) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [paymentId, agentId, customerId || null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, userId, userName, remarks || ""]
+      [paymentId, agentId, validCustomerId, grossAmount, isNaN(tds) ? 0 : tds, netAmount, userId, userName, remarks || ""]
     );
 
+    // Deduct commission from agent_earnings and agent_commissions tables
+    if (validCustomerId) {
+      const totalDeduction = grossAmount + (isNaN(tds) ? 0 : tds); // amount + TDS
+      
+      // Check if agent_earnings table exists and has data
+      let earningsDeducted = 0;
+      try {
+        const earningsTableCheck = await executeQuery(
+          `SELECT COUNT(*) as count FROM information_schema.tables 
+           WHERE table_schema = DATABASE() AND table_name = 'agent_earnings'`
+        );
+        
+        if (earningsTableCheck[0]?.count > 0) {
+          // Check if there are earnings records for this agent and customer
+          const earningsCount = await executeQuery(
+            `SELECT COUNT(*) as count FROM agent_earnings 
+             WHERE agent_id = ? AND customer_id = ? AND commission_amount > 0`,
+            [agentId, validCustomerId]
+          );
+          
+          if (earningsCount[0]?.count > 0) {
+            // Deduct from agent_earnings table (FIFO - First In First Out)
+            const earningsToDeduct = await executeQuery(
+              `SELECT id, commission_amount 
+               FROM agent_earnings 
+               WHERE agent_id = ? AND customer_id = ? AND commission_amount > 0 
+               ORDER BY earned_at ASC 
+               LIMIT ?`,
+              [agentId, validCustomerId, 50]
+            );
+
+            let remainingDeduction = totalDeduction;
+            
+            for (const earning of earningsToDeduct) {
+              if (remainingDeduction <= 0) break;
+              
+              const deductAmount = Math.min(remainingDeduction, parseFloat(earning.commission_amount || 0));
+              
+              await executeQuery(
+                `UPDATE agent_earnings 
+                 SET commission_amount = commission_amount - ? 
+                 WHERE id = ?`,
+                [deductAmount, earning.id]
+              );
+              
+              remainingDeduction -= deductAmount;
+              earningsDeducted += deductAmount;
+            }
+          }
+        }
+      } catch (error) {
+        console.log("Agent earnings table not available or error:", error.message);
+      }
+
+      // If agent_earnings deduction didn't work, try agent_commissions as fallback
+      if (earningsDeducted < totalDeduction) {
+        const remainingToDeduct = totalDeduction - earningsDeducted;
+        
+        try {
+          // Deduct from agent_commissions table (reduce commission_rate)
+          const commissionsToDeduct = await executeQuery(
+            `SELECT ac.id, ac.commission_rate, ac.product_code_id,
+                    COALESCE(SUM(fr.aqty), 0) as total_quantity
+             FROM agent_commissions ac
+             LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id 
+               AND fr.status = 'Completed'
+               AND (fr.fl_id = ac.product_code_id OR fr.sub_product_id = ac.product_code_id)
+             WHERE ac.agent_id = ? AND ac.customer_id = ? AND ac.commission_rate > 0
+             GROUP BY ac.id, ac.commission_rate, ac.product_code_id
+             ORDER BY ac.id ASC
+             LIMIT ?`,
+            [agentId, validCustomerId, 50]
+          );
+
+          let remainingDeduction = remainingToDeduct;
+          
+          for (const commission of commissionsToDeduct) {
+            if (remainingDeduction <= 0) break;
+            
+            const totalCommission = parseFloat(commission.commission_rate || 0) * parseFloat(commission.total_quantity || 0);
+            const deductAmount = Math.min(remainingDeduction, totalCommission);
+            
+            // Calculate new commission rate (proportionally reduce)
+            const newCommissionRate = Math.max(0, (totalCommission - deductAmount) / parseFloat(commission.total_quantity || 1));
+            
+            await executeQuery(
+              `UPDATE agent_commissions 
+               SET commission_rate = ? 
+               WHERE id = ?`,
+              [newCommissionRate, commission.id]
+            );
+            
+            remainingDeduction -= deductAmount;
+          }
+        } catch (error) {
+          console.log("Agent commissions deduction error:", error.message);
+        }
+      }
+    }
+
     // Create audit log
+    const totalDeduction = grossAmount + (isNaN(tds) ? 0 : tds);
     const paymentMessage = customerName 
-      ? `Payment of ₹${grossAmount.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - Customer: ${customerName}`
-      : `Payment of ₹${grossAmount.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - General Payment`;
+      ? `Payment of ₹${grossAmount.toFixed(2)} + TDS ₹${(isNaN(tds) ? 0 : tds).toFixed(2)} = ₹${totalDeduction.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - Customer: ${customerName} - Commission deducted from earnings`
+      : `Payment of ₹${grossAmount.toFixed(2)} + TDS ₹${(isNaN(tds) ? 0 : tds).toFixed(2)} = ₹${totalDeduction.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - General Payment`;
 
     await createAuditLog({
       page: 'Agent Management',
@@ -386,11 +522,13 @@ export async function POST(request) {
         agent_id: agentId,
         agent_name: `${agent[0].first_name} ${agent[0].last_name}`,
         agent_code: agent[0].agent_id,
-        customer_id: customerId,
+        customer_id: validCustomerId,
         customer_name: customerName,
         amount: grossAmount,
         tds_amount: isNaN(tds) ? 0 : tds,
         net_amount: netAmount,
+        total_deduction: totalDeduction,
+        commission_deducted: validCustomerId ? 'Yes' : 'No',
         remarks: remarks || ''
       },
       recordType: 'agent_payment',
@@ -421,3 +559,32 @@ export async function POST(request) {
     );
   }
 }
+
+export async function PATCH(request) {
+  try {
+    const { paymentId, status } = await request.json();
+
+    if (!paymentId || !status) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    await ensurePaymentLogsTable();
+
+    await executeQuery(
+      `UPDATE agent_payments SET tds_status = ? WHERE id = ?`,
+      [status, paymentId]
+    );
+
+    // Update log entry as well
+    await executeQuery(
+      `UPDATE agent_payment_logs SET tds_status = ? WHERE payment_id = ?`,
+      [status, paymentId]
+    );
+
+    return NextResponse.json({ success: true, message: "TDS status updated" }, { status: 200 });
+  } catch (error) {
+    console.error("Failed to update TDS status:", error);
+    return NextResponse.json({ error: "Failed to update TDS status" }, { status: 500 });
+  }
+}
+

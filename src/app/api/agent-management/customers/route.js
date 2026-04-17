@@ -15,55 +15,88 @@ export async function GET(request) {
     }
 
     // Fetch assigned customers with detailed commission breakdown
-    // Calculate commission from filling_requests directly using agent_commissions rates
-    const assignedCustomers = await executeQuery(`
-      SELECT 
-        ac.customer_id as customer_id,
-        c.id,
-        c.name,
-        c.email,
-        c.phone,
-        COALESCE(SUM(
-          CASE 
+    let assignedCustomers = [];
+    
+    try {
+      // First try with agent_earnings table
+      const earningsTableCheck = await executeQuery(
+        `SELECT COUNT(*) as count FROM information_schema.tables 
+         WHERE table_schema = DATABASE() AND table_name = 'agent_earnings'`
+      );
+      
+      if (earningsTableCheck[0]?.count > 0) {
+        // Use agent_earnings table
+        assignedCustomers = await executeQuery(`
+          SELECT 
+            ae.customer_id as customer_id,
+            c.id,
+            c.name,
+            c.email,
+            c.phone,
+            COALESCE(SUM(COALESCE(ae.commission_amount, 0)), 0) as total_earned_commission,
+            COUNT(DISTINCT ae.id) as transaction_count
+          FROM agent_customers ac
+          LEFT JOIN customers c ON ac.customer_id = c.id
+          LEFT JOIN agent_earnings ae ON ae.agent_id = ? AND ae.customer_id = ac.customer_id AND ae.commission_amount > 0
+          WHERE ac.agent_id = ? AND ac.status = 'active'
+          GROUP BY ac.customer_id, c.id, c.name, c.email, c.phone
+        `, [id, id]);
+      } else {
+        throw new Error("Agent earnings table not found");
+      }
+    } catch (err) {
+      console.log("Agent earnings table not available, using filling_requests fallback:", err.message);
+      
+      // Fallback to filling_requests calculation
+      assignedCustomers = await executeQuery(`
+        SELECT 
+          ac.customer_id as customer_id,
+          c.id,
+          c.name,
+          c.email,
+          c.phone,
+          COALESCE(SUM(
+            CASE 
+              WHEN fr.status = 'Completed' 
+                AND (
+                  fr.fl_id = ac_comm.product_code_id 
+                  OR fr.sub_product_id = ac_comm.product_code_id
+                  OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
+                )
+              THEN fr.aqty * ac_comm.commission_rate 
+              ELSE 0 
+            END
+          ), 0) as total_earned_commission,
+          COUNT(DISTINCT CASE 
             WHEN fr.status = 'Completed' 
               AND (
                 fr.fl_id = ac_comm.product_code_id 
                 OR fr.sub_product_id = ac_comm.product_code_id
                 OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
               )
-            THEN fr.aqty * ac_comm.commission_rate 
-            ELSE 0 
-          END
-        ), 0) as total_earned_commission,
-        COUNT(DISTINCT CASE 
-          WHEN fr.status = 'Completed' 
-            AND (
-              fr.fl_id = ac_comm.product_code_id 
-              OR fr.sub_product_id = ac_comm.product_code_id
-              OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
-            )
-          THEN fr.id 
-        END) as transaction_count
-      FROM agent_customers ac
-      LEFT JOIN customers c ON ac.customer_id = c.id
-      LEFT JOIN agent_commissions ac_comm ON ac_comm.agent_id = ? AND ac_comm.customer_id = ac.customer_id
-      LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id 
-        AND fr.status = 'Completed' 
-        AND (
-          fr.fl_id = ac_comm.product_code_id 
-          OR fr.sub_product_id = ac_comm.product_code_id
-          OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
-        )
-        AND COALESCE(fr.aqty, 0) > 0
-      WHERE ac.agent_id = ? AND ac.status = 'active'
-      GROUP BY ac.customer_id, c.id, c.name, c.email, c.phone
-    `, [id, id]);
+            THEN fr.id 
+          END) as transaction_count
+        FROM agent_customers ac
+        LEFT JOIN customers c ON ac.customer_id = c.id
+        LEFT JOIN agent_commissions ac_comm ON ac_comm.agent_id = ? AND ac_comm.customer_id = ac.customer_id
+        LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id 
+          AND fr.status = 'Completed' 
+          AND (
+            fr.fl_id = ac_comm.product_code_id 
+            OR fr.sub_product_id = ac_comm.product_code_id
+            OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
+          )
+          AND COALESCE(fr.aqty, 0) > 0
+        WHERE ac.agent_id = ? AND ac.status = 'active'
+        GROUP BY ac.customer_id, c.id, c.name, c.email, c.phone
+      `, [id, id]);
+    }
 
     // Fetch customer-wise payments (including payments without customer_id - these are general payments)
     const customerPayments = await executeQuery(`
       SELECT 
         COALESCE(customer_id, 0) as customer_id,
-        SUM(COALESCE(net_amount, amount, 0)) as total_paid,
+        SUM(COALESCE(amount, 0)) as total_paid,
         COUNT(*) as payment_count
       FROM agent_payments
       WHERE agent_id = ?
@@ -73,7 +106,7 @@ export async function GET(request) {
     // Also get total payments without customer_id (general payments)
     const generalPayments = await executeQuery(`
       SELECT 
-        SUM(COALESCE(net_amount, amount, 0)) as total_general_paid
+        SUM(COALESCE(amount, 0)) as total_general_paid
       FROM agent_payments
       WHERE agent_id = ? AND (customer_id IS NULL OR customer_id = 0)
     `, [id]);
@@ -93,61 +126,21 @@ export async function GET(request) {
     });
 
     // Fetch product-wise commission breakdown per customer
-    // Calculate from filling_requests directly
+    // Calculate from agent_earnings table
     const productCommissionBreakdown = await executeQuery(`
       SELECT 
-        ac_comm.customer_id,
-        p.id as product_id,
-        p.pname as product_name,
-        SUM(
-          CASE 
-            WHEN fr.status = 'Completed' 
-              AND (
-                fr.fl_id = ac_comm.product_code_id 
-                OR fr.sub_product_id = ac_comm.product_code_id
-                OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
-              )
-            THEN fr.aqty * ac_comm.commission_rate 
-            ELSE 0 
-          END
-        ) as total_commission,
-        SUM(
-          CASE 
-            WHEN fr.status = 'Completed' 
-              AND (
-                fr.fl_id = ac_comm.product_code_id 
-                OR fr.sub_product_id = ac_comm.product_code_id
-                OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
-              )
-            THEN fr.aqty 
-            ELSE 0 
-          END
-        ) as total_quantity,
-        COUNT(DISTINCT 
-          CASE 
-            WHEN fr.status = 'Completed' 
-              AND (
-                fr.fl_id = ac_comm.product_code_id 
-                OR fr.sub_product_id = ac_comm.product_code_id
-                OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
-              )
-            THEN fr.id 
-          END
-        ) as transaction_count
-      FROM agent_commissions ac_comm
-      LEFT JOIN product_codes pc ON ac_comm.product_code_id = pc.id
+        ae.customer_id,
+        COALESCE(pc.product_id, ae.product_code_id) as product_id,
+        COALESCE(p.pname, 'Unknown Product') as product_name,
+        SUM(COALESCE(ae.commission_amount, 0)) as total_commission,
+        SUM(COALESCE(ae.quantity, 0)) as total_quantity,
+        COUNT(DISTINCT ae.id) as transaction_count
+      FROM agent_earnings ae
+      LEFT JOIN product_codes pc ON ae.product_code_id = pc.id
       LEFT JOIN products p ON pc.product_id = p.id
-      LEFT JOIN filling_requests fr ON fr.cid = ac_comm.customer_id 
-        AND fr.status = 'Completed'
-        AND (
-          fr.fl_id = ac_comm.product_code_id 
-          OR fr.sub_product_id = ac_comm.product_code_id
-          OR COALESCE(fr.sub_product_id, fr.fl_id) = ac_comm.product_code_id
-        )
-        AND COALESCE(fr.aqty, 0) > 0
-      WHERE ac_comm.agent_id = ?
-      GROUP BY ac_comm.customer_id, p.id, p.pname
-      ORDER BY ac_comm.customer_id, p.pname
+      WHERE ae.agent_id = ? AND ae.commission_amount > 0
+      GROUP BY ae.customer_id, COALESCE(pc.product_id, ae.product_code_id), COALESCE(p.pname, 'Unknown Product')
+      ORDER BY ae.customer_id, COALESCE(p.pname, 'Unknown Product')
     `, [id]);
 
     // Organize product breakdown by customer

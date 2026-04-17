@@ -240,56 +240,97 @@ export async function GET(request) {
       return NextResponse.json([], { status: 200 });
     }
 
-    // Calculate agent commissions from filling_requests
-    const agents = await executeQuery(`
-      SELECT 
-        a.id, a.agent_id, a.first_name, a.last_name, a.email, a.phone, 
-        a.address, a.bank_name, a.account_number, a.ifsc_code, a.status, a.created_at,
-        COALESCE(e.total_earned, 0) as total_earned,
-        COALESCE(p.total_paid, 0) as total_paid,
-        (COALESCE(e.total_earned, 0) - COALESCE(p.total_paid, 0)) as total_due_commission
-      FROM agents a
-      LEFT JOIN (
+    // Calculate agent commissions with fallback for agent_earnings table
+    let agents = [];
+    
+    try {
+      // First try with agent_earnings table
+      const earningsTableCheck = await executeQuery(
+        `SELECT COUNT(*) as count FROM information_schema.tables 
+         WHERE table_schema = DATABASE() AND table_name = 'agent_earnings'`
+      );
+      
+      if (earningsTableCheck[0]?.count > 0) {
+        // Use agent_earnings table
+        agents = await executeQuery(`
           SELECT 
-              ac.agent_id, 
-              SUM(COALESCE(fr.aqty, 0) * COALESCE(ac.commission_rate, 0)) as total_earned
-          FROM agent_commissions ac
-          INNER JOIN agent_customers acust ON acust.agent_id = ac.agent_id 
-            AND acust.customer_id = ac.customer_id 
-            AND acust.status = 'active'
-          LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id 
-            AND fr.status = 'Completed' 
-            AND (
-              fr.fl_id = ac.product_code_id 
-              OR fr.sub_product_id = ac.product_code_id
-              OR COALESCE(fr.sub_product_id, fr.fl_id) = ac.product_code_id
-            )
-            AND COALESCE(fr.aqty, 0) > 0
-          WHERE ac.agent_id IS NOT NULL 
-            AND COALESCE(ac.commission_rate, 0) > 0
-          GROUP BY ac.agent_id
-      ) e ON e.agent_id = a.id
-      LEFT JOIN (
-          SELECT agent_id, SUM(COALESCE(net_amount, amount, 0)) as total_paid 
-          FROM agent_payments 
-          WHERE agent_id IS NOT NULL
-          GROUP BY agent_id
-      ) p ON p.agent_id = a.id
-      ORDER BY a.created_at DESC
-    `).catch((err) => {
-      console.error("Agent commission calculation error:", err);
-      // Fallback: return agents with zero commission
-      return executeQuery(`
+            a.id, a.agent_id, a.first_name, a.last_name, a.email, a.phone, 
+            a.address, a.bank_name, a.account_number, a.ifsc_code, a.status, a.created_at,
+            COALESCE(e.total_earned, 0) as total_earned,
+            COALESCE(p.total_paid, 0) as total_paid,
+            (COALESCE(e.total_earned, 0) - COALESCE(p.total_paid, 0)) as total_due_commission,
+            COALESCE(p.unsettled_tds, 0) as unsettled_tds
+          FROM agents a
+          LEFT JOIN (
+              -- Get total earned from agent_earnings table (actual earned commission)
+              SELECT 
+                  agent_id, 
+                  SUM(COALESCE(commission_amount, 0)) as total_earned
+              FROM agent_earnings 
+              WHERE agent_id IS NOT NULL 
+                AND commission_amount > 0
+              GROUP BY agent_id
+          ) e ON e.agent_id = a.id
+          LEFT JOIN (
+              -- Get total paid and unsettled TDS from agent_payments
+              SELECT agent_id, 
+                     SUM(COALESCE(amount, 0)) as total_paid,
+                     SUM(CASE WHEN tds_status != 'paid' THEN COALESCE(tds_amount, 0) ELSE 0 END) as unsettled_tds
+              FROM agent_payments 
+              WHERE agent_id IS NOT NULL
+              GROUP BY agent_id
+          ) p ON p.agent_id = a.id
+          ORDER BY a.created_at DESC
+        `);
+      } else {
+        throw new Error("Agent earnings table not found");
+      }
+    } catch (err) {
+      console.log("Agent earnings table not available, using filling_requests fallback:", err.message);
+      
+      // Fallback to filling_requests calculation
+      agents = await executeQuery(`
         SELECT 
-          id, agent_id, first_name, last_name, email, phone, 
-          address, status, created_at,
-          0 as total_earned,
-          0 as total_paid,
-          0 as total_due_commission
-        FROM agents
-        ORDER BY created_at DESC
+          a.id, a.agent_id, a.first_name, a.last_name, a.email, a.phone, 
+          a.address, a.bank_name, a.account_number, a.ifsc_code, a.status, a.created_at,
+          COALESCE(e.total_earned, 0) as total_earned,
+          COALESCE(p.total_paid, 0) as total_paid,
+          (COALESCE(e.total_earned, 0) - COALESCE(p.total_paid, 0)) as total_due_commission,
+          COALESCE(p.unsettled_tds, 0) as unsettled_tds
+        FROM agents a
+        LEFT JOIN (
+            -- Get total earned from filling_requests using agent_commissions rates
+            SELECT 
+                ac.agent_id, 
+                SUM(COALESCE(fr.aqty, 0) * COALESCE(ac.commission_rate, 0)) as total_earned
+            FROM agent_commissions ac
+            INNER JOIN agent_customers acust ON acust.agent_id = ac.agent_id 
+              AND acust.customer_id = ac.customer_id 
+              AND acust.status = 'active'
+            LEFT JOIN filling_requests fr ON fr.cid = ac.customer_id 
+              AND fr.status = 'Completed' 
+              AND (
+                fr.fl_id = ac.product_code_id 
+                OR fr.sub_product_id = ac.product_code_id
+                OR COALESCE(fr.sub_product_id, fr.fl_id) = ac.product_code_id
+              )
+              AND COALESCE(fr.aqty, 0) > 0
+            WHERE ac.agent_id IS NOT NULL 
+              AND COALESCE(ac.commission_rate, 0) > 0
+            GROUP BY ac.agent_id
+        ) e ON e.agent_id = a.id
+        LEFT JOIN (
+            -- Get total paid and unsettled TDS from agent_payments
+            SELECT agent_id, 
+                   SUM(COALESCE(amount, 0)) as total_paid,
+                   SUM(CASE WHEN tds_status != 'paid' THEN COALESCE(tds_amount, 0) ELSE 0 END) as unsettled_tds
+            FROM agent_payments 
+            WHERE agent_id IS NOT NULL
+            GROUP BY agent_id
+        ) p ON p.agent_id = a.id
+        ORDER BY a.created_at DESC
       `);
-    });
+    }
 
     const adjustedAgents = (agents || []).map(a => ({
       ...a,

@@ -5,6 +5,25 @@ import Sidebar from "components/sidebar";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
+import { 
+  UserPlus, 
+  ChevronLeft, 
+  User, 
+  Mail, 
+  Phone, 
+  MapPin, 
+  CreditCard, 
+  Building2, 
+  Lock, 
+  ShieldCheck, 
+  Users, 
+  ArrowRight,
+  Plus,
+  Info,
+  Banknote,
+  CheckCircle2,
+  XCircle
+} from "lucide-react";
 
 export default function CreateAgent() {
   const [formData, setFormData] = useState({
@@ -30,7 +49,6 @@ export default function CreateAgent() {
   const [loadingData, setLoadingData] = useState(true);
   const router = useRouter();
 
-  // Fetch customers and products on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -42,70 +60,16 @@ export default function CreateAgent() {
         
         if (customersRes.ok) {
           const customersData = await customersRes.json();
-          console.log('Fetched customers response:', customersData);
-          
-          // Handle different response formats
-          let customersList = [];
-          if (Array.isArray(customersData)) {
-            customersList = customersData;
-          } else if (customersData.customers && Array.isArray(customersData.customers)) {
-            customersList = customersData.customers;
-          } else if (customersData.data && Array.isArray(customersData.data)) {
-            customersList = customersData.data;
-          }
-          
-          // The API already filters by roleid IN (1, 3), so we can use all customers
-          // But let's still filter to be safe
-          const filteredCustomers = customersList.filter(c => {
-            // If roleid exists, check it; otherwise include all (API already filtered)
-            if (c.roleid !== undefined) {
-              const roleId = Number(c.roleid);
-              return roleId === 1 || roleId === 3;
-            }
-            // If no roleid field, include it (API already filtered)
-            return true;
-          });
-          
-          console.log('Total customers fetched:', customersList.length);
-          console.log('Filtered customers (roleid 1 or 3):', filteredCustomers.length);
-          console.log('Sample customer:', filteredCustomers[0]);
-          
-          setCustomers(filteredCustomers);
-        } else {
-          const errorText = await customersRes.text();
-          console.error('Failed to fetch customers:', customersRes.status, errorText);
-          setCustomers([]);
+          let customersList = Array.isArray(customersData) ? customersData : (customersData.customers || []);
+          setCustomers(customersList.filter(c => !c.roleid || Number(c.roleid) === 1 || Number(c.roleid) === 3));
         }
         
         if (productsRes.ok) {
           const productsData = await productsRes.json();
-          console.log('Fetched products response:', productsData);
-          
-          // Handle different response formats
-          let productsList = [];
-          if (Array.isArray(productsData)) {
-            productsList = productsData;
-          } else if (productsData.products && Array.isArray(productsData.products)) {
-            productsList = productsData.products;
-          } else if (productsData.data && Array.isArray(productsData.data)) {
-            productsList = productsData.data;
-          } else if (productsData.error) {
-            console.error('Products API error:', productsData.error);
-          }
-          
-          console.log('Total products fetched:', productsList.length);
-          console.log('Products list:', productsList);
-          
-          setProducts(productsList);
-        } else {
-          const errorText = await productsRes.text();
-          console.error('Failed to fetch products:', productsRes.status, errorText);
-          setProducts([]);
+          setProducts(Array.isArray(productsData) ? productsData : (productsData.products || []));
         }
       } catch (error) {
         console.error('Error fetching data:', error);
-        setCustomers([]);
-        setProducts([]);
       } finally {
         setLoadingData(false);
       }
@@ -116,23 +80,13 @@ export default function CreateAgent() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ""
-      }));
-    }
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors(prev => ({ ...prev, [name]: "" }));
   };
 
   const handleCustomerToggle = (customerId) => {
     setSelectedCustomers(prev => {
       if (prev.includes(customerId)) {
-        // Remove customer and their commission rates
         const newRates = { ...commissionRates };
         delete newRates[customerId];
         setCommissionRates(newRates);
@@ -155,22 +109,14 @@ export default function CreateAgent() {
 
   const validateForm = () => {
     const newErrors = {};
+    const required = ["firstName", "lastName", "email", "phone", "address", "aadharNumber", "panNumber", "bankName", "accountNumber", "ifscCode", "password"];
     
-    if (!formData.firstName.trim()) newErrors.firstName = "First name is required";
-    if (!formData.lastName.trim()) newErrors.lastName = "Last name is required";
-    if (!formData.email.trim()) newErrors.email = "Email is required";
-    if (!formData.phone.trim()) newErrors.phone = "Phone is required";
-    if (!formData.address.trim()) newErrors.address = "Address is required";
-    if (!formData.aadharNumber.trim()) newErrors.aadharNumber = "Aadhar number is required";
-    if (!formData.panNumber.trim()) newErrors.panNumber = "PAN number is required";
-    if (!formData.bankName.trim()) newErrors.bankName = "Bank name is required";
-    if (!formData.accountNumber.trim()) newErrors.accountNumber = "Account number is required";
-    if (!formData.ifscCode.trim()) newErrors.ifscCode = "IFSC code is required";
-    if (!formData.password) newErrors.password = "Password is required";
-    if (formData.password.length < 6) newErrors.password = "Password must be at least 6 characters";
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = "Passwords do not match";
-    }
+    required.forEach(field => {
+      if (!formData[field]?.trim()) newErrors[field] = "Required";
+    });
+
+    if (formData.password?.length < 6) newErrors.password = "Min 6 chars";
+    if (formData.password !== formData.confirmPassword) newErrors.confirmPassword = "Mismatch";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -178,25 +124,12 @@ export default function CreateAgent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     setLoading(true);
     try {
       const token = localStorage.getItem("token");
-      
-      if (!token) {
-        alert("No authentication token found. Please login again.");
-        router.push("/login");
-        return;
-      }
-
-      // Remove confirmPassword before sending to API
       const { confirmPassword, ...submitData } = formData;
-
-      // Add customer assignments and commission rates
       submitData.customers = selectedCustomers;
       submitData.commissionRates = commissionRates;
 
@@ -209,16 +142,14 @@ export default function CreateAgent() {
         body: JSON.stringify(submitData)
       });
 
-      const data = await response.json();
-
       if (response.ok) {
         alert("Agent created successfully!");
         router.push("/agent-management");
       } else {
+        const data = await response.json();
         alert(data.error || "Failed to create agent");
       }
     } catch (error) {
-      console.error("Error creating agent:", error);
       alert("Network error creating agent");
     } finally {
       setLoading(false);
@@ -226,355 +157,354 @@ export default function CreateAgent() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row">
-      <div className="hidden md:block fixed top-0 left-0 h-full w-64 bg-gray-100 shadow-lg z-20">
+    <div className="flex h-screen bg-gray-50/50 overflow-hidden">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
-      <div className="flex-1 flex flex-col md:ml-64">
-        <div className="fixed top-0 left-0 md:left-64 right-0 z-10">
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <div className="flex-shrink-0">
           <Header />
         </div>
-        
-        <div className="p-6 mt-16 flex-1 bg-gray-50">
-          <div className="flex items-center justify-between mb-6">
-            <h1 className="text-2xl font-bold">Create New Agent</h1>
-            <Link
-              href="/agent-management"
-              className="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600"
-            >
-              Back to Agents
+
+        <main className="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 scrollbar-none animate-fade-in">
+          {/* Header */}
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-4">
+               <button
+                  onClick={() => router.back()}
+                  className="p-2.5 bg-white rounded-xl shadow-sm border border-gray-200 text-gray-500 hover:text-blue-600 hover:border-blue-100 transition"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div>
+                  <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 tracking-tight">Create Agent</h1>
+                  <p className="text-sm text-gray-500 font-medium">Onboard a new agent to the MPCL ecosystem.</p>
+                </div>
+            </div>
+            <Link href="/agent-management" className="hidden md:flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-gray-900 transition mt-2">
+              <Users className="w-4 h-4" /> Agent Directory
             </Link>
           </div>
 
-          <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow p-6 space-y-6">
-            {/* Personal Information */}
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-medium mb-3">Personal Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="firstName"
-                    value={formData.firstName}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.firstName ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.firstName && <p className="text-red-500 text-xs mt-1">{errors.firstName}</p>}
+          <form onSubmit={handleSubmit} className="max-w-5xl space-y-8 pb-20">
+            {/* Step 1: Profile */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center gap-3">
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                  <User className="w-5 h-5" />
                 </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="lastName"
-                    value={formData.lastName}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.lastName ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.lastName && <p className="text-red-500 text-xs mt-1">{errors.lastName}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email *
-                  </label>
-                  <input
-                    type="email"
-                    name="email"
-                    value={formData.email}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.email ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Phone *
-                  </label>
-                  <input
-                    type="tel"
-                    name="phone"
-                    value={formData.phone}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.phone ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
-                </div>
+                <h3 className="font-bold text-gray-900 uppercase tracking-wider text-xs">Personal Information</h3>
               </div>
-
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Address *
-                </label>
-                <textarea
-                  name="address"
-                  value={formData.address}
-                  onChange={handleChange}
-                  rows={3}
-                  className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                    errors.address ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                />
-                {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
-              </div>
-            </div>
-
-            {/* KYC Information */}
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-medium mb-3">KYC Information</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Aadhar Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="aadharNumber"
-                    value={formData.aadharNumber}
-                    onChange={handleChange}
-                    maxLength="12"
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.aadharNumber ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.aadharNumber && <p className="text-red-500 text-xs mt-1">{errors.aadharNumber}</p>}
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    PAN Number *
-                  </label>
-                  <input
-                    type="text"
-                    name="panNumber"
-                    value={formData.panNumber}
-                    onChange={handleChange}
-                    maxLength="10"
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.panNumber ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.panNumber && <p className="text-red-500 text-xs mt-1">{errors.panNumber}</p>}
-                </div>
-              </div>
-            </div>
-
-            {/* Bank Details */}
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-medium mb-3">Bank Details</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Bank Name *
-                  </label>
-                  <input
-                    type="text"
-                    name="bankName"
-                    value={formData.bankName}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.bankName ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.bankName && <p className="text-red-500 text-xs mt-1">{errors.bankName}</p>}
-                </div>
-                
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Account Number *
-                    </label>
+              <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* First Name */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">First Name</label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition" />
                     <input
-                      type="text"
-                      name="accountNumber"
-                      value={formData.accountNumber}
+                      name="firstName"
+                      value={formData.firstName}
                       onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.accountNumber ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.firstName ? 'border-red-300 ring-4 ring-red-50' : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50'} rounded-2xl outline-none transition text-sm font-medium`}
+                      placeholder="Enter first name"
                     />
-                    {errors.accountNumber && <p className="text-red-500 text-xs mt-1">{errors.accountNumber}</p>}
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      IFSC Code *
-                    </label>
+                </div>
+                {/* Last Name */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Last Name</label>
+                  <div className="relative group">
+                    <User className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition" />
                     <input
-                      type="text"
-                      name="ifscCode"
-                      value={formData.ifscCode}
+                      name="lastName"
+                      value={formData.lastName}
                       onChange={handleChange}
-                      className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                        errors.ifscCode ? 'border-red-500' : 'border-gray-300'
-                      }`}
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.lastName ? 'border-red-300 ring-4 ring-red-50' : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50'} rounded-2xl outline-none transition text-sm font-medium`}
+                      placeholder="Enter last name"
                     />
-                    {errors.ifscCode && <p className="text-red-500 text-xs mt-1">{errors.ifscCode}</p>}
+                  </div>
+                </div>
+                {/* Email Address */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Email Address</label>
+                  <div className="relative group">
+                    <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition" />
+                    <input
+                      name="email"
+                      type="email"
+                      value={formData.email}
+                      onChange={handleChange}
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.email ? 'border-red-300 ring-4 ring-red-50' : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50'} rounded-2xl outline-none transition text-sm font-medium`}
+                      placeholder="agent@example.com"
+                    />
+                  </div>
+                </div>
+                {/* Phone Number */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Phone Number</label>
+                  <div className="relative group">
+                    <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition" />
+                    <input
+                      name="phone"
+                      value={formData.phone}
+                      onChange={handleChange}
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.phone ? 'border-red-300 ring-4 ring-red-50' : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50'} rounded-2xl outline-none transition text-sm font-medium`}
+                      placeholder="+91 XXXXX XXXXX"
+                    />
+                  </div>
+                </div>
+                {/* Address - Full width */}
+                <div className="md:col-span-2 space-y-2">
+                   <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Permanent Address</label>
+                   <div className="relative group">
+                    <MapPin className="absolute left-4 top-4 w-4 h-4 text-gray-400 group-focus-within:text-blue-500 transition" />
+                    <textarea
+                      name="address"
+                      rows="3"
+                      value={formData.address}
+                      onChange={handleChange}
+                      className={`w-full pl-11 pr-4 py-3 bg-gray-50 border ${errors.address ? 'border-red-300 ring-4 ring-red-50' : 'border-gray-200 focus:border-blue-500 focus:ring-4 focus:ring-blue-50'} rounded-2xl outline-none transition text-sm font-medium resize-none`}
+                      placeholder="Enter full residential address..."
+                    />
                   </div>
                 </div>
               </div>
             </div>
 
-            {/* Customer Assignment */}
-            <div className="border-b pb-4">
-              <h3 className="text-lg font-medium mb-3">Customer Assignment</h3>
-              {loadingData ? (
-                <div className="flex items-center justify-center p-8">
-                  <div className="text-gray-500">Loading customers and products...</div>
-                </div>
-              ) : (
-                <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-md p-4">
-                  {customers.length === 0 ? (
-                    <div className="text-center p-4">
-                      <p className="text-gray-500 mb-2">No customers available</p>
-                      <p className="text-xs text-gray-400">Make sure customers exist with roleid 1 or 3</p>
+            {/* Step 2: KYC & Bank */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+               <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center gap-3">
+                    <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg">
+                      <ShieldCheck className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-gray-900 uppercase tracking-wider text-xs">KYC Documents</h3>
+                  </div>
+                  <div className="p-6 space-y-6">
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Aadhar Number</label>
+                       <input
+                          name="aadharNumber"
+                          value={formData.aadharNumber}
+                          onChange={handleChange}
+                          className={`w-full px-4 py-3 bg-gray-50 border ${errors.aadharNumber ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-mono`}
+                          placeholder="XXXX XXXX XXXX"
+                          maxLength="12"
+                        />
+                    </div>
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">PAN Card Number</label>
+                       <input
+                          name="panNumber"
+                          value={formData.panNumber}
+                          onChange={handleChange}
+                          className={`w-full px-4 py-3 bg-gray-50 border ${errors.panNumber ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-mono uppercase`}
+                          placeholder="ABCDE1234F"
+                          maxLength="10"
+                        />
+                    </div>
+                  </div>
+               </div>
+
+               <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center gap-3">
+                    <div className="p-2 bg-orange-100 text-orange-600 rounded-lg">
+                      <Building2 className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-gray-900 uppercase tracking-wider text-xs">Settlement Details</h3>
+                  </div>
+                  <div className="p-6 space-y-4">
+                    <div className="space-y-2">
+                       <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Bank Name</label>
+                       <input
+                          name="bankName"
+                          value={formData.bankName}
+                          onChange={handleChange}
+                          className={`w-full px-4 py-3 bg-gray-50 border ${errors.bankName ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-medium`}
+                          placeholder="State Bank of India"
+                        />
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                       <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Account No.</label>
+                          <input
+                              name="accountNumber"
+                              value={formData.accountNumber}
+                              onChange={handleChange}
+                              className={`w-full px-4 py-3 bg-gray-50 border ${errors.accountNumber ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-mono`}
+                              placeholder="0000000000"
+                            />
+                       </div>
+                       <div className="space-y-2">
+                          <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">IFSC Code</label>
+                          <input
+                              name="ifscCode"
+                              value={formData.ifscCode}
+                              onChange={handleChange}
+                              className={`w-full px-4 py-3 bg-gray-50 border ${errors.ifscCode ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-mono uppercase`}
+                              placeholder="SBIN0001234"
+                            />
+                       </div>
+                    </div>
+                  </div>
+               </div>
+            </div>
+
+            {/* Step 3: Allocation Control */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+               <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
+                      <Users className="w-5 h-5" />
+                    </div>
+                    <h3 className="font-bold text-gray-900 uppercase tracking-wider text-xs">Customer Allocation & Commission</h3>
+                 </div>
+                 {selectedCustomers.length > 0 && (
+                   <span className="bg-purple-600 text-white px-3 py-1 rounded-full text-[10px] font-black">{selectedCustomers.length} SELECTED</span>
+                 )}
+               </div>
+               
+               <div className="p-6 md:p-8 space-y-8">
+                  {loadingData ? (
+                    <div className="py-20 text-center">
+                       <div className="w-10 h-10 border-4 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+                       <p className="text-gray-400 font-medium italic">Synchronizing customers and product catalog...</p>
                     </div>
                   ) : (
-                    <div className="space-y-2">
-                      <p className="text-sm text-gray-600 mb-2">Select customers to assign to this agent:</p>
-                      {customers.map(customer => (
-                        <div key={customer.id} className="flex items-center space-x-3 p-2 hover:bg-gray-50 rounded border border-gray-100">
-                          <input
-                            type="checkbox"
-                            id={`customer-${customer.id}`}
-                            checked={selectedCustomers.includes(customer.id)}
-                            onChange={() => handleCustomerToggle(customer.id)}
-                            className="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer"
-                          />
-                          <label htmlFor={`customer-${customer.id}`} className="flex-1 cursor-pointer">
-                            <span className="font-medium text-gray-800">{customer.name || `Customer #${customer.id}`}</span>
-                            {customer.phone && <span className="text-gray-500 ml-2">({customer.phone})</span>}
-                            {customer.email && <span className="text-gray-400 ml-2 text-xs">- {customer.email}</span>}
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Commission Rates */}
-            {selectedCustomers.length > 0 && (
-              <div className="border-b pb-4">
-                <h3 className="text-lg font-medium mb-3">Product Commission Rates</h3>
-                <p className="text-sm text-gray-600 mb-4">Set commission rate (₹ per liter) for each product per customer</p>
-                {products.length === 0 ? (
-                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                    <p className="text-yellow-800 text-sm">No products available. Please add products first.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    {selectedCustomers.map(customerId => {
-                      const customer = customers.find(c => c.id === customerId);
-                      if (!customer) return null;
-                      
-                      return (
-                        <div key={customerId} className="border-2 border-blue-200 rounded-lg p-4 bg-blue-50">
-                          <h4 className="font-semibold text-gray-800 mb-3 flex items-center">
-                            <span className="bg-blue-600 text-white px-2 py-1 rounded text-sm mr-2">
-                              {customer.name || `Customer #${customerId}`}
-                            </span>
-                            <span className="text-xs text-gray-500">({products.length} products)</span>
-                          </h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            {products.map(product => (
-                              <div key={product.id} className="flex flex-col bg-white p-3 rounded border border-gray-200">
-                              <label className="text-sm font-medium text-gray-700 mb-1">
-                                {product.pname || `Product #${product.id}`} (₹/L)
-                              </label>
-                              <input
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                value={commissionRates[customerId]?.[product.id] || ''}
-                                onChange={(e) => handleCommissionRateChange(customerId, product.id, e.target.value)}
-                                placeholder="0.00"
-                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                              <span className="text-xs text-gray-500 mt-1">Amount per liter</span>
+                    <>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {customers.map(customer => {
+                          const isSelected = selectedCustomers.includes(customer.id);
+                          return (
+                            <button
+                              key={customer.id}
+                              type="button"
+                              onClick={() => handleCustomerToggle(customer.id)}
+                              className={`p-4 rounded-2xl border-2 text-left transition relative overflow-hidden group ${
+                                isSelected 
+                                ? 'bg-purple-50 border-purple-200 shadow-md shadow-purple-50' 
+                                : 'bg-white border-gray-100 hover:border-purple-100 shadow-sm'
+                              }`}
+                            >
+                              {isSelected && <div className="absolute top-0 right-0 p-2"><CheckCircle2 className="w-4 h-4 text-purple-600" /></div>}
+                              <p className={`font-bold text-sm ${isSelected ? 'text-purple-900' : 'text-gray-800'}`}>{customer.name}</p>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <Phone className="w-2.5 h-2.5 text-gray-400" />
+                                <span className="text-[10px] text-gray-500 font-medium">{customer.phone || 'Phone N/A'}</span>
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
+                            </button>
+                          );
+                        })}
+                      </div>
 
-            {/* Login Credentials */}
-            <div className="pb-4">
-              <h3 className="text-lg font-medium mb-3">Login Credentials</h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    name="password"
-                    value={formData.password}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.password ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.password && <p className="text-red-500 text-xs mt-1">{errors.password}</p>}
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Confirm Password *
-                  </label>
-                  <input
-                    type="password"
-                    name="confirmPassword"
-                    value={formData.confirmPassword}
-                    onChange={handleChange}
-                    className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                  />
-                  {errors.confirmPassword && <p className="text-red-500 text-xs mt-1">{errors.confirmPassword}</p>}
-                </div>
-              </div>
+                      {selectedCustomers.length > 0 && (
+                         <div className="space-y-6 animate-slide-up">
+                            <div className="flex items-center gap-2 text-purple-800 bg-purple-50/50 p-4 rounded-2xl border border-purple-100">
+                               <Info className="w-5 h-5 flex-shrink-0" />
+                               <p className="text-xs font-semibold">Define commission rates per liter (₹/L) for each assigned customer.</p>
+                            </div>
+                            
+                            <div className="space-y-4">
+                               {selectedCustomers.map(cid => {
+                                 const customer = customers.find(c => c.id === cid);
+                                 return (
+                                   <div key={cid} className="bg-gray-50/50 rounded-2xl border border-gray-200 p-6 space-y-4">
+                                      <div className="flex items-center gap-2 mb-2">
+                                         <div className="w-2 h-6 bg-purple-600 rounded-full"></div>
+                                         <h4 className="font-black text-gray-900">{customer?.name}</h4>
+                                      </div>
+                                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                         {products.map(product => (
+                                           <div key={product.id} className="bg-white p-4 rounded-xl border border-gray-100 shadow-sm group hover:border-purple-200 transition">
+                                              <p className="text-[10px] uppercase font-black text-gray-400 mb-2 truncate" title={product.pname}>{product.pname}</p>
+                                              <div className="relative">
+                                                <IndianRupee className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-blue-500 font-bold" />
+                                                <input
+                                                  type="number"
+                                                  step="0.01"
+                                                  className="w-full pl-8 pr-3 py-2 bg-gray-50 border border-gray-100 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/10 focus:border-blue-400 transition text-sm font-mono font-bold"
+                                                  placeholder="0.00"
+                                                  value={commissionRates[cid]?.[product.id] || ''}
+                                                  onChange={(e) => handleCommissionRateChange(cid, product.id, e.target.value)}
+                                                />
+                                              </div>
+                                           </div>
+                                         ))}
+                                      </div>
+                                   </div>
+                                 );
+                               })}
+                            </div>
+                         </div>
+                      )}
+                    </>
+                  )}
+               </div>
             </div>
 
-            <div className="flex justify-end space-x-3 pt-4 border-t">
-              <Link
-                href="/agent-management"
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md border border-gray-300"
-              >
-                Cancel
-              </Link>
-              <button
-                type="submit"
-                disabled={loading}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
-              >
-                {loading ? "Creating..." : "Create Agent"}
-              </button>
+            {/* Step 4: Security */}
+            <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+               <div className="px-6 py-4 bg-gray-50/50 border-b border-gray-100 flex items-center gap-3">
+                 <div className="p-2 bg-red-100 text-red-600 rounded-lg">
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <h3 className="font-bold text-gray-900 uppercase tracking-wider text-xs">Access Security</h3>
+               </div>
+               <div className="p-6 md:p-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Account Password</label>
+                    <input
+                        type="password"
+                        name="password"
+                        value={formData.password}
+                        onChange={handleChange}
+                        className={`w-full px-4 py-3 bg-gray-50 border ${errors.password ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-medium`}
+                        placeholder="••••••••"
+                      />
+                      {errors.password && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.password}</p>}
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold text-gray-500 uppercase tracking-widest ml-1">Confirm Identity</label>
+                    <input
+                        type="password"
+                        name="confirmPassword"
+                        value={formData.confirmPassword}
+                        onChange={handleChange}
+                        className={`w-full px-4 py-3 bg-gray-50 border ${errors.confirmPassword ? 'border-red-300' : 'border-gray-200 focus:border-blue-500'} rounded-2xl outline-none transition text-sm font-medium`}
+                        placeholder="••••••••"
+                      />
+                      {errors.confirmPassword && <p className="text-[10px] text-red-500 font-bold ml-1">{errors.confirmPassword}</p>}
+                  </div>
+               </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-4 bg-white/50 backdrop-blur-md p-6 rounded-3xl border border-gray-200">
+               <button
+                  type="button"
+                  onClick={() => router.back()}
+                  className="w-full sm:w-auto px-8 py-3 text-sm font-extrabold text-gray-500 hover:text-gray-900 transition"
+                >
+                  Discard Changes
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full sm:w-auto flex items-center justify-center gap-3 px-10 py-4 bg-blue-600 text-white rounded-2xl font-black hover:bg-blue-700 transition shadow-xl shadow-blue-200 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  ) : (
+                    <>
+                      Finalize & Create Agent <ArrowRight className="w-5 h-5" />
+                    </>
+                  )}
+                </button>
             </div>
           </form>
-        </div>
-        
+        </main>
+
         <Footer />
       </div>
     </div>

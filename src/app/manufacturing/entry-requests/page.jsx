@@ -343,7 +343,6 @@ function ManufacturingEntryRequestsContent() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Create Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -622,9 +621,9 @@ function ManufacturingEntryRequestsContent() {
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-      <div className="flex-1 flex flex-col">
-        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Header />
         <main className="flex-1 overflow-y-auto">
 
           {/* Hero Header */}

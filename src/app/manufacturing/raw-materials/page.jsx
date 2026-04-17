@@ -16,7 +16,6 @@ function RawMaterialsContent() {
   const [search, setSearch] = useState('');
   const [filterCategory, setFilterCategory] = useState('');
   const [saving, setSaving] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [form, setForm] = useState({ material_name: '', category: 'type_a_raw', unit: 'kg', min_stock_level: 0, current_stock: 0, description: '' });
 
   useEffect(() => { fetchMaterials(); }, [search, filterCategory]);
@@ -67,9 +66,9 @@ function RawMaterialsContent() {
 
   return (
     <div className="h-screen bg-gray-50 flex overflow-hidden">
-      <Sidebar isOpen={sidebarOpen} setIsOpen={setSidebarOpen} />
-      <div className="flex-1 flex flex-col">
-        <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+      <Sidebar />
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        <Header />
         <main className="flex-1 overflow-y-auto">
           <div className="bg-gradient-to-r from-blue-800 to-blue-600 px-4 sm:px-6 md:px-8 py-4 sm:py-6 text-white">
             <div className="max-w-7xl mx-auto">
