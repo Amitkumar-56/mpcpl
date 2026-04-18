@@ -10,9 +10,9 @@ export async function GET(request) {
     const party = searchParams.get('party');
     
     // Pagination params
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 25; // Default 25 per page for report
-    const offset = (page - 1) * limit;
+    const page = Math.max(1, parseInt(searchParams.get('page')) || 1);
+    const limit = Math.max(1, parseInt(searchParams.get('limit')) || 25); 
+    const offset = Math.max(0, (page - 1) * limit);
 
     if (!userId) {
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
