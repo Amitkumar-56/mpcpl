@@ -296,6 +296,16 @@ function LoadingUnloadingContent() {
                 <p className="text-gray-500 text-sm mt-1 ml-11">Manage and track all loading/unloading activities</p>
               </div>
               <div className="flex flex-col sm:flex-row items-center gap-3 w-full md:w-auto">
+                <Link
+                  href="/loading-unloading-report"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-gray-800 text-white px-5 py-2.5 rounded-lg hover:bg-gray-900 shadow-sm transition-all font-medium text-sm"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2m3.243-9.743a4 4 0 115.657 5.657L5 20l4 4m6.457-3.357a4 4 0 11-5.658-5.657L19 4l-4-4" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Generate Full Report
+                </Link>
                 {(permissions?.can_create === 1 || Number(user?.role) === 5 || true) && (
                   <Link
                     href="/loading-unloading-history/create-loading-unloading"
@@ -310,49 +320,7 @@ function LoadingUnloadingContent() {
               </div>
             </div>
 
-            {/* Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              {/* Total Shipments */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <svg className="w-12 h-12 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"></path></svg>
-                </div>
-                <h3 className="text-gray-500 font-medium text-sm mb-1 uppercase tracking-wider">Total Shipments</h3>
-                <p className="text-3xl font-bold text-gray-800">{summary.total || 0}</p>
-                <div className="mt-2 w-full bg-gray-100 rounded-full h-1"><div className="bg-blue-500 h-1 rounded-full w-full"></div></div>
-              </div>
-
-              {/* Completed */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <svg className="w-12 h-12 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"></path></svg>
-                </div>
-                <h3 className="text-gray-500 font-medium text-sm mb-1 uppercase tracking-wider">Completed</h3>
-                <p className="text-3xl font-bold text-emerald-600">{summary.completed || 0}</p>
-                <div className="mt-2 w-full bg-gray-100 rounded-full h-1"><div className="bg-emerald-500 h-1 rounded-full" style={{ width: `${summary.total ? (summary.completed / summary.total) * 100 : 0}%` }}></div></div>
-              </div>
-
-              {/* Pending */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <svg className="w-12 h-12 text-orange-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd"></path></svg>
-                </div>
-                <h3 className="text-gray-500 font-medium text-sm mb-1 uppercase tracking-wider">Pending</h3>
-                <p className="text-3xl font-bold text-orange-500">{summary.pending || 0}</p>
-                <div className="mt-2 w-full bg-gray-100 rounded-full h-1"><div className="bg-orange-500 h-1 rounded-full" style={{ width: `${summary.total ? (summary.pending / summary.total) * 100 : 0}%` }}></div></div>
-              </div>
-
-              {/* Active Drivers */}
-              <div className="bg-white p-5 rounded-xl shadow-sm border border-gray-100 hover:shadow-md hover:-translate-y-1 transition-all duration-300 relative overflow-hidden group">
-                <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-                  <svg className="w-12 h-12 text-indigo-500" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd"></path></svg>
-                </div>
-                <h3 className="text-gray-500 font-medium text-sm mb-1 uppercase tracking-wider">Active Drivers</h3>
-                <p className="text-3xl font-bold text-indigo-600">{summary.drivers || 0}</p>
-                <div className="mt-2 w-full bg-gray-100 rounded-full h-1"><div className="bg-indigo-500 h-1 rounded-full w-full"></div></div>
-              </div>
-            </div>
-
+            
             {/* Shipments Table */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200">

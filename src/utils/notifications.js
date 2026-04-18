@@ -52,15 +52,15 @@ export const requestNotificationPermission = async () => {
     return false;
   }
 
-  if (Notification.permission === 'granted') {
+  if (window.Notification.permission === 'granted') {
     notificationPermissionGranted = true;
     console.log('🔔 Notification permission already granted');
     return true;
   }
 
-  if (Notification.permission !== 'denied') {
+  if (window.Notification.permission !== 'denied') {
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await window.Notification.requestPermission();
       notificationPermissionGranted = permission === 'granted';
       console.log('🔔 Notification permission:', permission);
       return notificationPermissionGranted;
@@ -139,9 +139,9 @@ const showNotificationViaSW = async (title, body, options = {}) => {
 const showNotificationFallback = (title, body, options = {}) => {
   try {
     if (typeof window === 'undefined' || !('Notification' in window)) return false;
-    if (Notification.permission !== 'granted') return false;
+    if (window.Notification.permission !== 'granted') return false;
 
-    const notification = new Notification(title, {
+    const notification = new window.Notification(title, {
       body: body,
       icon: '/LOGO_NEW.jpg',
       badge: '/favicon.png',
@@ -178,12 +178,12 @@ export const showChatNotification = async (senderName, message, options = {}) =>
   // Don't show notification if page is visible and user is actively viewing
   // (caller should handle this check)
 
-  if (Notification.permission === 'default') {
+  if (window.Notification.permission === 'default') {
     const granted = await requestNotificationPermission();
     if (!granted) return false;
   }
 
-  if (Notification.permission !== 'granted') {
+  if (window.Notification.permission !== 'granted') {
     console.warn('🔔 Notification permission denied/blocked');
     return false;
   }
@@ -223,18 +223,10 @@ export const showChatRequestNotification = async (customerName, options = {}) =>
 
 // Check if notifications are supported and permission granted
 export const checkNotificationSupport = () => {
-  if (typeof window === 'undefined') {
-    return { supported: false, permission: 'unsupported' };
-  }
-
-  if (!('Notification' in window)) {
-    return { supported: false, permission: 'unsupported' };
-  }
-
   return {
-    supported: true,
-    permission: Notification.permission,
-    canShow: Notification.permission === 'granted'
+    supported: typeof window !== 'undefined' && 'Notification' in window,
+    permission: typeof window !== 'undefined' && 'Notification' in window ? window.Notification.permission : 'not supported',
+    canShow: typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted'
   };
 };
 

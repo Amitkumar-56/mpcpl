@@ -30,7 +30,7 @@ export const showPWANotification = async (title, message, options = {}) => {
     return false;
   }
 
-  if (Notification.permission !== 'granted') {
+  if (window.Notification.permission !== 'granted') {
     console.log('Notification permission not granted');
     return false;
   }
@@ -106,14 +106,14 @@ export const requestPWANotificationPermission = async () => {
     return false;
   }
 
-  if (Notification.permission === 'granted') {
+  if (window.Notification.permission === 'granted') {
     console.log('PWA: Notification permission already granted');
     return true;
   }
 
-  if (Notification.permission !== 'denied') {
+  if (window.Notification.permission !== 'denied') {
     try {
-      const permission = await Notification.requestPermission();
+      const permission = await window.Notification.requestPermission();
       console.log('PWA: Notification permission result:', permission);
 
       if (permission === 'granted' && isPWAStandalone()) {

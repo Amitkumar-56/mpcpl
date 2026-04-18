@@ -61,11 +61,11 @@ export default function SocketHandler(req, res) {
 
       res.socket.server.io = io;
 
-      try { global._io = io; } catch (e) {}
+      try { global._io = io; } catch (e) { }
 
       console.log('Socket.io server created successfully');
 
-      
+
 
       io.on("connection", (socket) => {
 
@@ -208,13 +208,13 @@ export default function SocketHandler(req, res) {
 
             }
 
-            
+
 
             // Join general employees room
 
             socket.join("employees");
 
-            
+
 
             // Join role-specific room
 
@@ -224,13 +224,13 @@ export default function SocketHandler(req, res) {
 
             }
 
-            
+
 
             // Join employee-specific room for internal messages
 
             socket.join(`employee_${employeeId}`);
 
-            
+
 
             socket.employeeId = employeeId;
 
@@ -240,7 +240,7 @@ export default function SocketHandler(req, res) {
 
             socket.userRole = role;
 
-            
+
 
             console.log(`👨‍💼 Employee ${employeeName} (${employeeId}) joined successfully - Role: ${role}`);
 
@@ -651,9 +651,9 @@ export default function SocketHandler(req, res) {
             io.to(`employee_${receiverId}`).emit('employee_chat_message_received', messageData);
 
             // Confirm to sender
-            socket.emit('employee_chat_message_sent', { 
-              messageId: messageData.id, 
-              status: 'sent' 
+            socket.emit('employee_chat_message_sent', {
+              messageId: messageData.id,
+              status: 'sent'
             });
 
             console.log(`💬 Employee chat broadcast: ${senderId} → ${receiverId} (session: ${sessionId})`);
@@ -738,8 +738,8 @@ export default function SocketHandler(req, res) {
             );
 
             if (session.length > 0) {
-              const otherEmployeeId = session[0].requester_id === employeeId 
-                ? session[0].responder_id 
+              const otherEmployeeId = session[0].requester_id === employeeId
+                ? session[0].responder_id
                 : session[0].requester_id;
 
               io.to(`employee_${otherEmployeeId}`).emit('employee_chat_messages_read', {
@@ -844,7 +844,7 @@ export default function SocketHandler(req, res) {
 
     io = res.socket.server.io;
 
-    try { global._io = io; } catch (e) {}
+    try { global._io = io; } catch (e) { }
 
   }
 

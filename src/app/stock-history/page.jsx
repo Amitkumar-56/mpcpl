@@ -36,10 +36,10 @@ function StockHistoryContent() {
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);
     };
-    
+
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
+
     return () => {
       window.removeEventListener('resize', checkMobile);
     };
@@ -55,7 +55,7 @@ function StockHistoryContent() {
       fetchingRef.current = true;
       setLoading(true);
       const params = new URLSearchParams();
-      
+
       if (cid) params.append('id', cid);
       if (filterParams.pname) params.append('pname', filterParams.pname);
       if (filterParams.from_date) params.append('from_date', filterParams.from_date);
@@ -72,11 +72,11 @@ function StockHistoryContent() {
           'Content-Type': 'application/json',
         }
       });
-      
+
       if (!response.ok) {
         const errorText = await response.text();
         console.error('❌ HTTP error:', response.status, errorText);
-        
+
         if (response.status === 401 || response.status === 403) {
           console.warn('⚠️ Authentication error, returning empty data instead of throwing');
           if (!isMountedRef.current) return;
@@ -88,10 +88,10 @@ function StockHistoryContent() {
           });
           return;
         }
-        
+
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const result = await response.json();
       console.log('✅ Stock history API response:', {
         success: result.success,
@@ -117,10 +117,10 @@ function StockHistoryContent() {
           fs_id: result.data?.filters?.fs_id || ''
         };
         setFilters(prev => {
-          if (prev.pname === newFilters.pname && 
-              prev.from_date === newFilters.from_date && 
-              prev.to_date === newFilters.to_date && 
-              prev.fs_id === newFilters.fs_id) {
+          if (prev.pname === newFilters.pname &&
+            prev.from_date === newFilters.from_date &&
+            prev.to_date === newFilters.to_date &&
+            prev.fs_id === newFilters.fs_id) {
             return prev;
           }
           return newFilters;
@@ -153,7 +153,7 @@ function StockHistoryContent() {
   useEffect(() => {
     isMountedRef.current = true;
     fetchStockHistory();
-    
+
     return () => {
       isMountedRef.current = false;
     };
@@ -177,7 +177,7 @@ function StockHistoryContent() {
   const handleExportToExcel = async () => {
     try {
       setExportLoading(true);
-      
+
       const params = new URLSearchParams();
       if (cid) params.append('id', cid);
       if (filters.pname) params.append('pname', filters.pname);
@@ -186,7 +186,7 @@ function StockHistoryContent() {
       if (filters.fs_id) params.append('fs_id', filters.fs_id);
 
       const response = await fetch(`/api/export/stock?${params}`);
-      
+
       if (!response.ok) {
         throw new Error(`Export failed with status: ${response.status}`);
       }
@@ -196,26 +196,26 @@ function StockHistoryContent() {
       const a = document.createElement('a');
       a.style.display = 'none';
       a.href = url;
-      
+
       const contentDisposition = response.headers.get('Content-Disposition');
       let filename = `stock-history-${new Date().toISOString().split('T')[0]}.xlsx`;
-      
+
       if (contentDisposition) {
         const filenameMatch = contentDisposition.match(/filename="(.+)"/);
         if (filenameMatch) {
           filename = filenameMatch[1];
         }
       }
-      
+
       a.download = filename;
       document.body.appendChild(a);
       a.click();
-      
+
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      
+
       alert('Excel file downloaded successfully!');
-      
+
     } catch (error) {
       console.error('Error exporting to Excel:', error);
       alert('Error exporting to Excel: ' + error.message);
@@ -241,7 +241,7 @@ function StockHistoryContent() {
     const isEdited = row.trans_type?.toLowerCase() === 'edited';
     const hasRid = row.rid && row.rid.trim() !== '';
     const isExpanded = expandedRows[row.id];
-    
+
     const handleCardClick = () => {
       if (isEdited && hasRid) {
         router.push(`/filling-requests?search=${encodeURIComponent(row.rid)}`);
@@ -254,7 +254,7 @@ function StockHistoryContent() {
     };
 
     return (
-      <div 
+      <div
         className={`bg-white rounded-lg border border-gray-200 mb-3 overflow-hidden ${isEdited && hasRid ? 'cursor-pointer' : ''}`}
         onClick={handleCardClick}
       >
@@ -299,7 +299,7 @@ function StockHistoryContent() {
                 const transType = row.trans_type?.toLowerCase() || '';
                 let typeText;
                 let badgeColor;
-                
+
                 if (transType === 'inward') {
                   typeText = 'Inward';
                   badgeColor = 'bg-green-100 text-green-800';
@@ -319,7 +319,7 @@ function StockHistoryContent() {
                   typeText = row.trans_type || 'N/A';
                   badgeColor = 'bg-gray-100 text-gray-800';
                 }
-                
+
                 return (
                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeColor}`}>
                     {typeText}
@@ -352,11 +352,11 @@ function StockHistoryContent() {
                         const stockChange = parseFloat(row.available_stock || 0) - parseFloat(row.current_stock || 0);
                         qtyChange = -stockChange;
                       }
-                      return qtyChange > 0 
-                        ? `-${formatNumber(qtyChange)}L` 
-                        : qtyChange < 0 
-                        ? `+${formatNumber(Math.abs(qtyChange))}L` 
-                        : '0L';
+                      return qtyChange > 0
+                        ? `-${formatNumber(qtyChange)}L`
+                        : qtyChange < 0
+                          ? `+${formatNumber(Math.abs(qtyChange))}L`
+                          : '0L';
                     })()}
                   </span>
                 ) : (
@@ -400,11 +400,10 @@ function StockHistoryContent() {
               <div className="bg-white rounded-lg p-3 border border-gray-200">
                 <div className="flex justify-between items-center">
                   <span className="text-sm font-medium text-gray-700">Available Quantity</span>
-                  <span className={`text-sm font-bold ${
-                    parseFloat(row.available_stock || 0) <= 0 
-                      ? 'text-red-600' 
+                  <span className={`text-sm font-bold ${parseFloat(row.available_stock || 0) <= 0
+                      ? 'text-red-600'
                       : 'text-green-600'
-                  }`}>
+                    }`}>
                     {formatNumber(row.available_stock)}L
                     {parseFloat(row.available_stock || 0) <= 0 && (
                       <span className="ml-1 text-xs font-normal">(Low Stock)</span>
@@ -474,7 +473,7 @@ function StockHistoryContent() {
     const isEdited = row.trans_type?.toLowerCase() === 'edited';
     const hasRid = row.rid && row.rid.trim() !== '';
     const isExpanded = expandedRows[row.id];
-    
+
     const handleRowClick = () => {
       if (isEdited && hasRid) {
         router.push(`/filling-requests?search=${encodeURIComponent(row.rid)}`);
@@ -488,7 +487,7 @@ function StockHistoryContent() {
 
     return (
       <>
-        <tr 
+        <tr
           className={`hover:bg-gray-50 transition-colors ${isEdited ? 'bg-purple-100 border-l-4 border-purple-600 cursor-pointer' : ''}`}
           onClick={handleRowClick}
         >
@@ -513,7 +512,7 @@ function StockHistoryContent() {
               const transType = row.trans_type?.toLowerCase() || '';
               let typeText;
               let badgeColor;
-              
+
               if (transType === 'inward') {
                 typeText = 'Inward';
                 badgeColor = 'bg-green-100 text-green-800';
@@ -536,7 +535,7 @@ function StockHistoryContent() {
                 typeText = row.trans_type || 'N/A';
                 badgeColor = 'bg-gray-100 text-gray-800';
               }
-              
+
               return (
                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${badgeColor}`}>
                   {typeText}
@@ -580,11 +579,11 @@ function StockHistoryContent() {
                         const stockChange = parseFloat(row.available_stock || 0) - parseFloat(row.current_stock || 0);
                         qtyChange = -stockChange;
                       }
-                      return qtyChange > 0 
-                        ? `-${formatNumber(qtyChange)}L` 
-                        : qtyChange < 0 
-                        ? `+${formatNumber(Math.abs(qtyChange))}L` 
-                        : '0L';
+                      return qtyChange > 0
+                        ? `-${formatNumber(qtyChange)}L`
+                        : qtyChange < 0
+                          ? `+${formatNumber(Math.abs(qtyChange))}L`
+                          : '0L';
                     })()}
                   </div>
                 ) : (
@@ -609,7 +608,7 @@ function StockHistoryContent() {
             </div>
           </td>
         </tr>
-        
+
         {/* Expanded Details Row - Available Qty और Created By */}
         {isExpanded && (
           <tr className="bg-gray-50">
@@ -619,11 +618,10 @@ function StockHistoryContent() {
                 <div className="bg-white rounded-lg p-4 border border-gray-200">
                   <div className="flex justify-between items-center mb-2">
                     <span className="text-sm font-semibold text-gray-700">Available Quantity</span>
-                    <span className={`text-sm font-bold ${
-                      parseFloat(row.available_stock || 0) <= 0 
-                        ? 'text-red-600' 
+                    <span className={`text-sm font-bold ${parseFloat(row.available_stock || 0) <= 0
+                        ? 'text-red-600'
                         : 'text-green-600'
-                    }`}>
+                      }`}>
                       {formatNumber(row.available_stock)}L
                       {parseFloat(row.available_stock || 0) <= 0 && (
                         <span className="ml-1 text-xs font-normal">(Low Stock)</span>
@@ -703,7 +701,7 @@ function StockHistoryContent() {
           <div className="bg-white shadow-sm border-b">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 md:py-6">
               <div className="flex items-center">
-                <Link 
+                <Link
                   href="/stock"
                   className="mr-3 md:mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors"
                 >
@@ -753,7 +751,7 @@ function StockHistoryContent() {
                         id="station-filter"
                         name="fs_id"
                         value={filters.fs_id}
-                        onChange={(e) => setFilters({...filters, fs_id: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, fs_id: e.target.value })}
                         className="w-full px-3 py-2 md:px-4 md:py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm md:text-base"
                       >
                         <option value="">All Stations</option>
@@ -772,7 +770,7 @@ function StockHistoryContent() {
                         id="pname-filter"
                         name="pname"
                         value={filters.pname}
-                        onChange={(e) => setFilters({...filters, pname: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, pname: e.target.value })}
                         className="w-full px-3 py-2 md:px-4 md:py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm md:text-base"
                       >
                         <option value="">All Products</option>
@@ -792,7 +790,7 @@ function StockHistoryContent() {
                         id="from_date"
                         name="from_date"
                         value={filters.from_date}
-                        onChange={(e) => setFilters({...filters, from_date: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, from_date: e.target.value })}
                         className="w-full px-3 py-2 md:px-4 md:py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm md:text-base"
                       />
                     </div>
@@ -805,7 +803,7 @@ function StockHistoryContent() {
                         id="to_date"
                         name="to_date"
                         value={filters.to_date}
-                        onChange={(e) => setFilters({...filters, to_date: e.target.value})}
+                        onChange={(e) => setFilters({ ...filters, to_date: e.target.value })}
                         className="w-full px-3 py-2 md:px-4 md:py-2.5 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors text-sm md:text-base"
                       />
                     </div>

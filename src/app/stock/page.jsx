@@ -14,24 +14,24 @@ import { BsBox, BsClockHistory, BsEyeFill, BsPencil, BsPlusCircle, BsTruck } fro
 // Loading component for Suspense fallback
 function StockTableSkeleton() {
   return (
-    <div className="space-y-4">
+    <div className="space-y-6 animate-pulse">
       {/* Filters Skeleton */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow animate-pulse">
+      <div className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md p-6 rounded-2xl shadow-sm border border-white/20 dark:border-gray-700/30">
         <div className="flex flex-col sm:flex-row gap-4">
-          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-full sm:w-64"></div>
-          <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded w-40"></div>
+          <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-xl w-full sm:w-64"></div>
+          <div className="h-11 bg-gray-200 dark:bg-gray-700 rounded-xl w-40"></div>
         </div>
       </div>
 
       {/* Table Skeleton - Desktop */}
-      <div className="hidden md:block bg-white dark:bg-gray-800 rounded-lg shadow overflow-hidden">
-        <div className="p-4 space-y-3">
-          {[...Array(5)].map((_, i) => (
-            <div key={i} className="flex space-x-4">
-              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
-              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
-              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
-              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
+      <div className="hidden md:block bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl shadow-sm border border-white/20 dark:border-gray-700/30 overflow-hidden">
+        <div className="p-6 space-y-4">
+          {[...Array(6)].map((_, i) => (
+            <div key={i} className="flex space-x-6 items-center">
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex-1"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex-1"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex-1"></div>
+              <div className="h-12 bg-gray-200 dark:bg-gray-700 rounded-lg flex-1"></div>
             </div>
           ))}
         </div>
@@ -40,23 +40,22 @@ function StockTableSkeleton() {
       {/* Mobile Cards Skeleton */}
       <div className="block md:hidden space-y-4">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="bg-white dark:bg-gray-800 rounded-lg border p-4 animate-pulse">
-            <div className="flex justify-between items-start mb-3">
-              <div>
-                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded w-20 mb-2"></div>
-                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-32"></div>
+          <div key={i} className="bg-white/80 dark:bg-gray-800/80 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-5 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+              <div className="space-y-2">
+                <div className="h-5 bg-gray-200 dark:bg-gray-700 rounded-lg w-24"></div>
+                <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-lg w-36"></div>
               </div>
-              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-16"></div>
+              <div className="h-7 bg-gray-200 dark:bg-gray-700 rounded-full w-20"></div>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-3">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded"></div>
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              {[...Array(4)].map((_, j) => (
+                <div key={j} className="h-4 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+              ))}
             </div>
-            <div className="flex gap-2">
-              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
-              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded flex-1"></div>
+            <div className="flex gap-3">
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-xl flex-1"></div>
+              <div className="h-10 bg-gray-200 dark:bg-gray-700 rounded-xl flex-1"></div>
             </div>
           </div>
         ))}
@@ -68,15 +67,15 @@ function StockTableSkeleton() {
 // Stats Skeleton Component
 function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-      {[...Array(4)].map((_, i) => (
-        <div key={i} className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 animate-pulse">
-          <div className="flex justify-between items-center">
-            <div className="space-y-2">
-              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-20"></div>
-              <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-12"></div>
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      {[...Array(5)].map((_, i) => (
+        <div key={i} className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl p-5 border border-white/20 dark:border-gray-700/30 shadow-sm animate-pulse">
+          <div className="flex justify-between items-start">
+            <div className="space-y-3">
+              <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded-lg w-20"></div>
+              <div className="h-8 bg-gray-200 dark:bg-gray-700 rounded-lg w-12"></div>
             </div>
-            <div className="h-8 w-8 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
+            <div className="h-12 w-12 bg-gray-200 dark:bg-gray-700 rounded-2xl"></div>
           </div>
         </div>
       ))}
@@ -97,31 +96,26 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
   const getStatusBadge = (status) => {
     const statusValue = status?.toString().toLowerCase();
 
-    const numericMap = {
-      '1': { text: "Dispatched", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800" },
-      '2': { text: "Processing", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800" },
-      '3': { text: "Delivered", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-800" },
-      '4': { text: "Cancelled", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-800" }
+    const config = {
+      '1': { text: "Dispatched", className: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-100 dark:border-blue-800" },
+      '2': { text: "Processing", className: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-100 dark:border-yellow-800" },
+      '3': { text: "Delivered", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800" },
+      '4': { text: "Cancelled", className: "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border-rose-100 dark:border-rose-800" },
+      'on_the_way': { text: "On The Way", className: "bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-300 border-sky-100 dark:border-sky-800" },
+      'delivered': { text: "Delivered", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800" },
+      'dispatched': { text: "Dispatched", className: "bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-100 dark:border-blue-800" },
+      'processing': { text: "Processing", className: "bg-yellow-50 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300 border-yellow-100 dark:border-yellow-800" },
+      'completed': { text: "Completed", className: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300 border-emerald-100 dark:border-emerald-800" },
+      'cancelled': { text: "Cancelled", className: "bg-rose-50 text-rose-700 dark:bg-rose-900/30 dark:text-rose-300 border-rose-100 dark:border-rose-800" },
+      'pending': { text: "Pending", className: "bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700" }
     };
 
-    const stringMap = {
-      'on_the_way': { text: "On The Way", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800" },
-      'delivered': { text: "Delivered", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-800" },
-      'dispatched': { text: "Dispatched", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200 border border-blue-200 dark:border-blue-800" },
-      'processing': { text: "Processing", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800" },
-      'completed': { text: "Completed", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200 border border-green-200 dark:border-green-800" },
-      'cancelled': { text: "Cancelled", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200 border border-red-200 dark:border-red-800" },
-      'pending': { text: "Pending", color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600" }
-    };
-
-    const statusInfo = numericMap[statusValue] || stringMap[statusValue] || {
-      text: statusValue || "Pending",
-      color: "bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-600"
-    };
+    const info = config[statusValue] || config['pending'];
 
     return (
-      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-        {statusInfo.text}
+      <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border ${info.className} transition-all duration-300`}>
+        <span className={`w-1.5 h-1.5 rounded-full mr-1.5 ${info.className.split(' ')[1].replace('text-', 'bg-')}`}></span>
+        {info.text}
       </span>
     );
   };
@@ -256,28 +250,33 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
   const totalPages = Math.ceil(filteredAndSortedData.length / itemsPerPage);
 
   return (
-    <>
+    <div className="w-full">
       {/* Filters Section */}
-      <div className="bg-white dark:bg-gray-800 p-4 rounded-lg shadow mb-6">
-        <div className="flex flex-col sm:flex-row gap-4 justify-between items-center">
-          <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-            <input
-              type="text"
-              placeholder="Search by product, supplier, station..."
-              value={filterText}
-              onChange={(e) => {
-                setFilterText(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="border dark:border-gray-600 px-3 py-2 rounded w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-            />
+      <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-md p-6 rounded-2xl shadow-sm border border-white/20 dark:border-gray-700/30 mb-8">
+        <div className="flex flex-col lg:flex-row gap-6 justify-between items-center">
+          <div className="flex flex-col sm:flex-row gap-4 w-full lg:w-auto flex-1">
+            <div className="relative flex-1 max-w-md">
+              <input
+                type="text"
+                placeholder="Search products, suppliers..."
+                value={filterText}
+                onChange={(e) => {
+                  setFilterText(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="w-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 pl-4 pr-10 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-white transition-all shadow-sm"
+              />
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
+                🔍
+              </div>
+            </div>
             <select
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value);
                 setCurrentPage(1);
               }}
-              className="border dark:border-gray-600 px-3 py-2 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+              className="bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 px-4 py-2.5 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/50 dark:text-white transition-all shadow-sm cursor-pointer"
             >
               <option value="all">All Statuses</option>
               <option value="pending">Pending</option>
@@ -285,18 +284,18 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
               <option value="delivered">Delivered</option>
             </select>
           </div>
-          <div className="text-sm text-gray-600 dark:text-gray-400">
+          <div className="px-4 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-full text-xs font-medium text-blue-700 dark:text-blue-300 whitespace-nowrap">
             Showing {paginatedData.length} of {filteredAndSortedData.length} records
           </div>
         </div>
       </div>
 
       {/* Desktop Table Section */}
-      <div className="bg-white dark:bg-gray-800 shadow rounded-lg overflow-hidden hidden md:block">
+      <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-md shadow-xl rounded-2xl border border-white/20 dark:border-gray-700/30 overflow-hidden hidden md:block transition-all duration-300 hover:shadow-2xl hover:shadow-blue-500/5">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-            <thead className="bg-gray-50 dark:bg-gray-700">
-              <tr>
+            <thead>
+              <tr className="bg-gray-50/50 dark:bg-gray-800/50">
                 {[
                   "id",
                   "product_name",
@@ -313,85 +312,89 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                 ].map((col) => (
                   <th
                     key={col}
-                    className="px-4 py-3 text-left text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-600"
+                    className="px-6 py-4 text-left text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest cursor-pointer hover:bg-gray-100/50 dark:hover:bg-gray-700/50 transition-colors"
                     onClick={() => handleSort(col)}
                   >
-                    <span className="flex items-center gap-1">
+                    <div className="flex items-center gap-2">
                       {col === "product_name" ? "Product" :
                         col === "supplier_name" ? "Supplier" :
-                          col === "invoice_date" ? "Invoice Date" :
-                            col === "invoice_number" ? "Invoice#" :
-                              col === "station_name" ? "Filling Station" :
-                                col === "tanker_no" ? "Tanker No." :
-                                  col === "v_invoice_value" ? "Invoice Value" :
-                                    col === "ltr" ? "Quantity (Ltr)" :
+                          col === "invoice_date" ? "Date" :
+                            col === "invoice_number" ? "Inv #" :
+                              col === "station_name" ? "Station" :
+                                col === "tanker_no" ? "Tanker" :
+                                  col === "v_invoice_value" ? "Value" :
+                                    col === "ltr" ? "Qty (L)" :
                                       col.toUpperCase().replace(/_/g, " ")}
-                      <span className="text-gray-400">{getSortIcon(col)}</span>
-                    </span>
+                      <span className="text-[10px] opacity-50">{getSortIcon(col)}</span>
+                    </div>
                   </th>
                 ))}
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-700 dark:text-gray-300 uppercase tracking-wider">
+                <th className="px-6 py-4 text-center text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest">
                   Actions
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+            <tbody className="divide-y divide-gray-100 dark:divide-gray-700/50">
               {paginatedData.length > 0 ? (
                 paginatedData.map((request) => (
-                  <tr key={request.id} className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-white">
-                      {request.id}
+                  <tr key={request.id} className="hover:bg-blue-50/30 dark:hover:bg-blue-900/10 transition-colors group text-gray-700 dark:text-gray-300">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-900 dark:text-white">
+                      #{request.id}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
                       {request.product_name || "N/A"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
-                      {request.supplier_name || "N/A"}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 rounded-lg bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-[10px] font-bold text-indigo-600 dark:text-indigo-400 overflow-hidden">
+                          {request.supplier_name?.charAt(0) || "?"}
+                        </div>
+                        {request.supplier_name || "N/A"}
+                      </div>
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm opacity-80">
                       {formatDate(request.invoice_date)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white font-mono">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono opacity-80">
                       {request.invoice_number || "N/A"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm opacity-80">
                       {request.station_name || "N/A"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white font-mono">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-mono opacity-80">
                       {request.tanker_no || "N/A"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
-                      {request.ltr ? `${parseFloat(request.ltr).toLocaleString()} L` : "-"}
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
+                      {request.ltr ? `${parseFloat(request.ltr).toLocaleString()}` : "-"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right font-medium">
                       {formatCurrency(request.v_invoice_value)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900 dark:text-white">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm opacity-80">
                       {request.dncn || "-"}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-semibold text-green-600 dark:text-green-400 text-right">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-emerald-600 dark:text-emerald-400 text-right">
                       {formatCurrency(request.payable)}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap">
+                    <td className="px-6 py-4 whitespace-nowrap">
                       {editingStatus[request.id] !== undefined ? (
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1 bg-white dark:bg-gray-800 p-1 rounded-lg border dark:border-gray-700 shadow-sm">
                           <select
                             value={editingStatus[request.id]}
                             onChange={(e) => handleStatusChange(request.id, e.target.value)}
-                            className="px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
+                            className="text-xs bg-transparent focus:outline-none dark:text-white px-1"
                             disabled={updatingStatus[request.id]}
                           >
                             <option value="pending">Pending</option>
-                            <option value="on_the_way">On The Way</option>
+                            <option value="on_the_way">On Way</option>
                             <option value="delivered">Delivered</option>
                           </select>
                           <button
                             onClick={() => handleStatusUpdate(request.id)}
                             disabled={updatingStatus[request.id]}
-                            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Update Status"
+                            className="p-1 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition-colors disabled:opacity-50"
                           >
-                            {updatingStatus[request.id] ? '...' : 'OK'}
+                            {updatingStatus[request.id] ? '...' : '✓'}
                           </button>
                           <button
                             onClick={() => {
@@ -402,8 +405,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                               });
                             }}
                             disabled={updatingStatus[request.id]}
-                            className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700 disabled:opacity-50"
-                            title="Cancel"
+                            className="p-1 text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition-colors disabled:opacity-50"
                           >
                             ✕
                           </button>
@@ -414,27 +416,27 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                           {permissions.can_edit && (
                             <button
                               onClick={() => handleStatusChange(request.id, getStatusValue(request.status))}
-                              className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
+                              className="w-7 h-7 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 transition-all cursor-pointer"
                               title="Edit Status"
                             >
-                              ✏️
+                              <BsPencil size={12} />
                             </button>
                           )}
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3 whitespace-nowrap text-sm font-medium">
-                      <div className="flex justify-center space-x-2">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                      <div className="flex justify-center items-center gap-2">
                         <Link
                           href={`/stock/supply-details/${request.id}`}
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 transition-colors"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-600 hover:text-white dark:hover:bg-blue-500 transition-all duration-300 shadow-sm"
                           title="View Details"
                         >
                           <BsEyeFill size={16} />
                         </Link>
                         <Link
                           href={`/stock/dncn?id=${request.id}`}
-                          className="text-orange-600 hover:text-orange-800 dark:text-orange-400 dark:hover:text-orange-300 transition-colors"
+                          className="w-9 h-9 flex items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 hover:bg-orange-600 hover:text-white dark:hover:bg-orange-500 transition-all duration-300 shadow-sm"
                           title="DN/CN History"
                         >
                           <BsClockHistory size={16} />
@@ -442,7 +444,7 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
                         {permissions.can_edit && (
                           <Link
                             href={`/stock/edit?id=${request.id}`}
-                            className="text-green-600 hover:text-green-800 dark:text-green-400 dark:hover:text-green-300 transition-colors"
+                            className="w-9 h-9 flex items-center justify-center rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-600 hover:text-white dark:hover:bg-emerald-500 transition-all duration-300 shadow-sm"
                             title="Edit"
                           >
                             <BsPencil size={16} />
@@ -473,57 +475,52 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
           </table>
         </div>
 
-        {/* Pagination */}
+        {/* Desktop Pagination */}
         {totalPages > 1 && (
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 sm:px-6">
-            <div className="flex items-center justify-between">
-              <div className="text-sm text-gray-700 dark:text-gray-300">
-                Page <span className="font-medium">{currentPage}</span> of{" "}
-                <span className="font-medium">{totalPages}</span>
-              </div>
-              <div className="flex space-x-2">
-                <button
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
-                  disabled={currentPage === 1}
-                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Previous
-                </button>
+          <div className="px-6 py-5 bg-white/40 dark:bg-gray-800/20 border-t border-white/20 dark:border-gray-700/30 flex items-center justify-between">
+            <div className="text-sm text-gray-500 dark:text-gray-400 font-medium whitespace-nowrap">
+              Showing <span className="text-gray-900 dark:text-white font-bold">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-gray-900 dark:text-white font-bold">{Math.min(currentPage * itemsPerPage, filteredAndSortedData.length)}</span> of <span className="text-gray-900 dark:text-white font-bold">{filteredAndSortedData.length}</span> results
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+              >
+                ←
+              </button>
+              
+              <div className="flex gap-1 overflow-x-auto no-scrollbar">
                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                   let pageNum;
-                  if (totalPages <= 5) {
-                    pageNum = i + 1;
-                  } else if (currentPage <= 3) {
-                    pageNum = i + 1;
-                  } else if (currentPage >= totalPages - 2) {
-                    pageNum = totalPages - 4 + i;
-                  } else {
-                    pageNum = currentPage - 2 + i;
-                  }
+                  if (totalPages <= 5) pageNum = i + 1;
+                  else if (currentPage <= 3) pageNum = i + 1;
+                  else if (currentPage >= totalPages - 2) pageNum = totalPages - 4 + i;
+                  else pageNum = currentPage - 2 + i;
 
                   return (
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-3 py-1 border text-sm font-medium rounded-md transition-colors ${currentPage === pageNum
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-                        }`}
+                      className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-xl text-sm font-bold transition-all shadow-sm ${
+                        currentPage === pageNum
+                          ? "bg-blue-600 text-white shadow-blue-500/20"
+                          : "bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
                     >
                       {pageNum}
                     </button>
                   );
                 })}
-                <button
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
-                  disabled={currentPage === totalPages}
-                  className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded-md text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next
-                </button>
               </div>
+
+              <button
+                onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
+                disabled={currentPage === totalPages}
+                className="w-10 h-10 flex items-center justify-center rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-30 disabled:cursor-not-allowed transition-all shadow-sm"
+              >
+                →
+              </button>
             </div>
           </div>
         )}
@@ -533,115 +530,62 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
       <div className="block md:hidden space-y-4">
         {paginatedData.length > 0 ? (
           paginatedData.map((request) => (
-            <div key={request.id} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 shadow-sm">
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-white">#{request.id}</h3>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{request.product_name || "N/A"}</p>
+            <div key={request.id} className="bg-white/70 dark:bg-gray-800/70 backdrop-blur-xl rounded-2xl border border-white/20 dark:border-gray-700/30 p-5 shadow-lg group transition-all duration-300">
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex gap-3 items-center">
+                  <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white text-xs font-bold shadow-lg shadow-blue-500/20">
+                    #{request.id}
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900 dark:text-white text-sm">{request.product_name || "N/A"}</h3>
+                    <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 mt-0.5">{formatDate(request.invoice_date)}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {getStatusBadge(request.status)}
-                  {permissions.can_edit && (
-                    <button
-                      onClick={() => handleStatusChange(request.id, getStatusValue(request.status))}
-                      className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xs"
-                      title="Edit Status"
-                    >
-                      ✏️
-                    </button>
-                  )}
                 </div>
               </div>
 
-              {editingStatus[request.id] !== undefined ? (
-                <div className="space-y-2 mb-3">
-                  <select
-                    value={editingStatus[request.id]}
-                    onChange={(e) => handleStatusChange(request.id, e.target.value)}
-                    className="w-full px-2 py-1 text-xs border border-gray-300 dark:border-gray-600 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:text-white"
-                    disabled={updatingStatus[request.id]}
-                  >
-                    <option value="pending">Pending</option>
-                    <option value="on_the_way">On The Way</option>
-                    <option value="delivered">Delivered</option>
-                  </select>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleStatusUpdate(request.id)}
-                      disabled={updatingStatus[request.id]}
-                      className="flex-1 px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      {updatingStatus[request.id] ? '...' : 'Update'}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingStatus(prev => {
-                          const updated = { ...prev };
-                          delete updated[request.id];
-                          return updated;
-                        });
-                      }}
-                      className="px-2 py-1 text-xs bg-gray-600 text-white rounded hover:bg-gray-700"
-                    >
-                      Cancel
-                    </button>
-                  </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-3 mb-5 p-3 bg-gray-50/50 dark:bg-gray-900/30 rounded-xl border border-gray-100 dark:border-gray-700/30">
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Supplier</p>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{request.supplier_name || "N/A"}</p>
                 </div>
-              ) : null}
-
-              <div className="grid grid-cols-2 gap-2 text-sm mb-3">
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Supplier</p>
-                  <p className="font-medium dark:text-white">{request.supplier_name || "N/A"}</p>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Station</p>
+                  <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 truncate">{request.station_name || "N/A"}</p>
                 </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Station</p>
-                  <p className="font-medium dark:text-white">{request.station_name || "N/A"}</p>
+                <div className="space-y-0.5">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Invoice #</p>
+                  <p className="text-xs font-mono font-semibold text-gray-600 dark:text-gray-400">{request.invoice_number || "N/A"}</p>
                 </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Invoice Date</p>
-                  <p className="font-medium dark:text-white">{formatDate(request.invoice_date)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Invoice #</p>
-                  <p className="font-medium font-mono text-xs dark:text-white">{request.invoice_number || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Tanker No</p>
-                  <p className="font-medium font-mono text-xs dark:text-white">{request.tanker_no || "N/A"}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Quantity</p>
-                  <p className="font-medium dark:text-white">{request.ltr ? `${parseFloat(request.ltr).toLocaleString()} L` : "-"}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Invoice Value</p>
-                  <p className="font-medium dark:text-white">{formatCurrency(request.v_invoice_value)}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500 dark:text-gray-400 text-xs">Payable</p>
-                  <p className="font-semibold text-green-600 dark:text-green-400">{formatCurrency(request.payable)}</p>
+                <div className="space-y-0.5 text-right">
+                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Payable</p>
+                  <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{formatCurrency(request.payable)}</p>
                 </div>
               </div>
 
-              <div className="flex gap-2 pt-3 border-t dark:border-gray-700">
+              <div className="flex gap-2">
                 <Link
                   href={`/stock/supply-details/${request.id}`}
-                  className="flex-1 text-center px-3 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                  className="flex-1 h-10 flex items-center justify-center gap-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-500/20"
                 >
+                  <BsEyeFill size={14} />
                   View
                 </Link>
                 <Link
                   href={`/stock/dncn?id=${request.id}`}
-                  className="flex-1 text-center px-3 py-2 bg-orange-600 text-white rounded text-sm hover:bg-orange-700 transition-colors"
+                  className="flex-1 h-10 flex items-center justify-center gap-2 bg-orange-500 text-white rounded-xl text-xs font-bold hover:bg-orange-600 transition-all shadow-lg shadow-orange-500/20"
                 >
+                  <BsClockHistory size={14} />
                   DN/CN
                 </Link>
                 {permissions.can_edit && (
                   <Link
                     href={`/stock/edit?id=${request.id}`}
-                    className="flex-1 text-center px-3 py-2 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors"
+                    className="flex-1 h-10 flex items-center justify-center gap-2 bg-emerald-500 text-white rounded-xl text-xs font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/20"
                   >
+                    <BsPencil size={14} />
                     Edit
                   </Link>
                 )}
@@ -649,45 +593,44 @@ function StockTable({ stockRequests, permissions = { can_view: true, can_edit: t
             </div>
           ))
         ) : (
-          <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-8 text-center">
-            <div className="text-gray-500 dark:text-gray-400">
-              <p className="text-base font-medium mb-2">No stock requests found</p>
-              <p className="text-sm">
+          <div className="bg-white/60 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 p-10 text-center shadow-lg">
+            <div className="text-gray-500 dark:text-gray-400 flex flex-col items-center">
+               <div className="w-16 h-16 bg-gray-100 dark:bg-gray-700 rounded-full flex items-center justify-center mb-4 text-2xl">📦</div>
+               <p className="text-sm font-bold mb-1">No Stock Requests</p>
+               <p className="text-xs opacity-70">
                 {filterText || statusFilter !== "all"
-                  ? "Try adjusting your search or filters"
-                  : "No stock requests available"
+                  ? "Try adjusting your filters"
+                  : "No stock records available yet"
                 }
-              </p>
+               </p>
             </div>
           </div>
         )}
 
         {/* Mobile Pagination */}
         {totalPages > 1 && (
-          <div className="bg-white dark:bg-gray-800 px-4 py-3 border-t border-gray-200 dark:border-gray-700 rounded-lg">
-            <div className="flex items-center justify-between">
-              <button
+          <div className="flex items-center justify-between p-4 bg-white/60 dark:bg-gray-800/60 backdrop-blur-md rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-lg">
+             <button
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
                 disabled={currentPage === 1}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-xl disabled:opacity-30"
               >
-                Previous
+                ←
               </button>
-              <div className="text-sm text-gray-700 dark:text-gray-300">
+              <div className="text-xs font-bold text-gray-700 dark:text-gray-300">
                 Page {currentPage} of {totalPages}
               </div>
               <button
                 onClick={() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))}
                 disabled={currentPage === totalPages}
-                className="px-3 py-1 border border-gray-300 dark:border-gray-600 rounded text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-10 h-10 flex items-center justify-center bg-gray-100 dark:bg-gray-700 rounded-xl disabled:opacity-30"
               >
-                Next
+                →
               </button>
-            </div>
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }
 
@@ -942,56 +885,65 @@ function StockRequestContent() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
       <Sidebar />
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <Header />
 
-        <div className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+        <div className="flex-1 h-full overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-gray-950 relative">
+          {/* Decorative Background Elements */}
+          <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
+          <div className="absolute top-20 right-[-10%] w-[40%] h-[400px] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+          <div className="absolute bottom-[-10%] left-[-10%] w-[40%] h-[400px] bg-purple-500/5 rounded-full blur-[120px] pointer-events-none"></div>
+
+          <div className="relative z-10">
           {/* Header Section */}
-          <div className="bg-white dark:bg-gray-800 shadow-sm border-b dark:border-gray-700 sticky top-0 z-10">
-            <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
-              <div className="flex items-center gap-3 mb-3">
-                <button
-                  onClick={() => router.back()}
-                  className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300 text-xl sm:text-2xl transition-colors"
-                  title="Go Back"
-                >
-                  ←
-                </button>
-              </div>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Stock Requests</h1>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                    Manage and track all stock requests and purchases
-                  </p>
+          <div className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30 sticky top-0 z-20">
+            <div className="max-w-7xl mx-auto px-6 py-6 sm:px-8 lg:px-10">
+              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                <div className="flex items-center gap-5">
+                  <button
+                    onClick={() => router.back()}
+                    className="w-12 h-12 flex items-center justify-center rounded-2xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white shadow-xl shadow-gray-200/20 dark:shadow-none hover:scale-105 transition-all text-xl"
+                    title="Go Back"
+                  >
+                    ←
+                  </button>
+                  <div>
+                    <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                      Stock Management
+                    </h1>
+                    <p className="text-[13px] font-medium text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
+                       <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                       Track and organize your inventory efficiently
+                    </p>
+                  </div>
                 </div>
-                <div className="flex flex-col sm:flex-row gap-3">
+                <div className="flex flex-wrap gap-3">
                   <Link
                     href="/stock/activity-logs"
-                    className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 flex items-center gap-2 transition-colors shadow-sm"
+                    className="h-12 px-5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-2xl flex items-center gap-2 border border-white/20 dark:border-gray-700/30 shadow-xl shadow-gray-200/10 dark:shadow-none hover:-translate-y-1 transition-all text-sm font-bold"
                   >
-                    <BsClockHistory size={16} />
-                    Activity Logs
+                    <BsClockHistory size={18} className="text-blue-600" />
+                    History
                   </Link>
                   {(permissions.can_create === true || permissions.can_create === 1 || Number(user?.role) === 5) && (
-                    <>
+                    <div className="flex gap-3">
                       <Link
                         href="/stock/purchase-for-use-history"
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 flex items-center gap-2 transition-colors shadow-sm"
+                        className="h-12 px-5 bg-emerald-600 text-white rounded-2xl flex items-center gap-2 shadow-xl shadow-emerald-500/20 hover:-translate-y-1 transition-all text-sm font-bold"
                       >
-                        <BsPlusCircle size={16} />
+                        <BsPlusCircle size={18} />
                         Purchase for Use
                       </Link>
                       <Link
                         href="/stock/purchase"
-                        className="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 flex items-center gap-2 transition-colors shadow-sm"
+                        className="h-12 px-5 bg-indigo-600 text-white rounded-2xl flex items-center gap-2 shadow-xl shadow-indigo-500/20 hover:-translate-y-1 transition-all text-sm font-bold"
                       >
-                        <BsPlusCircle size={16} />
-                        Purchase for Sale
+                        <BsPlusCircle size={18} />
+                        New Stock
                       </Link>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1019,68 +971,88 @@ function StockRequestContent() {
 
               {/* Quick Stats Section (Hidden for Staff/Incharge) */}
               {!(user?.role === 1 || user?.role === 2) && (
-                <div className="mb-6">
-                  <h2 className="text-xl font-bold text-gray-800 dark:text-white mb-4">Quick Stats</h2>
+                <div className="mb-10">
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                       <span className="w-2 h-6 bg-blue-600 rounded-full"></span>
+                       Overview Stats
+                    </h2>
+                  </div>
                   {statsLoading ? (
                     <StatsSkeleton />
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <Link href="/all-stock" className="block">
-                        <div className="border rounded-lg p-4 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 border-blue-200 dark:border-blue-800 shadow-sm hover:bg-blue-200 dark:hover:bg-blue-900/50 transition-colors cursor-pointer">
-                          <div className="flex items-center justify-between">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+                      <Link href="/all-stock" className="block group">
+                        <div className="relative overflow-hidden bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl p-5 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl shadow-blue-500/5 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-blue-500/10">
+                          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-blue-500/10 dark:bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+                          <div className="flex items-start justify-between relative z-10">
                             <div>
-                              <p className="text-sm font-medium">Total Stock</p>
-                              <p className="text-lg font-bold mt-1">{stats.totalStock}</p>
+                              <p className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-widest mb-1">Total Stock</p>
+                              <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stats.totalStock}</p>
                             </div>
-                            <BsBox className="text-2xl opacity-70" />
+                            <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-500/20 transform group-hover:rotate-6 transition-all duration-500">
+                              <BsBox size={20} />
+                            </div>
                           </div>
                         </div>
                       </Link>
 
-                      <Link href="/stock-history" className="block">
-                        <div className="border rounded-lg p-4 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 border-indigo-200 dark:border-indigo-800 shadow-sm hover:bg-indigo-200 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer">
-                          <div className="flex items-center justify-between">
+                      <Link href="/stock-history" className="block group">
+                        <div className="relative overflow-hidden bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl p-5 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl shadow-indigo-500/5 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/10">
+                          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-indigo-500/10 dark:bg-indigo-500/5 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all"></div>
+                          <div className="flex items-start justify-between relative z-10">
                             <div>
-                              <p className="text-sm font-medium">Stock History</p>
-                              <p className="text-lg font-bold mt-1">{stats.totalStockHistory}</p>
+                              <p className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest mb-1">History</p>
+                              <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stats.totalStockHistory}</p>
                             </div>
-                            <BiHistory className="text-2xl opacity-70" />
+                            <div className="w-12 h-12 bg-indigo-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-500/20 transform group-hover:rotate-6 transition-all duration-500">
+                              <BiHistory size={20} />
+                            </div>
                           </div>
                         </div>
                       </Link>
 
-                      <Link href="/stock?status=pending" className="block">
-                        <div className="border rounded-lg p-4 bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 border-yellow-200 dark:border-yellow-800 shadow-sm hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors cursor-pointer">
-                          <div className="flex items-center justify-between">
+                      <Link href="/stock?status=pending" className="block group">
+                        <div className="relative overflow-hidden bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl p-5 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl shadow-amber-500/5 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-500/10">
+                          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-amber-500/10 dark:bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
+                          <div className="flex items-start justify-between relative z-10">
                             <div>
-                              <p className="text-sm font-medium">Pending</p>
-                              <p className="text-lg font-bold mt-1">{stats.pendingStock}</p>
+                              <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400 uppercase tracking-widest mb-1">Pending</p>
+                              <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stats.pendingStock}</p>
                             </div>
-                            <BsClockHistory className="text-2xl opacity-70" />
+                            <div className="w-12 h-12 bg-amber-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-amber-500/20 transform group-hover:rotate-6 transition-all duration-500">
+                              <BsClockHistory size={20} />
+                            </div>
                           </div>
                         </div>
                       </Link>
 
-                      <Link href="/stock?status=delivered" className="block">
-                        <div className="border rounded-lg p-4 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border-green-200 dark:border-green-800 shadow-sm hover:bg-green-200 dark:hover:bg-green-900/50 transition-colors cursor-pointer">
-                          <div className="flex items-center justify-between">
+                      <Link href="/stock?status=delivered" className="block group">
+                        <div className="relative overflow-hidden bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl p-5 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl shadow-emerald-500/5 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-500/10">
+                          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-emerald-500/10 dark:bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+                          <div className="flex items-start justify-between relative z-10">
                             <div>
-                              <p className="text-sm font-medium">Delivered</p>
-                              <p className="text-lg font-bold mt-1">{stats.deliveredStock}</p>
+                              <p className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-widest mb-1">Delivered</p>
+                              <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stats.deliveredStock}</p>
                             </div>
-                            <BsTruck className="text-2xl opacity-70" />
+                            <div className="w-12 h-12 bg-emerald-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-500/20 transform group-hover:rotate-6 transition-all duration-500">
+                              <BsTruck size={20} />
+                            </div>
                           </div>
                         </div>
                       </Link>
 
-                      <Link href="/stock-requests" className="block">
-                        <div className="border rounded-lg p-4 bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800 shadow-sm hover:bg-purple-200 dark:hover:bg-purple-900/50 transition-colors cursor-pointer">
-                          <div className="flex items-center justify-between">
+                      <Link href="/stock-requests" className="block group">
+                        <div className="relative overflow-hidden bg-white/60 dark:bg-gray-800/60 backdrop-blur-xl p-5 rounded-2xl border border-white/20 dark:border-gray-700/30 shadow-xl shadow-purple-500/5 transition-all duration-500 hover:-translate-y-1 hover:shadow-2xl hover:shadow-purple-500/10">
+                          <div className="absolute -right-4 -bottom-4 w-24 h-24 bg-purple-500/10 dark:bg-purple-500/5 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all"></div>
+                          <div className="flex items-start justify-between relative z-10">
                             <div>
-                              <p className="text-sm font-medium">Stock Requests</p>
-                              <p className="text-lg font-bold mt-1">{stats.totalStockRequests}</p>
+                              <p className="text-[11px] font-bold text-purple-600 dark:text-purple-400 uppercase tracking-widest mb-1">Requests</p>
+                              <p className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">{stats.totalStockRequests}</p>
                             </div>
-                            <BiPackage className="text-2xl opacity-70" />
+                            <div className="w-12 h-12 bg-purple-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-purple-500/20 transform group-hover:rotate-6 transition-all duration-500">
+                              <BiPackage size={20} />
+                            </div>
                           </div>
                         </div>
                       </Link>
@@ -1112,6 +1084,7 @@ function StockRequestContent() {
             </div>
           </main>
           <Footer />
+          </div>
         </div>
       </div>
     </div>

@@ -12,8 +12,8 @@ import {
 } from 'react-icons/bi';
 import { io } from 'socket.io-client';
 
-const POLL_INTERVAL = 3000;
-const SESSION_POLL_INTERVAL = 15000;
+const POLL_INTERVAL = 8000;
+const SESSION_POLL_INTERVAL = 30000;
 
 // ─── Deduplication Utility ──────────────────────────────
 const deduplicateMessages = (msgs) => {
@@ -137,6 +137,20 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
     }
   }, [unreadCount, setEmployeeChatNotifCount]);
 
+  // ── SCROLLING ──────────────────────────────────────────
+  const scrollToBottom = useCallback((behavior = 'smooth') => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior });
+    }
+  }, []);
+
+  // Scroll on session change or new messages
+  useEffect(() => {
+    if (activeSession) {
+      scrollToBottom(messages[activeSession.id]?.length > 20 ? 'auto' : 'smooth');
+    }
+  }, [activeSession, messages, scrollToBottom]);
+
   // Audio initialization on first user interaction
   useEffect(() => {
     const handleInteraction = () => {
@@ -248,15 +262,10 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
   useEffect(() => {
     if (!user?.id) return;
 
-    // Initialize notifications
+    // Initialize notifications (only SW registration, don't request permission here as it will be blocked)
     (async () => {
       if (typeof window !== 'undefined') {
-        if (isPWAStandalone()) {
-          await initializePWANotifications();
-        } else {
-          await requestNotificationPermission();
-          await initializeNotifications();
-        }
+        await initializeNotifications();
         forceInitializeAudio();
       }
     })();
@@ -415,7 +424,7 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
         setConnected(false);
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
   // ── POLLING ────────────────────────────────────────────
@@ -622,13 +631,13 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
       fetchSessions();
       fetchEmployees();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showChat, user?.id]);
 
   // Reload employees on search change
   useEffect(() => {
     if (showChat && user?.id) fetchEmployees();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search]);
 
   // Load messages when active session changes
@@ -637,7 +646,7 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
       loadMessagesForSession(activeSession.id);
       markAsRead(activeSession.id);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeSession?.id]);
 
   // Scroll to bottom on new messages
@@ -723,35 +732,37 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
       " style={{ boxShadow: '0 8px 40px rgba(0,0,0,0.18)' }}>
 
         {/* ── Header ── */}
-        <div className="flex-shrink-0 flex items-center justify-between px-3 py-2.5"
-          style={{ background: 'linear-gradient(135deg, #059669, #047857)' }}>
-          <div className="flex items-center gap-2 min-w-0">
+        <div className="flex-shrink-0 flex items-center justify-between px-4 py-4"
+          style={{ background: 'linear-gradient(135deg, #2563eb, #4f46e5)' }}>
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => setSidebarOpen(o => !o)}
-              className="p-1.5 rounded-lg hover:bg-white/15 transition-colors flex-shrink-0 text-white"
+              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 transition-all flex-shrink-0 text-white shadow-inner"
               aria-label="Toggle employee list"
             >
-              <BiMenu size={18} />
+              <BiMenu size={20} />
             </button>
 
             {activeSession && chatPartner ? (
-              <div className="flex items-center gap-2 min-w-0">
-                <div className="w-7 h-7 rounded-full bg-white/20 flex items-center justify-center text-white font-bold text-xs flex-shrink-0 ring-2 ring-white/30">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white font-black text-sm flex-shrink-0 ring-2 ring-white/30 shadow-lg">
                   {chatPartner.name?.charAt(0)?.toUpperCase() || '?'}
                 </div>
                 <div className="min-w-0">
-                  <p className="font-semibold text-sm text-white truncate">{chatPartner.name}</p>
-                  <p className="text-[10px] text-emerald-200">
+                  <p className="font-black text-sm text-white truncate tracking-tight">{chatPartner.name}</p>
+                  <p className="text-[10px] font-bold text-blue-100 uppercase tracking-widest mt-0.5">
                     {typingMap[activeSession.id]
-                      ? <span className="italic animate-pulse">typing...</span>
-                      : connected ? 'Online' : 'Connecting...'}
+                      ? <span className="animate-pulse">typing...</span>
+                      : connected ? 'Interactive' : 'Connecting'}
                   </p>
                 </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <BiMessageRounded size={16} className="text-white" />
-                <span className="font-semibold text-sm text-white">Employee Chat</span>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-white/20 flex items-center justify-center text-white">
+                  <BiMessageRounded size={20} />
+                </div>
+                <span className="font-black text-sm text-white uppercase tracking-widest">Colleagues</span>
               </div>
             )}
 
@@ -774,20 +785,44 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             )}
           </div>
 
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <span
-              className={`w-2 h-2 rounded-full ${connected ? 'bg-green-300 shadow-[0_0_6px_rgba(134,239,172,0.6)]' : 'bg-red-400 animate-pulse'}`}
-              title={connected ? 'Connected' : 'Disconnected'}
-            />
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <div className={`w-2.5 h-2.5 rounded-full ${connected ? 'bg-emerald-400' : 'bg-rose-400 animate-pulse'} border-2 border-white/20 shadow-sm`}></div>
             <button
               onClick={() => { setShowChat(false); }}
-              className="p-1.5 rounded-lg hover:bg-white/15 transition-colors text-white"
+              className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/10 hover:bg-white/20 transition-all text-white"
               aria-label="Close chat"
             >
-              <BiX size={18} />
+              <BiX size={24} />
             </button>
           </div>
         </div>
+
+        {/* ── Notification Permission Banner ── */}
+        {typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission !== 'granted' && (
+          <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-2 flex items-center justify-between gap-2 overflow-hidden">
+            <div className="flex items-center gap-2 min-w-0">
+              <span className="text-lg">🔔</span>
+              <p className="text-[11px] text-yellow-800 font-medium leading-tight truncate">
+                {window.Notification.permission === 'denied'
+                  ? 'Notifications are blocked in browser'
+                  : 'Enable notifications for chat alerts'}
+              </p>
+            </div>
+            <button
+              onClick={async () => {
+                if (window.Notification.permission === 'denied') {
+                  alert("Notifications are blocked. Please click the Lock icon in your browser address bar to allow them.");
+                } else {
+                  await requestNotificationPermission();
+                  window.location.reload(); // Refresh to update all states
+                }
+              }}
+              className="px-2 py-1 bg-yellow-600 text-white text-[10px] font-bold rounded hover:bg-yellow-700 whitespace-nowrap"
+            >
+              {window.Notification.permission === 'denied' ? 'Details' : 'Enable'}
+            </button>
+          </div>
+        )}
 
         {/* ── Body ── */}
         <div className="flex-1 flex min-h-0 relative overflow-hidden">
@@ -879,7 +914,7 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
                     session.requester_id === emp.id || session.responder_id === emp.id
                   );
                 });
-                
+
                 return filteredEmps.length > 0 && (
                   <div>
                     <div className="px-2.5 py-1.5 bg-gray-100 border-b">

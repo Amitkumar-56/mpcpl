@@ -141,58 +141,58 @@ function MfgRequestTerminal() {
   };
 
   return (
-    <div className="max-w-xl mx-auto py-8">
-      <div className="bg-white rounded-[2rem] shadow-xl border border-gray-100 p-6 mb-6">
+    <div className="max-w-xl mx-auto py-4 sm:py-8 px-4 sm:px-0">
+      <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-xl border border-gray-100 p-4 sm:p-6 mb-6">
         <label className="text-xs font-black text-gray-400 uppercase tracking-widest block mb-3 ml-1">MFG Vehicle Verification</label>
         <div className="relative group">
-          <input value={vehicleSearch} onChange={e => setVehicleSearch(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="MH12AB1234" className="w-full pl-14 pr-4 py-5 bg-gray-50 border-2 border-gray-100 rounded-[1.5rem] text-2xl font-black focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all text-gray-800 tracking-[0.2em]" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
-          <FaSearch className="absolute left-6 top-1/2 -translate-y-1/2 text-gray-300 text-xl" />
+          <input value={vehicleSearch} onChange={e => setVehicleSearch(e.target.value.toUpperCase().replace(/\s+/g, ''))} placeholder="MH12AB1234" className="w-full pl-12 sm:pl-14 pr-4 py-3 sm:py-5 bg-gray-50 border-2 border-gray-100 rounded-[1rem] sm:rounded-[1.5rem] text-lg sm:text-2xl font-black focus:outline-none focus:ring-4 focus:ring-cyan-500/10 focus:border-cyan-500 transition-all text-gray-800 tracking-[0.1em] sm:tracking-[0.2em]" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+          <FaSearch className="absolute left-4 sm:left-6 top-1/2 -translate-y-1/2 text-gray-300 text-lg sm:text-xl" />
         </div>
-        <button onClick={handleSearch} disabled={searching} className="w-full mt-4 bg-cyan-600 text-white py-4 rounded-2xl font-black text-lg shadow-lg hover:bg-cyan-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
+        <button onClick={handleSearch} disabled={searching} className="w-full mt-4 bg-cyan-600 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl font-black text-sm sm:text-lg shadow-lg hover:bg-cyan-700 transition disabled:opacity-50 flex items-center justify-center gap-2">
           {searching ? <FaSpinner className="animate-spin" /> : 'Search Vehicle'}
         </button>
       </div>
 
       {searchDone && !searchResult && !showCreateForm && (
-        <div className="bg-white rounded-[2rem] p-8 text-center border-2 border-dashed border-red-100 shadow-lg">
-          <FaTimesCircle className="text-red-400 text-4xl mb-4 mx-auto" />
-          <h3 className="font-black text-gray-800 text-xl">Not Found</h3>
-          <p className="text-gray-500 text-sm mb-6">mfg_entry_requests me koi record nahi mila. Naya request banaye?</p>
-          <button onClick={() => setShowCreateForm(true)} className="w-full bg-slate-800 text-white py-4 rounded-2xl font-bold flex items-center justify-center gap-2"><FaPlusCircle /> Nayi Request Banaye</button>
+        <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] p-4 sm:p-8 text-center border-2 border-dashed border-red-100 shadow-lg">
+          <FaTimesCircle className="text-red-400 text-3xl sm:text-4xl mb-3 sm:mb-4 mx-auto" />
+          <h3 className="font-black text-gray-800 text-lg sm:text-xl">Not Found</h3>
+          <p className="text-gray-500 text-xs sm:text-sm mb-4 sm:mb-6">mfg_entry_requests me koi record nahi mila. Naya request banaye?</p>
+          <button onClick={() => setShowCreateForm(true)} className="w-full bg-slate-800 text-white py-3 sm:py-4 rounded-xl sm:rounded-2xl font-bold flex items-center justify-center gap-2 text-sm sm:text-base"><FaPlusCircle /> <span className="hidden sm:inline">Nayi Request Banaye</span><span className="sm:hidden">New Request</span></button>
         </div>
       )}
 
       {showCreateForm && (
-        <div className="bg-white rounded-[2rem] shadow-2xl p-6 border animate-in zoom-in duration-300">
-          <h3 className="font-black text-gray-800 text-xl mb-6">Driver & Vehicle Details</h3>
-          <div className="space-y-4">
-            <input disabled value={form.vehicle_number} className="w-full px-4 py-3 bg-gray-50 border rounded-xl font-bold text-gray-400" />
-            <input placeholder="Driver Name *" value={form.driver_name} onChange={e => setForm({...form, driver_name: e.target.value})} className="w-full px-4 py-3 border rounded-xl font-bold" />
-            <input placeholder="Phone" value={form.driver_phone} onChange={e => setForm({...form, driver_phone: e.target.value})} className="w-full px-4 py-3 border rounded-xl font-bold" />
-            <input placeholder="Purpose" value={form.purpose} onChange={e => setForm({...form, purpose: e.target.value})} className="w-full px-4 py-3 border rounded-xl font-bold" />
+        <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl p-4 sm:p-6 border animate-in zoom-in duration-300">
+          <h3 className="font-black text-gray-800 text-lg sm:text-xl mb-4 sm:mb-6">Driver & Vehicle Details</h3>
+          <div className="space-y-3 sm:space-y-4">
+            <input disabled value={form.vehicle_number} className="w-full px-3 sm:px-4 py-2 sm:py-3 bg-gray-50 border rounded-lg sm:rounded-xl font-bold text-gray-400 text-sm" />
+            <input placeholder="Driver Name *" value={form.driver_name} onChange={e => setForm({...form, driver_name: e.target.value})} className="w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl font-bold text-sm" />
+            <input placeholder="Phone" value={form.driver_phone} onChange={e => setForm({...form, driver_phone: e.target.value})} className="w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl font-bold text-sm" />
+            <input placeholder="Purpose" value={form.purpose} onChange={e => setForm({...form, purpose: e.target.value})} className="w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg sm:rounded-xl font-bold text-sm" />
             <div className="flex gap-2">
-              <button onClick={() => setShowCreateForm(false)} className="flex-1 py-4 font-bold text-gray-500">Cancel</button>
-              <button onClick={handleCreateRequest} disabled={creating} className="flex-1 bg-cyan-600 text-white py-4 rounded-xl font-bold shadow-lg">Submit</button>
+              <button onClick={() => setShowCreateForm(false)} className="flex-1 py-3 sm:py-4 font-bold text-gray-500 text-sm">Cancel</button>
+              <button onClick={handleCreateRequest} disabled={creating} className="flex-1 bg-cyan-600 text-white py-3 sm:py-4 rounded-lg sm:rounded-xl font-bold shadow-lg text-sm">Submit</button>
             </div>
           </div>
         </div>
       )}
 
       {searchResult && (
-        <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border">
-          <div className={`px-6 py-4 flex justify-between items-center ${searchResult.status === 'pending_approval' ? 'bg-orange-100 text-orange-800' : 'bg-cyan-100 text-cyan-800'}`}>
-            <span className="font-black text-xs uppercase">{searchResult.status}</span>
-            <span className="text-[10px] font-mono font-bold">{searchResult.request_code}</span>
+        <div className="bg-white rounded-[1.5rem] sm:rounded-[2rem] shadow-2xl overflow-hidden border">
+          <div className={`px-4 sm:px-6 py-3 sm:py-4 flex justify-between items-center ${searchResult.status === 'pending_approval' ? 'bg-orange-100 text-orange-800' : 'bg-cyan-100 text-cyan-800'}`}>
+            <span className="font-black text-[10px] sm:text-xs uppercase">{searchResult.status}</span>
+            <span className="text-[8px] sm:text-[10px] font-mono font-bold">{searchResult.request_code}</span>
           </div>
-          <div className="p-6">
-            <div className="text-center mb-6">
-              <h2 className="text-3xl font-black text-gray-800">{searchResult.vehicle_number}</h2>
-              <p className="text-gray-500 font-medium">{searchResult.driver_name || 'No Name'}</p>
+          <div className="p-4 sm:p-6">
+            <div className="text-center mb-4 sm:mb-6">
+              <h2 className="text-2xl sm:text-3xl font-black text-gray-800">{searchResult.vehicle_number}</h2>
+              <p className="text-gray-500 font-medium text-sm">{searchResult.driver_name || 'No Name'}</p>
             </div>
-            {searchResult.status === 'pending_approval' && <div className="bg-orange-50 p-4 rounded-xl text-xs font-bold text-orange-800 mb-4">Admin approval ka wait kare.</div>}
-            {searchResult.status === 'pending' && !showOtpSection && <button onClick={() => { setShowOtpSection(true); setTimeout(() => otpRefs.current[0].focus(), 100); }} className="w-full bg-cyan-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase"><FaKey className="inline mr-2"/> Enter OTP</button>}
-            {searchResult.status === 'approved' && !showPhotoSection && <button onClick={() => { setPhotoMode('entry'); setShowPhotoSection(true); detectLocation(); }} className="w-full bg-green-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase"><FaCamera className="inline mr-2"/> Start Entry</button>}
-            {searchResult.status === 'processing' && !showPhotoSection && <button onClick={() => { setPhotoMode('exit'); setShowPhotoSection(true); detectLocation(); }} className="w-full bg-red-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl uppercase"><FaSignOutAlt className="inline mr-2"/> Start Exit</button>}
+            {searchResult.status === 'pending_approval' && <div className="bg-orange-50 p-3 sm:p-4 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-bold text-orange-800 mb-4">Admin approval ka wait kare.</div>}
+            {searchResult.status === 'pending' && !showOtpSection && <button onClick={() => { setShowOtpSection(true); setTimeout(() => otpRefs.current[0].focus(), 100); }} className="w-full bg-cyan-600 text-white py-3 sm:py-5 rounded-xl sm:rounded-2xl font-black text-sm sm:text-lg shadow-xl uppercase"><FaKey className="inline mr-2"/> <span className="hidden sm:inline">Enter OTP</span><span className="sm:hidden">OTP</span></button>}
+            {searchResult.status === 'approved' && !showPhotoSection && <button onClick={() => { setPhotoMode('entry'); setShowPhotoSection(true); detectLocation(); }} className="w-full bg-green-600 text-white py-3 sm:py-5 rounded-xl sm:rounded-2xl font-black text-sm sm:text-lg shadow-xl uppercase"><FaCamera className="inline mr-2"/> <span className="hidden sm:inline">Start Entry</span><span className="sm:hidden">Entry</span></button>}
+            {searchResult.status === 'processing' && !showPhotoSection && <button onClick={() => { setPhotoMode('exit'); setShowPhotoSection(true); detectLocation(); }} className="w-full bg-red-600 text-white py-3 sm:py-5 rounded-xl sm:rounded-2xl font-black text-sm sm:text-lg shadow-xl uppercase"><FaSignOutAlt className="inline mr-2"/> <span className="hidden sm:inline">Start Exit</span><span className="sm:hidden">Exit</span></button>}
           </div>
         </div>
       )}
@@ -365,16 +365,18 @@ function TankerGateTerminal() {
   };
 
   return (
-    <div className="space-y-6 max-w-7xl mx-auto px-4 py-6">
-      <div className="flex justify-between items-center bg-white p-4 rounded-xl shadow-sm border">
-         <h2 className="font-bold text-gray-800 flex items-center gap-2"><FaTruck className="text-cyan-600"/> TANKER GATE LOGS</h2>
-         <div className="flex gap-2">
-            <button onClick={() => { setForm({ ...form, direction: 'entry' }); setShowModal(true); }} className="bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><FaSignInAlt/> Entry</button>
-            <button onClick={() => { setForm({ ...form, direction: 'exit' }); setShowModal(true); }} className="bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1"><FaSignOutAlt/> Exit</button>
+    <div className="space-y-4 sm:space-y-6 max-w-7xl mx-auto px-4 py-4 sm:py-6">
+      <div className="bg-white p-3 sm:p-4 rounded-xl shadow-sm border">
+         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+           <h2 className="font-bold text-gray-800 flex items-center gap-2 text-sm sm:text-base"><FaTruck className="text-cyan-600"/> TANKER GATE LOGS</h2>
+           <div className="flex gap-2 w-full sm:w-auto">
+              <button onClick={() => { setForm({ ...form, direction: 'entry' }); setShowModal(true); }} className="flex-1 sm:flex-none bg-green-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><FaSignInAlt/> <span className="hidden sm:inline">Entry</span><span className="sm:hidden">IN</span></button>
+              <button onClick={() => { setForm({ ...form, direction: 'exit' }); setShowModal(true); }} className="flex-1 sm:flex-none bg-red-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1"><FaSignOutAlt/> <span className="hidden sm:inline">Exit</span><span className="sm:hidden">OUT</span></button>
+           </div>
          </div>
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
          <div className="relative flex-1">
             <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input placeholder="Search tankers..." value={search} onChange={e => setSearch(e.target.value)} className="w-full pl-10 pr-4 py-2 rounded-xl border text-sm outline-none focus:ring-2 focus:ring-cyan-500" />
@@ -389,7 +391,38 @@ function TankerGateTerminal() {
       </div>
 
       <div className="bg-white rounded-xl shadow-sm border overflow-hidden">
-         <div className="overflow-x-auto">
+         {/* Mobile Card View */}
+         <div className="sm:hidden">
+            {entries.length > 0 ? entries.map(e => (
+              <div key={e.id} className="p-3 border-b last:border-b-0 hover:bg-gray-50">
+                <div className="flex justify-between items-start mb-2">
+                  <div>
+                    <div className="font-bold text-gray-800">{e.vehicle_number}</div>
+                    <div className="text-xs text-gray-500">{e.driver_name || '-'}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-semibold text-cyan-600">{e.entry_code}</div>
+                    <span className="px-2 py-0.5 rounded-full bg-gray-100 font-bold text-xs">{e.gate_status}</span>
+                  </div>
+                </div>
+                <div className="flex justify-between items-center">
+                  <div className="text-xs text-gray-600">
+                    <div>{e.material_name || '-'}</div>
+                    <div>{e.direction === 'entry' ? 'IN' : 'OUT'}</div>
+                  </div>
+                  <div className="flex gap-1">
+                    <button onClick={() => { setViewEntry(e); setShowPhotoModal(true); }} className="p-1.5 bg-gray-100 rounded hover:bg-gray-200"><FaEye/></button>
+                    {e.gate_status === 'arrived' && <button onClick={() => updateGateStatus(e.id, 'under_processing')} className="bg-blue-500 text-white px-2 py-0.5 rounded text-xs">Processing</button>}
+                    {e.gate_status === 'under_processing' && <button onClick={() => updateGateStatus(e.id, 'ready_to_exit')} className="bg-yellow-500 text-white px-2 py-0.5 rounded text-xs">Ready</button>}
+                    {e.gate_status === 'ready_to_exit' && <button onClick={() => { setExitEntry(e); setShowExitModal(true); }} className="bg-red-500 text-white px-2 py-0.5 rounded text-xs">Exit</button>}
+                  </div>
+                </div>
+              </div>
+            )) : <div className="p-8 text-center text-gray-400 text-sm">No logs found</div>}
+         </div>
+         
+         {/* Desktop Table View */}
+         <div className="hidden sm:block overflow-x-auto">
             <table className="w-full text-xs">
                <thead className="bg-gray-50 border-b">
                   <tr>{['Code', 'Vehicle', 'Driver', 'Material', 'Direction', 'Status', 'Actions'].map(h => <th key={h} className="px-3 py-3 text-left font-semibold text-gray-600 uppercase">{h}</th>)}</tr>
@@ -401,7 +434,7 @@ function TankerGateTerminal() {
                       <td className="px-3 py-3 font-bold">{e.vehicle_number}</td>
                       <td className="px-3 py-3">{e.driver_name || '-'}</td>
                       <td className="px-3 py-3">{e.material_name || '-'}</td>
-                      <td className="px-3 py-3">{e.direction === 'entry' ? '↓ IN' : '↑ OUT'}</td>
+                      <td className="px-3 py-3">{e.direction === 'entry' ? 'IN' : 'OUT'}</td>
                       <td className="px-3 py-3"><span className="px-2 py-0.5 rounded-full bg-gray-100 font-bold">{e.gate_status}</span></td>
                       <td className="px-3 py-3 flex gap-1">
                          <button onClick={() => { setViewEntry(e); setShowPhotoModal(true); }} className="p-1.5 bg-gray-100 rounded hover:bg-gray-200"><FaEye/></button>
@@ -503,33 +536,35 @@ export default function SecurityGatePage() {
         <Header toggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
         <main className="flex-1 overflow-y-auto">
           {/* Top Level Hero Header */}
-          <div className="bg-gradient-to-br from-cyan-900 via-cyan-800 to-cyan-600 px-4 sm:px-6 py-6 text-white relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -mr-20 -mt-20 blur-3xl"></div>
-            <div className="max-w-7xl mx-auto relative z-10 flex flex-col sm:flex-row justify-between items-center gap-6">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-white/10 backdrop-blur-md rounded-2xl flex items-center justify-center border border-white/20 shadow-xl">
-                  <FaShieldAlt className="text-2xl" />
+          <div className="bg-gradient-to-br from-cyan-900 via-cyan-800 to-cyan-600 px-4 sm:px-6 py-4 sm:py-6 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 sm:w-64 sm:h-64 bg-white/5 rounded-full -mr-10 -mt-10 sm:-mr-20 sm:-mt-20 blur-3xl"></div>
+            <div className="max-w-7xl mx-auto relative z-10">
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3 sm:gap-4">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/20 shadow-xl">
+                    <FaShieldAlt className="text-lg sm:text-2xl" />
+                  </div>
+                  <div>
+                    <h1 className="text-lg sm:text-xl font-black tracking-tight uppercase">Security Gateway Control</h1>
+                    <p className="text-cyan-200 text-[8px] sm:text-[10px] font-bold tracking-widest opacity-80 uppercase">Select Terminal below</p>
+                  </div>
                 </div>
-                <div>
-                  <h1 className="text-xl font-black tracking-tight uppercase">Security Gateway Control</h1>
-                  <p className="text-cyan-200 text-[10px] font-bold tracking-widest opacity-80 uppercase">Select Terminal below</p>
-                </div>
-              </div>
 
-              {/* TAB SWITCHER */}
-              <div className="bg-black/20 p-1 rounded-2xl flex items-center gap-1 backdrop-blur-lg border border-white/10">
-                <button 
-                  onClick={() => setActiveTab('mfg')} 
-                  className={`px-6 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-widest flex items-center gap-2 ${activeTab === 'mfg' ? 'bg-cyan-500 text-white shadow-lg' : 'hover:bg-white/5 text-cyan-100/60'}`}
-                >
-                  <FaClipboardList/> Mfg Entry
-                </button>
-                <button 
-                  onClick={() => setActiveTab('tanker')} 
-                    className={`px-6 py-2 rounded-xl text-xs font-black transition-all uppercase tracking-widest flex items-center gap-2 ${activeTab === 'tanker' ? 'bg-cyan-500 text-white shadow-lg' : 'hover:bg-white/5 text-cyan-100/60'}`}
-                >
-                  <FaTruck/> Tanker Gate
-                </button>
+                {/* TAB SWITCHER */}
+                <div className="bg-black/20 p-1 rounded-xl sm:rounded-2xl flex items-center gap-1 backdrop-blur-lg border border-white/10">
+                  <button 
+                    onClick={() => setActiveTab('mfg')} 
+                    className={`flex-1 px-3 sm:px-6 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black transition-all uppercase tracking-widest flex items-center justify-center gap-1 sm:gap-2 ${activeTab === 'mfg' ? 'bg-cyan-500 text-white shadow-lg' : 'hover:bg-white/5 text-cyan-100/60'}`}
+                  >
+                    <FaClipboardList className="text-xs sm:text-sm"/> <span className="hidden sm:inline">Mfg Entry</span><span className="sm:hidden">MFG</span>
+                  </button>
+                  <button 
+                    onClick={() => setActiveTab('tanker')} 
+                      className={`flex-1 px-3 sm:px-6 py-2 rounded-lg sm:rounded-xl text-[10px] sm:text-xs font-black transition-all uppercase tracking-widest flex items-center justify-center gap-1 sm:gap-2 ${activeTab === 'tanker' ? 'bg-cyan-500 text-white shadow-lg' : 'hover:bg-white/5 text-cyan-100/60'}`}
+                  >
+                    <FaTruck className="text-xs sm:text-sm"/> <span className="hidden sm:inline">Tanker Gate</span><span className="sm:hidden">Tanker</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

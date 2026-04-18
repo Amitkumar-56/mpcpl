@@ -2,7 +2,7 @@
 
 import { useSession } from '@/context/SessionContext';
 import { useSidebar } from '@/context/SidebarContext';
-import { initializeNotifications, showChatNotification } from '@/utils/notifications';
+import { initializeNotifications, showChatNotification, requestNotificationPermission } from '@/utils/notifications';
 import { forceInitializeAudio, playBeep } from '@/utils/sound';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -22,18 +22,29 @@ export default function Header({ onMenuToggle }) {
 
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      setNotifPermission(Notification.permission);
+      setNotifPermission(window.Notification.permission);
     }
   }, []);
 
   const handleRequestPermission = async () => {
-    const granted = await requestNotificationPermission();
-    setNotifPermission(Notification.permission);
-    if (granted) {
-      toast.success('Notifications enabled!');
-      showChatNotification('System', 'Notifications are working! 🎉');
-    } else {
-      toast.error('Notification permission denied. Please allow it in browser settings.');
+    try {
+      if (window.Notification.permission === 'denied') {
+        toast.error('Notifications are blocked. Please click the Lock icon in your browser address bar and set Notifications to "Allow".', { duration: 6000 });
+        return;
+      }
+
+      const granted = await requestNotificationPermission();
+      setNotifPermission(window.Notification.permission);
+
+      if (granted) {
+        toast.success('Notifications enabled! 🎉');
+        showChatNotification('System', 'Notifications are working! You will receive alerts even in the background.');
+      } else {
+        toast.error('Permission was not granted. Please allow notifications to see chat alerts.');
+      }
+    } catch (err) {
+      console.error('Error requesting notification permission:', err);
+      toast.error('Failed to request permission.');
     }
   };
 
@@ -76,16 +87,19 @@ export default function Header({ onMenuToggle }) {
     if (!user || isCustomer || pathname === '/login') return;
 
     // Initialize notifications on mount
-    initializeNotifications().catch(() => {});
+    initializeNotifications().catch(() => { });
     forceInitializeAudio();
-    
+
     let s;
     (async () => {
-      try { await fetch('/api/socket'); } catch (e) {}
+      try { await fetch('/api/socket'); } catch (e) { }
       s = io({
         path: '/api/socket',
         transports: ['websocket', 'polling'],
         reconnection: true,
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 1000,
+        timeout: 20000
       });
       s.on('connect', () => {
         s.emit('employee_join', {
@@ -108,14 +122,14 @@ export default function Header({ onMenuToggle }) {
           timestamp: data.timestamp,
           status: data.status,
         }, ...list].slice(0, 20));
-        
+
         // Show browser notification with customer name
         playBeep();
         showChatNotification(
           data.customerName || 'Customer',
           data.text || 'New message',
           { customerId: data.customerId, url: '/dashboard' }
-        ).catch(() => {});
+        ).catch(() => { });
       });
 
       // Employee-to-Employee chat message notifications
@@ -124,7 +138,7 @@ export default function Header({ onMenuToggle }) {
         console.log('Header: Employee chat message received:', msg);
         const senderName = msg.sender_name || 'Employee';
         const messageText = msg.message || 'New message';
-        
+
         setNotifCount((c) => c + 1);
         setNotifications((list) => [{
           id: `emp_msg_${msg.id}`,
@@ -135,21 +149,30 @@ export default function Header({ onMenuToggle }) {
           timestamp: msg.created_at || new Date().toISOString(),
           sessionId: msg.session_id,
         }, ...list].slice(0, 20));
-        
+
         // Play sound + show notification (debounced in sound.js to prevent double-play)
         playBeep();
+
+        if (window.Notification && window.Notification.permission !== 'granted') {
+          console.warn('Header: Notification permission not granted, only playing sound.');
+          // If permission is default, we can't request it here (not a user gesture)
+          // Just log it.
+        }
+
         showChatNotification(
-          senderName, 
+          senderName,
           messageText,
           { sessionId: msg.session_id, senderId: msg.sender_id }
-        ).catch(() => {});
+        ).catch((err) => {
+          console.error('Header: Error showing notification:', err);
+        });
       });
 
       // Employee chat request notifications
       s.on('employee_chat_request_received', (sessionData) => {
         console.log('Header: Employee chat request received:', sessionData);
         const requesterName = sessionData.requester_name || 'Employee';
-        
+
         setNotifCount((c) => c + 1);
         setNotifications((list) => [{
           id: `emp_req_${sessionData.id}`,
@@ -160,13 +183,13 @@ export default function Header({ onMenuToggle }) {
           timestamp: sessionData.created_at || new Date().toISOString(),
           sessionId: sessionData.id,
         }, ...list].slice(0, 20));
-        
+
         playBeep();
         showChatNotification(
           requesterName,
           'Wants to chat with you',
           { sessionId: sessionData.id, senderId: sessionData.requester_id }
-        ).catch(() => {});
+        ).catch(() => { });
       });
 
       s.on('new_customer', (data) => {
@@ -181,7 +204,7 @@ export default function Header({ onMenuToggle }) {
           status: 'new_customer',
         }, ...list].slice(0, 20));
       });
-      
+
       // ✅ Listen for password change notifications
       s.on('password_change_notification', (data) => {
         console.log('🔐 Password change notification received:', data);
@@ -218,18 +241,18 @@ export default function Header({ onMenuToggle }) {
       console.log('Header: Notification click event from SW:', event.detail);
       const data = event.detail?.data || {};
       // Dispatch standardized event to open chat components (ChatBox and EmployeeChatDashboard)
-      window.dispatchEvent(new CustomEvent('openEmployeeChat', { 
-        detail: { 
-          sessionId: data.sessionId, 
+      window.dispatchEvent(new CustomEvent('openEmployeeChat', {
+        detail: {
+          sessionId: data.sessionId,
           senderId: data.senderId,
           customerId: data.customerId
-        } 
+        }
       }));
     };
     window.addEventListener('openChatFromNotification', handleNotifClick);
 
     return () => {
-      try { s && s.disconnect(); } catch (e) {}
+      try { s && s.disconnect(); } catch (e) { }
       window.removeEventListener('openChatFromNotification', handleNotifClick);
     };
   }, [user, pathname]);
@@ -279,7 +302,7 @@ export default function Header({ onMenuToggle }) {
         {/* Logo */}
         <div className="flex items-center space-x-4">
           <h1 className="text-2xl font-bold text-blue-800">MPCPL</h1>
-          
+
           {/* Show current page title */}
           {pathname !== '/dashboard' && (
             <div className="hidden md:block">
@@ -320,7 +343,7 @@ export default function Header({ onMenuToggle }) {
         <div className="flex items-center gap-4">
           {/* Notification with badge */}
           <div className="relative notif-dropdown">
-            <button 
+            <button
               onClick={() => setShowNotifMenu((v) => !v)}
               className="relative p-2 text-gray-600 hover:text-blue-600 transition-colors">
               <FaBell className="text-xl" />
@@ -334,7 +357,7 @@ export default function Header({ onMenuToggle }) {
               <div className="absolute right-0 mt-2 w-[90vw] sm:w-80 max-w-[320px] bg-white border border-gray-200 rounded-xl shadow-xl z-50 py-2">
                 <div className="px-4 py-2 border-b border-gray-100 flex items-center justify-between">
                   <span className="font-semibold text-gray-900">Notifications</span>
-                  <button 
+                  <button
                     onClick={() => { setNotifCount(0); setNotifications([]); }}
                     className="text-xs text-blue-600 hover:underline">Clear</button>
                 </div>
@@ -363,7 +386,7 @@ export default function Header({ onMenuToggle }) {
                     <div className="px-4 py-6 text-center text-gray-500">No notifications</div>
                   ) : (
                     notifications.map((n, index) => (
-                      <div key={`notification-${n.id}-${index}`} 
+                      <div key={`notification-${n.id}-${index}`}
                         onClick={() => {
                           // Open employee chat when clicking employee notifications
                           if (n.type === 'employee_chat' || n.type === 'employee_chat_request') {
@@ -379,13 +402,12 @@ export default function Header({ onMenuToggle }) {
                         className="px-3 py-2.5 border-b border-gray-100 hover:bg-blue-50 cursor-pointer transition-colors">
                         <div className="flex items-start gap-2">
                           {/* Icon based on type */}
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${
-                            n.type === 'employee_chat' ? 'bg-yellow-500' :
-                            n.type === 'employee_chat_request' ? 'bg-green-500' :
-                            n.type === 'customer_chat' ? 'bg-blue-500' :
-                            n.type === 'password_change' ? 'bg-red-500' :
-                            'bg-gray-500'
-                          }`}>
+                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0 ${n.type === 'employee_chat' ? 'bg-yellow-500' :
+                              n.type === 'employee_chat_request' ? 'bg-green-500' :
+                                n.type === 'customer_chat' ? 'bg-blue-500' :
+                                  n.type === 'password_change' ? 'bg-red-500' :
+                                    'bg-gray-500'
+                            }`}>
                             {(n.senderName || n.customerName || '?').charAt(0).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0">
@@ -401,7 +423,7 @@ export default function Header({ onMenuToggle }) {
                         </div>
                         {n.type === 'customer_chat' && (
                           <div className="mt-2 flex justify-end">
-                            <button 
+                            <button
                               onClick={() => acceptChat(n.customerId)}
                               className="px-2 py-1 bg-blue-600 text-white rounded text-xs hover:bg-blue-700">Accept</button>
                           </div>
@@ -478,9 +500,9 @@ export default function Header({ onMenuToggle }) {
                 {/* Menu Items */}
                 <div className="py-2">
                   <button
-                    onClick={() => { 
-                      router.push('/profile'); 
-                      setShowProfileMenu(false); 
+                    onClick={() => {
+                      router.push('/profile');
+                      setShowProfileMenu(false);
                     }}
                     className="flex items-center gap-3 px-4 py-3 w-full text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                   >
@@ -489,9 +511,9 @@ export default function Header({ onMenuToggle }) {
                   </button>
 
                   <button
-                    onClick={() => { 
-                      router.push('/change-password'); 
-                      setShowProfileMenu(false); 
+                    onClick={() => {
+                      router.push('/change-password');
+                      setShowProfileMenu(false);
                     }}
                     className="flex items-center gap-3 px-4 py-3 w-full text-left text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors"
                   >
@@ -532,7 +554,7 @@ export default function Header({ onMenuToggle }) {
                   <p className="text-sm text-gray-600">{user.email}</p>
                 </div>
               </div>
-              <button 
+              <button
                 onClick={() => setShowSidebar(false)}
                 className="p-2 hover:bg-gray-100 rounded-lg"
               >

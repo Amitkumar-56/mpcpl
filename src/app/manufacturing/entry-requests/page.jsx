@@ -445,7 +445,7 @@ function ManufacturingEntryRequestsContent() {
       const waiting = entries.filter(e => e.status === 'pending_approval');
       if (waiting.length > 0) {
         // Only notify if notification permission is granted
-        if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
           // Check if we already notified about the latest one
           const latestId = Math.max(...waiting.map(w => w.id));
           const lastNotified = localStorage.getItem('last_mfg_entry_notified');
@@ -627,16 +627,17 @@ function ManufacturingEntryRequestsContent() {
         <main className="flex-1 overflow-y-auto">
 
           {/* Hero Header */}
-          <div className="bg-gradient-to-r from-slate-800 to-slate-700 px-4 sm:px-6 md:px-8 py-5 text-white">
-            <div className="max-w-7xl mx-auto">
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+          <div className="bg-gradient-to-br from-cyan-900 via-cyan-800 to-cyan-600 px-4 sm:px-6 md:px-8 py-4 sm:py-5 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 sm:w-64 sm:h-64 bg-white/5 rounded-full -mr-10 -mt-10 sm:-mr-20 sm:-mt-20 blur-3xl"></div>
+            <div className="max-w-7xl mx-auto relative z-10">
+              <div className="flex flex-col gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-cyan-500/20 rounded-xl flex items-center justify-center">
-                    <FaTruck className="text-cyan-400 text-lg" />
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-white/10 backdrop-blur-md rounded-xl sm:rounded-2xl flex items-center justify-center border border-white/20 shadow-xl">
+                    <FaTruck className="text-lg sm:text-xl text-cyan-300" />
                   </div>
                   <div>
-                    <h1 className="text-lg sm:text-xl font-bold">Manufacturing - Vehicle Entry</h1>
-                    <p className="text-slate-400 text-xs mt-0.5">
+                    <h1 className="text-lg sm:text-xl font-bold tracking-tight">Manufacturing Vehicle Entry</h1>
+                    <p className="text-cyan-200 text-[10px] sm:text-xs font-bold tracking-widest opacity-80 uppercase mt-0.5">
                       {isAdmin ? 'Create entry requests & manage permissions' : 'Search vehicle & process entry/exit'}
                     </p>
                   </div>
@@ -644,9 +645,9 @@ function ManufacturingEntryRequestsContent() {
                 {(isAdmin || permissions.can_create) && (
                   <button
                     onClick={() => setShowCreateModal(true)}
-                    className="bg-cyan-500 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-cyan-600 transition flex items-center gap-2 text-sm shadow-lg"
+                    className="bg-cyan-500 text-white px-4 py-2.5 rounded-xl font-semibold hover:bg-cyan-600 transition flex items-center gap-2 text-sm shadow-lg w-full sm:w-auto"
                   >
-                    <FaPlus /> New Entry Request
+                    <FaPlus /> <span className="hidden sm:inline">New Entry Request</span><span className="sm:hidden">New Entry</span>
                   </button>
                 )}
               </div>
@@ -656,118 +657,116 @@ function ManufacturingEntryRequestsContent() {
           <div className="max-w-7xl mx-auto px-4 sm:px-6 md:px-8 py-6 -mt-4 relative z-10">
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4 mb-6">
               {[
-                { label: 'Total', value: summaryStats.total, icon: <FaClipboardList />, color: 'bg-blue-100 text-blue-600' },
-                { label: 'Waiting Approval', value: summaryStats.waiting, icon: <FaShieldAlt />, color: 'bg-orange-100 text-orange-600' },
-                { label: 'Pending OTP', value: summaryStats.pending, icon: <FaClock />, color: 'bg-yellow-100 text-yellow-600' },
-                { label: 'Inside Facility', value: summaryStats.inside, icon: <FaTruck />, color: 'bg-green-100 text-green-600' },
+                { label: 'Total', value: summaryStats.total, icon: <FaClipboardList />, color: 'bg-blue-500', bgLight: 'bg-blue-50', borderColor: 'border-blue-200' },
+                { label: 'Waiting Approval', value: summaryStats.waiting, icon: <FaShieldAlt />, color: 'bg-orange-500', bgLight: 'bg-orange-50', borderColor: 'border-orange-200' },
+                { label: 'Pending OTP', value: summaryStats.pending, icon: <FaClock />, color: 'bg-yellow-500', bgLight: 'bg-yellow-50', borderColor: 'border-yellow-200' },
+                { label: 'Inside Facility', value: summaryStats.inside, icon: <FaTruck />, color: 'bg-green-500', bgLight: 'bg-green-50', borderColor: 'border-green-200' },
               ].map((c, i) => (
-                <div key={i} className="bg-white rounded-xl p-3 border shadow-sm flex items-center gap-3 hover:shadow-md transition">
-                  <div className={`w-9 h-9 rounded-lg ${c.color} flex items-center justify-center text-sm`}>{c.icon}</div>
-                  <div>
-                    <div className="text-xl font-bold text-gray-800">{c.value}</div>
-                    <div className="text-[11px] text-gray-500 font-medium">{c.label}</div>
+                <div key={i} className={`${c.bgLight} ${c.borderColor} border rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm hover:shadow-lg transition-all duration-300 hover:scale-[1.02]`}>
+                  <div className="flex items-start gap-2 sm:gap-3">
+                    <div className={`w-8 h-8 sm:w-10 sm:h-10 ${c.color} rounded-lg sm:rounded-xl flex items-center justify-center text-white shadow-lg`}>
+                      <div className="text-sm sm:text-base">{c.icon}</div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-lg sm:text-2xl font-bold text-gray-800 leading-tight">{c.value}</div>
+                      <div className="text-[10px] sm:text-xs text-gray-600 font-medium mt-0.5 truncate">{c.label}</div>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
 
             {/* Search & Filters */}
-            <div className="flex flex-col sm:flex-row gap-3 mb-6">
-              <div className="relative flex-1">
-                <FaSearch className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
-                <input
-                  placeholder="Search vehicle number, driver, code..."
-                  value={search}
-                  onChange={e => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm"
-                />
+            <div className="bg-white rounded-xl sm:rounded-2xl p-3 sm:p-4 shadow-sm border border-gray-100 mb-6">
+              <div className="flex flex-col sm:flex-row gap-3">
+                <div className="relative flex-1">
+                  <FaSearch className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm" />
+                  <input
+                    placeholder="Search vehicle number, driver, code..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm"
+                  />
+                </div>
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="px-3 sm:px-4 py-2.5 sm:py-3 rounded-lg sm:rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm min-w-[140px] sm:min-w-[160px]"
+                >
+                  <option value="">All Status</option>
+                  <option value="pending_approval">Waiting Approval</option>
+                  <option value="pending">Pending OTP</option>
+                  <option value="approved">Approved</option>
+                  <option value="processing">Inside</option>
+                  <option value="completed">Completed</option>
+                  <option value="cancelled">Cancelled</option>
+                </select>
               </div>
-              <select
-                value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
-                className="px-4 py-2.5 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-white text-sm min-w-[140px]"
-              >
-                <option value="">All Status</option>
-                <option value="pending_approval">Waiting Approval</option>
-                <option value="pending">Pending OTP</option>
-                <option value="approved">Approved</option>
-                <option value="processing">Inside</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
-              </select>
             </div>
 
             {/* Mobile Card View */}
-            <div className="block sm:hidden space-y-3">
+            <div className="block sm:hidden space-y-3 sm:space-y-4">
               {loading ? (
                 <div className="p-12 text-center"><FaSpinner className="animate-spin text-cyan-500 text-3xl mx-auto" /></div>
               ) : entries.length > 0 ? entries.map(e => (
-                <div key={e.id} className="bg-white rounded-xl border shadow-sm p-4">
-                  <div className="flex justify-between items-start mb-3">
-                    <div>
-                      <p className="font-bold text-cyan-600 text-sm">{e.request_code}</p>
-                      <p className="font-semibold text-gray-800 text-lg mt-0.5">{e.vehicle_number}</p>
-                    </div>
-                    {getStatusBadge(e.status)}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 text-xs text-gray-500 mb-3">
-                    <div><span className="font-medium text-gray-700">Driver:</span> {e.driver_name || '-'}</div>
-                    <div><span className="font-medium text-gray-700">Phone:</span> {e.driver_phone || '-'}</div>
-                    <div><span className="font-medium text-gray-700">Purpose:</span> {e.purpose || '-'}</div>
-                    <div><span className="font-medium text-gray-700">Created:</span> {formatTime(e.created_at)}</div>
-                  </div>
-                  {e.entry_location_name && (
-                    <div className="text-xs text-green-600 mb-2 flex items-center gap-1">
-                      <FaMapMarkerAlt /> {e.entry_location_name}
-                    </div>
-                  )}
-                  {/* Action Buttons */}
-                  <div className="space-y-2">
-                    <div className="flex gap-2 flex-wrap">
-                      <button onClick={() => { setDetailRequest(e); setShowDetailModal(true); }} className="bg-gray-100 text-gray-700 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-gray-200 transition flex items-center gap-1 flex-1 justify-center">
-                        <FaEye /> View
-                      </button>
-                      {e.status === 'pending_approval' && isAdmin && (
-                        <button onClick={() => handleApprove(e)} className="bg-orange-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-orange-600 transition flex items-center gap-1 flex-1 justify-center">
-                          <FaCheckCircle /> Approve
-                        </button>
-                      )}
-                    </div>
-                    <div className="flex gap-2 flex-wrap">
-                      {e.status === 'pending' && (isSecurityGuard || isAdmin) && (
-                        <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="bg-cyan-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-cyan-600 transition flex items-center gap-1 flex-1 justify-center">
-                          <FaKey /> OTP Verify
-                        </button>
-                      )}
-                      {e.status === 'approved' && (isSecurityGuard || isAdmin) && (
-                        <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="bg-green-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-green-600 transition flex items-center gap-1 flex-1 justify-center">
-                          <FaCamera /> Entry Photo
-                        </button>
-                      )}
-                      {e.status === 'processing' && (isSecurityGuard || isAdmin) && (
-                        <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="bg-red-500 text-white px-3 py-2 rounded-lg text-xs font-semibold hover:bg-red-600 transition flex items-center gap-1 flex-1 justify-center">
-                          <FaSignOutAlt /> Exit
-                        </button>
-                      )}
-                    </div>
-                    {e.status === 'pending' && isAdmin && (
-                      <div className="flex gap-2 flex-wrap">
-                        <button onClick={() => handleRegenerateOtp(e)} className="bg-amber-100 text-amber-700 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-amber-200 transition flex items-center gap-1 flex-1 justify-center">
-                          <FaRedo /> Re-OTP
-                        </button>
-                        <button onClick={() => handleCancel(e)} className="bg-red-100 text-red-600 px-3 py-2 rounded-lg text-xs font-semibold hover:bg-red-200 transition flex items-center gap-1 flex-1 justify-center">
-                          <FaBan /> Cancel
-                        </button>
+                <div key={e.id} className="bg-white rounded-xl border shadow-sm hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                  {/* Card Header */}
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-3 border-b border-gray-100">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-cyan-600 text-xs sm:text-sm truncate">{e.request_code}</p>
+                        <p className="font-bold text-gray-800 text-base sm:text-lg mt-0.5 truncate">{e.vehicle_number}</p>
                       </div>
-                    )}
+                      <div className="ml-2">
+                        {getStatusBadge(e.status)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Card Body */}
+                  <div className="p-4">
+                    <div className="grid grid-cols-1 gap-3 text-xs text-gray-600 mb-4">
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-700">Driver:</span>
+                        <span className="truncate ml-2">{e.driver_name || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-700">Phone:</span>
+                        <span className="truncate ml-2">{e.driver_phone || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-700">Purpose:</span>
+                        <span className="truncate ml-2">{e.purpose || '-'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="font-medium text-gray-700">Created:</span>
+                        <span className="ml-2">{formatTime(e.created_at)}</span>
+                      </div>
+                    </div>
+                    
+                    {/* Action Buttons */}
+                    <div className="flex gap-2 flex-wrap">
+                      {getActions(e).map((action, idx) => (
+                        <button
+                          key={idx}
+                          onClick={action.onClick}
+                          className={`${action.className} text-xs px-3 py-2 rounded-lg font-medium transition flex items-center gap-1`}
+                        >
+                          {action.label}
+                        </button>
+                      ))}
+                    </div>
                   </div>
                 </div>
               )) : (
-                <div className="bg-white rounded-xl p-8 text-center border">
-                  <FaTruck className="text-3xl text-gray-300 mx-auto mb-2" />
-                  <p className="text-gray-500 font-medium">No entry requests found</p>
+                <div className="p-12 text-center">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <FaTruck className="text-gray-400 text-2xl" />
+                  </div>
+                  <p className="text-gray-500 font-medium text-sm">No entry requests found</p>
+                  <p className="text-gray-400 text-xs mt-1">Try adjusting your search or filters</p>
                 </div>
               )}
             </div>

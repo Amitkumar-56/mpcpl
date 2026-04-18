@@ -99,8 +99,8 @@ export default function ChatWidget({ showChat, setShowChat }) {
   // Request notification permission on component mount
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission().then(permission => {
+      if (window.Notification.permission === 'default') {
+        window.Notification.requestPermission().then(permission => {
           console.log('Notification permission:', permission);
         });
       }
@@ -109,7 +109,7 @@ export default function ChatWidget({ showChat, setShowChat }) {
 
   // Show browser notification for new messages
   const showBrowserNotification = async (customerName, message) => {
-    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+    if (typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'granted') {
       // Don't notify if actively viewing this chat
       if (selectedCustomer && selectedCustomer.customerName === customerName && showChat && !chatMinimized) return;
       

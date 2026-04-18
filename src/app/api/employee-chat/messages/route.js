@@ -9,7 +9,7 @@ export async function GET(request) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -83,7 +83,7 @@ export async function POST(request) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
