@@ -90,11 +90,11 @@ export async function GET(request) {
       LIMIT ? OFFSET ?
     `;
     
-    // Add pagination params to the end
-    const dataParams = [...params, Number(limit), Number(offset)];
-    console.log('🔍 Data Query:', dataQuery);
-    console.log('🔍 Data Params:', dataParams);
-    const shipments = await executeQuery(dataQuery, dataParams);
+    // Use template literals for LIMIT/OFFSET to avoid MySQL parameter issues
+    const finalQuery = dataQuery.replace('LIMIT ? OFFSET ?', `LIMIT ${limit} OFFSET ${offset}`);
+    console.log('Final Query:', finalQuery);
+    console.log('Final Params:', params);
+    const shipments = await executeQuery(finalQuery, params);
     console.log('📦 Shipments Found:', shipments?.length || 0);
 
     // Summary query (un-paginated but filtered)
