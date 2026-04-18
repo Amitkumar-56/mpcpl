@@ -13,6 +13,8 @@ export async function GET(request) {
     const page = parseInt(searchParams.get('page')) || 1;
     const limit = Math.min(Math.max(parseInt(searchParams.get('limit')) || 10, 1), 100); // Between 1-100
     const offset = Math.max((page - 1) * limit, 0); // Ensure non-negative
+    
+    console.log('🔢 Pagination values:', { page, limit, offset, shipmentIdFilter });
     console.log('📊 Request Params:', { userId, userRole, shipmentIdFilter, page, limit });
 
     // Check if user is authenticated
@@ -146,18 +148,24 @@ export async function GET(request) {
       const params = [];
       if (shipmentIdFilter) {
         shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        params.push(parseInt(shipmentIdFilter), limit, offset);
+        params.push(parseInt(shipmentIdFilter), Number(limit), Number(offset));
       } else {
         shipmentQuery += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        params.push(limit, offset);
+        params.push(Number(limit), Number(offset));
       }
+      
+      console.log('🔍 Final Query:', shipmentQuery);
+      console.log('🔍 Final Params:', params);
       shipmentResult = await executeQuery(shipmentQuery, params) || [];
       console.log(`✅ Found ${shipmentResult.length} shipment records for page ${page}`);
       
       // If no results, try basic query with pagination
       if (shipmentResult.length === 0) {
         const basicQuery = `SELECT * FROM shipment_records ORDER BY created_at DESC LIMIT ? OFFSET ?`;
-        shipmentResult = await executeQuery(basicQuery, [limit, offset]) || [];
+        const basicParams = [Number(limit), Number(offset)];
+        console.log('🔍 Basic Query:', basicQuery);
+        console.log('🔍 Basic Params:', basicParams);
+        shipmentResult = await executeQuery(basicQuery, basicParams) || [];
       }
     } catch (err) {
       console.error('❌ Error in shipment query:', err);

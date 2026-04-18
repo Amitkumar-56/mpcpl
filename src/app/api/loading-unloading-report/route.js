@@ -15,6 +15,8 @@ export async function GET(request) {
     const page = Math.max(1, parseInt(searchParams.get('page')) || 1);
     const limit = Math.max(1, parseInt(searchParams.get('limit')) || 25); 
     const offset = Math.max(0, (page - 1) * limit);
+    
+    console.log('🔢 Report Pagination values:', { page, limit, offset });
 
     console.log('📊 Report API Called with:', { userId, startDate, endDate, party, page, limit, offset });
 
@@ -89,7 +91,7 @@ export async function GET(request) {
     `;
     
     // Add pagination params to the end
-    const dataParams = [...params, limit, offset];
+    const dataParams = [...params, Number(limit), Number(offset)];
     console.log('🔍 Data Query:', dataQuery);
     console.log('🔍 Data Params:', dataParams);
     const shipments = await executeQuery(dataQuery, dataParams);
