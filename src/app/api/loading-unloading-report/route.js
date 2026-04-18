@@ -1,3 +1,5 @@
+// src/app/api/loading-unloading-report/route.js
+
 import { executeQuery } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -14,8 +16,20 @@ export async function GET(request) {
     const limit = Math.max(1, parseInt(searchParams.get('limit')) || 25); 
     const offset = Math.max(0, (page - 1) * limit);
 
+    console.log('📊 Report API Called with:', { userId, startDate, endDate, party, page, limit, offset });
+
     if (!userId) {
+      console.log('❌ No userId provided');
       return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Test: Check if there's any data at all
+    try {
+      const testQuery = "SELECT COUNT(*) as total FROM shipment_records LIMIT 1";
+      const testResult = await executeQuery(testQuery, []);
+      console.log('🧪 Test - Total records in shipment_records:', testResult[0]?.total || 0);
+    } catch (testErr) {
+      console.error('❌ Test query failed:', testErr);
     }
 
     // Base filter logic
@@ -37,8 +51,11 @@ export async function GET(request) {
 
     // Count query for pagination
     const countQuery = `SELECT COUNT(*) as total FROM shipment_records ${filterClause}`;
+    console.log('🔍 Count Query:', countQuery);
+    console.log('🔍 Count Params:', params);
     const countResult = await executeQuery(countQuery, params);
     const totalRecords = countResult[0]?.total || 0;
+    console.log('📊 Total Records:', totalRecords);
 
     // Data query
     let dataQuery = `
@@ -73,7 +90,10 @@ export async function GET(request) {
     
     // Add pagination params to the end
     const dataParams = [...params, limit, offset];
+    console.log('🔍 Data Query:', dataQuery);
+    console.log('🔍 Data Params:', dataParams);
     const shipments = await executeQuery(dataQuery, dataParams);
+    console.log('📦 Shipments Found:', shipments?.length || 0);
 
     // Summary query (un-paginated but filtered)
     const summaryQuery = `

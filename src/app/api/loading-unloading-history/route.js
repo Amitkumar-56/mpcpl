@@ -145,19 +145,19 @@ export async function GET(request) {
       `;
       const params = [];
       if (shipmentIdFilter) {
-        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
-        params.push(parseInt(shipmentIdFilter));
+        shipmentQuery += ` WHERE shipment_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        params.push(parseInt(shipmentIdFilter), limit, offset);
       } else {
-        shipmentQuery += ` ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
-        // No params needed for this case
+        shipmentQuery += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        params.push(limit, offset);
       }
       shipmentResult = await executeQuery(shipmentQuery, params) || [];
       console.log(`✅ Found ${shipmentResult.length} shipment records for page ${page}`);
       
       // If no results, try basic query with pagination
       if (shipmentResult.length === 0) {
-        const basicQuery = `SELECT * FROM shipment_records ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`;
-        shipmentResult = await executeQuery(basicQuery, []) || [];
+        const basicQuery = `SELECT * FROM shipment_records ORDER BY created_at DESC LIMIT ? OFFSET ?`;
+        shipmentResult = await executeQuery(basicQuery, [limit, offset]) || [];
       }
     } catch (err) {
       console.error('❌ Error in shipment query:', err);
