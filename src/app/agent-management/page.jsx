@@ -136,6 +136,10 @@ export default function AgentManagement() {
     }
   };
 
+  const handleExportAll = () => {
+    window.open(`/api/agent-management/export-all?search=${encodeURIComponent(searchTerm || "")}`, "_blank");
+  };
+
   // ✅ Calculations for summary cards (using filtered agents for accurate counts)
   const totalAgents = filteredAgents.length;
   const activeAgents = filteredAgents.filter((a) => a.status === true || a.status === 1).length;
@@ -549,6 +553,15 @@ export default function AgentManagement() {
                 </svg>
                 Create Agent
               </Link>
+              <button
+                onClick={handleExportAll}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg hover:bg-emerald-700 hover:shadow-md transition-all font-medium shadow-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export Excel
+              </button>
             </div>
           </div>
 
@@ -683,18 +696,22 @@ export default function AgentManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-wrap gap-2">
-                        <Link
-                          href={`/agent-management/edit?id=${agent.id}`}
-                          className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 whitespace-nowrap"
-                        >
-                          Edit
-                        </Link>
-                        <Link
-                          href={`/agent-management/customers/${agent.id}`}
-                          className="bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 whitespace-nowrap"
-                        >
-                          Allocate
-                        </Link>
+                        {(userPermissions.can_edit === true || Number(user.role) === 5) && (
+                          <Link
+                            href={`/agent-management/edit?id=${agent.id}`}
+                            className="bg-blue-500 text-white px-2 py-1 rounded text-xs hover:bg-blue-600 whitespace-nowrap"
+                          >
+                            Edit
+                          </Link>
+                        )}
+                        {(userPermissions.can_edit === true || Number(user.role) === 5) && (
+                          <Link
+                            href={`/agent-management/customers/${agent.id}`}
+                            className="bg-purple-500 text-white px-2 py-1 rounded text-xs hover:bg-purple-600 whitespace-nowrap"
+                          >
+                            Allocate
+                          </Link>
+                        )}
                         <Link
                           href={`/agent-management/${agent.id}/commissions`}
                           className="bg-green-500 text-white px-2 py-1 rounded text-xs hover:bg-green-600 whitespace-nowrap"
@@ -707,7 +724,7 @@ export default function AgentManagement() {
                         >
                           Customers & Rates
                         </button>
-                        {(agent.total_due_commission || 0) > 0 && Number(user?.role) === 5 && (
+                        {(agent.total_due_commission || 0) > 0 && (userPermissions.can_edit === true || Number(user?.role) === 5) && (
                           <button
                             onClick={() => handlePaymentClick(agent)}
                             className="bg-orange-500 text-white px-2 py-1 rounded text-xs hover:bg-orange-600 whitespace-nowrap"
@@ -753,7 +770,7 @@ export default function AgentManagement() {
       </div>
 
       {/* Payment Modal */}
-      {showPaymentModal && selectedAgent && user && Number(user.role) === 5 && (
+      {showPaymentModal && selectedAgent && user && (userPermissions.can_edit === true || Number(user.role) === 5) && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4 sm:p-6 overflow-y-auto">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] flex flex-col overflow-hidden relative">
             
@@ -958,9 +975,9 @@ export default function AgentManagement() {
                   >
                     Cancel
                   </button>
-                  <button
+                   <button
                     type="submit"
-                    disabled={submitting || !paymentAmount || !user || Number(user?.role) !== 5}
+                    disabled={submitting || !paymentAmount || !user || (userPermissions.can_edit !== true && Number(user?.role) !== 5)}
                     className="px-7 py-2.5 bg-indigo-600 text-white rounded-xl shadow-md shadow-indigo-600/20 hover:bg-indigo-700 hover:shadow-indigo-600/40 disabled:opacity-50 disabled:shadow-none text-sm font-semibold transition-all w-full sm:w-auto flex items-center justify-center gap-2"
                   >
                     {submitting ? (

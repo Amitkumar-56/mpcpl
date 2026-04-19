@@ -4,14 +4,55 @@ import Sidebar from "components/sidebar";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useSession } from "@/context/SessionContext";
 
 export default function AgentCommissionsPage() {
   const { id } = useParams(); // agent id
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
+  const [agentProfile, setAgentProfile] = useState(null);
   const [activeTab, setActiveTab] = useState('history');
   const [paymentLogs, setPaymentLogs] = useState([]);
+  
+  // Payment Modal State
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [tdsAmount, setTdsAmount] = useState("");
+  const [paymentRemarks, setPaymentRemarks] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [agentCustomers, setAgentCustomers] = useState([]);
+  const [userPermissions, setUserPermissions] = useState({});
+
+  useEffect(() => {
+    const checkPermissions = async () => {
+      if (authLoading || !user) return;
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/check-permissions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token?.trim()}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ 
+            module_name: "Agent Management",
+            user_id: user.id,
+            user_role: user.role 
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUserPermissions(data.permissions || {});
+        }
+      } catch (error) {
+        console.error("Error checking permissions:", error);
+      }
+    };
+    checkPermissions();
+  }, [user, authLoading]);
 
   useEffect(() => {
     if (id) {
@@ -24,9 +65,11 @@ export default function AgentCommissionsPage() {
     try {
       const token = typeof window !== 'undefined' ? localStorage.getItem("token") : null;
       const authHeader = token ? { Authorization: `Bearer ${token.trim()}` } : {};
-      const [historyRes, logsRes] = await Promise.all([
+      const [historyRes, logsRes, profileRes, customersRes] = await Promise.all([
         fetch(`/api/agent/commission-history?agentId=${id}`, { headers: authHeader, credentials: 'include' }),
-        fetch(`/api/agent-management/payments?agentId=${id}`, { headers: authHeader, credentials: 'include' })
+        fetch(`/api/agent-management/payments?agentId=${id}`, { headers: authHeader, credentials: 'include' }),
+        fetch(`/api/agent-management?id=${id}`, { headers: authHeader, credentials: 'include' }),
+        fetch(`/api/agent-management/customers?id=${id}`, { headers: authHeader, credentials: 'include' })
       ]);
       
       if (historyRes.ok) {
@@ -38,10 +81,69 @@ export default function AgentCommissionsPage() {
         const logsData = await logsRes.json();
         setPaymentLogs(logsData.logs || []);
       }
+
+      if (profileRes.ok) {
+        const profileData = await profileRes.json();
+        setAgentProfile(profileData);
+      }
+
+      if (customersRes.ok) {
+        const customersData = await customersRes.json();
+        setAgentCustomers(customersData.customers || []);
+      }
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePaymentSubmit = async (e) => {
+    e.preventDefault();
+    if (!paymentAmount || !id) return;
+
+    if (!user || (userPermissions.can_edit !== true && Number(user.role) !== 5)) {
+      alert("Access Denied: Only Administrators can record payments.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const token = localStorage.getItem("token");
+      const customerSelect = document.getElementById('paymentCustomerId');
+      const customerId = customerSelect ? (customerSelect.value ? parseInt(customerSelect.value) : null) : null;
+
+      const res = await fetch("/api/agent-management/payments", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: token ? `Bearer ${token.trim()}` : undefined
+        },
+        credentials: 'include',
+        body: JSON.stringify({
+          agentId: parseInt(id),
+          amount: parseFloat(paymentAmount),
+          tdsAmount: tdsAmount ? parseFloat(tdsAmount) : 0,
+          remarks: paymentRemarks,
+          customerId: customerId,
+        }),
+      });
+
+      if (res.ok) {
+        alert("Payment recorded successfully!");
+        setPaymentAmount("");
+        setTdsAmount("");
+        setPaymentRemarks("");
+        setShowPaymentModal(false);
+        fetchData(); // Refresh data
+      } else {
+        const errData = await res.json();
+        alert(errData.error || "Failed to record payment");
+      }
+    } catch (err) {
+      alert("Error recording payment: " + err.message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -83,6 +185,14 @@ export default function AgentCommissionsPage() {
               <h1 className="text-2xl font-bold text-gray-800">Agent Commission Management</h1>
             </div>
             <div className="flex gap-2">
+              {(userPermissions.can_edit === true || Number(user?.role) === 5) && (summary?.remaining || 0) > 0 && (
+                <button
+                  onClick={() => setShowPaymentModal(true)}
+                  className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 transition font-bold"
+                >
+                  Record Payment
+                </button>
+              )}
               <button
                 onClick={handleExport}
                 className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700 transition"
@@ -378,8 +488,115 @@ export default function AgentCommissionsPage() {
             )}
           </div>
         </div>
-
       </div>
+
+      {showPaymentModal && agentProfile && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
+            <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+              <div>
+                <h2 className="text-xl font-bold text-gray-800">Record Payment</h2>
+                <p className="text-sm text-gray-500">Agent: {agentProfile.first_name} {agentProfile.last_name}</p>
+              </div>
+              <button 
+                onClick={() => setShowPaymentModal(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
+                  <p className="text-xs text-blue-600 font-bold uppercase">Total Due</p>
+                  <p className="text-2xl font-black text-blue-800">₹{(summary?.remaining || 0).toLocaleString('en-IN')}</p>
+                </div>
+                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
+                  <p className="text-xs text-gray-500 font-bold uppercase">Bank Account</p>
+                  <p className="text-sm font-semibold text-gray-800 truncate">{agentProfile.bank_name || 'N/A'}</p>
+                  <p className="text-xs text-gray-500">{agentProfile.account_number || ''}</p>
+                </div>
+              </div>
+
+              {agentCustomers.length > 0 && (
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Specific Customer (Optional)</label>
+                  <select
+                    id="paymentCustomerId"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  >
+                    <option value="">-- General Payment --</option>
+                    {agentCustomers.map(c => (
+                      <option key={c.customer_id} value={c.customer_id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (Gross)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    required
+                    max={summary?.remaining || 0}
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={paymentAmount}
+                    onChange={(e) => setPaymentAmount(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">TDS Amount</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
+                    value={tdsAmount}
+                    onChange={(e) => setTdsAmount(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {paymentAmount > 0 && (
+                <div className="p-3 bg-green-50 rounded-lg border border-green-100 flex justify-between items-center">
+                  <span className="text-sm font-semibold text-green-800">Net Payable:</span>
+                  <span className="text-xl font-bold text-green-700">₹{(parseFloat(paymentAmount || 0) - parseFloat(tdsAmount || 0)).toLocaleString('en-IN')}</span>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-1">Remarks</label>
+                <textarea
+                  className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                  rows="2"
+                  value={paymentRemarks}
+                  onChange={(e) => setPaymentRemarks(e.target.value)}
+                  placeholder="Check number, Transaction ID etc."
+                />
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition disabled:opacity-50"
+                >
+                  {submitting ? 'Processing...' : 'Confirm Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

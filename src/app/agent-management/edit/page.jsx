@@ -5,6 +5,7 @@ import Sidebar from "components/sidebar";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, Suspense } from "react";
+import { useSession } from "@/context/SessionContext";
 import { 
   UserEdit, 
   ChevronLeft, 
@@ -33,6 +34,40 @@ function EditAgentContent() {
   const searchParams = useSearchParams();
   const agentId = searchParams.get('id');
   const router = useRouter();
+  const { user, loading: authLoading } = useSession();
+  const [userPermissions, setUserPermissions] = useState({});
+
+  useEffect(() => {
+    const checkPerms = async () => {
+      if (authLoading || !user) return;
+      try {
+        const token = localStorage.getItem("token");
+        const response = await fetch("/api/check-permissions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token?.trim()}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ 
+            module_name: "Agent Management",
+            user_id: user.id,
+            user_role: user.role 
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setUserPermissions(data.permissions || {});
+          if (data.permissions?.can_view !== true && Number(user.role) !== 5) {
+            router.push('/dashboard');
+          }
+        }
+      } catch (error) {
+        console.error("Error checking permissions:", error);
+      }
+    };
+    checkPerms();
+  }, [user, authLoading]);
   
   const [formData, setFormData] = useState({
     firstName: "",
@@ -182,6 +217,10 @@ function EditAgentContent() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!user || (userPermissions.can_edit !== true && Number(user.role) !== 5)) {
+        alert("Access Denied: You do not have permission to modify agent profiles.");
+        return;
+    }
     if (!validateForm()) return;
     setLoading(true);
     try {
@@ -267,6 +306,13 @@ function EditAgentContent() {
                 </button>
             </div>
           </div>
+
+          {(userPermissions.can_edit !== true && Number(user?.role) !== 5) && (
+              <div className="max-w-5xl bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-3xl flex items-center gap-3 mb-8">
+                 <XCircle className="w-5 h-5" />
+                 <p className="font-bold text-sm tracking-tight px-1">VIEW ONLY MODE: You do not have permission to save changes to this profile.</p>
+              </div>
+          )}
 
           <form onSubmit={handleSubmit} className="max-w-5xl space-y-8 pb-20">
              {/* Section 1: Core Profile */}

@@ -3,6 +3,7 @@ import Header from "@/components/Header";
 import Sidebar from "@/components/sidebar";
 import { useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo, use } from 'react';
+import { useSession } from "@/context/SessionContext";
 import { 
   ChevronLeft, 
   Save, 
@@ -24,8 +25,42 @@ import {
 export default function AgentAllocation({ params }) {
     const { id: agentId } = use(params);
     const router = useRouter();
+    const { user, loading: authLoading } = useSession();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [userPermissions, setUserPermissions] = useState({});
+    
+    useEffect(() => {
+        const checkPerms = async () => {
+          if (authLoading || !user) return;
+          try {
+            const token = localStorage.getItem("token");
+            const response = await fetch("/api/check-permissions", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token?.trim()}`,
+              },
+              credentials: 'include',
+              body: JSON.stringify({ 
+                module_name: "Agent Management",
+                user_id: user.id,
+                user_role: user.role 
+              }),
+            });
+            if (response.ok) {
+              const data = await response.json();
+              setUserPermissions(data.permissions || {});
+              if (data.permissions?.can_view !== true && Number(user.role) !== 5) {
+                router.push('/dashboard');
+              }
+            }
+          } catch (error) {
+            console.error("Error checking permissions:", error);
+          }
+        };
+        checkPerms();
+    }, [user, authLoading]);
     
     const [customers, setCustomers] = useState([]);
     const [products, setProducts] = useState([]);
@@ -98,6 +133,10 @@ export default function AgentAllocation({ params }) {
     };
 
     const handleSave = async () => {
+        if (!user || (userPermissions.can_edit !== true && Number(user.role) !== 5)) {
+            alert("Access Denied: You do not have permission to modify allocations.");
+            return;
+        }
         setSaving(true);
         try {
             const fullPayload = {
@@ -213,6 +252,13 @@ export default function AgentAllocation({ params }) {
                             </button>
                         </div>
                     </div>
+
+                    {(userPermissions.can_edit !== true && Number(user?.role) !== 5) && (
+                        <div className="bg-red-50 border border-red-200 text-red-700 px-6 py-4 rounded-3xl flex items-center gap-3">
+                           <X className="w-5 h-5" />
+                           <p className="font-bold text-sm">VIEW ONLY MODE: You do not have permission to modify these allocations.</p>
+                        </div>
+                    )}
 
                     {/* Search & Stats Card */}
                     <div className="bg-white p-5 rounded-3xl shadow-sm border border-gray-100 space-y-5">
