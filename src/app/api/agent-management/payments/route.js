@@ -325,13 +325,19 @@ export async function POST(request) {
       }, { status: 500 });
     }
 
-    // ✅ STRICT ROLE CHECK: Only Admin (role 5) can make payments
-    if (!userId || userRole !== 5) {
-      console.error(`Payment API: Access denied - userId: ${userId}, role: ${userRole}, required role 5`);
-      return NextResponse.json({ 
-        error: "Forbidden: Only Administrators can record payments",
-        details: `Your role (${userRole || 'Unknown'}) does not have permission. Required role: 5 (Admin). Please login as Administrator.`
-      }, { status: 403 });
+    // Check if user has edit permission for Agent Management
+    // Admin (role 5) always has permission
+    if (userRole !== 5) {
+      const { checkPermissions } = await import("@/lib/auth");
+      const hasPermission = await checkPermissions(userId, "Agent Management", "can_edit");
+      
+      if (!hasPermission) {
+        console.error(`Payment API: Access denied - userId: ${userId}, role: ${userRole}, missing can_edit permission for Agent Management`);
+        return NextResponse.json({ 
+          error: "Forbidden: You do not have permission to record payments",
+          details: "Your role does not have 'Edit' permission for the Agent Management module. Please contact an administrator."
+        }, { status: 403 });
+      }
     }
 
     const { agentId, amount, remarks, customerId, tdsAmount } = await request.json();

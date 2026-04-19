@@ -158,7 +158,7 @@ function ManufacturingDashboardContent() {
                 <FaIndustry className="text-blue-400 text-2xl" />
                 <h1 className="text-xl sm:text-2xl font-bold">Manufacturing Dashboard</h1>
               </div>
-              <p className="text-slate-300 text-sm">Complete manufacturing operations overview — {user?.name || 'Admin'}</p>
+              <p className="text-slate-300 text-sm">Complete manufacturing operations overview</p>
             </div>
           </div>
 

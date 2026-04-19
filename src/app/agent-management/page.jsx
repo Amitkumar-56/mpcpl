@@ -168,12 +168,8 @@ export default function AgentManagement() {
       return;
     }
 
-    // ✅ STRICT ROLE CHECK: Only Admin (role 5) can make payments
-    if (Number(user.role) !== 5) {
-      alert("Access Denied: Only Administrators can record payments.\n\nYour role does not have permission.");
-      return;
-    }
-
+    // No strict role 5 check here - relying on module can_edit permission which is checked at the button level
+    
     setSelectedAgent(agent);
     setPaymentAmount("");
     setPaymentRemarks("");
@@ -229,12 +225,8 @@ export default function AgentManagement() {
       return;
     }
 
-    // ✅ STRICT ROLE CHECK: Only Admin (role 5) can make payments
-    if (Number(user.role) !== 5) {
-      alert("Access Denied: Only Administrators can record payments.\n\nYour role does not have permission.");
-      return;
-    }
-
+    // No strict role 5 check here - relying on module can_edit permission
+    
     setSubmitting(true);
     try {
       const token = localStorage.getItem("token");
@@ -269,13 +261,10 @@ export default function AgentManagement() {
           return;
         }
         
-        // ✅ STRICT: Check if user is Admin (role 5)
-        // API returns user data directly, not nested in 'user' object
+        // Verify the user has edit permissions for this module
         const userRole = Number(verifyData.role || verifyData.user?.role || 0);
-        if (userRole !== 5) {
-          alert("Access Denied: Only Administrators can record payments.\n\nYour role does not have permission.");
-          return;
-        }
+        // Note: We already checked can_edit on the frontend, but we should always verify on the backend too.
+        // We'll trust the verified session for now, the final check is on the backend API.
       } catch (verifyError) {
         console.error("Token verification error:", verifyError);
         alert("Authentication failed. Please login again.");
@@ -943,7 +932,7 @@ export default function AgentManagement() {
                             </p>
                             <p className="text-slate-400 text-[10px] mt-1.5 flex items-center gap-1.5">
                               <span className="w-1.5 h-1.5 rounded-full bg-slate-300"></span> 
-                              {log.paid_by_user_name || 'Admin'} • {new Date(log.payment_date).toLocaleString('en-IN')}
+                              {log.paid_by_user_name || 'System User'} • {new Date(log.payment_date).toLocaleString('en-IN')}
                             </p>
                           </div>
                           {log.customer_name && (

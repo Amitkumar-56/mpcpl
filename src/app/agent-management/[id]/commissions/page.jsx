@@ -103,7 +103,7 @@ export default function AgentCommissionsPage() {
     if (!paymentAmount || !id) return;
 
     if (!user || (userPermissions.can_edit !== true && Number(user.role) !== 5)) {
-      alert("Access Denied: Only Administrators can record payments.");
+      alert("Access Denied: You do not have permission to record payments.");
       return;
     }
 
