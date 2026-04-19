@@ -27,6 +27,7 @@ export default function AgentManagement() {
   const [allocationsRates, setAllocationsRates] = useState({});
   const [allocationsAgent, setAllocationsAgent] = useState(null);
   const [userPermissions, setUserPermissions] = useState({});
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const router = useRouter();
   const { user, loading: authLoading } = useSession();
 
@@ -275,9 +276,7 @@ export default function AgentManagement() {
         return;
       }
       
-      // Get selected customer ID from dropdown if available
-      const customerSelect = document.getElementById('paymentCustomerId');
-      const customerId = customerSelect ? (customerSelect.value ? parseInt(customerSelect.value) : null) : null;
+      const customerId = selectedCustomerId ? parseInt(selectedCustomerId) : null;
       
       const res = await fetch("/api/agent-management/payments", {
         method: "POST",
@@ -312,6 +311,7 @@ export default function AgentManagement() {
         
         // Show success message first
         alert(`Payment recorded successfully!\n${paymentId}\n${data.message || ''}`);
+        setSelectedCustomerId("");
         
         // Refresh customer data and payment history
         if (selectedAgent) {
@@ -824,30 +824,26 @@ export default function AgentManagement() {
               )}
 
               <form onSubmit={handlePaymentSubmit} className="flex flex-col gap-6">
-                {/* Customer Selection for Payment */}
                 {agentCustomers.length > 0 && (
-                  <div className="p-4 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
-                    <label className="block text-indigo-900 mb-2 text-sm font-semibold">
-                      Select Customer specific payment <span className="text-indigo-500">*</span>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-700 mb-2 flex items-center gap-2">
+                       Customer / Client Name
+                      <span className="text-[10px] bg-slate-200 text-slate-600 px-1.5 py-0.5 rounded uppercase">Required for commission deduction</span>
                     </label>
                     <select
-                      id="paymentCustomerId"
-                      className="w-full border border-indigo-200 rounded-lg px-4 py-3 focus:ring-4 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none text-sm bg-white font-medium shadow-sm transition-all text-slate-700"
+                      value={selectedCustomerId}
+                      onChange={(e) => setSelectedCustomerId(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all outline-none text-sm font-medium text-slate-700 shadow-inner"
                     >
-                      <option value="">-- General Payment / Entire Due --</option>
-                      {agentCustomers
-                        .filter(customer => parseFloat(customer.remaining_commission || 0) > 0) // ONLY customers with pending due
-                        .map(customer => {
-                          const remaining = parseFloat(customer.remaining_commission || 0);
-                          return (
-                            <option key={customer.customer_id} value={customer.customer_id}>
-                              {customer.name || `Customer #${customer.customer_id}`} - Due: ₹{remaining.toLocaleString('en-IN', {minimumFractionDigits: 2})}
-                            </option>
-                          );
-                        })}
+                      <option value="">-- General Payment (No Specific Customer) --</option>
+                      {agentCustomers.map(c => (
+                        <option key={c.customer_id} value={c.customer_id}>
+                          {c.name || `Customer #${c.customer_id}`} - Due: ₹{parseFloat(c.remaining_commission || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}
+                        </option>
+                      ))}
                     </select>
-                    <p className="text-[11px] text-indigo-500 mt-2 font-medium">
-                      Select specific customer from dropdown to map payment specifically to their pending due.
+                    <p className="text-[10px] text-slate-400 mt-1.5 ml-1 italic">
+                      Selecting a customer will automatically deduct this payment from the commission earned from them.
                     </p>
                   </div>
                 )}
@@ -892,15 +888,25 @@ export default function AgentManagement() {
                   </div>
                 </div>
 
-                {(parseFloat(paymentAmount || 0) > 0) && (
-                  <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-4 flex items-center justify-between shadow-sm">
-                    <div>
-                      <p className="text-emerald-800 text-[10px] font-bold uppercase tracking-wider mb-0.5">Net Payable Amount</p>
-                      <p className="text-[11px] text-emerald-600">Gross minus TDS deduction</p>
+                {paymentAmount > 0 && (
+                  <div className="space-y-2">
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex justify-between items-center shadow-sm">
+                      <span className="text-xs font-bold text-emerald-800 uppercase tracking-tight">Net Paid (To Agent):</span>
+                      <span className="text-xl font-black text-emerald-700">₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</span>
                     </div>
-                    <p className="text-2xl font-extrabold text-emerald-700">
-                      ₹{Math.max(0, (parseFloat(paymentAmount || 0) || 0) - (parseFloat(tdsAmount || 0) || 0)).toLocaleString('en-IN', {minimumFractionDigits: 2})}
-                    </p>
+                    <div className="p-3 bg-orange-50 rounded-xl border border-orange-100 flex justify-between items-center shadow-sm">
+                      <div className="flex flex-col">
+                         <span className="text-xs font-bold text-orange-800 uppercase tracking-tight">Total Commission Deduction:</span>
+                         <span className="text-[10px] text-orange-600 italic font-medium">Net Paid + TDS</span>
+                      </div>
+                      <span className="text-xl font-black text-orange-700">₹{(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)).toLocaleString('en-IN')}</span>
+                    </div>
+                    {(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)) > (selectedAgent.total_due_commission || 0) && (
+                      <div className="flex items-center gap-2 px-3 py-2 bg-rose-50 border border-rose-100 rounded-lg">
+                        <svg className="w-4 h-4 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        <p className="text-[11px] text-rose-600 font-bold uppercase tracking-wide">Insufficient Balance!</p>
+                      </div>
+                    )}
                   </div>
                 )}
 

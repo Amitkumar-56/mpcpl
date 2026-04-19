@@ -24,6 +24,9 @@ export default function AgentCommissionsPage() {
   const [submitting, setSubmitting] = useState(false);
   const [agentCustomers, setAgentCustomers] = useState([]);
   const [userPermissions, setUserPermissions] = useState({});
+  const [selectedEarning, setSelectedEarning] = useState(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [selectedItems, setSelectedItems] = useState([]);
 
   useEffect(() => {
     const checkPermissions = async () => {
@@ -98,20 +101,35 @@ export default function AgentCommissionsPage() {
     }
   };
 
+  const handlePayTDS = async (paymentId) => {
+    if (!confirm("Are you sure you want to mark this TDS as Paid to Government?")) return;
+    try {
+      const res = await fetch("/api/agent-management/payments", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ paymentId, status: 'paid' })
+      });
+      if (res.ok) {
+        fetchData();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     if (!paymentAmount || !id) return;
 
-    if (!user || (userPermissions.can_edit !== true && Number(user.role) !== 5)) {
-      alert("Access Denied: You do not have permission to record payments.");
+    if (!user) {
+      alert("Access Denied: User session not found.");
       return;
     }
 
     setSubmitting(true);
     try {
       const token = localStorage.getItem("token");
-      const customerSelect = document.getElementById('paymentCustomerId');
-      const customerId = customerSelect ? (customerSelect.value ? parseInt(customerSelect.value) : null) : null;
+      const customerId = selectedCustomerId ? parseInt(selectedCustomerId) : null;
 
       const res = await fetch("/api/agent-management/payments", {
         method: "POST",
@@ -126,6 +144,7 @@ export default function AgentCommissionsPage() {
           tdsAmount: tdsAmount ? parseFloat(tdsAmount) : 0,
           remarks: paymentRemarks,
           customerId: customerId,
+          earningIds: selectedItems.length > 0 ? selectedItems.map(i => i.id) : (selectedEarning ? [selectedEarning.id] : []),
         }),
       });
 
@@ -134,6 +153,9 @@ export default function AgentCommissionsPage() {
         setPaymentAmount("");
         setTdsAmount("");
         setPaymentRemarks("");
+        setSelectedCustomerId("");
+        setSelectedItems([]);
+        setSelectedEarning(null);
         setShowPaymentModal(false);
         fetchData(); // Refresh data
       } else {
@@ -144,6 +166,74 @@ export default function AgentCommissionsPage() {
       alert("Error recording payment: " + err.message);
     } finally {
       setSubmitting(false);
+    }
+  };
+
+  const handlePayNow = (item) => {
+    if (selectedItems.length > 0) {
+      // If we already have items selected, include this item if it's not already in the list
+      // and trigger the bulk payment modal for everything in selection
+      const isSelected = selectedItems.find(i => i.id === item.id);
+      if (!isSelected) {
+        const newSelection = [...selectedItems, item];
+        setSelectedItems(newSelection);
+        
+        // Calculate total for the modal
+        const total = newSelection.reduce((sum, i) => sum + parseFloat(i.commission_amount || 0), 0);
+        const firstItem = newSelection[0];
+        const sameCustomer = newSelection.every(i => i.customer_id === firstItem.customer_id);
+
+        setSelectedEarning(null);
+        setSelectedCustomerId(sameCustomer ? firstItem.customer_id : "");
+        setPaymentAmount(total.toFixed(2));
+        setPaymentRemarks(`Bulk Payment for ${newSelection.length} requests`);
+      } else {
+        handleBulkPay();
+      }
+    } else {
+      // Standard single pay logic when nothing is selected
+      setSelectedEarning(item);
+      setSelectedItems([]); 
+      setSelectedCustomerId(item.customer_id || "");
+      setPaymentAmount(item.commission_amount);
+      setPaymentRemarks(`Payment for Request: ${item.product_name} - Qty: ${item.quantity}L`);
+    }
+    setShowPaymentModal(true);
+  };
+
+  const handleBulkPay = () => {
+    if (selectedItems.length === 0) return;
+    
+    const total = selectedItems.reduce((sum, item) => sum + parseFloat(item.commission_amount || 0), 0);
+    const firstItem = selectedItems[0];
+    
+    // Check if all selected items are from the same customer
+    const sameCustomer = selectedItems.every(i => i.customer_id === firstItem.customer_id);
+    
+    setSelectedEarning(null);
+    setSelectedCustomerId(sameCustomer ? firstItem.customer_id : "");
+    setPaymentAmount(total.toFixed(2));
+    setPaymentRemarks(`Bulk Payment for ${selectedItems.length} requests`);
+    setShowPaymentModal(true);
+  };
+
+  const toggleItemSelection = (item) => {
+    setSelectedItems(prev => {
+      const isSelected = prev.find(i => i.id === item.id);
+      if (isSelected) {
+        return prev.filter(i => i.id !== item.id);
+      } else {
+        return [...prev, item];
+      }
+    });
+  };
+
+  const toggleSelectAll = (e) => {
+    if (e.target.checked) {
+      const payableItems = history.filter(item => parseFloat(item.commission_amount || 0) > 0);
+      setSelectedItems(payableItems);
+    } else {
+      setSelectedItems([]);
     }
   };
 
@@ -185,7 +275,15 @@ export default function AgentCommissionsPage() {
               <h1 className="text-2xl font-bold text-gray-800">Agent Commission Management</h1>
             </div>
             <div className="flex gap-2">
-              {(userPermissions.can_edit === true || Number(user?.role) === 5) && (summary?.remaining || 0) > 0 && (
+              {user && selectedItems.length > 0 && (
+                <button
+                  onClick={handleBulkPay}
+                  className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition font-bold animate-bounce"
+                >
+                  Pay Selected ({selectedItems.length}) - ₹{selectedItems.reduce((s, i) => s + parseFloat(i.commission_amount || 0), 0).toFixed(2)}
+                </button>
+              )}
+              {user && (summary?.remaining || 0) > 0 && (
                 <button
                   onClick={() => setShowPaymentModal(true)}
                   className="bg-orange-600 text-white px-4 py-2 rounded hover:bg-orange-700 transition font-bold"
@@ -270,6 +368,16 @@ export default function AgentCommissionsPage() {
                 >
                   Product-wise Summary
                 </button>
+                <button
+                  onClick={() => setActiveTab('tds')}
+                  className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+                    activeTab === 'tds'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  TDS History
+                </button>
               </nav>
             </div>
           </div>
@@ -283,18 +391,37 @@ export default function AgentCommissionsPage() {
                 <table className="min-w-full text-sm text-left">
                   <thead className="bg-gray-100 text-gray-600 uppercase font-medium">
                     <tr>
+                      <th className="px-4 py-2">
+                        <input 
+                          type="checkbox" 
+                          onChange={toggleSelectAll}
+                          checked={selectedItems.length > 0 && selectedItems.length === history.filter(i => parseFloat(i.commission_amount || 0) > 0).length}
+                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                      </th>
                       <th className="px-4 py-2">Date</th>
                       <th className="px-4 py-2">Client</th>
                       <th className="px-4 py-2">Product</th>
                       <th className="px-4 py-2">Qty</th>
                       <th className="px-4 py-2">Rate (₹/L)</th>
                       <th className="px-4 py-2 text-right">Commission</th>
+                      <th className="px-4 py-2 text-center text-orange-600 font-bold">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
                     {history?.length > 0 ? (
                       history.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-gray-50">
+                        <tr key={idx} className={`hover:bg-gray-50 transition ${selectedItems.find(i => i.id === item.id) ? 'bg-blue-50' : ''}`}>
+                          <td className="px-4 py-2">
+                            {parseFloat(item.commission_amount || 0) > 0 && (
+                              <input 
+                                type="checkbox"
+                                checked={!!selectedItems.find(i => i.id === item.id)}
+                                onChange={() => toggleItemSelection(item)}
+                                className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              />
+                            )}
+                          </td>
                           <td className="px-4 py-2">{new Date(item.completed_date || item.earned_at).toLocaleDateString()}</td>
                           <td className="px-4 py-2">{item.client_name || 'N/A'}</td>
                           <td className="px-4 py-2">{item.product_name || item.product_code || 'N/A'}</td>
@@ -302,6 +429,20 @@ export default function AgentCommissionsPage() {
                           <td className="px-4 py-2">₹{parseFloat(item.commission_rate || 0).toFixed(2)}/L</td>
                           <td className="px-4 py-2 text-right font-semibold text-green-600">
                             ₹{parseFloat(item.commission_amount || 0).toFixed(2)}
+                          </td>
+                          <td className="px-4 py-2 text-center">
+                            {user && parseFloat(item.commission_amount || 0) > 0 ? (
+                              <button
+                                onClick={() => handlePayNow(item)}
+                                className="bg-orange-100 text-orange-600 px-2.5 py-1 rounded text-xs font-bold hover:bg-orange-600 hover:text-white transition"
+                              >
+                                PAY NOW
+                              </button>
+                            ) : (
+                              <span className="bg-green-100 text-green-700 px-2.5 py-1 rounded text-xs font-bold border border-green-200">
+                                PAID
+                              </span>
+                            )}
                           </td>
                         </tr>
                       ))
@@ -318,11 +459,13 @@ export default function AgentCommissionsPage() {
 
             {/* Payment History Table */}
             {activeTab === 'payments' && (
-            <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-              <h2 className="text-xl font-bold mb-4 text-gray-800">Payment History</h2>
-              <div className="overflow-x-auto">
+            <div className="bg-white rounded-lg shadow overflow-hidden lg:col-span-2">
+              <div className="p-4 border-b bg-gray-50">
+                <h2 className="text-lg font-bold text-gray-800">Payment Breakdown</h2>
+              </div>
+              <div className="max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
                 <table className="min-w-full text-sm text-left">
-                  <thead className="bg-gray-100 text-gray-600 uppercase font-medium">
+                  <thead className="bg-gray-100 text-gray-600 uppercase font-medium sticky top-0 z-10 shadow-sm">
                     <tr>
                       <th className="px-4 py-2">Date</th>
                       <th className="px-4 py-2">Remarks</th>
@@ -357,20 +500,21 @@ export default function AgentCommissionsPage() {
 
             {/* Payment Logs */}
             {activeTab === 'logs' && (
-            <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-              <h2 className="text-xl font-bold mb-4 text-gray-800">Payment Logs</h2>
-              <p className="text-sm text-gray-600 mb-4">Complete payment history with who paid, when, and details</p>
-              <div className="overflow-x-auto">
-                <table className="min-w-full text-sm text-left">
-                  <thead className="bg-gray-100 text-gray-600 uppercase font-medium">
+            <div className="bg-white rounded-lg shadow overflow-hidden lg:col-span-2">
+              <div className="p-4 border-b bg-gray-50">
+                <h2 className="text-lg font-bold text-gray-800">Payment Audit Logs</h2>
+              </div>
+              <div className="max-h-[500px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-200">
+                <table className="min-w-full text-xs text-left">
+                  <thead className="bg-gray-100 text-gray-500 uppercase font-bold sticky top-0 z-10 shadow-sm">
                     <tr>
-                      <th className="px-4 py-2">Date & Time</th>
-                      <th className="px-4 py-2">Amount (₹)</th>
-                      <th className="px-4 py-2">TDS (₹)</th>
-                      <th className="px-4 py-2">Net (₹)</th>
-                      <th className="px-4 py-2">Paid By</th>
-                      <th className="px-4 py-2">Remarks</th>
-                      <th className="px-4 py-2">Payment ID</th>
+                      <th className="px-4 py-3">Date & Time</th>
+                      <th className="px-4 py-3">Amount (₹)</th>
+                      <th className="px-4 py-3">TDS (₹)</th>
+                      <th className="px-4 py-3">Net (₹)</th>
+                      <th className="px-4 py-3">Paid By</th>
+                      <th className="px-4 py-3">Remarks</th>
+                      <th className="px-4 py-3">Payment ID</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-200">
@@ -416,9 +560,9 @@ export default function AgentCommissionsPage() {
 
             {/* Product-wise Summary */}
             {activeTab === 'productSummary' && (
-            <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
-              <h2 className="text-xl font-bold mb-4 text-gray-800">Product-wise Commission Summary</h2>
-              <div className="overflow-x-auto">
+              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2">
+                <h2 className="text-xl font-bold mb-4 text-gray-800">Product-wise Commission Summary</h2>
+                <div className="overflow-x-auto">
                 <table className="min-w-full text-sm text-left">
                   <thead className="bg-gray-100 text-gray-600 uppercase font-medium">
                     <tr>
@@ -484,22 +628,114 @@ export default function AgentCommissionsPage() {
                   </tbody>
                 </table>
               </div>
-            </div>
+              </div>
+            )}
+
+            {/* TDS History */}
+            {activeTab === 'tds' && (
+              <div className="bg-white rounded-lg shadow p-6 lg:col-span-2 animate-in fade-in duration-500">
+                <div className="flex justify-between items-center mb-6">
+                  <div>
+                    <h2 className="text-xl font-bold text-gray-800">Tax Deducted at Source (TDS)</h2>
+                    <p className="text-sm text-gray-500">History of tax withholdings for {agentProfile?.first_name || 'this agent'}</p>
+                  </div>
+                  <div className="flex gap-4">
+                    <div className="text-right">
+                      <p className="text-[10px] uppercase font-bold text-gray-400">Total Deducted</p>
+                      <p className="text-lg font-black text-rose-600">₹{paymentLogs?.reduce((sum, log) => sum + parseFloat(log.tds_amount || 0), 0).toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="overflow-x-auto border rounded-xl">
+                  <table className="min-w-full text-xs text-left">
+                    <thead className="bg-gray-50 text-gray-500 uppercase font-black tracking-wider">
+                      <tr>
+                        <th className="px-6 py-4">Deduction Date</th>
+                        <th className="px-6 py-4">Client/Customer</th>
+                        <th className="px-6 py-4 text-right">Base Amount</th>
+                        <th className="px-6 py-4 text-right">TDS Amount</th>
+                        <th className="px-6 py-4 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {paymentLogs?.filter(log => parseFloat(log.tds_amount || 0) > 0).length > 0 ? (
+                        paymentLogs.filter(log => parseFloat(log.tds_amount || 0) > 0).map((log, idx) => (
+                          <tr key={idx} className="hover:bg-gray-50 group transition-all">
+                            <td className="px-6 py-4 font-medium text-gray-700">
+                              {new Date(log.payment_date || log.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                            </td>
+                            <td className="px-6 py-4">
+                              <p className="font-bold text-gray-800">{log.customer_name || 'General Account'}</p>
+                              <p className="text-[10px] text-gray-400">Payment ID: #{log.payment_id || log.id}</p>
+                            </td>
+                            <td className="px-6 py-4 text-right text-gray-600 font-medium">₹{parseFloat(log.amount || 0).toFixed(2)}</td>
+                            <td className="px-6 py-4 text-right text-rose-600 font-black">₹{parseFloat(log.tds_amount || 0).toFixed(2)}</td>
+                            <td className="px-6 py-4 text-center">
+                              {log.tds_status === 'paid' ? (
+                                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[10px] font-black uppercase border border-emerald-200">
+                                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+                                  Settled
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => handlePayTDS(log.payment_id || log.id)}
+                                  className="px-3 py-1 rounded-full bg-rose-600 text-white text-[10px] font-black uppercase hover:bg-rose-700 transition shadow-sm hover:shadow-rose-200"
+                                >
+                                  Pay to Govt
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan="5" className="px-6 py-12 text-center text-gray-400 font-medium italic bg-gray-50/50">
+                            No TDS deductions found for this agent.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             )}
           </div>
         </div>
       </div>
 
       {showPaymentModal && agentProfile && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden">
-            <div className="px-6 py-4 border-b bg-gray-50 flex justify-between items-center">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0 flex justify-between items-center">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">Record Payment</h2>
+                <h2 className="text-xl font-bold text-gray-800">
+                  {selectedItems.length > 0 ? `Bulk Payment (${selectedItems.length} items)` : (selectedEarning ? 'Pay For Specific Request' : 'Record General Payment')}
+                </h2>
                 <p className="text-sm text-gray-500">Agent: {agentProfile.first_name} {agentProfile.last_name}</p>
+                {selectedItems.length > 0 ? (
+                  <div className="mt-2 flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                    {selectedItems.map(item => (
+                      <span key={item.id} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200">
+                        {item.client_name}: ₹{parseFloat(item.commission_amount).toFixed(2)}
+                      </span>
+                    ))}
+                  </div>
+                ) : selectedEarning && (
+                  <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                    Target: {selectedEarning.product_name} ({selectedEarning.quantity}L)
+                  </div>
+                )}
               </div>
               <button 
-                onClick={() => setShowPaymentModal(false)}
+                onClick={() => {
+                setShowPaymentModal(false);
+                setSelectedEarning(null);
+                setSelectedCustomerId("");
+                setPaymentAmount("");
+                setTdsAmount("");
+                setPaymentRemarks("");
+              }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
@@ -509,8 +745,8 @@ export default function AgentCommissionsPage() {
             <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                  <p className="text-xs text-blue-600 font-bold uppercase">Total Due</p>
-                  <p className="text-2xl font-black text-blue-800">₹{(summary?.remaining || 0).toLocaleString('en-IN')}</p>
+                  <p className="text-xs text-blue-600 font-bold uppercase">{selectedEarning ? 'Request Commission' : 'Total Due'}</p>
+                  <p className="text-2xl font-black text-blue-800">₹{(selectedEarning ? selectedEarning.commission_amount : (summary?.remaining || 0)).toLocaleString('en-IN')}</p>
                 </div>
                 <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
                   <p className="text-xs text-gray-500 font-bold uppercase">Bank Account</p>
@@ -521,27 +757,39 @@ export default function AgentCommissionsPage() {
 
               {agentCustomers.length > 0 && (
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Specific Customer (Optional)</label>
-                  <select
-                    id="paymentCustomerId"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                  >
-                    <option value="">-- General Payment --</option>
-                    {agentCustomers.map(c => (
-                      <option key={c.customer_id} value={c.customer_id}>{c.name}</option>
-                    ))}
-                  </select>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Customer / Client Name</label>
+                  <div className="relative">
+                    <select
+                      value={selectedCustomerId}
+                      onChange={(e) => setSelectedCustomerId(e.target.value)}
+                      disabled={!!selectedEarning}
+                      className={`w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm appearance-none ${selectedEarning ? 'bg-gray-100 font-bold text-blue-700' : 'bg-white'}`}
+                    >
+                      <option value="">-- General Payment (No Specific Customer) --</option>
+                      {agentCustomers.map(c => (
+                        <option key={c.customer_id} value={c.customer_id}>{c.name}</option>
+                      ))}
+                    </select>
+                    {selectedEarning && (
+                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                        <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-bold">LOCKED</span>
+                      </div>
+                    )}
+                  </div>
+                  {selectedEarning && (
+                    <p className="text-[10px] text-blue-600 mt-1 font-bold italic">Payment linked to {selectedEarning.client_name}'s specific transaction.</p>
+                  )}
                 </div>
               )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Amount (Gross)</label>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Transfer Amount (Paid to Agent)</label>
                   <input
                     type="number"
                     step="0.01"
                     required
-                    max={summary?.remaining || 0}
+                    max={selectedItems.length > 0 ? selectedItems.reduce((s,i) => s + parseFloat(i.commission_amount),0) : (selectedEarning ? selectedEarning.commission_amount : (summary?.remaining || 0))}
                     className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
                     value={paymentAmount}
                     onChange={(e) => setPaymentAmount(e.target.value)}
@@ -560,9 +808,18 @@ export default function AgentCommissionsPage() {
               </div>
 
               {paymentAmount > 0 && (
-                <div className="p-3 bg-green-50 rounded-lg border border-green-100 flex justify-between items-center">
-                  <span className="text-sm font-semibold text-green-800">Net Payable:</span>
-                  <span className="text-xl font-bold text-green-700">₹{(parseFloat(paymentAmount || 0) - parseFloat(tdsAmount || 0)).toLocaleString('en-IN')}</span>
+                <div className="space-y-2">
+                  <div className="p-3 bg-green-50 rounded-lg border border-green-100 flex justify-between items-center">
+                    <span className="text-sm font-semibold text-green-800">Net Paid:</span>
+                    <span className="text-xl font-bold text-green-700">₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</span>
+                  </div>
+                  <div className="p-3 bg-orange-50 rounded-lg border border-orange-100 flex justify-between items-center">
+                    <span className="text-sm font-semibold text-orange-800">Total Commission Deduction:</span>
+                    <span className="text-xl font-bold text-orange-700">₹{(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)).toLocaleString('en-IN')}</span>
+                  </div>
+                  {(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)) > (selectedEarning ? selectedEarning.commission_amount : (summary?.remaining || 0)) && (
+                    <p className="text-xs text-red-600 font-bold">⚠️ Total deduction exceeds available balance!</p>
+                  )}
                 </div>
               )}
 
@@ -580,7 +837,14 @@ export default function AgentCommissionsPage() {
               <div className="flex gap-3 pt-4">
                 <button
                   type="button"
-                  onClick={() => setShowPaymentModal(false)}
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedEarning(null);
+                    setSelectedCustomerId("");
+                    setPaymentAmount("");
+                    setTdsAmount("");
+                    setPaymentRemarks("");
+                  }}
                   className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
                 >
                   Cancel

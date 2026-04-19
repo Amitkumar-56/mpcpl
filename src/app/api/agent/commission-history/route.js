@@ -70,6 +70,7 @@ export async function GET(request) {
       const history = await executeQuery(`
         SELECT 
             ae.id,
+            ae.customer_id,
             c.name as client_name,
             COALESCE(pc.pcode, 'Unknown Product') as product_name,
             ae.quantity,

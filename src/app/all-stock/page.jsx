@@ -23,7 +23,7 @@ function AllStockError({ error, onRetry }) {
       <div className="text-center max-w-md">
         <div className="text-red-500 text-xl mb-4">Error</div>
         <div className="text-gray-600 mb-6">{error}</div>
-        <button 
+        <button
           onClick={onRetry}
           className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg transition-colors"
         >
@@ -37,7 +37,7 @@ function AllStockError({ error, onRetry }) {
 // Success Message Component
 function SuccessMessage({ message, onClose }) {
   if (!message) return null;
-  
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
       <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
@@ -48,7 +48,7 @@ function SuccessMessage({ message, onClose }) {
           <span className="font-medium">Success!</span>
         </div>
         <span className="block sm:inline ml-7">{message}</span>
-        <button 
+        <button
           onClick={onClose}
           className="absolute top-0 right-0 px-4 py-3 transition-colors hover:text-green-800"
         >
@@ -62,17 +62,17 @@ function SuccessMessage({ message, onClose }) {
 }
 
 // Add Stock Modal Component
-function AddStockModal({ 
-  show, 
-  onClose, 
-  selectedStation, 
-  selectedProduct, 
+function AddStockModal({
+  show,
+  onClose,
+  selectedStation,
+  selectedProduct,
   operationType = 'plus',
-  quantity, 
-  onQuantityChange, 
-  remarks, 
-  onRemarksChange, 
-  formErrors, 
+  quantity,
+  onQuantityChange,
+  remarks,
+  onRemarksChange,
+  formErrors,
   onConfirm,
   isFormValid,
   invoiceNumber,
@@ -98,7 +98,7 @@ function AddStockModal({
       4: 'def_loose',
       5: 'def_bucket'
     };
-    
+
     const fieldName = productFieldMap[selectedProduct];
     return selectedStation[fieldName] || 0;
   };
@@ -112,9 +112,8 @@ function AddStockModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[calc(100vh-5rem)] overflow-hidden">
-        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${
-          operationType === 'minus' ? 'bg-red-50' : 'bg-blue-50'
-        }`}>
+        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${operationType === 'minus' ? 'bg-red-50' : 'bg-blue-50'
+          }`}>
           <h3 className="text-lg font-semibold text-gray-800">
             {operationType === 'minus' ? 'Minus Stock (Shortage)' : 'Add Stock'}
           </h3>
@@ -127,19 +126,18 @@ function AddStockModal({
             </svg>
           </button>
         </div>
-        
+
         <div className="px-6 py-4 space-y-4 overflow-y-auto max-h-[60vh]">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="text-gray-600">Station:</div>
             <div className="font-semibold">{selectedStation.station_name}</div>
-            
+
             <div className="text-gray-600">Product:</div>
             <div className="font-semibold">{getProductName(selectedProduct)}</div>
-            
+
             <div className="text-gray-600">Current Stock:</div>
-            <div className={`font-semibold ${
-              getCurrentStock() > 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
+            <div className={`font-semibold ${getCurrentStock() > 0 ? 'text-green-600' : 'text-red-600'
+              }`}>
               {getCurrentStock()}
             </div>
           </div>
@@ -178,12 +176,10 @@ function AddStockModal({
               type="number"
               value={quantity}
               onChange={onQuantityChange}
-              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${
-                operationType === 'minus' ? 'focus:ring-red-500' : 'focus:ring-blue-500'
-              } ${formErrors.quantity ? 'border-red-500' : 'border-gray-300'}`}
+              className={`w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 ${operationType === 'minus' ? 'focus:ring-red-500' : 'focus:ring-blue-500'
+                } ${formErrors.quantity ? 'border-red-500' : 'border-gray-300'}`}
               placeholder={`Enter quantity to ${operationType === 'minus' ? 'deduct' : 'add'}`}
               min="1"
-              max="10000"
             />
             {formErrors.quantity && (
               <p className="text-red-500 text-xs mt-1">{formErrors.quantity}</p>
@@ -208,18 +204,16 @@ function AddStockModal({
           </div>
 
           {quantity && !formErrors.quantity && (
-            <div className={`p-3 rounded-lg border ${
-              operationType === 'minus' 
-                ? 'bg-red-50 border-red-200' 
+            <div className={`p-3 rounded-lg border ${operationType === 'minus'
+                ? 'bg-red-50 border-red-200'
                 : 'bg-blue-50 border-blue-200'
-            }`}>
+              }`}>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className={operationType === 'minus' ? 'text-red-600' : 'text-blue-600'}>
                   {operationType === 'minus' ? 'After Deduction:' : 'New Total:'}
                 </div>
-                <div className={`font-semibold ${
-                  operationType === 'minus' ? 'text-red-700' : 'text-blue-700'
-                }`}>
+                <div className={`font-semibold ${operationType === 'minus' ? 'text-red-700' : 'text-blue-700'
+                  }`}>
                   {getNewStockTotal()}
                 </div>
               </div>
@@ -237,11 +231,10 @@ function AddStockModal({
           <button
             onClick={onConfirm}
             disabled={!isFormValid}
-            className={`px-4 py-2 rounded-md transition-colors duration-200 flex items-center justify-center text-sm sm:text-base ${
-              isFormValid 
-                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+            className={`px-4 py-2 rounded-md transition-colors duration-200 flex items-center justify-center text-sm sm:text-base ${isFormValid
+                ? 'bg-blue-600 hover:bg-blue-700 text-white'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
+              }`}
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -255,16 +248,16 @@ function AddStockModal({
 }
 
 // Confirmation Modal Component
-function ConfirmationModal({ 
-  show, 
-  onClose, 
-  selectedStation, 
-  selectedProduct, 
+function ConfirmationModal({
+  show,
+  onClose,
+  selectedStation,
+  selectedProduct,
   operationType = 'plus',
-  quantity, 
-  remarks, 
-  onSubmit, 
-  loading 
+  quantity,
+  remarks,
+  onSubmit,
+  loading
 }) {
   if (!show || !selectedStation) return null;
 
@@ -285,7 +278,7 @@ function ConfirmationModal({
       4: 'def_loose',
       5: 'def_bucket'
     };
-    
+
     const fieldName = productFieldMap[selectedProduct];
     return selectedStation[fieldName] || 0;
   };
@@ -302,9 +295,8 @@ function ConfirmationModal({
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[calc(100vh-5rem)] overflow-hidden">
-        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${
-          operationType === 'minus' ? 'bg-red-50' : 'bg-yellow-50'
-        }`}>
+        <div className={`px-6 py-4 border-b border-gray-200 flex justify-between items-center ${operationType === 'minus' ? 'bg-red-50' : 'bg-yellow-50'
+          }`}>
           <h3 className="text-lg font-semibold text-gray-800">
             {operationType === 'minus' ? 'Confirm Stock Deduction (Shortage)' : 'Confirm Stock Addition'}
           </h3>
@@ -318,7 +310,7 @@ function ConfirmationModal({
             </svg>
           </button>
         </div>
-        
+
         <div className="px-6 py-4 space-y-4 overflow-y-auto max-h-[60vh]">
           <div className="flex items-center justify-center text-yellow-500 mb-4">
             <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -340,24 +332,22 @@ function ConfirmationModal({
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="text-gray-600">Station:</div>
               <div className="font-semibold">{selectedStation.station_name}</div>
-              
+
               <div className="text-gray-600">Product:</div>
               <div className="font-semibold">{getProductName(selectedProduct)}</div>
-              
+
               <div className="text-gray-600">Current Stock:</div>
               <div className="font-semibold">{getCurrentStock()}</div>
-              
+
               <div className="text-gray-600">{operationType === 'minus' ? 'Deducting Quantity:' : 'Adding Quantity:'}</div>
-              <div className={`font-semibold ${
-                operationType === 'minus' ? 'text-red-600' : 'text-green-600'
-              }`}>
+              <div className={`font-semibold ${operationType === 'minus' ? 'text-red-600' : 'text-green-600'
+                }`}>
                 {operationType === 'minus' ? `-${quantity}` : `+${quantity}`}
               </div>
-              
+
               <div className="text-gray-600 font-medium">{operationType === 'minus' ? 'After Deduction:' : 'New Total:'}</div>
-              <div className={`font-semibold ${
-                operationType === 'minus' ? 'text-red-700' : 'text-blue-700'
-              }`}>{getNewStockTotal()}</div>
+              <div className={`font-semibold ${operationType === 'minus' ? 'text-red-700' : 'text-blue-700'
+                }`}>{getNewStockTotal()}</div>
 
               {remarks && (
                 <>
@@ -432,24 +422,24 @@ function AllStockContent() {
       fetchingRef.current = true;
       setLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/all-stock', {
         cache: 'no-store',
         headers: {
           'Content-Type': 'application/json',
         }
       });
-      
+
       if (!response.ok) {
         throw new Error('Failed to fetch stock data');
       }
-      
+
       const result = await response.json();
-      
+
       if (!isMountedRef.current) {
         return; // Component unmounted, don't update state
       }
-      
+
       if (result.success) {
         setStockData(result.data);
       } else {
@@ -471,7 +461,7 @@ function AllStockContent() {
   useEffect(() => {
     isMountedRef.current = true;
     fetchStockData();
-    
+
     // Cleanup on unmount
     return () => {
       isMountedRef.current = false;
@@ -490,10 +480,6 @@ function AllStockContent() {
       errors.quantity = 'Please enter a valid quantity';
     }
 
-    if (quantity > 10000) {
-      errors.quantity = 'Quantity is too large';
-    }
-
     if (remarks && remarks.length > 500) {
       errors.remarks = 'Remarks should not exceed 500 characters';
     }
@@ -505,7 +491,7 @@ function AllStockContent() {
   const handleAddStock = (station, productType, operation = 'plus') => {
     setSelectedStation(station);
     setOperationType(operation);
-    
+
     // Map product type to product ID
     const productMap = {
       'industrial_oil_40': 2,
@@ -513,7 +499,7 @@ function AllStockContent() {
       'def_loose': 4,
       'def_bucket': 5
     };
-    
+
     setSelectedProduct(productMap[productType]);
     setShowAddModal(true);
     setQuantity('');
@@ -532,7 +518,7 @@ function AllStockContent() {
   const submitAddStock = async () => {
     try {
       setAddingStock(true);
-      
+
       const response = await fetch('/api/add-stock', {
         method: 'POST',
         headers: {
@@ -605,23 +591,20 @@ function AllStockContent() {
 
   const isFormValid = () => {
     const quantityNum = parseInt(quantity);
-    return quantity && 
-           quantityNum > 0 && 
-           quantityNum <= 10000 && 
-           !formErrors.quantity;
+    return quantity &&
+      quantityNum > 0 &&
+      !formErrors.quantity;
   };
 
   const handleQuantityChange = (e) => {
     const value = e.target.value;
     setQuantity(value);
-    
+
     // Real-time validation
     if (!value || parseInt(value) <= 0) {
-      setFormErrors({...formErrors, quantity: 'Please enter a valid quantity'});
-    } else if (parseInt(value) > 10000) {
-      setFormErrors({...formErrors, quantity: 'Quantity is too large'});
+      setFormErrors({ ...formErrors, quantity: 'Please enter a valid quantity' });
     } else {
-      setFormErrors({...formErrors, quantity: ''});
+      setFormErrors({ ...formErrors, quantity: '' });
     }
   };
 
@@ -666,7 +649,7 @@ function AllStockContent() {
                 <p className="text-xs sm:text-sm text-gray-500 mt-1">Current inventory across all stations</p>
               </div>
             </div>
-            <button 
+            <button
               onClick={refreshData}
               className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center transition-colors duration-200 text-sm sm:text-base"
             >
@@ -706,7 +689,7 @@ function AllStockContent() {
               </span>
             </div>
           </div>
-          
+
           {/* Desktop Table */}
           <div className="hidden md:block overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -738,15 +721,14 @@ function AllStockContent() {
                           {station.station_name}
                         </div>
                       </td>
-                      
+
                       {/* Industrial Oil 40 */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.industrial_oil_40 > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_40 > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.industrial_oil_40}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -775,11 +757,10 @@ function AllStockContent() {
                       {/* Industrial Oil 60 */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.industrial_oil_60 > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_60 > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.industrial_oil_60}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -808,11 +789,10 @@ function AllStockContent() {
                       {/* DEF Loose */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.def_loose > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_loose > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.def_loose}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -841,11 +821,10 @@ function AllStockContent() {
                       {/* DEF Bucket */}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.def_bucket > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_bucket > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.def_bucket}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -898,7 +877,7 @@ function AllStockContent() {
                     <div className="mb-4 pb-3 border-b border-gray-200">
                       <h3 className="text-lg font-semibold text-gray-900">{station.station_name}</h3>
                     </div>
-                    
+
                     <div className="space-y-3">
                       {/* Industrial Oil 40 */}
                       <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -906,11 +885,10 @@ function AllStockContent() {
                           <p className="text-sm font-medium text-gray-700">Industrial Oil 40</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.industrial_oil_40 > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_40 > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.industrial_oil_40}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -942,11 +920,10 @@ function AllStockContent() {
                           <p className="text-sm font-medium text-gray-700">Industrial Oil 60</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.industrial_oil_60 > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_60 > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.industrial_oil_60}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -978,11 +955,10 @@ function AllStockContent() {
                           <p className="text-sm font-medium text-gray-700">DEF Loose</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.def_loose > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_loose > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.def_loose}
                           </span>
                           <div className="flex items-center space-x-1">
@@ -1014,11 +990,10 @@ function AllStockContent() {
                           <p className="text-sm font-medium text-gray-700">DEF Bucket</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                            station.def_bucket > 0 
-                              ? 'bg-green-100 text-green-800' 
+                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_bucket > 0
+                              ? 'bg-green-100 text-green-800'
                               : 'bg-red-100 text-red-800'
-                          }`}>
+                            }`}>
                             {station.def_bucket}
                           </span>
                           <div className="flex items-center space-x-1">

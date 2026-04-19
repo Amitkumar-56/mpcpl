@@ -131,6 +131,14 @@ async function ensurePaymentLogsTable() {
   } catch (e) {
     console.log("agent_payment_logs tds_status column check:", e.message);
   }
+
+  // Ensure earning_id column exists
+  try {
+    await executeQuery(`ALTER TABLE agent_payments ADD COLUMN IF NOT EXISTS earning_id INT DEFAULT NULL`);
+    await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN IF NOT EXISTS earning_id INT DEFAULT NULL`);
+  } catch (e) {
+    console.log("earning_id column check error:", e.message);
+  }
 }
 
 export async function GET(request) {
@@ -154,6 +162,7 @@ export async function GET(request) {
           ap.net_amount,
           ap.tds_status,
           ap.remarks,
+          ap.earning_id,
           ap.payment_date,
           a.first_name,
           a.last_name,
@@ -340,7 +349,10 @@ export async function POST(request) {
       }
     }
 
-    const { agentId, amount, remarks, customerId, tdsAmount } = await request.json();
+    const { agentId, amount, remarks, customerId, tdsAmount, earningId, earningIds } = await request.json();
+    
+    // Normalize earningIds to an array
+    const targetEarningIds = Array.isArray(earningIds) ? earningIds : (earningId ? [earningId] : []);
 
     if (!agentId || !amount) {
       return NextResponse.json(
@@ -377,14 +389,14 @@ export async function POST(request) {
       }
     }
 
-    const grossAmount = parseFloat(amount);
+    const netAmount = parseFloat(amount); // Amount actually paid/transferred to agent
     const tds = tdsAmount !== undefined && tdsAmount !== null ? parseFloat(tdsAmount) : 0;
-    const netAmount = Math.max(0, grossAmount - (isNaN(tds) ? 0 : tds));
+    const grossAmount = netAmount + (isNaN(tds) ? 0 : tds); // Total to be deducted from commission balance
     
     // Insert without customer_id if it's not valid (avoid foreign key constraint)
     const result = await executeQuery(
-      `INSERT INTO agent_payments (agent_id, customer_id, amount, tds_amount, net_amount, remarks, payment_date) VALUES (?, ?, ?, ?, ?, ?, NOW())`,
-      [agentId, validCustomerId, grossAmount, isNaN(tds) ? 0 : tds, netAmount, remarks || ""]
+      `INSERT INTO agent_payments (agent_id, customer_id, earning_id, amount, tds_amount, net_amount, remarks, payment_date) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [agentId, validCustomerId, targetEarningIds.length === 1 ? targetEarningIds[0] : null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, remarks || ""]
     );
 
     const paymentId = result.insertId;
@@ -403,14 +415,28 @@ export async function POST(request) {
 
     // Insert into payment logs with who paid, when, etc.
     await executeQuery(
-      `INSERT INTO agent_payment_logs (payment_id, agent_id, customer_id, amount, tds_amount, net_amount, paid_by_user_id, paid_by_user_name, remarks, payment_date) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [paymentId, agentId, validCustomerId, grossAmount, isNaN(tds) ? 0 : tds, netAmount, userId, userName, remarks || ""]
+      `INSERT INTO agent_payment_logs (payment_id, agent_id, customer_id, earning_id, amount, tds_amount, net_amount, paid_by_user_id, paid_by_user_name, remarks, payment_date) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      [paymentId, agentId, validCustomerId, targetEarningIds.length === 1 ? targetEarningIds[0] : null, grossAmount, isNaN(tds) ? 0 : tds, netAmount, userId, userName, remarks || ""]
     );
 
     // Deduct commission from agent_earnings and agent_commissions tables
-    if (validCustomerId) {
-      const totalDeduction = grossAmount + (isNaN(tds) ? 0 : tds); // amount + TDS
+    if (targetEarningIds.length > 0) {
+      // targeted deduction - deduct based on the actual earnings selected
+      // We need to distribute the grossAmount among selected earnings
+      // For simplicity, we assume the grossAmount represents the total of selected earnings
+      for (const eid of targetEarningIds) {
+        // Find individual earning amount to deduct exactly that
+        const earning = await executeQuery(`SELECT commission_amount FROM agent_earnings WHERE id = ?`, [eid]);
+        if (earning.length > 0) {
+          await executeQuery(
+            `UPDATE agent_earnings SET commission_amount = 0 WHERE id = ?`,
+            [eid]
+          );
+        }
+      }
+    } else if (validCustomerId) {
+      const totalDeduction = grossAmount; // Full gross amount (Net + TDS) should be deducted
       
       // Check if agent_earnings table exists and has data
       let earningsDeducted = 0;
@@ -509,12 +535,11 @@ export async function POST(request) {
     }
 
     // Create audit log
-    const totalDeduction = grossAmount + (isNaN(tds) ? 0 : tds);
+    const totalDeduction = grossAmount;
     const paymentMessage = customerName 
-      ? `Payment of ₹${grossAmount.toFixed(2)} + TDS ₹${(isNaN(tds) ? 0 : tds).toFixed(2)} = ₹${totalDeduction.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - Customer: ${customerName} - Commission deducted from earnings`
-      : `Payment of ₹${grossAmount.toFixed(2)} + TDS ₹${(isNaN(tds) ? 0 : tds).toFixed(2)} = ₹${totalDeduction.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - General Payment`;
-
-    await createAuditLog({
+      ? `Payment of ₹${netAmount.toFixed(2)} + TDS ₹${(isNaN(tds) ? 0 : tds).toFixed(2)} = ₹${totalDeduction.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - Customer: ${customerName}`
+      : `Payment of ₹${netAmount.toFixed(2)} + TDS ₹${(isNaN(tds) ? 0 : tds).toFixed(2)} = ₹${totalDeduction.toFixed(2)} recorded for agent ${agent[0].first_name} ${agent[0].last_name} (${agent[0].agent_id}) - General Payment`;
+      await createAuditLog({
       page: 'Agent Management',
       uniqueCode: `AGENT-PAY-${agent[0].agent_id}-${paymentId}`,
       section: 'Record Payment',
@@ -534,7 +559,9 @@ export async function POST(request) {
         tds_amount: isNaN(tds) ? 0 : tds,
         net_amount: netAmount,
         total_deduction: totalDeduction,
-        commission_deducted: validCustomerId ? 'Yes' : 'No',
+        commission_deducted: (validCustomerId || targetEarningIds.length > 0) ? 'Yes' : 'No',
+        earning_id: targetEarningIds.length === 1 ? targetEarningIds[0] : null,
+        earning_ids: targetEarningIds,
         remarks: remarks || ''
       },
       recordType: 'agent_payment',
