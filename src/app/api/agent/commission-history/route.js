@@ -21,7 +21,7 @@ export async function GET(request) {
         )
       `);
 
-      // Ensure agent_earnings table exists (if not created by allocate route)
+      // Ensure agent_earnings table exists
       await executeQuery(`
         CREATE TABLE IF NOT EXISTS agent_earnings (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -33,11 +33,19 @@ export async function GET(request) {
             commission_rate DECIMAL(10, 2),
             commission_amount DECIMAL(10, 2),
             earned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            payment_id INT,
             FOREIGN KEY (agent_id) REFERENCES agents(id),
             FOREIGN KEY (customer_id) REFERENCES customers(id),
             UNIQUE KEY unique_earning (filling_request_id, agent_id)
         )
       `);
+
+      // Migrating existing schema if payment_id is missing
+      try {
+        await executeQuery(`ALTER TABLE agent_earnings ADD COLUMN IF NOT EXISTS payment_id INT`);
+      } catch (e) {
+        // Silently ignore if already exists or other error
+      }
 
       // 1. SYNC: Backfill/Insert missing earnings into agent_earnings
       // This ensures that we "store" the commission data properly as requested.
@@ -71,6 +79,7 @@ export async function GET(request) {
         SELECT 
             ae.id,
             ae.customer_id,
+            ae.payment_id,
             c.name as client_name,
             COALESCE(pc.pcode, 'Unknown Product') as product_name,
             ae.quantity,
@@ -84,6 +93,7 @@ export async function GET(request) {
         ORDER BY ae.earned_at DESC
       `, [agentId]);
       
+      // Lifetime earnings calculation
       const totalCommission = history.reduce((sum, item) => sum + (parseFloat(item.commission_amount) || 0), 0);
 
       // 3. Fetch Payments

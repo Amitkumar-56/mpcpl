@@ -430,8 +430,8 @@ export async function POST(request) {
         const earning = await executeQuery(`SELECT commission_amount FROM agent_earnings WHERE id = ?`, [eid]);
         if (earning.length > 0) {
           await executeQuery(
-            `UPDATE agent_earnings SET commission_amount = 0 WHERE id = ?`,
-            [eid]
+            `UPDATE agent_earnings SET payment_id = ? WHERE id = ?`,
+            [paymentId, eid]
           );
         }
       }

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useSession } from "@/context/SessionContext";
+import { X } from "lucide-react";
 
 export default function AgentCommissionsPage() {
   const { id } = useParams(); // agent id
@@ -413,7 +414,7 @@ export default function AgentCommissionsPage() {
                       history.map((item, idx) => (
                         <tr key={idx} className={`hover:bg-gray-50 transition ${selectedItems.find(i => i.id === item.id) ? 'bg-blue-50' : ''}`}>
                           <td className="px-4 py-2">
-                            {parseFloat(item.commission_amount || 0) > 0 && (
+                            {!item.payment_id && parseFloat(item.commission_amount || 0) > 0 && (
                               <input 
                                 type="checkbox"
                                 checked={!!selectedItems.find(i => i.id === item.id)}
@@ -431,7 +432,7 @@ export default function AgentCommissionsPage() {
                             ₹{parseFloat(item.commission_amount || 0).toFixed(2)}
                           </td>
                           <td className="px-4 py-2 text-center">
-                            {user && parseFloat(item.commission_amount || 0) > 0 ? (
+                            {user && !item.payment_id && parseFloat(item.commission_amount || 0) > 0 ? (
                               <button
                                 onClick={() => handlePayNow(item)}
                                 className="bg-orange-100 text-orange-600 px-2.5 py-1 rounded text-xs font-bold hover:bg-orange-600 hover:text-white transition"
@@ -705,157 +706,123 @@ export default function AgentCommissionsPage() {
       </div>
 
       {showPaymentModal && agentProfile && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b bg-gray-50 flex-shrink-0 flex justify-between items-center">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/70 backdrop-blur-[2px] animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-xl flex flex-col h-[600px] max-h-[90vh] overflow-hidden border border-gray-100">
+            {/* Header - Fixed */}
+            <div className="p-6 border-b bg-white flex-shrink-0 flex justify-between items-start">
               <div>
-                <h2 className="text-xl font-bold text-gray-800">
-                  {selectedItems.length > 0 ? `Bulk Payment (${selectedItems.length} items)` : (selectedEarning ? 'Pay For Specific Request' : 'Record General Payment')}
+                <h2 className="text-2xl font-black text-gray-900 leading-tight">
+                  {selectedItems.length > 0 ? `Pay ${selectedItems.length} Requests` : (selectedEarning ? 'Targeted Payment' : 'Agent Payout')}
                 </h2>
-                <p className="text-sm text-gray-500">Agent: {agentProfile.first_name} {agentProfile.last_name}</p>
-                {selectedItems.length > 0 ? (
-                  <div className="mt-2 flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                    {selectedItems.map(item => (
-                      <span key={item.id} className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                        {item.client_name}: ₹{parseFloat(item.commission_amount).toFixed(2)}
-                      </span>
-                    ))}
-                  </div>
-                ) : selectedEarning && (
-                  <div className="mt-1 inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
-                    Target: {selectedEarning.product_name} ({selectedEarning.quantity}L)
-                  </div>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">{agentProfile.first_name} {agentProfile.last_name}</p>
+                </div>
               </div>
               <button 
-                onClick={() => {
-                setShowPaymentModal(false);
-                setSelectedEarning(null);
-                setSelectedCustomerId("");
-                setPaymentAmount("");
-                setTdsAmount("");
-                setPaymentRemarks("");
-              }}
-                className="text-gray-400 hover:text-gray-600"
+                onClick={() => { setShowPaymentModal(false); setSelectedEarning(null); setSelectedItems([]); }}
+                className="p-2 hover:bg-gray-100 rounded-full text-gray-400 transition-colors"
               >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                <X size={20} />
               </button>
             </div>
-            
-            <form onSubmit={handlePaymentSubmit} className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="bg-blue-50 p-4 rounded-xl border border-blue-100">
-                  <p className="text-xs text-blue-600 font-bold uppercase">{selectedEarning ? 'Request Commission' : 'Total Due'}</p>
-                  <p className="text-2xl font-black text-blue-800">₹{(selectedEarning ? selectedEarning.commission_amount : (summary?.remaining || 0)).toLocaleString('en-IN')}</p>
-                </div>
-                <div className="bg-gray-50 p-4 rounded-xl border border-gray-200">
-                  <p className="text-xs text-gray-500 font-bold uppercase">Bank Account</p>
-                  <p className="text-sm font-semibold text-gray-800 truncate">{agentProfile.bank_name || 'N/A'}</p>
-                  <p className="text-xs text-gray-500">{agentProfile.account_number || ''}</p>
-                </div>
-              </div>
 
-              {agentCustomers.length > 0 && (
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Customer / Client Name</label>
-                  <div className="relative">
+            {/* Scrollable Form Body */}
+            <form onSubmit={handlePaymentSubmit} id="payment-form" className="flex-1 overflow-hidden flex flex-col">
+              <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin scrollbar-thumb-gray-200">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-blue-600 p-4 rounded-2xl shadow-lg shadow-blue-100 text-white">
+                    <p className="text-[10px] font-black uppercase opacity-70 mb-1">Available Due</p>
+                    <p className="text-2xl font-black">₹{(selectedEarning ? parseFloat(selectedEarning.commission_amount) : (summary?.remaining || 0)).toLocaleString('en-IN')}</p>
+                  </div>
+                  <div className="bg-slate-900 p-4 rounded-2xl shadow-lg shadow-slate-100 text-white">
+                    <p className="text-[10px] font-black uppercase opacity-70 mb-1">Bank Info</p>
+                    <p className="text-xs font-bold truncate">{agentProfile.bank_name || 'NOT LINKED'}</p>
+                    <p className="text-[10px] opacity-60 font-mono tracking-tighter">{agentProfile.account_number || '**** **** ****'}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Select Customer</label>
                     <select
                       value={selectedCustomerId}
                       onChange={(e) => setSelectedCustomerId(e.target.value)}
                       disabled={!!selectedEarning}
-                      className={`w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none text-sm appearance-none ${selectedEarning ? 'bg-gray-100 font-bold text-blue-700' : 'bg-white'}`}
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3.5 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-sm font-bold transition-all appearance-none"
                     >
-                      <option value="">-- General Payment (No Specific Customer) --</option>
-                      {agentCustomers.map(c => (
-                        <option key={c.customer_id} value={c.customer_id}>{c.name}</option>
-                      ))}
+                      <option value="">General Payment / No Customer</option>
+                      {agentCustomers.map((c, idx) => <option key={`${c.customer_id}-${idx}`} value={c.customer_id}>{c.name}</option>)}
                     </select>
-                    {selectedEarning && (
-                      <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                        <span className="text-xs bg-blue-600 text-white px-2 py-0.5 rounded font-bold">LOCKED</span>
-                      </div>
-                    )}
                   </div>
-                  {selectedEarning && (
-                    <p className="text-[10px] text-blue-600 mt-1 font-bold italic">Payment linked to {selectedEarning.client_name}'s specific transaction.</p>
-                  )}
-                </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Transfer Amount (Paid to Agent)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    max={selectedItems.length > 0 ? selectedItems.reduce((s,i) => s + parseFloat(i.commission_amount),0) : (selectedEarning ? selectedEarning.commission_amount : (summary?.remaining || 0))}
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={paymentAmount}
-                    onChange={(e) => setPaymentAmount(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">TDS Amount</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="w-full border border-gray-300 rounded-lg px-4 py-2.5 focus:ring-2 focus:ring-blue-500 outline-none"
-                    value={tdsAmount}
-                    onChange={(e) => setTdsAmount(e.target.value)}
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                       <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">Payout Amount</label>
+                       <div className="relative group">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400 group-focus-within:text-blue-500">₹</span>
+                          <input
+                            type="number" step="0.01" required
+                            className="w-full bg-gray-50 border border-gray-100 rounded-2xl pl-10 pr-4 py-3.5 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 outline-none font-black text-gray-900 transition-all"
+                            value={paymentAmount}
+                            onChange={(e) => setPaymentAmount(e.target.value)}
+                          />
+                       </div>
+                    </div>
+                    <div className="space-y-2">
+                       <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest ml-1">TDS (Tax)</label>
+                       <div className="relative group">
+                          <span className="absolute left-4 top-1/2 -translate-y-1/2 font-bold text-gray-400 group-focus-within:text-orange-500">₹</span>
+                          <input
+                            type="number" step="0.01"
+                            className="w-full bg-gray-50 border border-gray-100 rounded-2xl pl-10 pr-4 py-3.5 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none font-black text-gray-900 transition-all"
+                            value={tdsAmount}
+                            onChange={(e) => setTdsAmount(e.target.value)}
+                          />
+                       </div>
+                    </div>
+                  </div>
+
+                  {paymentAmount > 0 && (
+                    <div className="bg-orange-50 rounded-2xl p-4 border border-orange-100 space-y-3">
+                        <div className="flex justify-between items-center bg-white p-3 rounded-xl border border-orange-100/50 shadow-sm">
+                           <span className="text-[10px] font-black text-orange-400 uppercase tracking-widest">Total Deduction</span>
+                           <span className="text-xl font-black text-orange-600">₹{(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)).toLocaleString('en-IN')}</span>
+                        </div>
+                        {(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)) > (selectedEarning ? parseFloat(selectedEarning.commission_amount) : (summary?.remaining || 0)) && (
+                           <p className="text-[10px] font-black text-red-600 text-center uppercase tracking-widest animate-pulse">Caution: Amount Exceeds Due!</p>
+                        )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="block text-[11px] font-black text-gray-400 uppercase tracking-widest mb-2 ml-1">Payment Remarks</label>
+                    <textarea
+                      className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-sm font-medium transition-all resize-none"
+                      rows="2"
+                      value={paymentRemarks}
+                      onChange={(e) => setPaymentRemarks(e.target.value)}
+                      placeholder="Transaction ID, Cheque No..."
+                    />
+                  </div>
                 </div>
               </div>
 
-              {paymentAmount > 0 && (
-                <div className="space-y-2">
-                  <div className="p-3 bg-green-50 rounded-lg border border-green-100 flex justify-between items-center">
-                    <span className="text-sm font-semibold text-green-800">Net Paid:</span>
-                    <span className="text-xl font-bold text-green-700">₹{parseFloat(paymentAmount).toLocaleString('en-IN')}</span>
-                  </div>
-                  <div className="p-3 bg-orange-50 rounded-lg border border-orange-100 flex justify-between items-center">
-                    <span className="text-sm font-semibold text-orange-800">Total Commission Deduction:</span>
-                    <span className="text-xl font-bold text-orange-700">₹{(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)).toLocaleString('en-IN')}</span>
-                  </div>
-                  {(parseFloat(paymentAmount || 0) + parseFloat(tdsAmount || 0)) > (selectedEarning ? selectedEarning.commission_amount : (summary?.remaining || 0)) && (
-                    <p className="text-xs text-red-600 font-bold">⚠️ Total deduction exceeds available balance!</p>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Remarks</label>
-                <textarea
-                  className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-sm"
-                  rows="2"
-                  value={paymentRemarks}
-                  onChange={(e) => setPaymentRemarks(e.target.value)}
-                  placeholder="Check number, Transaction ID etc."
-                />
-              </div>
-
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowPaymentModal(false);
-                    setSelectedEarning(null);
-                    setSelectedCustomerId("");
-                    setPaymentAmount("");
-                    setTdsAmount("");
-                    setPaymentRemarks("");
-                  }}
-                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl font-semibold hover:bg-orange-700 transition disabled:opacity-50"
-                >
-                  {submitting ? 'Processing...' : 'Confirm Payment'}
-                </button>
+              {/* Fixed Footer Buttons */}
+              <div className="flex-shrink-0 p-6 bg-white border-t border-gray-100 flex gap-4">
+                 <button
+                   type="button"
+                   onClick={() => { setShowPaymentModal(false); setSelectedEarning(null); setSelectedItems([]); }}
+                   className="flex-1 px-6 py-4 bg-gray-50 text-gray-500 rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-gray-100 transition-all"
+                 >
+                   Cancel
+                 </button>
+                 <button
+                   type="submit"
+                   className="flex-[2] px-6 py-4 bg-blue-600 text-white rounded-2xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 hover:shadow-xl hover:shadow-blue-200 transition-all transform active:scale-[0.98]"
+                 >
+                   Process Payment Now
+                 </button>
               </div>
             </form>
           </div>
