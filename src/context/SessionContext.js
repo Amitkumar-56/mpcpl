@@ -22,11 +22,11 @@ export function SessionProvider({ children }) {
     try {
       // Skip check on login page, deactivated page, or public pages
       const publicPages = ['/login', '/deactivated', '/', '/register'];
-      const isPublicPage = publicPages.includes(pathname) || 
-                          pathname.startsWith('/cst/') || 
-                          pathname.startsWith('/agent/') || 
-                          pathname.startsWith('/supplier/');
-      
+      const isPublicPage = publicPages.includes(pathname) ||
+        pathname.startsWith('/cst/') ||
+        pathname.startsWith('/agent/') ||
+        pathname.startsWith('/supplier/');
+
       if (isPublicPage) return;
 
       const response = await fetch('/api/check-status', {
@@ -36,20 +36,20 @@ export function SessionProvider({ children }) {
 
       if (response.ok) {
         const data = await response.json();
-        
+
         // If user is deactivated, log them out immediately WITHOUT any permission check
         if (data.isDeactivated || !data.success) {
           console.log(`🚫 User ${data.user.name} (ID: ${data.user.id}) is DEACTIVATED - Automatic logout triggered!`);
-          
+
           // Clear all storage and redirect to deactivated page
           if (typeof window !== 'undefined') {
             // NO POPUP/ALERT - Direct logout
             console.error('USER DEACTIVATED - ID:', data.user.id, 'Status: Deactivated');
-            
+
             // Clear all storage immediately
             localStorage.clear();
             sessionStorage.clear();
-            
+
             // Force redirect to deactivated page without any popup
             window.location.href = '/deactivated';
           }
@@ -58,7 +58,7 @@ export function SessionProvider({ children }) {
         // Handle 403 status (deactivated user)
         const data = await response.json();
         console.log(`🚫 403 Response - User ${data.user?.id} is deactivated`);
-        
+
         if (typeof window !== 'undefined') {
           // NO POPUP/ALERT - Direct logout
           console.error('USER DEACTIVATED - ID:', data.user?.id, 'Status: Deactivated');
@@ -77,7 +77,7 @@ export function SessionProvider({ children }) {
   const checkAuth = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // ✅ Skip auth check if logout is in progress
       if (typeof window !== 'undefined') {
         const isLoggingOut = sessionStorage.getItem('isLoggingOut');
@@ -142,7 +142,7 @@ export function SessionProvider({ children }) {
         setLoading(false);
         return;
       }
-      
+
       // ✅ Agent routes के लिए अलग handling
       if (pathname.startsWith('/agent/')) {
         const savedAgent = localStorage.getItem("agent") || sessionStorage.getItem("agent");
@@ -211,37 +211,57 @@ export function SessionProvider({ children }) {
         return;
       }
 
-      // ✅ Employee routes के लिए cache-based check only
+      // ✅ Employee routes - fall back to API if cache is empty
       const sessionUser = sessionStorage.getItem('user');
       const localUser = localStorage.getItem('user');
-      
       const cachedUser = sessionUser || localUser;
+      
+      let isUserFound = false;
+
       if (cachedUser) {
         try {
           const userData = JSON.parse(cachedUser);
           const token = localStorage.getItem('token') || sessionStorage.getItem('token');
           if (token) {
             setUser(userData);
-            // Sync to both storages for consistency
-            if (!sessionUser && localUser) {
-              sessionStorage.setItem('user', localUser);
-            }
-            if (!localUser && sessionUser) {
-              localStorage.setItem('user', sessionUser);
-            }
+            isUserFound = true;
+            if (!sessionUser) sessionStorage.setItem('user', localUser);
+            if (!localUser) localStorage.setItem('user', sessionUser);
           } else {
-            // No token means logged out, clear cache
-            sessionStorage.removeItem('user');
-            localStorage.removeItem('user');
-            setUser(null);
+            // Need token check via API if local token is missing
+            const statusResponse = await fetch('/api/check-status', { credentials: 'include' });
+            if (statusResponse.ok) {
+              const statusData = await statusResponse.json();
+              if (statusData.success && statusData.user) {
+                setUser(statusData.user);
+                isUserFound = true;
+                localStorage.setItem('user', JSON.stringify(statusData.user));
+              }
+            }
           }
         } catch (e) {
           console.error('Error parsing cached user:', e);
-          sessionStorage.removeItem('user');
-          localStorage.removeItem('user');
-          setUser(null);
         }
-      } else {
+      } 
+      
+      if (!isUserFound) {
+        // Cache is empty or invalid - Try to restore from Cookie via API
+        try {
+          const statusResponse = await fetch('/api/check-status', { credentials: 'include' });
+          if (statusResponse.ok) {
+            const statusData = await statusResponse.json();
+            if (statusData.success && statusData.user) {
+              setUser(statusData.user);
+              isUserFound = true;
+              localStorage.setItem('user', JSON.stringify(statusData.user));
+            }
+          }
+        } catch (apiError) {
+          console.error('Failed to restore session from cookie:', apiError);
+        }
+      }
+
+      if (!isUserFound) {
         setUser(null);
       }
     } catch (error) {
@@ -260,16 +280,11 @@ export function SessionProvider({ children }) {
     }
   }, []); // Empty dependency array - only run once on mount
 
-  // ✅ Check user status when authenticated
+  // Check user status when authenticated (only once, not periodically)
   useEffect(() => {
     if (user && !loading) {
-      // Check status immediately when user is loaded
+      // Check status only once when user is loaded
       checkUserStatus();
-      
-      // Also check status periodically (every 30 seconds)
-      const statusInterval = setInterval(checkUserStatus, 30000);
-      
-      return () => clearInterval(statusInterval);
     }
   }, [user, loading, checkUserStatus]);
 
@@ -346,11 +361,11 @@ export function SessionProvider({ children }) {
       }
     } else {
       const publicPages = ['/login', '/', '/register'];
-      const isPublicPage = publicPages.includes(pathname) || 
-                          pathname.startsWith('/cst/') || 
-                          pathname.startsWith('/agent/') || 
-                          pathname.startsWith('/supplier/');
-      
+      const isPublicPage = publicPages.includes(pathname) ||
+        pathname.startsWith('/cst/') ||
+        pathname.startsWith('/agent/') ||
+        pathname.startsWith('/supplier/');
+
       if (!isPublicPage) {
         if (!redirectingRef.current) {
           redirectingRef.current = true;
@@ -381,12 +396,12 @@ export function SessionProvider({ children }) {
     try {
       // ✅ Set loading to prevent race conditions
       setLoading(true);
-      
+
       // ✅ Set logout flag to prevent checkAuth from running
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('isLoggingOut', 'true');
       }
-      
+
       // ✅ Current route के based पर अलग logout
       if (pathname.startsWith('/agent/')) {
         // Agent logout
@@ -410,7 +425,7 @@ export function SessionProvider({ children }) {
         // Employee logout - only call API if actually logged in
         if (user) {
           try {
-            await fetch('/api/auth/logout', { 
+            await fetch('/api/auth/logout', {
               method: 'POST',
               credentials: 'include'
             });
@@ -425,7 +440,7 @@ export function SessionProvider({ children }) {
     } finally {
       // ✅ Clear user state first
       setUser(null);
-      
+
       // ✅ Clear ALL storage items completely
       if (typeof window !== 'undefined') {
         // Clear session storage
@@ -446,15 +461,15 @@ export function SessionProvider({ children }) {
         localStorage.removeItem('supplier');
         localStorage.removeItem('supplier_token');
       }
-      
+
       // ✅ Set loading to false after clearing
       setLoading(false);
-      
+
       // ✅ Immediate redirect to login using window.location for reliable mobile redirect
       if (typeof window !== 'undefined') {
         // Clear logout flag
         sessionStorage.removeItem('isLoggingOut');
-        
+
         // Use window.location.href for hard redirect (clears history and prevents back button)
         if (pathname.startsWith('/agent/')) {
           window.location.replace('/agent/login');

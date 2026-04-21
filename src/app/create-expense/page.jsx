@@ -9,9 +9,9 @@ import { Suspense, useEffect, useState } from 'react';
 
 // Main Content Component
 function CreateExpenseContent() {
-  const { user, isAuthenticated } = useSession();
+  const { user, isAuthenticated, loading: authLoading } = useSession();
   const router = useRouter();
-  
+
   const [formData, setFormData] = useState({
     payment_date: new Date().toISOString().split('T')[0],
     title: '',
@@ -19,24 +19,28 @@ function CreateExpenseContent() {
     paid_to: '',
     reason: '',
     amount: '',
-    vendor_id: ''
+    vendor_id: '',
+    receiver_vendor_id: '' // New field for receiver vendor
   });
-  
+
   const [currentBalance, setCurrentBalance] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [vendors, setVendors] = useState([]);
+  const [isReceiverFromDropdown, setIsReceiverFromDropdown] = useState(false); // Track if receiver is from dropdown
 
   // Redirect if not authenticated
   useEffect(() => {
+    if (authLoading) return;
+
     if (!isAuthenticated) {
       router.push('/login');
       return;
     }
     fetchCurrentBalance();
     fetchVendors();
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, authLoading, router]);
 
   const fetchCurrentBalance = async () => {
     try {
@@ -58,23 +62,65 @@ function CreateExpenseContent() {
         setVendors(result.vendors || []);
       }
     } catch (error) {
-      console.error('Error fetching packing:', error);
+      console.error('Error fetching vendors:', error);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+
+    if (name === 'paid_to') {
+      // Check if the entered value matches any vendor
+      const matchingVendor = vendors.find(vendor => vendor.name === value);
+      if (matchingVendor) {
+        setIsReceiverFromDropdown(true);
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          receiver_vendor_id: matchingVendor.id
+        }));
+      } else {
+        setIsReceiverFromDropdown(false);
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          receiver_vendor_id: ''
+        }));
+      }
+    } else if (name === 'receiver_vendor_id') {
+      // When selecting from dropdown
+      if (value) {
+        const selectedVendor = vendors.find(vendor => vendor.id === parseInt(value));
+        if (selectedVendor) {
+          setIsReceiverFromDropdown(true);
+          setFormData(prev => ({
+            ...prev,
+            [name]: value,
+            paid_to: selectedVendor.name
+          }));
+        }
+      } else {
+        setIsReceiverFromDropdown(false);
+        setFormData(prev => ({
+          ...prev,
+          [name]: value,
+          paid_to: ''
+        }));
+      }
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
+
     if (error) setError('');
   };
 
   const confirmSubmit = (e) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     // Validate amount
     const amountNum = parseFloat(formData.amount);
     if (isNaN(amountNum) || amountNum <= 0) {
@@ -82,11 +128,7 @@ function CreateExpenseContent() {
       return;
     }
 
-    // Check if expense exceeds balance
-    if (amountNum > currentBalance) {
-      setError(`Expense amount (₹${amountNum.toLocaleString('en-IN')}) exceeds current balance (₹${currentBalance.toLocaleString('en-IN')})`);
-      return;
-    }
+    // Note: Balance check removed to allow expenses even if balance is low.
 
     if (confirm("Are you sure you want to create this expense?")) {
       handleSubmit();
@@ -104,19 +146,22 @@ function CreateExpenseContent() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          is_receiver_from_dropdown: isReceiverFromDropdown
+        })
       });
 
       const result = await response.json();
 
       if (response.ok) {
         setSuccess(result.message || 'Expense created successfully!');
-        
+
         // Update local balance
         if (result.newBalance !== undefined) {
           setCurrentBalance(result.newBalance);
         }
-        
+
         // Redirect to cash management page after success
         setTimeout(() => {
           router.push('/cash-management');
@@ -139,11 +184,22 @@ function CreateExpenseContent() {
       paid_to: '',
       reason: '',
       amount: '',
-      vendor_id: ''
+      vendor_id: '',
+      receiver_vendor_id: ''
     });
+    setIsReceiverFromDropdown(false);
     setError('');
     setSuccess('');
   };
+
+  // Show loading state while session is initializing
+  if (authLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   // Don't render if not authenticated (will redirect)
   if (!isAuthenticated) {
@@ -171,7 +227,7 @@ function CreateExpenseContent() {
               <div className="bg-white shadow-lg rounded-xl">
                 <div className="px-4 sm:px-6 py-4 sm:py-6 border-b border-gray-200">
                   <div className="flex items-center">
-                    <button 
+                    <button
                       type="button"
                       onClick={() => router.back()}
                       className="mr-3 sm:mr-4 text-gray-600 hover:text-gray-900 p-2 rounded-lg hover:bg-gray-100 transition-colors"
@@ -236,7 +292,7 @@ function CreateExpenseContent() {
 
                       <div>
                         <label htmlFor="vendor_id" className="block text-sm font-medium text-gray-700 mb-2">
-                          Parking <span className="text-red-500">*</span>
+                          Parking (Vendor) <span className="text-red-500">*</span>
                         </label>
                         <select
                           id="vendor_id"
@@ -271,20 +327,46 @@ function CreateExpenseContent() {
                         />
                       </div>
 
+                      {/* Receiver Dropdown and Manual Input Combined */}
                       <div>
-                        <label htmlFor="paid_to" className="block text-sm font-medium text-gray-700 mb-2">
-                          Receiver <span className="text-red-500">*</span>
+                        <label htmlFor="receiver_vendor_id" className="block text-sm font-medium text-gray-700 mb-2">
+                          Select Receiver from List (Optional)
                         </label>
-                        <input
-                          type="text"
-                          id="paid_to"
-                          name="paid_to"
-                          value={formData.paid_to}
+                        <select
+                          id="receiver_vendor_id"
+                          name="receiver_vendor_id"
+                          value={formData.receiver_vendor_id}
                           onChange={handleInputChange}
-                          className="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                          placeholder="Enter receiver name"
-                          required
-                        />
+                          className="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors mb-3"
+                        >
+                          <option value="">-- Select Receiver (Optional) --</option>
+                          {vendors.map(vendor => (
+                            <option key={vendor.id} value={vendor.id}>
+                              {vendor.name} (Current Balance: ₹{vendor.amount || 0})
+                            </option>
+                          ))}
+                        </select>
+
+                        <div className="relative">
+                          <label htmlFor="paid_to" className="block text-sm font-medium text-gray-700 mb-2">
+                            Receiver Name <span className="text-red-500">*</span>
+                            {isReceiverFromDropdown && (
+                              <span className="ml-2 text-xs text-green-600 font-normal">
+                                (Selected from list - will update vendor balance)
+                              </span>
+                            )}
+                          </label>
+                          <input
+                            type="text"
+                            id="paid_to"
+                            name="paid_to"
+                            value={formData.paid_to}
+                            onChange={handleInputChange}
+                            className="block w-full border border-gray-300 rounded-lg shadow-sm py-3 px-4 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                            placeholder="Enter receiver name or select from dropdown"
+                            required
+                          />
+                        </div>
                       </div>
 
                       <div>
