@@ -134,78 +134,42 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
-    // Pagination parameters
-    const url = new URL(request.url);
-    const page = parseInt(url.searchParams.get('page')) || 1;
-    const limit = parseInt(url.searchParams.get('limit')) || 10;
-    const offset = (page - 1) * limit;
-    const fetchAll = url.searchParams.get('all') === 'true';
-    
-    // Ensure parameters are valid integers
-    const validLimit = limit > 0 ? limit : 10;
-    const validOffset = offset >= 0 ? offset : 0;
-    console.log('Pagination params:', { page, limit: validLimit, offset: validOffset, fetchAll });
-
-    // Count total shipments for pagination
-    const countQuery = `SELECT COUNT(*) as total FROM shipment`;
-    const countResult = await executeQuery(countQuery);
-    const total = countResult[0]?.total || 0;
-
-    // Fetch shipments data with pagination (unless fetchAll is true)
-    let shipmentQuery = `
+    // Fetch shipments data with all fields needed by client export (Creator/Editor names from Audit Logs)
+    const shipmentQuery = `
       SELECT 
-        s.id, s.lr_id, s.lr_date, s.consigner, s.address_1, s.consignee, s.address_2,
-        s.from_location, s.to_location, s.tanker_no, s.gst_no, s.products, s.boe_no,
-        s.wt_type, s.gross_wt, s.vessel, s.tare_wt, s.invoice_no, s.net_wt, s.gp_no,
-        s.mobile, s.email, s.pan, s.gst, s.remarks
+        s.id,
+        s.lr_id,
+        s.lr_date,
+        s.consigner,
+        s.address_1,
+        s.consignee,
+        s.address_2,
+        s.from_location,
+        s.to_location,
+        s.tanker_no,
+        s.gst_no,
+        s.products,
+        s.boe_no,
+        s.wt_type,
+        s.gross_wt,
+        s.vessel,
+        s.tare_wt,
+        s.invoice_no,
+        s.net_wt,
+        s.gp_no,
+        s.mobile,
+        s.email,
+        s.pan,
+        s.gst,
+        s.remarks,
+        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_by_name,
+        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'add' ORDER BY id LIMIT 1) as created_at,
+        (SELECT user_name FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_by_name,
+        (SELECT created_at FROM audit_log WHERE record_type = 'lr' AND record_id = s.id AND action = 'edit' ORDER BY id DESC LIMIT 1) as updated_at
       FROM shipment s
       ORDER BY s.id DESC
     `;
-
-    if (!fetchAll) {
-      shipmentQuery += ` LIMIT ? OFFSET ?`;
-    }
-
-    const queryParams = fetchAll ? [] : [validLimit, validOffset];
-    console.log('Query params:', queryParams); // Debug log
-    const shipments = await executeQuery(shipmentQuery, queryParams);
-
-    // ✅ OPTIMIZATION: Only fetch audit logs for full exports (?all=true)
-    // This removes a massive bottleneck for the main list page
-    if (fetchAll && shipments.length > 0) {
-      const shipmentIds = shipments.map(s => s.id);
-      const idPlaceholders = shipmentIds.map(() => '?').join(',');
-      
-      const addLogsQuery = `
-        SELECT record_id, user_name, created_at 
-        FROM audit_log 
-        WHERE record_type = 'lr' AND action = 'add' AND record_id IN (${idPlaceholders})
-      `;
-      const addLogs = await executeQuery(addLogsQuery, shipmentIds);
-      
-      const editLogsQuery = `
-        SELECT record_id, user_name, created_at 
-        FROM (
-          SELECT record_id, user_name, created_at, 
-                 ROW_NUMBER() OVER (PARTITION BY record_id ORDER BY id DESC) as rn
-          FROM audit_log 
-          WHERE record_type = 'lr' AND action = 'edit' AND record_id IN (${idPlaceholders})
-        ) t WHERE rn = 1
-      `;
-      const editLogs = await executeQuery(editLogsQuery, shipmentIds);
-      
-      const addLogsMap = Object.fromEntries(addLogs.map(l => [l.record_id, l]));
-      const editLogsMap = Object.fromEntries(editLogs.map(l => [l.record_id, l]));
-      
-      shipments.forEach(s => {
-        const addLog = addLogsMap[s.id];
-        const editLog = editLogsMap[s.id];
-        s.created_by_name = addLog?.user_name || null;
-        s.created_at = addLog?.created_at || null;
-        s.updated_by_name = editLog?.user_name || null;
-        s.updated_at = editLog?.created_at || null;
-      });
-    }
+    const shipments = await executeQuery(shipmentQuery);
 
     // ✅ Ensure permissions are returned as numbers (0 or 1) for consistency
     const formattedPermissions = {
@@ -217,15 +181,7 @@ export async function GET(request) {
     return NextResponse.json({
       success: true,
       shipments: shipments || [],
-      permissions: formattedPermissions,
-      pagination: fetchAll ? null : {
-        page,
-        limit: validLimit,
-        total,
-        totalPages: Math.ceil(total / validLimit),
-        hasNext: validOffset + validLimit < total,
-        hasPrev: page > 1
-      }
+      permissions: formattedPermissions
     });
 
   } catch (error) {
@@ -233,4 +189,3 @@ export async function GET(request) {
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
-
