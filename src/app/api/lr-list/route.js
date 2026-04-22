@@ -140,6 +140,11 @@ export async function GET(request) {
     const limit = parseInt(url.searchParams.get('limit')) || 10;
     const offset = (page - 1) * limit;
     const fetchAll = url.searchParams.get('all') === 'true';
+    
+    // Ensure parameters are valid integers
+    const validLimit = limit > 0 ? limit : 10;
+    const validOffset = offset >= 0 ? offset : 0;
+    console.log('Pagination params:', { page, limit: validLimit, offset: validOffset, fetchAll });
 
     // Count total shipments for pagination
     const countQuery = `SELECT COUNT(*) as total FROM shipment`;
@@ -161,7 +166,8 @@ export async function GET(request) {
       shipmentQuery += ` LIMIT ? OFFSET ?`;
     }
 
-    const queryParams = fetchAll ? [] : [limit, offset];
+    const queryParams = fetchAll ? [] : [validLimit, validOffset];
+    console.log('Query params:', queryParams); // Debug log
     const shipments = await executeQuery(shipmentQuery, queryParams);
 
     // ✅ OPTIMIZATION: Only fetch audit logs for full exports (?all=true)
@@ -214,10 +220,10 @@ export async function GET(request) {
       permissions: formattedPermissions,
       pagination: fetchAll ? null : {
         page,
-        limit,
+        limit: validLimit,
         total,
-        totalPages: Math.ceil(total / limit),
-        hasNext: offset + limit < total,
+        totalPages: Math.ceil(total / validLimit),
+        hasNext: validOffset + validLimit < total,
         hasPrev: page > 1
       }
     });
