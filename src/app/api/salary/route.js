@@ -259,14 +259,15 @@ export async function POST(request) {
     const perDaySalary = grossSalary / totalDays;
     const earnedSalary = perDaySalary * presentDays;
     
-    // Professional deductions
-    const pfDeduction = basicSalary * 0.12; // 12% of Basic
-    const esiDeduction = grossSalary * 0.0075; // 0.75% of Gross
-    const employerPF = basicSalary * 0.12; // 12% of Basic (Company contribution)
+    // Professional deductions (based on earned amounts, not full amounts)
+    const earnedBasic = (basicSalary / totalDays) * presentDays;
+    const pfDeduction = earnedBasic * 0.12; // 12% of earned Basic
+    const esiDeduction = earnedSalary * 0.0075; // 0.75% of earned Gross
+    const employerPF = earnedBasic * 0.12; // 12% of earned Basic (Company contribution)
     
-    // Net Take-Home Calculation
+    // Net Take-Home Calculation (based on earned salary, not gross)
     const totalDeduction = pfDeduction + esiDeduction;
-    const netSalary = grossSalary - totalDeduction;
+    const netSalary = earnedSalary - totalDeduction;
 
     const salaryData = {
       employee_id,

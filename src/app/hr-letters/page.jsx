@@ -14,35 +14,45 @@ const LETTER_TYPES = [
     name: "Offer Letter",
     description: "Job offer for new candidates",
     icon: BiFile,
-    color: "blue",
+    color: "#1d4ed8",
+    bg: "rgba(29,78,216,0.1)",
+    border: "#1d4ed8",
   },
   {
     id: "appointment",
     name: "Appointment Letter",
     description: "Confirmation of employment",
     icon: BiCheckCircle,
-    color: "green",
+    color: "#16a34a",
+    bg: "rgba(22,163,74,0.1)",
+    border: "#16a34a",
   },
   {
     id: "joining",
     name: "Joining Letter",
     description: "Welcome letter for new joinee",
     icon: BiUser,
-    color: "purple",
+    color: "#7c3aed",
+    bg: "rgba(124,58,237,0.1)",
+    border: "#7c3aed",
   },
   {
     id: "agreement",
     name: "Employment Agreement",
     description: "Terms and conditions of employment",
     icon: BiFile,
-    color: "indigo",
+    color: "#4f46e5",
+    bg: "rgba(79,70,229,0.1)",
+    border: "#4f46e5",
   },
   {
     id: "salary",
     name: "Salary Slip",
     description: "Monthly salary statement",
     icon: BiMoney,
-    color: "yellow",
+    color: "#d97706",
+    bg: "rgba(217,119,6,0.1)",
+    border: "#d97706",
     requiresMonth: true,
   },
   {
@@ -50,14 +60,18 @@ const LETTER_TYPES = [
     name: "Termination Letter",
     description: "Employment termination notice",
     icon: BiFile,
-    color: "red",
+    color: "#dc2626",
+    bg: "rgba(220,38,38,0.1)",
+    border: "#dc2626",
   },
   {
     id: "relieving",
     name: "Relieving Letter",
     description: "Experience & relieving certificate",
     icon: BiCheckCircle,
-    color: "blue",
+    color: "#0284c7",
+    bg: "rgba(2,132,199,0.1)",
+    border: "#0284c7",
   },
 ];
 
@@ -628,9 +642,9 @@ function HRLettersContent() {
                       <div className="letter-card-top">
                         <div
                           className="letter-icon"
-                          style={{ background: letter.bg }}
+                          style={{ background: letter.bg, color: letter.color }}
                         >
-                          <letter.icon />
+                          <letter.icon style={{ color: letter.color }} />
                         </div>
                         <div className="letter-info">
                           <div className="letter-name">{letter.name}</div>

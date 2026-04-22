@@ -128,6 +128,7 @@ export async function GET(request) {
         SELECT 
           shipment_id as id,
           shipment_id,
+          lr_no,
           tanker,
           driver,
           dispatch,

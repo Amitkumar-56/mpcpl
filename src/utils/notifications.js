@@ -63,6 +63,11 @@ export const requestNotificationPermission = async () => {
       const permission = await window.Notification.requestPermission();
       notificationPermissionGranted = permission === 'granted';
       console.log('🔔 Notification permission:', permission);
+      
+      if (permission === 'denied') {
+        console.warn('🔔 Notification permission was denied by user');
+      }
+      
       return notificationPermissionGranted;
     } catch (error) {
       console.error('🔔 Error requesting notification permission:', error);
@@ -70,8 +75,13 @@ export const requestNotificationPermission = async () => {
     }
   }
 
-  console.log('🔔 Notification permission denied');
+  console.log('🔔 Notification permission is currently denied');
   return false;
+};
+
+// Check if notifications are blocked in browser settings
+export const isNotificationBlocked = () => {
+  return typeof window !== 'undefined' && 'Notification' in window && window.Notification.permission === 'denied';
 };
 
 // Get active service worker registration
@@ -191,7 +201,7 @@ export const showChatNotification = async (senderName, message, options = {}) =>
   const title = `💬 ${senderName}`;
   const body = message || 'New message received';
   const notifOptions = {
-    tag: `chat-${senderName}`,
+    tag: `chat-${senderName}-${Date.now()}`,
     renotify: true,
     senderName: senderName,
     ...options
@@ -247,13 +257,9 @@ export const initializeNotifications = async () => {
     return true;
   }
 
-  // Request permission if not denied
-  if (status.permission === 'default') {
-    console.log('🔔 Requesting notification permission...');
-    return await requestNotificationPermission();
-  }
-
-  console.log('🔔 Notifications blocked by user');
+  // Don't auto-request permission here - it must be triggered by user gesture
+  // The chat UI has an "Enable" button that calls requestNotificationPermission()
+  console.log('🔔 Notification permission:', status.permission, '(will request on user gesture)');
   return false;
 };
 

@@ -430,28 +430,87 @@ function NbStockHistoryNonContent() {
                     </div>
                   </div>
 
-                  {/* Pagination */}
+                  {/* Enhanced Pagination Controls */}
                   {pagination.total_pages > 1 && (
-                    <div className="flex justify-center items-center gap-2 mt-6">
-                      <button
-                        onClick={() => handlePageChange(pagination.current_page - 1)}
-                        disabled={!pagination.has_prev}
-                        className={`px-3 py-1 rounded ${pagination.has_prev ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-                      >
-                        Previous
-                      </button>
-                      
-                      <span className="px-3 py-1 text-gray-700">
-                        Page {pagination.current_page} of {pagination.total_pages}
-                      </span>
-                      
-                      <button
-                        onClick={() => handlePageChange(pagination.current_page + 1)}
-                        disabled={!pagination.has_next}
-                        className={`px-3 py-1 rounded ${pagination.has_next ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-gray-300 text-gray-500 cursor-not-allowed'}`}
-                      >
-                        Next
-                      </button>
+                    <div className="mt-8 bg-white rounded-lg shadow-sm border p-4">
+                      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+                        <div className="text-sm text-gray-700 font-medium">
+                          Showing {data.length} of {pagination.total_records} records 
+                          <span className="mx-2">|</span> 
+                          Page {pagination.current_page} of {pagination.total_pages}
+                        </div>
+                        
+                        <div className="flex items-center space-x-2">
+                          <button
+                            onClick={() => handlePageChange(pagination.current_page - 1)}
+                            disabled={!pagination.has_prev}
+                            className={`px-3 py-1 text-sm border rounded-md transition-colors ${
+                              pagination.has_prev 
+                                ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' 
+                                : 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                            }`}
+                          >
+                            Previous
+                          </button>
+                          
+                          <div className="flex items-center space-x-1">
+                            {/* Logical Page Numbers */}
+                            {Array.from({ length: Math.min(5, pagination.total_pages) }, (_, i) => {
+                              // Logic to show a range of pages around current page
+                              let pageNum;
+                              if (pagination.total_pages <= 5) {
+                                pageNum = i + 1;
+                              } else {
+                                if (pagination.current_page <= 3) {
+                                  pageNum = i + 1;
+                                } else if (pagination.current_page >= pagination.total_pages - 2) {
+                                  pageNum = pagination.total_pages - 4 + i;
+                                } else {
+                                  pageNum = pagination.current_page - 2 + i;
+                                }
+                              }
+                              
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => handlePageChange(pageNum)}
+                                  className={`px-3 py-1 text-sm border rounded-md transition-all ${
+                                    pageNum === pagination.current_page
+                                      ? 'bg-blue-600 text-white border-blue-600 font-bold shadow-sm'
+                                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                                  }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                            
+                            {pagination.total_pages > 5 && pagination.current_page < pagination.total_pages - 2 && (
+                              <>
+                                <span className="px-2 text-gray-500">...</span>
+                                <button
+                                  onClick={() => handlePageChange(pagination.total_pages)}
+                                  className="px-3 py-1 text-sm border border-gray-300 rounded-md bg-white text-gray-700 hover:bg-gray-50"
+                                >
+                                  {pagination.total_pages}
+                                </button>
+                              </>
+                            )}
+                          </div>
+                          
+                          <button
+                            onClick={() => handlePageChange(pagination.current_page + 1)}
+                            disabled={!pagination.has_next}
+                            className={`px-3 py-1 text-sm border rounded-md transition-colors ${
+                              pagination.has_next 
+                                ? 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50' 
+                                : 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                            }`}
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   )}
                 </>

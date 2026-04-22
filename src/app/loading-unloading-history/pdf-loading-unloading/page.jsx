@@ -108,12 +108,13 @@ function PdfLoadingUnloadingContent() {
         });
       }
 
-      // Clean buttons/iframes
+      // Clean buttons/iframes/attachments
       const buttons = clone.querySelector('.print\\:hidden');
       if (buttons) buttons.remove();
+      
       const pdAtt = clone.querySelector('.pdf-attachment-container');
-      if (pdAtt && shipment.pdf_path && shipment.pdf_path.toLowerCase().endsWith('.pdf')) {
-        pdAtt.style.display = 'none';
+      if (pdAtt) {
+        pdAtt.style.display = 'none'; // Hide all attachments from canvas
       }
       clone.querySelectorAll('iframe').forEach(el => el.remove());
 
@@ -178,11 +179,11 @@ function PdfLoadingUnloadingContent() {
       // Ensure stamp is visible and content fits
       window.scrollTo(0, 0);
       await Promise.all(imgPromises);
-      await new Promise(r => setTimeout(r, 1500)); // Increased wait for stamp/layout
+      await new Promise(r => setTimeout(r, 300)); // Reduced wait time
 
-      // 3. Capture with slight scale down to fit
+      // 3. Capture with optimized settings for smaller file size
       const canvas = await html2canvas(tempContainer, {
-        scale: 2, // Retain quality
+        scale: 1.2, // Reduced from 2 to save size
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
@@ -190,49 +191,40 @@ function PdfLoadingUnloadingContent() {
         windowWidth: 794,
         allowTaint: true,
         scrollY: 0,
-        onclone: (doc) => {
-          // Force fit content if needed
-          const el = doc.body.firstChild;
-          if (el) {
-            el.style.transform = 'scale(0.98)';
-            el.style.transformOrigin = 'top left';
-          }
-        }
+        imageTimeout: 15000,
       });
 
-      // 4. Generate PDF - FORCE SINGLE PAGE
+      // 4. Generate PDF - Optimized compression
       const pageWidth = 210;
       const pageHeight = 297;
 
-      // Calculate content dimensions
       const contentRatio = canvas.height / canvas.width;
       let finalPdfHeight = pageWidth * contentRatio;
       let finalPdfWidth = pageWidth;
 
-      // If taller than A4, scale down to fit height
       if (finalPdfHeight > pageHeight) {
         finalPdfHeight = pageHeight;
         finalPdfWidth = pageHeight / contentRatio;
       }
 
-      // Center horizontally
       const xPos = (pageWidth - finalPdfWidth) / 2;
 
       const reportPdf = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true // Enable jsPDF compression
       });
 
       try {
-        reportPdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', xPos, 0, finalPdfWidth, finalPdfHeight);
+        // Use JPEG with 0.75 quality for significant size reduction
+        reportPdf.addImage(canvas.toDataURL('image/jpeg', 0.75), 'JPEG', xPos, 0, finalPdfWidth, finalPdfHeight, undefined, 'FAST');
 
-        // MANUALLY OVERLAY STAMP (Fail-safe)
         if (stampBase64) {
-          const stampSize = 25; // mm
-          const stampX = xPos + finalPdfWidth - stampSize - 10; // Right aligned
-          const stampY = finalPdfHeight - stampSize - 5; // Bottom aligned (approx)
-          reportPdf.addImage(stampBase64, 'JPEG', stampX, stampY, stampSize, stampSize);
+          const stampSize = 25;
+          const stampX = xPos + finalPdfWidth - stampSize - 10;
+          const stampY = finalPdfHeight - stampSize - 5;
+          reportPdf.addImage(stampBase64, 'JPEG', stampX, stampY, stampSize, stampSize, undefined, 'FAST');
         }
 
       } catch (e) {
@@ -240,24 +232,49 @@ function PdfLoadingUnloadingContent() {
         throw new Error('Image security policy blocked PDF generation. Please contact support.');
       }
 
-      // 5. Merge Attachment
-      if (shipment.pdf_path && shipment.pdf_path.toLowerCase().endsWith('.pdf')) {
-        try {
-          const reportBytes = reportPdf.output('arraybuffer');
-          const finalDoc = await PDFDocument.load(reportBytes);
-
-          const attResp = await fetch(shipment.pdf_path);
-          if (attResp.ok) {
-            const attBytes = await attResp.arrayBuffer();
-            const attDoc = await PDFDocument.load(attBytes);
-            const copied = await finalDoc.copyPages(attDoc, attDoc.getPageIndices());
-            copied.forEach(p => finalDoc.addPage(p));
+      // 5. Add Attachment
+      if (shipment.pdf_path) {
+        const ext = getFileExtension(shipment.pdf_path);
+        
+        if (['jpg', 'jpeg', 'png', 'gif'].includes(ext)) {
+          // Add image attachment as new compressed page
+          try {
+            const imgResp = await fetch(shipment.pdf_path);
+            const imgBlob = await imgResp.blob();
+            const imgData = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(imgBlob);
+            });
+            
+            reportPdf.addPage();
+            reportPdf.addImage(imgData, ext.toUpperCase() === 'PNG' ? 'PNG' : 'JPEG', 10, 10, 190, 0, undefined, 'FAST');
+            reportPdf.save(`shipment-${shipmentId}.pdf`);
+          } catch (imgErr) {
+            console.error('Image attachment failed', imgErr);
+            reportPdf.save(`shipment-${shipmentId}.pdf`);
           }
-
-          const finalBytes = await finalDoc.save();
-          triggerDownload(finalBytes, `shipment-${shipmentId}.pdf`);
-        } catch (mergeErr) {
-          console.warn('Merge failed, downloading report only', mergeErr);
+        } else if (ext === 'pdf') {
+          // Merge PDF attachment
+          try {
+            const reportBytes = reportPdf.output('arraybuffer');
+            const finalDoc = await PDFDocument.load(reportBytes);
+  
+            const attResp = await fetch(shipment.pdf_path);
+            if (attResp.ok) {
+              const attBytes = await attResp.arrayBuffer();
+              const attDoc = await PDFDocument.load(attBytes);
+              const copied = await finalDoc.copyPages(attDoc, attDoc.getPageIndices());
+              copied.forEach(p => finalDoc.addPage(p));
+            }
+  
+            const finalBytes = await finalDoc.save();
+            triggerDownload(finalBytes, `shipment-${shipmentId}.pdf`);
+          } catch (mergeErr) {
+            console.warn('Merge failed, downloading report only', mergeErr);
+            reportPdf.save(`shipment-${shipmentId}.pdf`);
+          }
+        } else {
           reportPdf.save(`shipment-${shipmentId}.pdf`);
         }
       } else {

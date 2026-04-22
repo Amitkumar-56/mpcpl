@@ -40,8 +40,12 @@ function CreateLoadingUnloadingContent() {
     sealed_by_unloading: '',
     density_unloading: '',
     temperature_unloading: '',
-    timing_unloading: ''
+    timing_unloading: '',
+    lr_no: '',
+    remarks: ''
   });
+  const [showRemarks, setShowRemarks] = useState(false);
+  const [shipments, setShipments] = useState([]);
 
   const [employees, setEmployees] = useState([]);
   const [vehicles, setVehicles] = useState([]);
@@ -63,20 +67,20 @@ function CreateLoadingUnloadingContent() {
 
   const checkPermissions = async () => {
     if (!user || !user.id) return;
-    
+
     // Admin (role 5) has full access
     if (Number(user.role) === 5) {
       setHasPermission(true);
       fetchDropdownData();
       return;
     }
-    
+
     try {
       const response = await fetch(
         `/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent('Loading History')}&action=can_create`
       );
       const data = await response.json();
-      
+
       if (data.allowed) {
         setHasPermission(true);
         fetchDropdownData();
@@ -95,10 +99,11 @@ function CreateLoadingUnloadingContent() {
     try {
       const response = await fetch('/api/loading-unloading-history/create-loading-unloading');
       const result = await response.json();
-      
+
       if (result.success) {
         setEmployees(result.data.employees);
         setVehicles(result.data.vehicles);
+        setShipments(result.data.shipments || []);
       }
       setPageLoading(false);
     } catch (error) {
@@ -118,12 +123,17 @@ function CreateLoadingUnloadingContent() {
   const handleDriverChange = (e) => {
     const selectedDriver = e.target.value;
     const employee = employees.find(emp => emp.name === selectedDriver);
-    
+
     setFormData(prev => ({
       ...prev,
       driver: selectedDriver,
       driver_mobile: employee ? employee.phone : ''
     }));
+  };
+
+  const handleLrChange = (e) => {
+    const selectedLrId = e.target.value;
+    setFormData(prev => ({ ...prev, lr_no: selectedLrId }));
   };
 
   const handleSubmit = async (e) => {
@@ -170,7 +180,7 @@ function CreateLoadingUnloadingContent() {
       html2canvas: { scale: 2 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     };
-    
+
     // You'll need to install html2pdf.js
     // import html2pdf from 'html2pdf.js';
     // html2pdf().from(element).set(opt).save();
@@ -236,9 +246,8 @@ function CreateLoadingUnloadingContent() {
         </div>
 
         {message && (
-          <div className={`p-4 mb-6 rounded-lg text-center ${
-            message.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-          }`}>
+          <div className={`p-4 mb-6 rounded-lg text-center ${message.includes('✅') ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+            }`}>
             {message}
           </div>
         )}
@@ -323,6 +332,25 @@ function CreateLoadingUnloadingContent() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
+                LR Number:
+              </label>
+              <select
+                name="lr_no"
+                value={formData.lr_no}
+                onChange={handleLrChange}
+                className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-bold"
+              >
+                <option value="">-- Select LR Number (Optional) --</option>
+                {shipments.map((s) => (
+                  <option key={s.id} value={s.lr_id}>
+                    {s.lr_id}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Driver Mobile No:
               </label>
               <input
@@ -335,10 +363,37 @@ function CreateLoadingUnloadingContent() {
             </div>
           </div>
 
+          {/* Remarks Section */}
+          <div className="mb-6 bg-blue-50 p-4 rounded-lg border border-blue-100">
+            <div className="flex items-center gap-3">
+              <input
+                type="checkbox"
+                id="showRemarksCheckbox"
+                checked={showRemarks}
+                onChange={(e) => setShowRemarks(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+              />
+              <label htmlFor="showRemarksCheckbox" className="text-sm font-bold text-blue-800 cursor-pointer select-none">
+                Add Remarks / Notes for this shipment?
+              </label>
+            </div>
+            {showRemarks && (
+              <div className="mt-3 animate-in fade-in slide-in-from-top-1 duration-300">
+                <textarea
+                  name="remarks"
+                  value={formData.remarks}
+                  onChange={handleInputChange}
+                  placeholder="Enter your remarks here..."
+                  className="w-full p-3 border border-blue-200 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm h-24"
+                ></textarea>
+              </div>
+            )}
+          </div>
+
           {/* Loading Weights */}
           <div className="mb-8">
             <h4 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">Loading Information</h4>
-            
+
             {/* Weight Table */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <div className="text-center">
@@ -521,7 +576,7 @@ function CreateLoadingUnloadingContent() {
           {/* Unloading Information */}
           <div className="mb-8">
             <h4 className="text-lg font-semibold mb-4 text-gray-800 border-b pb-2">Unloading Information (Customer)</h4>
-            
+
             <div className="mb-4">
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 Customer Name
@@ -777,7 +832,7 @@ export default function CreateLoadingUnloading() {
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         <Header />
         <main className="flex-1 overflow-y-auto">
-          <Suspense 
+          <Suspense
             fallback={
               <div className="min-h-screen bg-gray-50 flex items-center justify-center">
                 <div className="text-center">

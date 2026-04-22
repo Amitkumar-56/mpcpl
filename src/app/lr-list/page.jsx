@@ -9,13 +9,31 @@ import React, { Suspense, useEffect, useState } from 'react';
 import { BiChevronDown, BiChevronUp } from "react-icons/bi";
 import * as XLSX from 'xlsx'; // Excel export के लिए
 
-// Loading Component
+// Skeleton Loader Component
 function LoadingFallback() {
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-      <div className="text-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-        <p className="text-gray-600">Loading shipments...</p>
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 py-4 sm:py-6 lg:py-8 animate-pulse">
+      {/* Header Skeleton */}
+      <div className="mb-8">
+        <div className="h-8 bg-gray-200 rounded w-48 mb-4"></div>
+        <div className="h-4 bg-gray-200 rounded w-32 mb-6"></div>
+        <div className="flex gap-3">
+          <div className="h-10 bg-gray-200 rounded w-32"></div>
+          <div className="h-10 bg-gray-200 rounded w-32"></div>
+        </div>
+      </div>
+
+      {/* Table Skeleton */}
+      <div className="bg-white rounded-lg shadow-sm border overflow-hidden">
+        <div className="h-12 bg-gray-100 border-b"></div>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-16 border-b flex items-center px-4 gap-4">
+            <div className="h-4 bg-gray-200 rounded w-8"></div>
+            <div className="h-4 bg-gray-200 rounded w-24"></div>
+            <div className="h-4 bg-gray-200 rounded flex-1"></div>
+            <div className="h-4 bg-gray-200 rounded w-24"></div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -189,7 +207,7 @@ function LRManagementContent() {
     
     try {
       // Fetch complete data from LR list API
-      const response = await fetch('/api/lr-list', { credentials: 'include', cache: 'no-store' });
+      const response = await fetch('/api/lr-list?all=true', { credentials: 'include', cache: 'no-store' });
       
       if (!response.ok) {
         throw new Error('Failed to fetch export data');
@@ -381,8 +399,12 @@ function LRManagementContent() {
     }
   };
 
-  if (authLoading || loading) {
-    return <LoadingFallback />;
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    );
   }
 
   if (!user) {
@@ -520,7 +542,16 @@ function LRManagementContent() {
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
-                {shipments.length > 0 ? (
+                {loading && shipments.length === 0 ? (
+                  // Show skeletons inside the table while loading first time
+                  [1, 2, 3, 4, 5].map((i) => (
+                    <tr key={i} className="animate-pulse">
+                      <td colSpan="8" className="px-3 py-4">
+                        <div className="h-4 bg-gray-200 rounded w-full"></div>
+                      </td>
+                    </tr>
+                  ))
+                ) : shipments.length > 0 ? (
                   shipments.map((shipment) => (
                     <React.Fragment key={shipment.id}>
                       <tr className="hover:bg-gray-50 transition duration-150">
@@ -548,18 +579,25 @@ function LRManagementContent() {
                         </td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-900">{shipment.tanker_no}</td>
                         <td className="px-3 py-3 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center space-x-2">
+                          <div className="flex items-center space-x-3">
                             <Link
                               href={`/transport-receipt?id=${shipment.id}`}
                               target="_blank"
-                              className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm"
+                              className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm font-semibold"
                             >
                               View
+                            </Link>
+                            <Link
+                              href={`/transport-receipt?id=${shipment.id}&download=true`}
+                              target="_blank"
+                              className="text-green-600 hover:text-green-900 transition duration-150 text-sm font-semibold"
+                            >
+                              Download
                             </Link>
                             {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
                               <Link
                                 href={`/create-lr?id=${shipment.id}`}
-                                className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
+                                className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm font-semibold"
                               >
                                 Edit
                               </Link>
@@ -607,18 +645,25 @@ function LRManagementContent() {
                       <h3 className="font-semibold text-blue-600">LR: {shipment.lr_id}</h3>
                       <p className="text-sm text-gray-500">ID: {shipment.id}</p>
                     </div>
-                    <div className="flex space-x-2">
+                    <div className="flex flex-wrap gap-2 pt-2 border-t mt-2">
                       <Link
                         href={`/transport-receipt?id=${shipment.id}`}
                         target="_blank"
-                        className="text-blue-600 hover:text-blue-900 transition duration-150 text-sm"
+                        className="flex-1 text-center bg-blue-50 text-blue-600 py-2 rounded-lg font-bold text-xs"
                       >
                         View
+                      </Link>
+                      <Link
+                        href={`/transport-receipt?id=${shipment.id}&download=true`}
+                        target="_blank"
+                        className="flex-1 text-center bg-green-50 text-green-600 py-2 rounded-lg font-bold text-xs"
+                      >
+                        Download
                       </Link>
                       {(permissions?.can_edit === 1 || permissions?.can_edit === true) && (
                         <Link
                           href={`/create-lr?id=${shipment.id}`}
-                          className="text-orange-600 hover:text-orange-900 transition duration-150 text-sm"
+                          className="flex-1 text-center bg-orange-50 text-orange-600 py-2 rounded-lg font-bold text-xs"
                         >
                           Edit
                         </Link>

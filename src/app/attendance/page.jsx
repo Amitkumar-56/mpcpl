@@ -95,7 +95,7 @@ export default function AttendancePage() {
       const response = await fetch(url);
       const data = await response.json();
       console.log('📦 Stations API Response:', data);
-      
+
       if (data.success && data.stations) {
         console.log('✅ Setting stations:', data.stations);
         setStations(data.stations);
@@ -114,7 +114,7 @@ export default function AttendancePage() {
 
   const fetchEmployees = async () => {
     try {
-      const url = selectedStation 
+      const url = selectedStation
         ? `/api/attendance/employees?station_id=${selectedStation}`
         : '/api/attendance/employees';
       const response = await fetch(url);
@@ -138,7 +138,7 @@ export default function AttendancePage() {
       }
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.success) {
         setAttendanceRecords(data.data || []);
       } else {
@@ -164,7 +164,7 @@ export default function AttendancePage() {
 
       const response = await fetch(`/api/attendance/statistics?${params.toString()}`);
       const data = await response.json();
-      
+
       if (data.success) {
         setAttendanceStats(data.statistics || []);
         setCurrentMonthStats(data.currentMonthSummary || []);
@@ -191,7 +191,7 @@ export default function AttendancePage() {
 
       const response = await fetch(`/api/salary/calculate?${params.toString()}`);
       const data = await response.json();
-      
+
       if (data.success) {
         // Group daily salary data by date
         const dailyData = {};
@@ -215,7 +215,7 @@ export default function AttendancePage() {
         });
 
         // Convert to array and sort by date
-        const sortedDailyData = Object.values(dailyData).sort((a, b) => 
+        const sortedDailyData = Object.values(dailyData).sort((a, b) =>
           new Date(a.date) - new Date(b.date)
         );
 
@@ -243,7 +243,7 @@ export default function AttendancePage() {
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         setShowMarkModal(false);
         setFormData({
@@ -291,7 +291,7 @@ export default function AttendancePage() {
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         setShowEditModal(false);
         setEditingRecord(null);
@@ -309,7 +309,7 @@ export default function AttendancePage() {
     try {
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      
+
       const response = await fetch('/api/attendance', {
         method: 'POST',
         headers: {
@@ -327,7 +327,7 @@ export default function AttendancePage() {
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         fetchAttendance();
       } else {
@@ -343,7 +343,7 @@ export default function AttendancePage() {
     try {
       const now = new Date();
       const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-      
+
       const response = await fetch('/api/attendance/edit', {
         method: 'PATCH',
         headers: {
@@ -359,7 +359,7 @@ export default function AttendancePage() {
       });
 
       const data = await response.json();
-      
+
       if (data.success) {
         fetchAttendance();
       } else {
@@ -408,23 +408,23 @@ export default function AttendancePage() {
   // Calculate working hours from check-in and check-out time
   const calculateWorkingHours = (checkIn, checkOut) => {
     if (!checkIn || !checkOut) return "-";
-    
+
     try {
       const [inHours, inMinutes] = checkIn.split(':').map(Number);
       const [outHours, outMinutes] = checkOut.split(':').map(Number);
-      
+
       const inTime = inHours * 60 + inMinutes; // Convert to minutes
       const outTime = outHours * 60 + outMinutes; // Convert to minutes
-      
+
       // Handle case where check-out is next day (e.g., night shift)
       let diffMinutes = outTime - inTime;
       if (diffMinutes < 0) {
         diffMinutes += 24 * 60; // Add 24 hours
       }
-      
+
       const hours = Math.floor(diffMinutes / 60);
       const minutes = diffMinutes % 60;
-      
+
       if (hours === 0 && minutes === 0) return "0 hrs";
       if (minutes === 0) return `${hours} hrs`;
       return `${hours} hrs ${minutes} mins`;
@@ -448,7 +448,7 @@ export default function AttendancePage() {
   };
 
   const availableStations = getAvailableStations();
-  
+
   // Debug logging
   console.log('Debug Info:', {
     user: user,
@@ -594,7 +594,7 @@ export default function AttendancePage() {
               <div className="text-xs text-gray-600 mb-4">
                 Shows day-by-day salary calculation based on attendance
               </div>
-              
+
               {salaryLoading ? (
                 <div className="p-4 text-center">
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600 mx-auto"></div>
@@ -615,10 +615,10 @@ export default function AttendancePage() {
                         {dailySalaryData.map((dayData, index) => (
                           <tr key={index} className="hover:bg-gray-50">
                             <td className="px-3 py-2 text-gray-900 font-medium">
-                              {new Date(dayData.date).toLocaleDateString('en-IN', { 
-                                day: 'numeric', 
-                                month: 'short', 
-                                year: 'numeric' 
+                              {new Date(dayData.date).toLocaleDateString('en-IN', {
+                                day: 'numeric',
+                                month: 'short',
+                                year: 'numeric'
                               })}
                             </td>
                             <td className="px-3 py-2 text-center font-bold text-green-600">
@@ -628,21 +628,20 @@ export default function AttendancePage() {
                               <div className="space-y-1">
                                 {dayData.employees.map((employee, empIndex) => (
                                   <div key={empIndex} className="flex items-center gap-2 text-xs">
-                                    <span className={`px-2 py-1 rounded-full font-medium border ${
-                                      employee.role === 'Staff' ? 'bg-gray-100 text-gray-800 border-gray-300' :
-                                      employee.role === 'Incharge' ? 'bg-purple-100 text-purple-800 border-purple-300' :
-                                      employee.role === 'Team Leader' ? 'bg-green-100 text-green-800 border-green-300' :
-                                      employee.role === 'Accountant' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
-                                      employee.role === 'Admin' ? 'bg-red-100 text-red-800 border-red-300' :
-                                      'bg-gray-100 text-gray-800 border-gray-300'
-                                    }`}>
+                                    <span className={`px-2 py-1 rounded-full font-medium border ${employee.role === 'Staff' ? 'bg-gray-100 text-gray-800 border-gray-300' :
+                                        employee.role === 'Incharge' ? 'bg-purple-100 text-purple-800 border-purple-300' :
+                                          employee.role === 'Team Leader' ? 'bg-green-100 text-green-800 border-green-300' :
+                                            employee.role === 'Accountant' ? 'bg-yellow-100 text-yellow-800 border-yellow-300' :
+                                              employee.role === 'Admin' ? 'bg-red-100 text-red-800 border-red-300' :
+                                                'bg-gray-100 text-gray-800 border-gray-300'
+                                      }`}>
                                       {employee.name}
                                     </span>
                                     <span className="text-gray-600">
-                                      {employee.status === 'Present' ? '✅' : 
-                                       employee.status === 'Absent' ? '❌' :
-                                       employee.status === 'Half Day' ? '🕐' :
-                                       employee.status === 'Leave' ? '🏖️' : '❓'}
+                                      {employee.status === 'Present' ? '✅' :
+                                        employee.status === 'Absent' ? '❌' :
+                                          employee.status === 'Half Day' ? '🕐' :
+                                            employee.status === 'Leave' ? '🏖️' : '❓'}
                                     </span>
                                     <span className="text-gray-900 font-medium">
                                       ₹{employee.daily_salary.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
@@ -817,17 +816,26 @@ export default function AttendancePage() {
                                     className="px-3 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors"
                                     title="Mark Check-In"
                                   >
-                                  In
-                                </button>
-                              ) : !record.check_out_time ? (
-                                <>
-                                  <button
-                                    onClick={() => handleQuickOut(record)}
-                                    className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
-                                    title="Mark Check-Out"
-                                  >
-                                    Out
+                                    In
                                   </button>
+                                ) : !record.check_out_time ? (
+                                  <>
+                                    <button
+                                      onClick={() => handleQuickOut(record)}
+                                      className="px-3 py-1 bg-red-600 text-white text-xs rounded hover:bg-red-700 transition-colors"
+                                      title="Mark Check-Out"
+                                    >
+                                      Out
+                                    </button>
+                                    <button
+                                      onClick={() => handleEdit(record)}
+                                      className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                                      title="Edit"
+                                    >
+                                      Edit
+                                    </button>
+                                  </>
+                                ) : (
                                   <button
                                     onClick={() => handleEdit(record)}
                                     className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
@@ -835,110 +843,101 @@ export default function AttendancePage() {
                                   >
                                     Edit
                                   </button>
-                                </>
-                              ) : (
-                                <button
-                                  onClick={() => handleEdit(record)}
-                                  className="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
-                                  title="Edit"
-                                >
-                                  Edit
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
 
-                {/* Mobile Card View */}
-                <div className="lg:hidden space-y-4 p-4">
-                  {attendanceRecords.map((record) => (
-                    <div key={record.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
-                      <div className="flex justify-between items-start mb-3">
-                        <div>
-                          <div className="font-semibold text-base text-gray-900">{record.employee_name}</div>
-                          <div className="flex items-center gap-2 mt-1">
-                            <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadge(record.role).color} ${getRoleBadge(record.role).borderColor}`}>
-                              {getRoleIcon(record.role)}
-                            </span>
-                            <span className="text-xs text-gray-500">{record.emp_code}</span>
+                  {/* Mobile Card View */}
+                  <div className="lg:hidden space-y-4 p-4">
+                    {attendanceRecords.map((record) => (
+                      <div key={record.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                        <div className="flex justify-between items-start mb-3">
+                          <div>
+                            <div className="font-semibold text-base text-gray-900">{record.employee_name}</div>
+                            <div className="flex items-center gap-2 mt-1">
+                              <span className={`px-2 py-1 rounded-full text-xs font-medium border ${getRoleBadge(record.role).color} ${getRoleBadge(record.role).borderColor}`}>
+                                {getRoleIcon(record.role)}
+                              </span>
+                              <span className="text-xs text-gray-500">{record.emp_code}</span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">{record.station_name}</div>
                           </div>
-                          <div className="text-xs text-gray-500 mt-1">{record.station_name}</div>
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
+                            {record.status}
+                          </span>
                         </div>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusBadge(record.status)}`}>
-                          {record.status}
-                        </span>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Date</div>
-                          <div className="font-medium">{new Date(record.attendance_date).toLocaleDateString('en-IN')}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Working Hours</div>
-                          <div className="font-medium">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Check In</div>
-                          <div className="font-medium">{record.check_in_time || "-"}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs text-gray-500 mb-1">Check Out</div>
-                          <div className="font-medium">{record.check_out_time || "-"}</div>
-                        </div>
-                        {record.remarks && (
-                          <div className="col-span-2">
-                            <div className="text-xs text-gray-500 mb-1">Remarks</div>
-                            <div className="text-sm text-gray-700">{record.remarks}</div>
+
+                        <div className="grid grid-cols-2 gap-3 mb-3 text-sm">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Date</div>
+                            <div className="font-medium">{new Date(record.attendance_date).toLocaleDateString('en-IN')}</div>
                           </div>
-                        )}
-                        {record.marked_by_name && (
-                          <div className="col-span-2">
-                            <div className="text-xs text-gray-500 mb-1">Marked By</div>
-                            <div className="text-sm text-gray-700">{record.marked_by_name}</div>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Working Hours</div>
+                            <div className="font-medium">{calculateWorkingHours(record.check_in_time, record.check_out_time)}</div>
                           </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex gap-2 pt-3 border-t">
-                        {!record.check_in_time ? (
-                          <button
-                            onClick={() => handleQuickIn(record.employee_id, record.station_id)}
-                            className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
-                          >
-                            Mark Check-In
-                          </button>
-                        ) : !record.check_out_time ? (
-                          <>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Check In</div>
+                            <div className="font-medium">{record.check_in_time || "-"}</div>
+                          </div>
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1">Check Out</div>
+                            <div className="font-medium">{record.check_out_time || "-"}</div>
+                          </div>
+                          {record.remarks && (
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500 mb-1">Remarks</div>
+                              <div className="text-sm text-gray-700">{record.remarks}</div>
+                            </div>
+                          )}
+                          {record.marked_by_name && (
+                            <div className="col-span-2">
+                              <div className="text-xs text-gray-500 mb-1">Marked By</div>
+                              <div className="text-sm text-gray-700">{record.marked_by_name}</div>
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex gap-2 pt-3 border-t">
+                          {!record.check_in_time ? (
                             <button
-                              onClick={() => handleQuickOut(record)}
-                              className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                              onClick={() => handleQuickIn(record.employee_id, record.station_id)}
+                              className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded hover:bg-green-700 transition-colors"
                             >
-                              Mark Check-Out
+                              Mark Check-In
                             </button>
+                          ) : !record.check_out_time ? (
+                            <>
+                              <button
+                                onClick={() => handleQuickOut(record)}
+                                className="flex-1 px-3 py-2 bg-red-600 text-white text-sm rounded hover:bg-red-700 transition-colors"
+                              >
+                                Mark Check-Out
+                              </button>
+                              <button
+                                onClick={() => handleEdit(record)}
+                                className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                              >
+                                Edit
+                              </button>
+                            </>
+                          ) : (
                             <button
                               onClick={() => handleEdit(record)}
-                              className="flex-1 px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                              className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                             >
                               Edit
                             </button>
-                          </>
-                        ) : (
-                          <button
-                            onClick={() => handleEdit(record)}
-                            className="w-full px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
-                          >
-                            Edit
-                          </button>
-                        )}
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
                 </>
               )}
             </div>
@@ -1221,7 +1220,7 @@ export default function AttendancePage() {
         </div>
       )}
 
-    
+
     </div>
   );
 }

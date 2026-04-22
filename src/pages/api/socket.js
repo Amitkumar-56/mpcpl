@@ -626,9 +626,10 @@ export default function SocketHandler(req, res) {
         });
 
         // Employee chat message - BROADCAST ONLY (message already saved via HTTP POST)
+        // WhatsApp-style: both sender and receiver get notifications
         socket.on("employee_chat_message", async (data) => {
           try {
-            const { sessionId, senderId, receiverId, message, messageType = 'text', savedMessage, savedMessageId } = data;
+            const { sessionId, senderId, senderName, receiverId, message, messageType = 'text', savedMessage, savedMessageId } = data;
 
             if (!receiverId || !senderId) {
               socket.emit("error", { message: "Missing required fields" });
@@ -645,10 +646,14 @@ export default function SocketHandler(req, res) {
               message_type: messageType,
               status: 'sent',
               created_at: new Date().toISOString(),
+              sender_name: senderName || 'Employee',
             };
 
-            // Broadcast to receiver for real-time display
+            // Broadcast to receiver for real-time display + notification
             io.to(`employee_${receiverId}`).emit('employee_chat_message_received', messageData);
+
+            // Also broadcast to sender's OTHER devices (multi-device sync like WhatsApp)
+            socket.broadcast.to(`employee_${senderId}`).emit('employee_chat_message_received', messageData);
 
             // Confirm to sender
             socket.emit('employee_chat_message_sent', {
@@ -682,6 +687,7 @@ export default function SocketHandler(req, res) {
         });
 
         // Delivery confirmation - receiver confirms they got the message
+        // This triggers sender-side notification (WhatsApp double-tick with sound)
         socket.on("employee_chat_delivered", async (data) => {
           try {
             const { messageIds, senderId, sessionId } = data;
@@ -693,11 +699,12 @@ export default function SocketHandler(req, res) {
               messageIds
             );
 
-            // Notify sender about delivery status
+            // Notify sender about delivery status (triggers sound + double tick on sender side)
             io.to(`employee_${senderId}`).emit('employee_chat_status_update', {
               sessionId,
               messageIds,
-              status: 'delivered'
+              status: 'delivered',
+              deliveredByName: socket.userName || 'Employee'
             });
           } catch (error) {
             console.error('Delivery confirmation error:', error);

@@ -22,7 +22,7 @@ export default function Home() {
           router.push('/login');
         }
       }
-    }, 1000);
+    }, 100);
 
     return () => {
       clearInterval(dotInterval);

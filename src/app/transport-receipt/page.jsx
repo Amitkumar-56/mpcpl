@@ -73,6 +73,15 @@ function TransportReceiptContent() {
     fetchShipmentData();
   }, [fetchShipmentData]);
 
+  // Auto-download if download=true is in URL
+  useEffect(() => {
+    if (shipment && !loading && searchParams.get('download') === 'true') {
+      setTimeout(() => {
+        downloadPDF();
+      }, 1000); // Wait for rendering
+    }
+  }, [shipment, loading, searchParams]);
+
   const printReceipt = () => {
     window.print();
   };
@@ -155,43 +164,30 @@ function TransportReceiptContent() {
         });
       }));
       
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 200)); // Reduced wait
       
       const cloneRect = clone.getBoundingClientRect();
       
-      // Capture with high quality
+      // Capture with optimized scale for smaller file size
       const canvas = await html2canvas(clone, {
-        scale: 3,
+        scale: 1.2, // Reduced from 3 to save size
         useCORS: true,
         logging: false,
         backgroundColor: '#ffffff',
         windowWidth: cloneRect.width,
         windowHeight: cloneRect.height,
-        onclone: (clonedDoc) => {
-          // Fix stamp in cloned document
-          const clonedStamp = clonedDoc.querySelector('img');
-          if (clonedStamp) {
-            clonedStamp.style.height = '80px';
-            clonedStamp.style.width = 'auto';
-          }
-          
-          // Fix all containers
-          const containers = clonedDoc.querySelectorAll('.print-container, .grid, div');
-          containers.forEach(container => {
-            container.style.height = 'auto';
-            container.style.overflow = 'visible';
-          });
-        }
+        imageTimeout: 15000,
       });
       
       document.body.removeChild(clone);
       
-      // Create PDF
-      const imgData = canvas.toDataURL('image/png', 1.0);
+      // Create PDF - Optimized for size
+      const imgData = canvas.toDataURL('image/jpeg', 0.75); // Use JPEG with compression
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
-        format: 'a4'
+        format: 'a4',
+        compress: true // Enable jsPDF compression
       });
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
@@ -219,7 +215,8 @@ function TransportReceiptContent() {
       const xPos = (pdfWidth - finalWidth) / 2;
       const yPos = (pdfHeight - finalHeight) / 2;
       
-      pdf.addImage(imgData, 'PNG', xPos, yPos, finalWidth, finalHeight);
+      // Use FAST compression for image adding
+      pdf.addImage(imgData, 'JPEG', xPos, yPos, finalWidth, finalHeight, undefined, 'FAST');
       pdf.save(`Transport-Receipt-${id}.pdf`);
       
     } catch (err) {

@@ -8,37 +8,22 @@ export async function POST(request) {
   try {
     const formData = await request.json();
 
+    // Ensure columns exist
+    try {
+      await executeQuery("ALTER TABLE shipment_records ADD COLUMN IF NOT EXISTS lr_no VARCHAR(100) NULL");
+      await executeQuery("ALTER TABLE shipment_records ADD COLUMN IF NOT EXISTS remarks TEXT NULL");
+    } catch (err) { console.log("Column check/add error (maybe already exists):", err.message); }
+
     // Extract all fields from the form data
     const {
-      tanker,
-      driver,
-      dispatch,
-      driver_mobile,
-      empty_weight_loading,
-      loaded_weight_loading,
-      net_weight_loading,
-      final_loading_datetime,
-      entered_by_loading,
-      seal1_loading,
-      seal2_loading,
-      seal_datetime_loading,
-      sealed_by_loading,
-      density_loading,
-      temperature_loading,
-      timing_loading,
-      consignee,
-      empty_weight_unloading,
-      loaded_weight_unloading,
-      net_weight_unloading,
-      final_unloading_datetime,
-      entered_by_unloading,
-      seal1_unloading,
-      seal2_unloading,
-      seal_datetime_unloading,
-      sealed_by_unloading,
-      density_unloading,
-      temperature_unloading,
-      timing_unloading
+      tanker, driver, dispatch, driver_mobile,
+      empty_weight_loading, loaded_weight_loading, net_weight_loading,
+      final_loading_datetime, entered_by_loading, seal1_loading, seal2_loading,
+      seal_datetime_loading, sealed_by_loading, density_loading, temperature_loading, timing_loading,
+      consignee, empty_weight_unloading, loaded_weight_unloading, net_weight_unloading,
+      final_unloading_datetime, entered_by_unloading, seal1_unloading, seal2_unloading,
+      seal_datetime_unloading, sealed_by_unloading, density_unloading, temperature_unloading, timing_unloading,
+      lr_no, remarks
     } = formData;
 
     // Insert query
@@ -51,8 +36,8 @@ export async function POST(request) {
       consignee, empty_weight_unloading, loaded_weight_unloading, net_weight_unloading, 
       final_unloading_datetime, entered_by_unloading, seal1_unloading, seal2_unloading, 
       seal_datetime_unloading, sealed_by_unloading, density_unloading, temperature_unloading, timing_unloading, 
-      created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      lr_no, remarks, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
     `;
 
     const values = [
@@ -62,7 +47,8 @@ export async function POST(request) {
       seal_datetime_loading, sealed_by_loading, density_loading, temperature_loading, timing_loading,
       consignee, empty_weight_unloading, loaded_weight_unloading, net_weight_unloading,
       final_unloading_datetime, entered_by_unloading, seal1_unloading, seal2_unloading,
-      seal_datetime_unloading, sealed_by_unloading, density_unloading, temperature_unloading, timing_unloading
+      seal_datetime_unloading, sealed_by_unloading, density_unloading, temperature_unloading, timing_unloading,
+      lr_no || null, remarks || null
     ];
 
     const result = await executeQuery(query, values);
@@ -72,20 +58,15 @@ export async function POST(request) {
     try {
       let userId = null;
       let userName = null;
-      
-      // ✅ Use getCurrentUser() first for reliable authentication
+
       try {
         const currentUser = await getCurrentUser();
         if (currentUser && currentUser.userId) {
-          userId = currentUser.userId; // This is employee_profile.id
+          userId = currentUser.userId;
           userName = currentUser.userName || null;
-          console.log('✅ [Loading-Unloading] Got user from getCurrentUser:', { userId, userName });
         }
-      } catch (getUserError) {
-        console.warn('⚠️ [Loading-Unloading] getCurrentUser failed, trying token fallback:', getUserError.message);
-      }
-      
-      // Fallback: Try token-based authentication if getCurrentUser failed
+      } catch (getUserError) { }
+
       if (!userId) {
         try {
           const cookieStore = await cookies();
@@ -94,21 +75,11 @@ export async function POST(request) {
             const decoded = verifyToken(token);
             if (decoded) {
               userId = decoded.userId || decoded.id;
-              console.log('✅ [Loading-Unloading] Got userId from token:', userId);
-              
-              // Get user name from database
-              const users = await executeQuery(
-                `SELECT name FROM employee_profile WHERE id = ?`,
-                [userId]
-              );
-              if (users.length > 0) {
-                userName = users[0].name || null;
-              }
+              const users = await executeQuery(`SELECT name FROM employee_profile WHERE id = ?`, [userId]);
+              if (users.length > 0) userName = users[0].name || null;
             }
           }
-        } catch (tokenError) {
-          console.error('❌ [Loading-Unloading] Token fallback also failed:', tokenError.message);
-        }
+        } catch (tokenError) { }
       }
 
       await createAuditLog({
@@ -121,13 +92,7 @@ export async function POST(request) {
         remarks: `Loading/Unloading record created for tanker ${tanker}, driver ${driver}`,
         oldValue: null,
         newValue: {
-          record_id: recordId,
-          tanker: tanker,
-          driver: driver,
-          dispatch: dispatch,
-          consignee: consignee,
-          net_weight_loading: net_weight_loading,
-          net_weight_unloading: net_weight_unloading
+          record_id: recordId, tanker, driver, dispatch, consignee, lr_no, remarks
         },
         recordType: 'loading_unloading',
         recordId: recordId
@@ -136,22 +101,10 @@ export async function POST(request) {
       console.error('Error creating audit log:', auditError);
     }
 
-    return NextResponse.json({
-      success: true,
-      message: '✅ Shipment record saved successfully',
-      id: recordId
-    });
-
+    return NextResponse.json({ success: true, message: '✅ Shipment record saved successfully', id: recordId });
   } catch (error) {
     console.error('Database error:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: '❌ Error saving shipment record',
-        error: error.message 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: '❌ Error saving shipment record', error: error.message }, { status: 500 });
   }
 }
 
@@ -165,23 +118,22 @@ export async function GET(request) {
     const vehiclesQuery = "SELECT id, licence_plate FROM vehicles";
     const vehicles = await executeQuery(vehiclesQuery);
 
+    // Fetch shipments for LR dropdown - Updated to fetch more fields for auto-fill
+    const shipmentsQuery = "SELECT id, lr_id, consignee, tanker_no, mobile, from_location, tare_wt, gross_wt, net_wt FROM shipment WHERE lr_id IS NOT NULL ORDER BY id DESC LIMIT 1000";
+    const shipments = await executeQuery(shipmentsQuery).catch(() => []);
+
+    console.log(`Fetched ${shipments.length} shipments for LR dropdown (detailed)`);
+
     return NextResponse.json({
       success: true,
       data: {
         employees,
-        vehicles
+        vehicles,
+        shipments
       }
     });
-
   } catch (error) {
     console.error('Error fetching dropdown data:', error);
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: 'Error fetching data',
-        error: error.message 
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: 'Error fetching data', error: error.message }, { status: 500 });
   }
 }

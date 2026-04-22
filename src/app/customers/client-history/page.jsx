@@ -64,6 +64,16 @@ function ClientHistoryContent() {
   const router = useRouter();
   const cid = searchParams.get("id");
 
+  // Helper to get date at IST midnight for accurate day difference calculation
+  const getISTMidnight = (dateInput) => {
+    const date = dateInput ? new Date(dateInput) : new Date();
+    // Use Intl to get strings in IST
+    const istStr = date.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+    const istDate = new Date(istStr);
+    istDate.setHours(0, 0, 0, 0);
+    return istDate;
+  };
+
   // Enhanced status calculation - ONLY for day_limit customers
   const getEnhancedTransactionStatus = (transaction) => {
     // ONLY show status for day_limit customers
@@ -92,11 +102,15 @@ function ClientHistoryContent() {
     // Unpaid transactions - show overdue/pending status
     if (transaction.payment_status === 0 || transaction.request_payment_status === 0) {
       const dayLimit = customerBalanceInfo?.day_limit || 0;
-      const transactionDate = new Date(transaction.completed_date || transaction.filling_date || transaction.created_at);
-      const currentDate = new Date();
-      currentDate.setHours(0, 0, 0, 0);
-      transactionDate.setHours(0, 0, 0, 0);
-      const daysDifference = Math.floor((currentDate - transactionDate) / (1000 * 60 * 60 * 24));
+      const transDateRaw = transaction.completed_date || transaction.filling_date || transaction.created_at;
+      
+      if (!transDateRaw) return null;
+
+      const transactionDate = getISTMidnight(transDateRaw);
+      const currentDate = getISTMidnight();
+      
+      const timeDifference = currentDate.getTime() - transactionDate.getTime();
+      const daysDifference = Math.floor(timeDifference / (1000 * 60 * 60 * 24));
       
       if (dayLimit > 0 && daysDifference >= dayLimit) {
         return { 
@@ -269,7 +283,18 @@ function ClientHistoryContent() {
     
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
+    // Explicitly handle date-only strings by appending T00:00:00 to avoid UTC shift
+    // MySQL dates like '2024-04-22' otherwise get interpreted as UTC midnight
+    const adjustedDate = dateString.includes(' ') || dateString.includes('T') 
+      ? new Date(dateString) 
+      : new Date(`${dateString}T00:00:00`);
+      
+    return adjustedDate.toLocaleDateString('en-IN', { 
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      timeZone: 'Asia/Kolkata' 
+    });
   };
   
   const formatDateTime = (dateString) => {
@@ -279,9 +304,10 @@ function ClientHistoryContent() {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-      timeZone: 'Asia/Kolkata',
       hour: '2-digit',
-      minute: '2-digit'
+      minute: '2-digit',
+      hour12: true,
+      timeZone: 'Asia/Kolkata'
     });
   };
 

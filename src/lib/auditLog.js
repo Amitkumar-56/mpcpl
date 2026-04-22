@@ -173,7 +173,7 @@ export async function createAuditLog({
         action_date, action_time
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `;
-    
+
     const values = [
       page || 'Unknown',
       uniqueCode || 'N/A',
@@ -190,10 +190,10 @@ export async function createAuditLog({
       actionDate,
       actionTime
     ];
-    
+
     console.log('🔍 [AuditLog] Query:', query);
     console.log('🔍 [AuditLog] Values:', values);
-    
+
     await executeQuery(query, values);
 
     return { success: true };

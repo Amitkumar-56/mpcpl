@@ -23,13 +23,57 @@ export default function Header({ onMenuToggle }) {
   useEffect(() => {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       setNotifPermission(window.Notification.permission);
+      
+      // Proactive reminder to enable notifications if not yet granted/denied
+      if (window.Notification.permission === 'default') {
+        const timer = setTimeout(() => {
+          toast((t) => (
+            <div className="flex flex-col gap-2">
+              <p className="font-semibold text-sm">🔔 Notifications are off</p>
+              <p className="text-xs opacity-80">Enable alerts to stay updated on new chat messages.</p>
+              <div className="flex gap-2 mt-1">
+                <button 
+                  onClick={() => { handleRequestPermission(); toast.dismiss(t.id); }}
+                  className="bg-blue-600 text-white px-3 py-1 rounded text-xs font-bold"
+                >
+                  Enable
+                </button>
+                <button 
+                  onClick={() => toast.dismiss(t.id)}
+                  className="text-gray-500 px-3 py-1 text-xs"
+                >
+                  Later
+                </button>
+              </div>
+            </div>
+          ), { duration: 10000, position: 'top-center' });
+        }, 5000); // Wait 5 seconds after load
+        return () => clearTimeout(timer);
+      }
     }
   }, []);
 
   const handleRequestPermission = async () => {
     try {
+      if (typeof window === 'undefined' || !('Notification' in window)) {
+        toast.error('This browser does not support notifications.');
+        return;
+      }
+
       if (window.Notification.permission === 'denied') {
-        toast.error('Notifications are blocked. Please click the Lock icon in your browser address bar and set Notifications to "Allow".', { duration: 6000 });
+        toast(
+          (t) => (
+            <div style={{ maxWidth: 340 }}>
+              <p style={{ fontWeight: 600, marginBottom: 6 }}>🔒 Notifications Blocked</p>
+              <p style={{ fontSize: 13, lineHeight: 1.5 }}>
+                <strong>Chrome:</strong> Click the 🔒 Lock icon in the address bar → Site Settings → Set Notifications to <strong>"Allow"</strong><br/>
+                <strong>Mobile:</strong> Settings → Apps → Chrome → Notifications → Allow
+              </p>
+              <button onClick={() => toast.dismiss(t.id)} style={{ marginTop: 8, fontSize: 12, color: '#3b82f6', cursor: 'pointer', border: 'none', background: 'none', padding: 0 }}>Got it</button>
+            </div>
+          ),
+          { duration: 15000, icon: '🔔' }
+        );
         return;
       }
 
@@ -125,6 +169,14 @@ export default function Header({ onMenuToggle }) {
 
         // Show browser notification with customer name
         playBeep();
+
+        // In-app toast (always works)
+        toast(
+          `🛒 ${data.customerName || 'Customer'}: ${data.text || 'New message'}`,
+          { duration: 5000, position: 'top-right', icon: '📩' }
+        );
+
+        // Browser notification (may fail if blocked)
         showChatNotification(
           data.customerName || 'Customer',
           data.text || 'New message',
@@ -153,19 +205,29 @@ export default function Header({ onMenuToggle }) {
         // Play sound + show notification (debounced in sound.js to prevent double-play)
         playBeep();
 
-        if (window.Notification && window.Notification.permission !== 'granted') {
-          console.warn('Header: Notification permission not granted, only playing sound.');
-          // If permission is default, we can't request it here (not a user gesture)
-          // Just log it.
-        }
+        // Show in-app toast notification as fallback (ALWAYS works, even when browser notif blocked)
+        toast(
+          (t) => (
+            <div
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('openEmployeeChat', { detail: { sessionId: msg.session_id, senderId: msg.sender_id } }));
+                toast.dismiss(t.id);
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <p style={{ fontWeight: 600, fontSize: 14 }}>💬 {senderName}</p>
+              <p style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{messageText.length > 60 ? messageText.substring(0, 60) + '...' : messageText}</p>
+            </div>
+          ),
+          { duration: 5000, position: 'top-right', icon: '🔔' }
+        );
 
+        // Also try browser notification (may fail if blocked - that's OK)
         showChatNotification(
           senderName,
           messageText,
           { sessionId: msg.session_id, senderId: msg.sender_id }
-        ).catch((err) => {
-          console.error('Header: Error showing notification:', err);
-        });
+        ).catch(() => { });
       });
 
       // Employee chat request notifications
@@ -418,7 +480,7 @@ export default function Header({ onMenuToggle }) {
                               {n.type === 'employee_chat_request' && <span className="text-xs text-green-600 ml-1">• Chat Request</span>}
                             </p>
                             <p className="text-xs text-gray-600 mt-0.5 truncate">{n.text}</p>
-                            <span className="text-[10px] text-gray-400">{new Date(n.timestamp).toLocaleString()}</span>
+                            <span className="text-[10px] text-gray-400">{new Date(n.timestamp).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</span>
                           </div>
                         </div>
                         {n.type === 'customer_chat' && (

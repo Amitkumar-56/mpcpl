@@ -11,6 +11,7 @@ import {
   BiSend, BiTime, BiX, BiDownload
 } from 'react-icons/bi';
 import { io } from 'socket.io-client';
+import { toast } from 'react-hot-toast';
 
 const POLL_INTERVAL = 8000;
 const SESSION_POLL_INTERVAL = 30000;
@@ -266,6 +267,9 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
     (async () => {
       if (typeof window !== 'undefined') {
         await initializeNotifications();
+        if (isPWAStandalone()) {
+          await initializePWANotifications();
+        }
         forceInitializeAudio();
       }
     })();
@@ -324,17 +328,40 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
             sessionId: sessionId
           });
 
-          // ALWAYS play notification sound for incoming messages (debounce prevents double from Header)
+          // ALWAYS play notification sound for incoming messages
           playBeep();
 
-          // Show browser notification
+          // ALWAYS show in-app toast (works even when browser notif is blocked)
+          const notifTitle = senderName;
+          const notifBody = text.length > 80 ? text.substring(0, 80) + '...' : text;
+
+          // Only show toast if NOT viewing this chat session already
+          if (!(activeSessionRef.current?.id === sessionId && showChatRef.current)) {
+            toast(
+              (t) => (
+                <div
+                  onClick={() => {
+                    window.dispatchEvent(new CustomEvent('openEmployeeChat', { detail: { sessionId, senderId: msg.sender_id } }));
+                    toast.dismiss(t.id);
+                  }}
+                  style={{ cursor: 'pointer' }}
+                >
+                  <p style={{ fontWeight: 600, fontSize: 14 }}>{'\ud83d\udcac'} {notifTitle}</p>
+                  <p style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{notifBody}</p>
+                </div>
+              ),
+              { duration: 4000, position: 'top-right', icon: '\ud83d\udd14' }
+            );
+          }
+
+          // Also try browser/PWA notification (may fail if blocked - that's OK)
           if (isPWAStandalone()) {
-            showChatNotificationPWA(senderName, text, {
-              tag: `emp-chat-${senderName}`,
+            showChatNotificationPWA(notifTitle, notifBody, {
+              tag: `emp-chat-${senderName}-${Date.now()}`,
               renotify: true
             }).catch(() => { });
           } else {
-            showChatNotification(senderName, text).catch(() => { });
+            showChatNotification(notifTitle, notifBody).catch(() => { });
           }
 
           // If viewing this session, mark as read; otherwise increment unread
@@ -348,9 +375,9 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
           fetchSessions();
         });
 
-        // ── Message status updates (delivered / read) ──
+        // ── Message status updates (delivered / read) ── SENDER gets notified
         socketInstance.on('employee_chat_status_update', (data) => {
-          const { sessionId, messageIds, status } = data;
+          const { sessionId, messageIds, status, deliveredByName } = data;
           if (!messageIds || !sessionId) return;
           setMessages(prev => {
             const current = prev[sessionId];
@@ -362,6 +389,11 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
               )
             };
           });
+
+          // Play a subtle sound on sender side when message is delivered
+          if (status === 'delivered') {
+            playBeep();
+          }
         });
 
         // ── Messages read by other party (blue ticks) ──
@@ -483,7 +515,7 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
       message_type: messageType,
       file_path: filePath,
       status: 'sending',
-      created_at: new Date().toISOString(),
+      created_at: new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }),
       sender_name: user.name,
     };
 
@@ -526,6 +558,7 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
         socket.emit('employee_chat_message', {
           sessionId: activeSession.id,
           senderId: String(user.id),
+          senderName: user.name,
           receiverId: String(receiverId),
           message: text,
           messageType,
@@ -1020,7 +1053,7 @@ export default function EmployeeChatDashboard({ showChat, setShowChat, setEmploy
                           <MessageContent msg={msg} />
                           <div className={`flex items-center gap-1 justify-end mt-1 ${isMine ? 'text-emerald-100' : 'text-gray-400'}`}>
                             <span className="text-[9px]">
-                              {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              {new Date(msg.created_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true, timeZone: 'Asia/Kolkata' })}
                             </span>
                             {isMine && (
                               <span className="ml-0.5">

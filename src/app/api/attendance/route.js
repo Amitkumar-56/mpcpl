@@ -17,7 +17,7 @@ export async function GET(request) {
     // Get current user
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -104,7 +104,7 @@ export async function GET(request) {
 
       // Parse fs_id (can be comma-separated)
       const stationIds = userFsId.toString().split(',').map(id => id.trim()).filter(id => id);
-      
+
       if (stationIds.length === 0) {
         return NextResponse.json(
           { success: false, error: 'No valid station assigned' },
@@ -195,7 +195,7 @@ export async function POST(request) {
     // Get current user
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json(
         { success: false, error: 'Unauthorized' },
@@ -366,7 +366,7 @@ export async function POST(request) {
             updated_at = NOW()
         WHERE id = ?
       `;
-      
+
       await executeQuery(updateQuery, [
         check_in_time || null,
         check_out_time || null,

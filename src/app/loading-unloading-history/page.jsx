@@ -350,6 +350,9 @@ function LoadingUnloadingContent() {
                             ID
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            LR No
+                          </th>
+                          <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                             Tanker
                           </th>
                           <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -378,6 +381,9 @@ function LoadingUnloadingContent() {
                             <tr key={(shipment.id || shipment.shipment_id || index) + '-row'} className="hover:bg-gray-50">
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 #{shipment.id || shipment.shipment_id || 'N/A'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                                {shipment.lr_no || '-'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {shipment.tanker || shipment.tanker_number || '-'}

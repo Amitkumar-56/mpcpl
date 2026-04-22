@@ -14,27 +14,26 @@ export async function GET(request) {
       return NextResponse.json({ error: 'Customer ID required' }, { status: 400 });
     }
 
-    // Fetch customer name first
-    const customerResult = await executeQuery(
-      'SELECT name, client_type FROM customers WHERE id = ?',
+    // Fetch customer info and balance in one query for better performance
+    const customerInfoResults = await executeQuery(
+      `SELECT c.name, c.client_type, cb.balance, cb.amtlimit, cb.day_limit, cb.hold_balance, cb.cst_limit, cb.last_reset_date, cb.total_day_amount, cb.is_active 
+       FROM customers c
+       LEFT JOIN customer_balances cb ON c.id = cb.com_id
+       WHERE c.id = ?`,
       [cid]
     ).catch(() => []);
-
-    if (customerResult.length === 0) {
+    
+    if (customerInfoResults.length === 0) {
       return NextResponse.json({ error: 'Customer not found' }, { status: 404 });
     }
-
-    const customerName = customerResult[0].name;
-    const clientType = customerResult[0].client_type;
-
-    // Fetch customer balance info
-    const customerBalanceInfo = await executeQuery(
-      'SELECT balance, amtlimit, day_limit, hold_balance, cst_limit, last_reset_date, total_day_amount, is_active FROM customer_balances WHERE com_id = ?',
-      [cid]
-    ).catch(() => []);
+    
+    const customer = customerInfoResults[0];
+    const customerName = customer.name;
+    const clientType = customer.client_type;
+    const customerBalanceInfo = [customer]; // Keep array format for compatibility with existing code
 
     // Check customer type
-    const isDayLimitCustomer = customerBalanceInfo.length > 0 && customerBalanceInfo[0].day_limit > 0;
+    const isDayLimitCustomer = customer.day_limit > 0;
 
     // ✅ Calculate remaining days ONLY for day_limit customers
     if (isDayLimitCustomer) {
@@ -48,11 +47,17 @@ export async function GET(request) {
         [cid]
       );
 
-      const currentDate = new Date();
+      // Get current date in IST
+      const now = new Date();
+      const istTime = now.toLocaleString('en-US', { timeZone: 'Asia/Kolkata' });
+      const currentDate = new Date(istTime);
       currentDate.setHours(0, 0, 0, 0);
 
       if (oldestUnpaidCompleted.length > 0 && oldestUnpaidCompleted[0].completed_date) {
-        const oldestUnpaidDate = new Date(oldestUnpaidCompleted[0].completed_date);
+        // Ensure completed_date is also treated as IST
+        const compDateStr = oldestUnpaidCompleted[0].completed_date;
+        const oldestUnpaidDate = new Date(compDateStr);
+        // If it's a date-only string from DB, it might need normalization
         oldestUnpaidDate.setHours(0, 0, 0, 0);
 
         // Calculate days elapsed: current_date - oldest_unpaid_date
@@ -70,11 +75,9 @@ export async function GET(request) {
         customerBalanceInfo[0].oldest_unpaid_date = null;
       }
     } else {
-      if (customerBalanceInfo.length > 0) {
-        customerBalanceInfo[0].days_elapsed = 0;
-        customerBalanceInfo[0].remaining_days = 0;
-        customerBalanceInfo[0].oldest_unpaid_date = null;
-      }
+      customerBalanceInfo[0].days_elapsed = 0;
+      customerBalanceInfo[0].remaining_days = 0;
+      customerBalanceInfo[0].oldest_unpaid_date = null;
     }
 
     // Fetch distinct products
