@@ -1,6 +1,9 @@
 // src/app/stock-transfers/stock-create-details/page.jsx
 'use client';
 
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
+import Footer from "@/components/Footer";
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useEffect, useState } from 'react';
@@ -304,81 +307,62 @@ function StockCreateDetailsContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-lg sticky top-0 z-10">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center space-x-3">
-              <button
-                onClick={() => router.back()}
-                className="p-2.5 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 rounded-xl transition-all duration-300 shadow-sm hover:shadow-md"
-              >
-                <FiArrowLeft className="w-5 h-5 text-blue-600" />
-              </button>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-800 flex items-center">
-                  <FiEdit2 className="mr-3 text-blue-600" />
-                  Update Stock Transfer
-                </h1>
-                <div className="flex items-center gap-3 mt-1">
-                  <p className="text-sm text-gray-600">Transfer ID: #{id}</p>
-                  <span className={`px-2 py-1 text-xs font-medium rounded-full ${getStatusColor(transfer.status)}`}>
-                    {getStatusText(transfer.status)}
-                  </span>
-                  {transfer.created_at && (
-                    <p className="text-xs text-gray-500">
-                      <FiClock className="inline mr-1" />
-                      Created: {formatDate(transfer.created_at)}
-                    </p>
-                  )}
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden">
+      {/* Sidebar - Desktop: Relative, Mobile: Fixed/Overlay */}
+      <div className="flex-shrink-0 z-50 lg:relative">
+        <Sidebar />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex flex-col flex-1 h-full w-full overflow-hidden relative">
+        {/* Header */}
+        <div className="flex-shrink-0 z-40 shadow-sm sticky top-0">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-gray-50 scroll-smooth">
+          <div className="max-w-6xl mx-auto">
+            {/* Page Title & Status */}
+            <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => router.back()}
+                  className="p-2.5 bg-white border border-gray-200 rounded-xl text-gray-600 hover:text-blue-600 hover:border-blue-200 transition-all shadow-sm group"
+                >
+                  <FiArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                </button>
+                <div>
+                  <h1 className="text-2xl font-bold text-gray-900 tracking-tight flex items-center">
+                    <FiEdit2 className="mr-3 text-blue-600" />
+                    Update Stock Transfer
+                  </h1>
+                  <div className="flex flex-wrap items-center gap-3 mt-1">
+                    <p className="text-sm font-bold text-gray-500">ID: #{id}</p>
+                    <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${getStatusColor(transfer.status)}`}>
+                      {getStatusText(transfer.status)}
+                    </span>
+                    {transfer.created_at && (
+                      <p className="text-xs text-gray-400 font-medium">
+                        <FiClock className="inline mr-1" />
+                        {formatDate(transfer.created_at)}
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
-            
-            <div className="flex items-center space-x-3 bg-gradient-to-r from-gray-50 to-gray-100 px-4 py-2 rounded-xl">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-bold">A</span>
-              </div>
-              <div>
-                <p className="font-medium text-gray-800">Admin User</p>
-                <p className="text-xs text-gray-600">Administrator</p>
-              </div>
-            </div>
-          </div>
 
-          <nav className="mt-6">
-            <ol className="flex flex-wrap items-center text-sm text-gray-600 space-x-2">
-              <li>
-                <Link 
-                  href="/" 
-                  className="px-3 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center"
-                >
-                  <FiHome className="mr-2" />
-                  Dashboard
-                </Link>
-              </li>
-              <li className="text-gray-400">/</li>
-              <li>
-                <Link 
-                  href="/stock-transfers" 
-                  className="px-3 py-1.5 rounded-lg hover:bg-blue-50 hover:text-blue-600 transition-colors flex items-center"
-                >
-                  <FiPackage className="mr-2" />
-                  Stock Transfers
-                </Link>
-              </li>
-              <li className="text-gray-400">/</li>
-              <li className="px-3 py-1.5 bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 font-medium rounded-lg flex items-center">
-                <FiEdit2 className="mr-2" />
-                Update Transfer
-              </li>
-            </ol>
-          </nav>
-        </div>
-      </header>
+            <nav className="mb-8">
+              <ol className="flex flex-wrap items-center text-xs font-bold text-gray-400 uppercase tracking-wider space-x-2">
+                <li><Link href="/" className="hover:text-blue-600 transition-colors">Dashboard</Link></li>
+                <li className="text-gray-300">/</li>
+                <li><Link href="/stock-transfers" className="hover:text-blue-600 transition-colors">Stock Transfers</Link></li>
+                <li className="text-gray-300">/</li>
+                <li className="text-blue-600">Update</li>
+              </ol>
+            </nav>
 
-      <main className="container mx-auto px-4 py-8">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <div className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
@@ -807,9 +791,16 @@ function StockCreateDetailsContent() {
             © {new Date().getFullYear()} MPCL. All rights reserved. | 
             <span className="mx-2">•</span>
             Stock Transfer Management System
-          </p>
+            </p>
+          </div>
         </div>
       </main>
+
+        {/* Footer */}
+        <div className="flex-shrink-0 z-40 bg-white border-t border-gray-200">
+          <Footer />
+        </div>
+      </div>
     </div>
   );
 }

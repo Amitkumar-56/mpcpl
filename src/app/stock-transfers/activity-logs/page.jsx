@@ -1,5 +1,8 @@
 'use client';
 
+import Header from "@/components/Header";
+import Sidebar from "@/components/sidebar";
+import Footer from "@/components/Footer";
 import { useSession } from '@/context/SessionContext';
 import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, Suspense } from 'react';
@@ -469,9 +472,22 @@ function StockTransfersActivityLogsContent() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-      {/* Main Container */}
-      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden">
+      {/* Sidebar - Desktop: Relative, Mobile: Fixed/Overlay */}
+      <div className="flex-shrink-0 z-50 lg:relative">
+        <Sidebar />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex flex-col flex-1 h-full w-full overflow-hidden relative">
+        {/* Header */}
+        <div className="flex-shrink-0 z-40 shadow-sm sticky top-0">
+          <Header />
+        </div>
+
+        {/* Scrollable Main Content */}
+        <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-gray-50 scroll-smooth">
+          <div className="max-w-[1600px] mx-auto">
         
         {/* Header Section with Back Button */}
         <div className="mb-8">
@@ -735,14 +751,15 @@ function StockTransfersActivityLogsContent() {
             </div>
           )}
         </Suspense>
-
-        {/* Footer */}
-        <div className="mt-6 flex items-center justify-between text-xs text-gray-400 px-2">
-          <span>© 2025 MPCL. All rights reserved.</span>
-          <span>v2.4.1</span>
-        </div>
       </div>
+    </main>
+
+    {/* Footer */}
+    <div className="flex-shrink-0 z-40 bg-white border-t border-gray-200">
+      <Footer />
     </div>
+  </div>
+</div>
   );
 }
 

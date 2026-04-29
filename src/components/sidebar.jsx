@@ -24,7 +24,9 @@ import {
   FaTruck,
   FaTruckMoving,
   FaUsers,
-  FaUserTie
+  FaUserPlus,
+  FaUserTie,
+  FaWarehouse
 } from "react-icons/fa";
 
 const Sidebar = memo(function Sidebar({ onClose }) {
@@ -151,6 +153,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Deepo History", icon: <FaHistory />, module: "deepo_history", path: "/deepo-history" },
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
+    { name: "Tank Master", icon: <FaWarehouse />, module: "manufacturing", path: "/manufacturing/tanks" },
+    { name: "Rental Trips", icon: <FaTruck />, module: "rental_trips", path: "/rental-trips" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
 
   ], []);
@@ -173,7 +177,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     vehicles: "Vehicles",
     schedule_price: "Schedule Prices",
     lr_management: "LR Management",
-    history: "SHIPMENT",
+    history: "Loading History",
     suppliers: "Suppliers",
     vendors: "Packing",
     outstanding_history: "Outstanding History",
@@ -197,7 +201,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     lab_testing: "Lab Testing",
     manufacturing_process: "Manufacturing Process",
     security_gate: "Security Gate",
-    manufacturing_entry: "Manufacturing Entry"
+    manufacturing_entry: "Manufacturing Entry",
+    rental_customer: "Rental-Customer",
+    rental_trips: "Rental Trips"
   }), []);
 
   // ✅ Role-based menu filtering
@@ -223,9 +229,17 @@ const Sidebar = memo(function Sidebar({ onClose }) {
             const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tank', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Manufacturing Entry'];
             return mfgModules.some(mod => user.permissions[mod]?.can_view === true);
           }
+          // Special case: SHIPMENT / Loading History
+          if (item.module === 'history') {
+            return user.permissions["Loading History"]?.can_view === true ||
+              user.permissions["SHIPMENT"]?.can_view === true ||
+              user.permissions["history"]?.can_view === true;
+          }
+
           // Check if specific permission module exists
-          if (user.permissions[backendModuleName]) {
-            return user.permissions[backendModuleName].can_view === true;
+          const modulePerm = user.permissions[backendModuleName];
+          if (modulePerm) {
+            return !!modulePerm.can_view;
           }
         }
 
@@ -250,12 +264,19 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         return false;
       }
 
+      // Special case: SHIPMENT / Loading History
+      if (item.module === 'history') {
+        return user.permissions["Loading History"]?.can_view === true ||
+          user.permissions["SHIPMENT"]?.can_view === true ||
+          user.permissions["history"]?.can_view === true;
+      }
+
       const modulePermission = user.permissions[backendModuleName];
       if (!modulePermission || typeof modulePermission !== 'object') {
         return false;
       }
 
-      return modulePermission.can_view === true;
+      return !!modulePermission.can_view;
     });
 
     return filtered;

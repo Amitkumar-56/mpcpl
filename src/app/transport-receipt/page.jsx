@@ -429,28 +429,28 @@ function TransportReceiptContent() {
             <div className="col-span-3 border-r border-black flex flex-col">
               <div className="font-bold text-left pl-2 py-1 border-b border-black">AT OWNER'S RISK</div>
               <div className="p-2 space-y-1">
-                <p><span className="font-bold">GST No.:</span> {displayData.consigner_gst || '09AAGCG6220R1Z3'}</p>
+                <p><span className="font-bold">Transporter GST:</span> 09AAGCG6220R1Z3</p>
                 <p><span className="font-bold">PAN No.:</span> -</p>
               </div>
             </div>
 
             {/* LR Details */}
-            <div className="col-span-5 p-2 text-[10px] space-y-1">
-              <div className="flex justify-between">
-                <span><span className="font-bold">LR Date:</span> {formatDate(displayData.lr_date)}</span>
-                <span><span className="font-bold">LR No:</span> {displayData.lr_id || ''}</span>
-              </div>
-              <div className="flex justify-between">
-                <span><span className="font-bold">Truck/Vehicle No.:</span> {displayData.tanker_no || '-'}</span>
-                <span><span className="font-bold">Transport Mode:</span> By Road</span>
-              </div>
-              <div className="flex justify-between">
-                <span><span className="font-bold">From:</span> "{displayData.from_location || '-'}"</span>
-                <span><span className="font-bold">To:</span> "{displayData.to_location || '-'}"</span>
-              </div>
-              <div className="flex justify-between">
-                <span><span className="font-bold">Delivery Type:</span> Door</span>
-                <span><span className="font-bold">Payment Status:</span> To be Billed</span>
+            <div className="col-span-5 p-2 text-[10px] space-y-1.5">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <div><span className="font-bold">LR Date:</span> {formatDate(displayData.lr_date)}</div>
+                  <div><span className="font-bold">Truck/Vehicle No.:</span> {displayData.tanker_no || '-'}</div>
+                  <div><span className="font-bold">From:</span> {displayData.from_location || '-'}</div>
+                  <div><span className="font-bold">Delivery Type:</span> Door</div>
+                  <div><span className="font-bold">Payment Status:</span> {displayData.payment_status || 'To be Billed'}</div>
+                </div>
+                <div className="space-y-1.5 pl-4">
+                  <div><span className="font-bold">LR No:</span> {displayData.lr_id || '________________'}</div>
+                  <div><span className="font-bold">Transport Mode:</span> By Road</div>
+                  <div><span className="font-bold">To:</span> {displayData.to_location || '-'}</div>
+                  <div><span className="font-bold">Balance Amt:</span> ________________</div>
+                  <div><span className="font-bold">Mobile:</span> {displayData.mobile_1 || '________________'}</div>
+                </div>
               </div>
             </div>
           </div>
@@ -458,26 +458,26 @@ function TransportReceiptContent() {
           {/* 3. Consignor | Consignee | Insurance */}
           <div className="grid grid-cols-12 border-t border-black">
             {/* Consignor */}
-            <div className="col-span-4 border-r border-black p-2 text-[10px] space-y-0.5">
-              <div className="font-bold mb-0.5 break-words">Consignor: {displayData.consigner || '-'}</div>
-              <div className="flex justify-between mb-0.5 flex-wrap gap-1">
-                <span><span className="font-bold">GST No:</span> {displayData.gst || '-'}</span>
-                <span><span className="font-bold">Mobile:</span> {displayData.mobile_1 || '-'}</span>
+            <div className="col-span-4 border-r border-black p-2 text-[10px] space-y-1">
+              <div className="font-bold mb-1 break-words">Consignor: {displayData.consigner || '___________________________'}</div>
+              <div className="space-y-1">
+                <div><span className="font-bold">GST No:</span> {displayData.gst || '___________________________'}</div>
+                <div><span className="font-bold">Mobile:</span> {displayData.mobile_1 || '___________________________'}</div>
+                <div className="leading-tight break-words"><span className="font-bold">Address:</span> {displayData.address_1 || '______________________________________________________'}</div>
+                <div className="break-words"><span className="font-bold">E-Way Bill:</span> {displayData.gp_no || '-'}</div>
+                <div><span className="font-bold">Generated on:</span> {formatDate(displayData.created_at || new Date())}</div>
+                <div><span className="font-bold">Invoice:</span> {displayData.invoice_no || '-'}</div>
               </div>
-              <div className="mb-0.5 leading-tight break-words"><span className="font-bold">Address:</span> {displayData.address_1 || '-'}</div>
-              <div className="mb-0.5 break-words"><span className="font-bold">E-Way Bill:</span> {displayData.gp_no || '-'}</div>
-              <div className="mb-0.5"><span className="font-bold">Generated on:</span> {formatDate(displayData.created_at || new Date())}</div>
-              <div className="mb-0.5"><span className="font-bold">Invoice:</span> {displayData.invoice_no || '-'}</div>
             </div>
 
             {/* Consignee */}
-            <div className="col-span-5 border-r border-black p-2 text-[10px] space-y-0.5">
-              <div className="font-bold mb-0.5 break-words">Consignee: {displayData.consignee || '-'}</div>
-              <div className="flex justify-between mb-0.5 flex-wrap gap-1">
-                <span><span className="font-bold">GST No:</span> {displayData.gst_no || '-'}</span>
-                <span><span className="font-bold">Mobile:</span> {displayData.mobile_2 || '-'}</span>
+            <div className="col-span-5 border-r border-black p-2 text-[10px] space-y-1">
+              <div className="font-bold mb-1 break-words">Consignee: {displayData.consignee || '___________________________'}</div>
+              <div className="space-y-1">
+                <div><span className="font-bold">GST No:</span> {displayData.gst_no || '___________________________'}</div>
+                <div><span className="font-bold">Mobile:</span> {displayData.mobile_2 || '___________________________'}</div>
+                <div className="leading-tight break-words"><span className="font-bold">Address:</span> {displayData.address_2 || '______________________________________________________'}</div>
               </div>
-              <div className="mb-0.5 leading-tight break-words"><span className="font-bold">Address:</span> {displayData.address_2 || '-'}</div>
             </div>
 
             {/* Insurance */}

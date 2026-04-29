@@ -40,6 +40,7 @@ function VoucherWalletDriverEmpContent() {
   const [logsPanel, setLogsPanel] = useState({ open: false, recordId: null });
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [toast, setToast] = useState(null);
+  const [rentalTrips, setRentalTrips] = useState([]);
 
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -48,7 +49,19 @@ function VoucherWalletDriverEmpContent() {
   useEffect(() => {
     if (!emp_id) { setError('No employee ID provided'); setLoading(false); return; }
     fetchVouchers();
+    fetchRentalTrips();
   }, [emp_id]);
+
+  const fetchRentalTrips = async () => {
+    try {
+      const res = await fetch("/api/rental/trips?status=Open");
+      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+      const data = await res.json();
+      setRentalTrips(data || []);
+    } catch (err) {
+      console.error("Error fetching rental trips:", err);
+    }
+  };
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -469,6 +482,15 @@ function VoucherWalletDriverEmpContent() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Amount (₹) <span className="text-red-500">*</span></label>
                 <input type="number" name="amount" min="1" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" required placeholder="0.00" />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Link to Rental Trip (Optional)</label>
+                <select name="rental_trip_id" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                  <option value="">-- No Rental Trip --</option>
+                  {rentalTrips.map(trip => (
+                    <option key={trip.id} value={trip.id}>TRP-{trip.id} | {trip.vehicle_no} | {trip.rental_customer_name}</option>
+                  ))}
+                </select>
+              </div>
               <div className="flex gap-2 pt-1">
                 <button type="button" onClick={closeModal} className="flex-1 px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>
                 <button type="submit" name="add_cash" className="flex-1 px-3 py-2.5 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">Add Expense</button>
@@ -489,9 +511,19 @@ function VoucherWalletDriverEmpContent() {
             <div className="bg-indigo-50 rounded-lg px-3 py-2 text-sm text-indigo-700 mb-4 font-medium">Voucher #{modalData.selectedVoucher.voucher_no}</div>
             <form onSubmit={handleAddAdvance} className="space-y-4">
               <input type="hidden" name="voucher_id" value={modalData.selectedVoucher.voucher_id} />
+              <input type="hidden" name="voucher_no" value={modalData.selectedVoucher.voucher_no} />
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Advance Amount (₹) <span className="text-red-500">*</span></label>
                 <input type="number" name="advance_amount" min="1" step="0.01" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm" required placeholder="0.00" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Link to Rental Trip (Optional)</label>
+                <select name="rental_trip_id" className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                  <option value="">-- No Rental Trip --</option>
+                  {rentalTrips.map(trip => (
+                    <option key={trip.id} value={trip.id}>TRP-{trip.id} | {trip.vehicle_no} | {trip.rental_customer_name}</option>
+                  ))}
+                </select>
               </div>
               <div className="flex gap-2 pt-1">
                 <button type="button" onClick={closeModal} className="flex-1 px-3 py-2.5 border border-gray-300 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50">Cancel</button>

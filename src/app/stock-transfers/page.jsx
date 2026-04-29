@@ -188,9 +188,9 @@ function StockTransfersContent() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-gray-50">
-      {/* Fixed Sidebar */}
-      <div className="flex-shrink-0">
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden">
+      {/* Sidebar - Desktop: Relative, Mobile: Fixed/Overlay */}
+      <div className="flex-shrink-0 z-50 lg:relative">
         <Sidebar />
       </div>
 
@@ -213,36 +213,41 @@ function StockTransfersContent() {
             </button>
           </div>
         {/* Floating Action Buttons */}
-        <div className="fixed bottom-8 right-8 flex flex-col gap-3 z-50">
+        <div className="fixed bottom-6 right-6 flex flex-col gap-3 z-50">
           <Link
             href="/stock-transfers/product"
-            className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200 flex items-center space-x-2"
+            className="bg-green-600 hover:bg-green-700 text-white p-3.5 lg:px-6 lg:py-3 rounded-full shadow-xl transition-all duration-300 flex items-center justify-center lg:space-x-2 hover:scale-110 active:scale-95"
+            title="Product Transfers"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
             </svg>
-            <span>Product Transfers</span>
+            <span className="hidden lg:inline font-medium">Product Transfers</span>
           </Link>
           <Link
             href="/stock-transfers/create"
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full shadow-lg transition-all duration-200 flex items-center space-x-2"
+            className="bg-purple-600 hover:bg-purple-700 text-white p-3.5 lg:px-6 lg:py-3 rounded-full shadow-xl transition-all duration-300 flex items-center justify-center lg:space-x-2 hover:scale-110 active:scale-95"
+            title="Create Stock Transfer"
           >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            <span>Create Stock Transfer</span>
+            <span className="hidden lg:inline font-medium">New Transfer</span>
           </Link>
         </div>
 
         {/* Content Card */}
-        <div className="bg-white rounded-lg shadow">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-800">Stock Transfer Details</h2>
-              <div className="flex items-center space-x-3">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-100 overflow-hidden">
+          <div className="px-5 py-5 border-b border-gray-100 bg-white">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex items-center gap-3">
+                <span className="bg-blue-100 text-blue-600 p-2 rounded-lg text-lg">🚚</span>
+                <h2 className="text-lg font-bold text-gray-800 tracking-tight">Stock Transfer Details</h2>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto">
                 <Link
                   href="/stock-transfers/activity-logs"
-                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                  className="flex-1 sm:flex-none bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 text-sm font-semibold"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -251,7 +256,7 @@ function StockTransfersContent() {
                 </Link>
                 <button 
                   onClick={fetchTransfers}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors flex items-center space-x-2"
+                  className="flex-1 sm:flex-none bg-gray-50 text-gray-600 hover:bg-gray-200 px-4 py-2.5 rounded-xl transition-all duration-200 flex items-center justify-center space-x-2 text-sm font-semibold border border-gray-100"
                 >
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -261,60 +266,142 @@ function StockTransfersContent() {
               </div>
             </div>
           </div>
-          
-          <div className="p-6">
+          <div className="p-0 lg:p-6">
             {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded mb-4">
-                {error}
+              <div className="m-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl flex items-center gap-3">
+                <span className="text-xl">⚠️</span>
+                <span className="text-sm font-medium">{error}</span>
               </div>
             )}
 
-            <div className="overflow-x-auto">
+            {/* Mobile Card View (shown only on small screens) */}
+            <div className="lg:hidden space-y-4 p-4 bg-gray-50/50">
+              {transfers.length > 0 ? (
+                transfers.map((transfer, index) => {
+                  const transferId = transfer.id || transfer.ID || transfer.stock_transfer_id || 0;
+                  const isExpanded = expandedRows.has(transferId);
+                  const isLogsOpen = expandedLogs.has(transferId);
+                  
+                  return (
+                    <div key={transferId} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden transition-all duration-300">
+                      <div className="p-4">
+                        <div className="flex justify-between items-start mb-3">
+                          <div className="flex flex-col">
+                            <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">#{index + 1} Transfer</span>
+                            <h3 className="font-bold text-gray-900 mt-0.5">{transfer.station_from_name}</h3>
+                            <div className="flex items-center text-blue-600 font-medium text-xs mt-1">
+                              <span>→</span>
+                              <span className="ml-1">{transfer.station_to_name}</span>
+                            </div>
+                          </div>
+                          {getStatusBadge(transfer.status)}
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-4 mt-4 py-3 border-y border-gray-50">
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Product</p>
+                            <p className="text-sm font-semibold text-gray-800">{transfer.product_name}</p>
+                          </div>
+                          <div>
+                            <p className="text-[10px] text-gray-400 uppercase font-bold tracking-tight">Quantity</p>
+                            <p className="text-sm font-bold text-blue-600">{transfer.transfer_quantity}</p>
+                          </div>
+                        </div>
+                        
+                        <div className="mt-3 flex items-center justify-between text-xs text-gray-500">
+                          <div className="flex flex-col">
+                            <span className="flex items-center gap-1">👤 {transfer.driver_name || transfer.driver_id}</span>
+                            <span className="flex items-center gap-1 mt-1">🚚 {transfer.vehicle_no || transfer.vehicle_id}</span>
+                          </div>
+                          <p className="font-medium">{formatDate(transfer.created_at)}</p>
+                        </div>
+                        
+                        <div className="mt-4 flex items-center gap-2">
+                          <button
+                            onClick={() => {
+                              router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
+                            }}
+                            className="flex-1 bg-gray-50 hover:bg-blue-50 text-blue-600 font-bold py-2.5 rounded-xl text-xs transition-colors border border-blue-100 flex items-center justify-center gap-1.5"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                            Details
+                          </button>
+                          <button
+                            onClick={() => toggleTransferLogs(transferId)}
+                            className={`flex-1 font-bold py-2.5 rounded-xl text-xs transition-all flex items-center justify-center gap-1.5 ${isLogsOpen ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-600 border border-gray-200'}`}
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Logs {isLogsOpen ? '▴' : '▾'}
+                          </button>
+                        </div>
+                      </div>
+                      
+                      {isLogsOpen && (
+                        <div className="bg-gray-50 p-4 border-t border-gray-100 animate-fade-in">
+                          <TransferLogs transferId={transferId} />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
+              ) : (
+                <div className="bg-white rounded-2xl p-8 text-center border-2 border-dashed border-gray-200">
+                   <p className="text-gray-500 font-medium">No transfer records found</p>
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View (hidden on small screens) */}
+            <div className="hidden lg:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
+                <thead className="bg-gray-50/50">
                   <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">#</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station From</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Station To</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Driver</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Product</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Logs</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">#</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Station From</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Station To</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Driver</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Vehicle</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Quantity</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Product</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Status</th>
+                    <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">Logs</th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody className="bg-white divide-y divide-gray-100">
                   {transfers.length > 0 ? (
                     transfers.map((transfer, index) => {
-                      // Ensure we get the correct ID field
                       const transferId = transfer.id || transfer.ID || transfer.stock_transfer_id || 0;
                       const isExpanded = expandedRows.has(transferId);
                       return (
                         <React.Fragment key={transferId}>
-                          <tr className="hover:bg-gray-50 transition-colors">
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{index + 1}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.station_from_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.station_to_name}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.driver_name || transfer.driver_id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.vehicle_no || transfer.vehicle_id}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 font-medium">{transfer.transfer_quantity}</td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{transfer.product_name}</td>
+                          <tr className="hover:bg-blue-50/30 transition-colors group">
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-400">{index + 1}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-gray-800">{transfer.station_from_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-blue-600">{transfer.station_to_name}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">{transfer.driver_name || transfer.driver_id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600 font-medium">{transfer.vehicle_no || transfer.vehicle_id}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-black text-gray-900">{transfer.transfer_quantity}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-gray-700">{transfer.product_name}</td>
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center space-x-2">
                                 {getStatusBadge(transfer.status)}
                                 <button
                                   onClick={() => toggleRow(transferId)}
-                                  className="p-1 hover:bg-gray-200 rounded transition-colors"
+                                  className="p-1.5 hover:bg-blue-100 text-blue-600 rounded-lg transition-all opacity-0 group-hover:opacity-100"
                                   title={isExpanded ? "Hide Details" : "Show Details"}
                                 >
                                   <svg 
-                                    className={`w-4 h-4 text-gray-600 transition-transform ${isExpanded ? 'rotate-45' : ''}`} 
+                                    className={`w-4 h-4 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
                                     fill="none" 
                                     stroke="currentColor" 
                                     viewBox="0 0 24 24"
                                   >
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                                   </svg>
                                 </button>
                               </div>
@@ -322,66 +409,54 @@ function StockTransfersContent() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <button
                                 onClick={() => toggleTransferLogs(transferId)}
-                                className="flex items-center text-blue-600 hover:text-blue-800 transition-colors"
-                                title="View Activity Logs"
+                                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${expandedLogs.has(transferId) ? 'bg-blue-600 text-white shadow-md' : 'text-blue-600 hover:bg-blue-50'}`}
                               >
-                                {expandedLogs.has(transferId) ? (
-                                  <>
-                                    <BiChevronUp size={18} />
-                                    <span className="ml-1 text-xs">Hide</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <BiChevronDown size={18} />
-                                    <span className="ml-1 text-xs">Logs</span>
-                                  </>
-                                )}
+                                {expandedLogs.has(transferId) ? <BiChevronUp size={16} /> : <BiChevronDown size={16} />}
+                                <span>Logs</span>
                               </button>
                             </td>
                           </tr>
                           {isExpanded && (
-                            <tr key={`${transferId}-expanded`} className="bg-gray-50">
-                              <td colSpan="9" className="px-6 py-4">
-                                <div className="grid grid-cols-2 gap-4 text-sm">
-                                  <div>
-                                    <span className="font-medium text-gray-700">Created Date:</span>
-                                    <span className="ml-2 text-gray-900">{formatDate(transfer.created_at)}</span>
+                            <tr key={`${transferId}-expanded`} className="bg-gray-50/50">
+                              <td colSpan="9" className="px-8 py-6">
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 grid grid-cols-2 lg:grid-cols-3 gap-8">
+                                  <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Created Date</p>
+                                    <p className="text-sm font-bold text-gray-800">{formatDate(transfer.created_at)}</p>
                                   </div>
-                                  <div>
-                                    <span className="font-medium text-gray-700">Action:</span>
-                                    <span className="ml-2">
-                                      {String(transfer.status) === '3' || transfer.status === 'Completed' ? (
-                                        <button
-                                          onClick={() => {
-                                            router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
-                                            setExpandedRows(prev => new Set([...prev, transferId]));
-                                          }}
-                                          className="text-green-600 hover:text-green-800 transition-colors inline-flex items-center"
-                                          title="Edit Transfer"
-                                        >
-                                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <div className="space-y-1">
+                                    <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Actions</p>
+                                    <button
+                                      onClick={() => router.push(`/stock-transfers/stock-create-details?id=${transferId}`)}
+                                      className="inline-flex items-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2 rounded-xl text-sm font-bold transition-all border border-blue-100"
+                                    >
+                                      {String(transfer.status) === '3' ? (
+                                        <>
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                                           </svg>
-                                          <span className="ml-1">Edit Transfer</span>
-                                        </button>
+                                          <span>Edit Transfer</span>
+                                        </>
                                       ) : (
-                                        <button
-                                          onClick={() => {
-                                            router.push(`/stock-transfers/stock-create-details?id=${transferId}`, { scroll: false });
-                                            setExpandedRows(prev => new Set([...prev, transferId]));
-                                          }}
-                                          className="text-blue-600 hover:text-blue-900 transition-colors inline-flex items-center"
-                                          title="View Details"
-                                        >
-                                          <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                            <path d="M10 12a2 2 0 100-4 2 2 0 000 4z" />
-                                            <path fillRule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clipRule="evenodd" />
+                                        <>
+                                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                           </svg>
-                                          <span className="ml-1">View Details</span>
-                                        </button>
+                                          <span>View Details</span>
+                                        </>
                                       )}
-                                    </span>
+                                    </button>
                                   </div>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                          {expandedLogs.has(transferId) && (
+                            <tr key={`${transferId}-logs`} className="bg-gray-50/50">
+                              <td colSpan="9" className="px-8 pb-6 pt-0">
+                                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                                   <TransferLogs transferId={transferId} />
                                 </div>
                               </td>
                             </tr>
@@ -391,13 +466,13 @@ function StockTransfersContent() {
                     })
                   ) : (
                     <tr>
-                      <td colSpan="9" className="px-6 py-12 text-center">
-                        <div className="text-gray-500">
-                          <svg className="w-12 h-12 mx-auto mb-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <td colSpan="9" className="px-6 py-20 text-center">
+                        <div className="text-gray-400">
+                          <svg className="w-16 h-16 mx-auto mb-4 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
                           </svg>
-                          <p className="text-lg font-medium">No stock transfer records found</p>
-                          <p className="mt-2">Create your first stock transfer to get started.</p>
+                          <p className="text-xl font-bold text-gray-500">No stock transfers found</p>
+                          <p className="mt-2 font-medium">Create a new transfer to get started.</p>
                         </div>
                       </td>
                     </tr>

@@ -844,11 +844,11 @@ function StockRequestContent() {
   // Show loading state
   if (sessionLoading) {
     return (
-      <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="flex flex-col lg:flex-row min-h-screen bg-gray-100 dark:bg-gray-900">
         <Sidebar />
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-w-0">
           <Header />
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600 dark:text-gray-400">Loading...</p>
@@ -862,11 +862,11 @@ function StockRequestContent() {
   // Show access denied
   if (user && !hasPermission) {
     return (
-      <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="flex flex-col lg:flex-row min-h-screen bg-gray-100 dark:bg-gray-900">
         <Sidebar />
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-w-0">
           <Header />
-          <div className="flex-1 flex items-center justify-center p-4">
+          <div className="flex-1 flex items-center justify-center p-6">
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-6 text-center max-w-md">
               <h2 className="text-xl font-semibold text-red-800 dark:text-red-400 mb-2">Access Denied</h2>
               <p className="text-red-600 dark:text-red-300">{error || 'You do not have permission to view stock.'}</p>
@@ -885,12 +885,12 @@ function StockRequestContent() {
   }
 
   return (
-    <div className="flex h-screen bg-gray-100 dark:bg-gray-900 overflow-hidden">
+    <div className="flex flex-col lg:flex-row min-h-screen lg:h-screen bg-gray-100 dark:bg-gray-900 lg:overflow-hidden">
       <Sidebar />
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-h-0 min-w-0 lg:overflow-hidden">
         <Header />
 
-        <div className="flex-1 h-full overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-gray-950 relative">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-gray-950 relative scroll-smooth">
           {/* Decorative Background Elements */}
           <div className="absolute top-0 left-0 right-0 h-[500px] bg-gradient-to-b from-blue-500/5 to-transparent pointer-events-none"></div>
           <div className="absolute top-20 right-[-10%] w-[40%] h-[400px] bg-indigo-500/5 rounded-full blur-[120px] pointer-events-none"></div>
@@ -898,8 +898,8 @@ function StockRequestContent() {
 
           <div className="relative z-10">
           {/* Header Section */}
-          <div className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30 sticky top-0 z-20">
-            <div className="max-w-7xl mx-auto px-6 py-6 sm:px-8 lg:px-10">
+          <div className="bg-white/40 dark:bg-gray-800/40 backdrop-blur-xl border-b border-white/20 dark:border-gray-700/30 sticky top-0 lg:sticky z-20">
+            <div className="max-w-7xl mx-auto px-4 py-4 sm:px-8 lg:px-10">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                 <div className="flex items-center gap-5">
                   <button
@@ -910,7 +910,7 @@ function StockRequestContent() {
                     ←
                   </button>
                   <div>
-                    <h1 className="text-3xl font-black text-gray-900 dark:text-white tracking-tight">
+                    <h1 className="text-xl sm:text-2xl lg:text-3xl font-black text-gray-900 dark:text-white tracking-tight">
                       Stock Management
                     </h1>
                     <p className="text-[13px] font-medium text-gray-500 dark:text-gray-400 mt-1 flex items-center gap-2">
@@ -919,29 +919,29 @@ function StockRequestContent() {
                     </p>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-3">
+                <div className="flex flex-wrap gap-2 w-full md:w-auto">
                   <Link
                     href="/stock/activity-logs"
-                    className="h-12 px-5 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-2xl flex items-center gap-2 border border-white/20 dark:border-gray-700/30 shadow-xl shadow-gray-200/10 dark:shadow-none hover:-translate-y-1 transition-all text-sm font-bold"
+                    className="flex-1 sm:flex-none h-11 px-4 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 rounded-xl flex items-center justify-center gap-2 border border-white/20 dark:border-gray-700/30 shadow-sm hover:-translate-y-0.5 transition-all text-xs font-bold"
                   >
-                    <BsClockHistory size={18} className="text-blue-600" />
+                    <BsClockHistory size={16} className="text-blue-600" />
                     History
                   </Link>
                   {(permissions.can_create === true || permissions.can_create === 1 || Number(user?.role) === 5) && (
-                    <div className="flex gap-3">
+                    <div className="flex gap-2 w-full sm:w-auto">
                       <Link
                         href="/stock/purchase-for-use-history"
-                        className="h-12 px-5 bg-emerald-600 text-white rounded-2xl flex items-center gap-2 shadow-xl shadow-emerald-500/20 hover:-translate-y-1 transition-all text-sm font-bold"
+                        className="flex-1 sm:flex-none h-11 px-4 bg-emerald-600 text-white rounded-xl flex items-center justify-center gap-2 shadow-sm hover:-translate-y-0.5 transition-all text-xs font-bold"
                       >
-                        <BsPlusCircle size={18} />
-                        Purchase for Use
+                        <BsPlusCircle size={16} />
+                        Purchase
                       </Link>
                       <Link
                         href="/stock/purchase"
-                        className="h-12 px-5 bg-indigo-600 text-white rounded-2xl flex items-center gap-2 shadow-xl shadow-indigo-500/20 hover:-translate-y-1 transition-all text-sm font-bold"
+                        className="flex-1 sm:flex-none h-11 px-4 bg-indigo-600 text-white rounded-xl flex items-center justify-center gap-2 shadow-sm hover:-translate-y-0.5 transition-all text-xs font-bold"
                       >
-                        <BsPlusCircle size={18} />
-                        New Stock
+                        <BsPlusCircle size={16} />
+                        Stock
                       </Link>
                     </div>
                   )}
@@ -1095,11 +1095,11 @@ function StockRequestContent() {
 export default function StockRequestPage() {
   return (
     <Suspense fallback={
-      <div className="flex h-screen bg-gray-100 dark:bg-gray-900">
+      <div className="flex flex-col lg:flex-row min-h-screen bg-gray-100 dark:bg-gray-900">
         <Sidebar />
-        <div className="flex flex-col flex-1">
+        <div className="flex flex-col flex-1 min-w-0">
           <Header />
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center p-6">
             <div className="text-center">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
               <p className="text-gray-600 dark:text-gray-400">Loading page...</p>

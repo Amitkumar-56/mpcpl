@@ -73,11 +73,11 @@ export default function AddCustomer() {
     if (cached) {
       const cacheTime = sessionStorage.getItem(`${cacheKey}_time`);
       const fiveMinutes = 5 * 60 * 1000;
-      
+
       if (cacheTime && (Date.now() - Number(cacheTime)) < fiveMinutes) {
         const allPerms = JSON.parse(cached);
         const customerPerms = allPerms['Customers'] || { can_view: false, can_edit: false, can_create: false };
-        
+
         if (customerPerms.can_create) {
           setHasPermission(true);
           setCheckingPermission(false);
@@ -211,9 +211,9 @@ export default function AddCustomer() {
   };
 
   return (
-    <div className="flex h-screen bg-gray-100 overflow-hidden">
-      {/* Sidebar */}
-      <div className="flex-shrink-0 z-50 relative">
+    <div className="flex flex-col lg:flex-row h-screen bg-gray-100 overflow-hidden">
+      {/* Sidebar - Desktop: Relative, Mobile: Fixed/Overlay */}
+      <div className="flex-shrink-0 z-50 lg:relative">
         <Sidebar />
       </div>
 
@@ -227,8 +227,8 @@ export default function AddCustomer() {
         {/* Scrollable Main Content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6 bg-gray-50 scroll-smooth">
           <div className="max-w-5xl mx-auto bg-white shadow-xl rounded-2xl p-4 sm:p-8 border border-gray-100">
-            <h1 className="text-2xl sm:text-3xl font-bold mb-6 text-gray-800 flex items-center gap-3">
-              <span className="bg-blue-100 text-blue-600 p-2 rounded-lg text-xl">👤</span>
+            <h1 className="text-xl sm:text-2xl md:text-3xl font-bold mb-6 text-gray-800 flex items-center gap-3">
+              <span className="bg-blue-100 text-blue-600 p-2.5 rounded-lg text-lg sm:text-xl shadow-sm">👤</span>
               Add New Customer
             </h1>
 
@@ -248,7 +248,7 @@ export default function AddCustomer() {
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form onSubmit={handleSubmit} className="flex flex-col lg:grid lg:grid-cols-2 gap-y-5 lg:gap-6">
               {/* Basic Information */}
               <div className="space-y-1">
                 <label className="block font-semibold text-gray-700 text-sm">Client Name <span className="text-red-500">*</span></label>
@@ -256,7 +256,7 @@ export default function AddCustomer() {
                   type="text"
                   name="client_name"
                   required
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-base sm:text-sm"
                   placeholder="Enter client name"
                 />
               </div>
@@ -266,7 +266,7 @@ export default function AddCustomer() {
                 <select
                   name="role"
                   required
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-base sm:text-sm"
                 >
                   <option value="1">Client</option>
                 </select>
@@ -278,7 +278,7 @@ export default function AddCustomer() {
                   type="tel"
                   name="phone"
                   required
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-base sm:text-sm"
                   placeholder="Contact number"
                 />
               </div>
@@ -288,7 +288,7 @@ export default function AddCustomer() {
                 <input
                   type="email"
                   name="email"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-base sm:text-sm"
                   placeholder="Email address"
                 />
               </div>
@@ -309,7 +309,7 @@ export default function AddCustomer() {
                   type="password"
                   name="password"
                   required
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all text-base sm:text-sm"
                   placeholder="Secure password"
                 />
               </div>
@@ -332,7 +332,7 @@ export default function AddCustomer() {
                 <label className="block font-semibold text-gray-700 text-sm">Billing Type</label>
                 <select
                   name="billing_type"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-base sm:text-sm"
                 >
                   <option value="1">Billing</option>
                   <option value="2">Non Billing</option>
@@ -350,7 +350,7 @@ export default function AddCustomer() {
                     name="amtlimit"
                     step="0.01"
                     required
-                    className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none"
+                    className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none text-base sm:text-sm"
                     placeholder="Enter credit limit amount"
                   />
                 </div>
@@ -365,19 +365,22 @@ export default function AddCustomer() {
                     type="number"
                     name="day_limit"
                     required
-                    className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none"
+                    className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-yellow-500 focus:border-yellow-500 outline-none text-base sm:text-sm"
                     placeholder="Enter number of days"
                   />
                 </div>
               )}
 
               {/* Products */}
-              <div className="col-span-2 space-y-2">
-                <label className="block font-semibold text-gray-700 text-sm">Select Products</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50">
+              <div className="lg:col-span-2 space-y-3 mt-2">
+                <label className="block font-semibold text-gray-700 text-sm flex items-center gap-2">
+                  <span>📦 Select Products</span>
+                  <span className="text-xs font-normal text-gray-400">(Scroll for more)</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto border border-gray-200 rounded-xl p-4 bg-gray-50/50 shadow-inner">
                   {products.map((p) => (
-                    <label key={p.id} className="flex items-center gap-3 p-2 bg-white rounded-md border border-gray-200 hover:border-blue-400 cursor-pointer transition-colors shadow-sm">
-                      <input type="checkbox" name="products[]" value={p.id} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
+                    <label key={p.id} className="flex items-center gap-3 p-3.5 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer transition-all active:scale-95 shadow-sm">
+                      <input type="checkbox" name="products[]" value={p.id} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
                       <span className="text-sm text-gray-700 font-medium">{p.pname}</span>
                     </label>
                   ))}
@@ -385,12 +388,12 @@ export default function AddCustomer() {
               </div>
 
               {/* Address */}
-              <div className="col-span-2 space-y-1">
+              <div className="lg:col-span-2 space-y-1">
                 <label className="block font-semibold text-gray-700 text-sm">Address</label>
                 <textarea
                   name="address"
                   rows="3"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none resize-y transition-shadow text-base sm:text-sm"
                   placeholder="Full address"
                 ></textarea>
               </div>
@@ -400,14 +403,14 @@ export default function AddCustomer() {
                 <input
                   type="text"
                   name="city"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm"
                   placeholder="City"
                 />
               </div>
 
               <div className="space-y-1">
                 <label className="block font-semibold text-gray-700 text-sm">State</label>
-                <select name="region" className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white" required>
+                <select name="region" className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none bg-white text-base sm:text-sm" required>
                   <option value="">Select State</option>
                   <option value="andhra_pradesh">Andhra Pradesh</option>
                   <option value="arunachal_pradesh">Arunachal Pradesh</option>
@@ -453,7 +456,7 @@ export default function AddCustomer() {
                   type="text"
                   name="country"
                   defaultValue="India"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm"
                 />
               </div>
 
@@ -462,7 +465,7 @@ export default function AddCustomer() {
                 <input
                   type="text"
                   name="postbox"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm"
                   placeholder="Zip Code"
                 />
               </div>
@@ -472,7 +475,7 @@ export default function AddCustomer() {
                 <input
                   type="text"
                   name="gst_name"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm"
                   placeholder="GST Registered Name"
                 />
               </div>
@@ -482,18 +485,21 @@ export default function AddCustomer() {
                 <input
                   type="text"
                   name="gst_number"
-                  className="w-full border border-gray-300 p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 p-3.5 sm:p-2.5 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-base sm:text-sm"
                   placeholder="GST Number"
                 />
               </div>
 
               {/* Assign Location */}
-              <div className="col-span-2 space-y-2">
-                <label className="block font-semibold text-gray-700 text-sm">Assign Locations</label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-48 overflow-y-auto border border-gray-300 rounded-lg p-4 bg-gray-50">
+              <div className="lg:col-span-2 space-y-3 mt-4">
+                <label className="block font-semibold text-gray-700 text-sm flex items-center gap-2">
+                  <span>📍 Assign Locations</span>
+                  <span className="text-xs font-normal text-gray-400">(Scroll for more)</span>
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-64 overflow-y-auto border border-gray-200 rounded-xl p-4 bg-gray-50/50 shadow-inner">
                   {stations.map((s) => (
-                    <label key={s.id} className="flex items-center gap-3 p-2 bg-white rounded-md border border-gray-200 hover:border-blue-400 cursor-pointer transition-colors shadow-sm">
-                      <input type="checkbox" name="block_location[]" value={s.id} className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" />
+                    <label key={s.id} className="flex items-center gap-3 p-3.5 bg-white rounded-lg border border-gray-200 hover:border-blue-400 hover:shadow-md cursor-pointer transition-all active:scale-95 shadow-sm">
+                      <input type="checkbox" name="block_location[]" value={s.id} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
                       <span className="text-sm text-gray-700 font-medium">{s.station_name}</span>
                     </label>
                   ))}
@@ -501,55 +507,55 @@ export default function AddCustomer() {
               </div>
 
               {/* File Upload */}
-              <div className="col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
                 <div className="space-y-1">
                   <label className="block font-semibold text-gray-700 text-sm">Document 1</label>
-                  <input type="file" name="doc1" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700" />
+                  <input type="file" name="doc1" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 transition-all shadow-sm cursor-pointer" />
                 </div>
                 <div className="space-y-1">
                   <label className="block font-semibold text-gray-700 text-sm">Document 2</label>
-                  <input type="file" name="doc2" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700" />
+                  <input type="file" name="doc2" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 transition-all shadow-sm cursor-pointer" />
                 </div>
                 <div className="space-y-1">
                   <label className="block font-semibold text-gray-700 text-sm">Document 3</label>
-                  <input type="file" name="doc3" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-1 file:px-2 file:rounded-md file:border-0 file:bg-gray-100 file:text-gray-700" />
+                  <input type="file" name="doc3" className="w-full border border-gray-300 p-2 rounded-lg text-xs file:mr-2 file:py-2 file:px-4 file:rounded-md file:border-0 file:bg-blue-50 file:text-blue-700 file:font-semibold hover:file:bg-blue-100 transition-all shadow-sm cursor-pointer" />
                 </div>
               </div>
 
               {/* Permissions */}
-              <div className="col-span-2 mt-2 border-t pt-4">
-                <h3 className="text-lg font-bold text-gray-800 mb-3 flex items-center gap-2">
+              <div className="lg:col-span-2 mt-6 border-t pt-6">
+                <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
                   <span className="text-xl">🛡️</span> Module Permissions
                 </h3>
-                <div className="overflow-x-auto border border-gray-300 rounded-lg shadow-sm">
-                  <table className="w-full border-collapse">
-                    <thead className="bg-gray-100 border-b border-gray-300">
+                <div className="overflow-x-auto rounded-xl border border-gray-200 shadow-sm bg-white">
+                  <table className="w-full border-collapse min-w-[500px]">
+                    <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="p-3 text-left font-semibold text-gray-700 text-sm">Module Name</th>
-                        <th className="p-3 text-center font-semibold text-gray-700 text-sm w-24">View</th>
-                        <th className="p-3 text-center font-semibold text-gray-700 text-sm w-24">Edit</th>
+                        <th className="p-4 text-left font-semibold text-gray-700 text-sm uppercase tracking-wider">Module</th>
+                        <th className="p-4 text-center font-semibold text-gray-700 text-sm uppercase tracking-wider w-28">View</th>
+                        <th className="p-4 text-center font-semibold text-gray-700 text-sm uppercase tracking-wider w-28">Edit</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-200">
+                    <tbody className="divide-y divide-gray-100">
                       {modules.map((mod, idx) => (
-                        <tr key={idx} className={`hover:bg-blue-50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}`}>
-                          <td className="p-3 font-medium text-gray-700 text-sm">
+                        <tr key={idx} className={`hover:bg-blue-50/50 transition-colors ${idx % 2 === 0 ? "bg-white" : "bg-gray-50/30"}`}>
+                          <td className="p-4 font-medium text-gray-700 text-sm">
                             {moduleDisplayNames[mod] || mod.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-4 text-center">
                             <input
                               type="checkbox"
                               checked={permissions[mod].can_view}
                               onChange={() => handlePermissionChange(mod, "can_view")}
-                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                              className="w-7 h-7 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer transition-all active:scale-90"
                             />
                           </td>
-                          <td className="p-3 text-center">
+                          <td className="p-4 text-center">
                             <input
                               type="checkbox"
                               checked={permissions[mod].can_edit}
                               onChange={() => handlePermissionChange(mod, "can_edit")}
-                              className="w-5 h-5 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                              className="w-7 h-7 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer transition-all active:scale-90"
                             />
                           </td>
                         </tr>
@@ -557,10 +563,13 @@ export default function AddCustomer() {
                     </tbody>
                   </table>
                 </div>
+                <p className="mt-2 text-xs text-gray-500 italic flex items-center gap-1">
+                  <span className="text-lg">↔️</span> Swipe left/right to see all columns
+                </p>
               </div>
 
               {/* Submit Buttons */}
-              <div className="col-span-2 flex flex-col sm:flex-row justify-end gap-4 mt-6 border-t pt-6">
+              <div className="lg:col-span-2 flex flex-col sm:flex-row justify-end gap-4 mt-8 border-t pt-8">
                 <button
                   type="button"
                   onClick={() => router.back()}

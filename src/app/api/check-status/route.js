@@ -7,7 +7,7 @@ export async function GET(request) {
   try {
     const cookieStore = await cookies();
     const token = cookieStore.get('token')?.value;
-    
+
     if (!token) {
       return NextResponse.json({ error: 'No token found' }, { status: 401 });
     }
@@ -18,7 +18,7 @@ export async function GET(request) {
     }
 
     const userId = decoded.userId || decoded.id;
-    
+
     // Check user status from database
     const result = await executeQuery(
       'SELECT id, name, email, status, role FROM employee_profile WHERE id = ?',
@@ -51,6 +51,43 @@ export async function GET(request) {
       }, { status: 403 });
     }
 
+    // ✅ Fetch Merged Permissions (Employee-specific + Role-based)
+
+    const employeePermissions = await executeQuery(
+      `SELECT module_name, can_view, can_edit, can_create
+       FROM role_permissions
+       WHERE employee_id = ?`,
+      [user.id]
+    );
+
+    const roleBasedPermissions = await executeQuery(
+      `SELECT module_name, can_view, can_edit, can_create
+       FROM role_permissions
+       WHERE role = ? AND (employee_id IS NULL OR employee_id = 0)`,
+      [user.role]
+    );
+
+    const permissionMap = new Map();
+    roleBasedPermissions.forEach((perm) => {
+      permissionMap.set(perm.module_name, {
+        can_view: perm.can_view === 1,
+        can_edit: perm.can_edit === 1,
+        can_create: perm.can_create === 1
+      });
+    });
+    employeePermissions.forEach((perm) => {
+      permissionMap.set(perm.module_name, {
+        can_view: perm.can_view === 1,
+        can_edit: perm.can_edit === 1,
+        can_create: perm.can_create === 1
+      });
+    });
+
+    const userPermissions = {};
+    permissionMap.forEach((perms, module_name) => {
+      userPermissions[module_name] = perms;
+    });
+
     return NextResponse.json({
       success: true,
       user: {
@@ -59,7 +96,8 @@ export async function GET(request) {
         email: user.email,
         role: user.role,
         status: user.status,
-        isActive: isActive
+        isActive: isActive,
+        permissions: userPermissions
       },
       isDeactivated: false
     });

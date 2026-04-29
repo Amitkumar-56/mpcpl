@@ -48,7 +48,9 @@ export async function GET() {
       'Tanker Allocation',
       'Lab Testing',
       'Manufacturing Process',
-      'Security Gate'
+      'Security Gate',
+      'Rental-Customer',
+      'Rental Trips'
     ];
 
     // Combine and deduplicate

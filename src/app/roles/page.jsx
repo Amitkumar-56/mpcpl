@@ -58,7 +58,9 @@ export default function RoleAccessControl() {
     'Tanker Allocation',
     'Lab Testing',
     'Manufacturing Process',
-    'Security Gate'
+    'Security Gate',
+    'Rental-Customer',
+    'Rental Trips'
   ];
 
   // Role-wise data (har role ka apna modules & permissions)
