@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, Suspense } from "react";
 import { FaArrowLeft, FaCheckCircle, FaDownload, FaGasPump, FaLock, FaMoneyBillWave, FaPlus, FaUserPlus } from "react-icons/fa";
 import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 
 function RentalTripsContent() {
   const [trips, setTrips] = useState([]);
@@ -285,90 +284,8 @@ function RentalTripsContent() {
   };
 
   const downloadPDF = () => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-
-    // Professional Header with Branding
-    doc.setFillColor(37, 99, 235); // Blue
-    doc.rect(0, 0, pageWidth, 40, 'F');
-
-    doc.setFontSize(24);
-    doc.setTextColor(255);
-    doc.setFont("helvetica", "bold");
-    doc.text("MPCPL", 14, 20);
-
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("Enterprise Logistics Management", 14, 28);
-
-    doc.setFontSize(16);
-    doc.text("Rental Trip History Report", pageWidth - 14, 25, { align: 'right' });
-
-    doc.setFontSize(8);
-    doc.text(`Generated on: ${new Date().toLocaleString('en-IN')}`, pageWidth - 14, 32, { align: 'right' });
-
-    // Summary Section with stylized cards
-    doc.setTextColor(0);
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("Operational Metrics Summary", 14, 55);
-
-    doc.setDrawColor(230);
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(14, 60, pageWidth - 28, 25, 3, 3, 'FD');
-
-    doc.setFontSize(9);
-    doc.setTextColor(100);
-    doc.text("Total Trips", 20, 70);
-    doc.text("Total Revenue", 65, 70);
-    doc.text("Total Expenses", 110, 70);
-    doc.text("Net Profit/Loss", 155, 70);
-
-    doc.setFontSize(11);
-    doc.setTextColor(37, 99, 235);
-    doc.text(`${totals.count}`, 20, 78);
-    doc.setTextColor(21, 128, 61); // Green
-    doc.text(`Rs. ${totals.revenue.toLocaleString()}`, 65, 78);
-    doc.setTextColor(185, 28, 28); // Red
-    doc.text(`Rs. ${totals.expense.toLocaleString()}`, 110, 78);
-    doc.setTextColor(totals.profit >= 0 ? 21 : 185, totals.profit >= 0 ? 128 : 28, totals.profit >= 0 ? 61 : 28);
-    doc.text(`Rs. ${totals.profit.toLocaleString()}`, 155, 78);
-
-    const tableData = trips.map(t => [
-      `TRP-${t.id}`,
-      t.rental_customer_name,
-      `${t.vehicle_no}\n(${t.driver_name})`,
-      `${t.source} to ${t.destination}`,
-      `Rs. ${parseFloat(t.total_expense).toLocaleString()}`,
-      `Rs. ${parseFloat(t.total_advance || t.received_amount || 0).toLocaleString()}`,
-      `Rs. ${parseFloat(t.profit_loss || 0).toLocaleString()}`,
-      t.status
-    ]);
-
-    autoTable(doc, {
-      startY: 95,
-      head: [['ID', 'Customer', 'Vehicle/Driver', 'Route', 'Expense', 'Advance', 'P/L', 'Status']],
-      body: tableData,
-      theme: 'grid',
-      headStyles: { fillColor: [37, 99, 235], textColor: 255, fontStyle: 'bold', fontSize: 9 },
-      styles: { fontSize: 8, cellPadding: 3, valign: 'middle' },
-      columnStyles: {
-        4: { halign: 'right' },
-        5: { halign: 'right' },
-        6: { halign: 'right' }
-      },
-      didDrawPage: function (data) {
-        // Page Numbering
-        doc.setFontSize(8);
-        doc.setTextColor(150);
-        doc.text(`Page ${data.pageNumber}`, pageWidth / 2, doc.internal.pageSize.height - 10, { align: 'center' });
-      }
-    });
-
-    doc.save(`rental_trips_report_${new Date().getTime()}.pdf`);
+    alert("PDF download is currently unavailable.");
   };
-
-  // Helper to trigger search fetch (since we removed the automatic filter)
 
   const handleSearchKeyDown = (e) => {
     if (e.key === 'Enter') {
@@ -377,89 +294,7 @@ function RentalTripsContent() {
   };
 
   const downloadTripPDF = (trip) => {
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.width;
-
-    // Header
-    doc.setFillColor(37, 99, 235);
-    doc.rect(0, 0, pageWidth, 40, 'F');
-
-    doc.setFontSize(22);
-    doc.setTextColor(255);
-    doc.setFont("helvetica", "bold");
-    doc.text("MPCPL", 14, 20);
-
-    doc.setFontSize(16);
-    doc.text("Trip Summary Report", pageWidth - 14, 25, { align: 'right' });
-
-    doc.setFontSize(10);
-    doc.text(`TRP-${trip.id} | ${trip.status.toUpperCase()}`, pageWidth - 14, 32, { align: 'right' });
-
-    // Customer & Info Cards
-    doc.setTextColor(0);
-    doc.setFontSize(12);
-    doc.text("Trip Information", 14, 55);
-
-    doc.setDrawColor(220);
-    doc.line(14, 58, pageWidth - 14, 58);
-
-    const infoData = [
-      ["Customer Details", ""],
-      ["Name", trip.rental_customer_name],
-      ["Company", trip.rc_company_name || 'N/A'],
-      ["", ""],
-      ["Operational Details", ""],
-      ["Vehicle No", trip.vehicle_no],
-      ["Driver", `${trip.driver_name} (${trip.driver_number || 'N/A'})`],
-      ["Route", `${trip.source} to ${trip.destination || '...'}`],
-      ["Route Info", trip.state || 'N/A']
-    ];
-
-    autoTable(doc, {
-      startY: 65,
-      body: infoData,
-      theme: 'plain',
-      styles: { fontSize: 10, cellPadding: 2 },
-      columnStyles: {
-        0: { fontStyle: 'bold', textColor: 100, cellWidth: 50 }
-      },
-      didParseCell: function (data) {
-        if (data.column.index === 0 && (data.cell.text[0] === "Customer Details" || data.cell.text[0] === "Operational Details")) {
-          data.cell.styles.fontSize = 11;
-          data.cell.styles.textColor = [37, 99, 235];
-          data.cell.styles.fontStyle = 'bold';
-        }
-      }
-    });
-
-    // Financial Table
-    doc.setFontSize(12);
-    doc.setTextColor(0);
-    doc.text("Financial Breakdown", 14, doc.lastAutoTable.finalY + 15);
-
-    const financialData = [
-      ["Total Advance Received", `Rs. ${parseFloat(trip.received_amount || 0).toLocaleString()}`],
-      ["Total Trip Expenses", `Rs. ${parseFloat(trip.total_expense || 0).toLocaleString()}`],
-      ["Net Profit / Loss", `Rs. ${parseFloat(trip.profit_loss || 0).toLocaleString()}`]
-    ];
-
-    autoTable(doc, {
-      startY: doc.lastAutoTable.finalY + 20,
-      body: financialData,
-      theme: 'grid',
-      styles: { fontSize: 10, cellPadding: 5 },
-      columnStyles: {
-        1: { halign: 'right', fontStyle: 'bold', textColor: [37, 99, 235] }
-      }
-    });
-
-    // Footer
-    doc.setFontSize(8);
-    doc.setTextColor(150);
-    const footerText = "Generated via MPCPL Enterprise ERP - Logistics Management System";
-    doc.text(footerText, pageWidth / 2, doc.internal.pageSize.height - 15, { align: 'center' });
-
-    doc.save(`trip_report_${trip.id}.pdf`);
+    alert("Trip PDF download is currently unavailable.");
   };
 
 
