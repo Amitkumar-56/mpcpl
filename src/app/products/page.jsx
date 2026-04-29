@@ -82,7 +82,7 @@ export default function ProductsPage() {
     }
 
     try {
-      const moduleName = 'Items & Products';
+      const moduleName = 'Products';
       const [viewRes, editRes, deleteRes] = await Promise.all([
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`),
         fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`),

@@ -65,7 +65,7 @@ function EditProductForm() {
     }
 
     try {
-      const moduleName = 'Items & Products';
+      const moduleName = 'Products';
       const editRes = await fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_edit`);
       const editData = await editRes.json();
 

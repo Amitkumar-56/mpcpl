@@ -374,14 +374,14 @@ export default function FillingDetailsAdmin() {
           console.warn('Could not get location for completion:', locationError);
           // Still submit without location data
           submitData.append('completed_area_name', '');
-          submitData.append('completed_lat', '');
-          submitData.append('completed_lng', '');
+          submitData.append('completed_lat', null);
+          submitData.append('completed_lng', null);
         }
       } else {
         // For non-completed status, send empty location data
         submitData.append('completed_area_name', '');
-        submitData.append('completed_lat', '');
-        submitData.append('completed_lng', '');
+        submitData.append('completed_lat', null);
+        submitData.append('completed_lng', null);
       }
 
       console.log('📤 Submitting form data with status:', formData.status);
@@ -668,9 +668,13 @@ export default function FillingDetailsAdmin() {
     const isDayLimitClient = dayLimit > 0 && creditLimit <= 0;
 
     if (isDayLimitClient) {
+      // For day limit customers, allow unlimited requests within the day limit
+      // Block only when they exceed their day limit (days_elapsed > day_limit)
+      const isInsufficient = daysElapsed > dayLimit && dayLimit > 0;
+      
       return {
         availableBalance: null,
-        isInsufficient: remainingDays <= 0,
+        isInsufficient,
         limitType: 'day',
         dayLimit,
         creditLimit,

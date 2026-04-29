@@ -134,7 +134,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Attendance", icon: <FaClock />, module: "attendance", path: "/attendance" },
     { name: "HR Dashboard", icon: <FaUsers />, module: "hr_dashboard", path: "/hr-dashboard" },
     { name: "Suppliers", icon: <FaBuilding />, module: "suppliers", path: "/suppliers" },
-    { name: "PARKING", icon: <FaBuilding />, module: "vendors", path: "/packing" },
+    { name: "Parking", icon: <FaBuilding />, module: "vendors", path: "/packing" },
     { name: "Transporters", icon: <FaTruck />, module: "transporters", path: "/transporters" },
     { name: "NB Accounts", icon: <FaClipboard />, module: "nb_balance", path: "/nb-balance" },
     { name: "NB Expenses", icon: <FaMoneyBill />, module: "nb_expenses", path: "/nb-expenses" },
@@ -152,14 +152,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
-    { name: "Manufacturing", icon: <FaIndustry />, module: "manufacturing", path: "/manufacturing" },
-    { name: "Raw Materials", icon: <FaBox />, module: "raw_materials", path: "/manufacturing/raw-materials" },
-    { name: "Finished Goods", icon: <FaIndustry />, module: "finished_goods", path: "/manufacturing/finished-goods" },
-    { name: "Tanker Allocation", icon: <FaTruck />, module: "tanker_allocation", path: "/manufacturing/tanker-allocation" },
-    { name: "Lab Testing", icon: <FaCog />, module: "lab_testing", path: "/manufacturing/lab-testing" },
-    { name: "Manufacturing Process", icon: <FaCog />, module: "manufacturing_process", path: "/manufacturing/process" },
-    { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/security-gate" },
-    { name: "Vehicle Entry", icon: <FaTruck />, module: "manufacturing_entry", path: "/manufacturing/entry-requests" },
+
   ], []);
 
   const moduleMapping = useMemo(() => ({
@@ -182,7 +175,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     lr_management: "LR Management",
     history: "SHIPMENT",
     suppliers: "Suppliers",
-    vendors: "PARKING",
+    vendors: "Packing",
     outstanding_history: "Outstanding History",
     transporters: "Transporters",
     nb_balance: "NB Accounts",
@@ -197,6 +190,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     manufacturing: "Manufacturing",
     raw_materials: "Raw Materials",
     finished_goods: "Finished Goods",
+    tanker_stock: "Tank",
+    filling_tank_stocks: "Filling Tank Stocks",
+    tank_stock_caret: "Tank Stock Caret",
     tanker_allocation: "Tanker Allocation",
     lab_testing: "Lab Testing",
     manufacturing_process: "Manufacturing Process",
@@ -224,7 +220,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         if (backendModuleName && user.permissions && typeof user.permissions === 'object') {
           // Special case: Manufacturing sidebar item shows if user has ANY manufacturing sub-module permission
           if (item.module === 'manufacturing') {
-            const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Manufacturing Entry'];
+            const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tank', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Manufacturing Entry'];
             return mfgModules.some(mod => user.permissions[mod]?.can_view === true);
           }
           // Check if specific permission module exists

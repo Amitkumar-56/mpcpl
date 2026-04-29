@@ -379,8 +379,8 @@ export async function POST(request) {
     const remarks = formData.get('remarks');
     const area_name = formData.get('area_name');
     const completed_area_name = formData.get('completed_area_name');
-    const completed_lat = formData.get('completed_lat');
-    const completed_lng = formData.get('completed_lng');
+    const completed_lat = formData.get('completed_lat') || null;
+    const completed_lng = formData.get('completed_lng') || null;
 
     console.log('🎯 CRITICAL FIELDS FOR PROCESSING:', {
       id, rid, status, aqty, cl_id, area_name
@@ -704,41 +704,25 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
     if (dayLimit > 0) {
       console.log('📅 Checking day limit for customer...');
 
+      // Check distinct days used
       const distinctDaysResult = await executeQuery(
-        `SELECT COUNT(DISTINCT DATE(completed_date)) as distinct_days
+        `SELECT COUNT(DISTINCT DATE(completed_date)) as distinct_days_used
          FROM filling_requests 
          WHERE cid = ? AND status = 'Completed' AND payment_status = 0`,
         [cl_id]
       );
 
-      const distinctDays = distinctDaysResult.length > 0 ? parseInt(distinctDaysResult[0].distinct_days) || 0 : 0;
+      const distinctDaysUsed = distinctDaysResult.length > 0 ? parseInt(distinctDaysResult[0].distinct_days_used) || 0 : 0;
 
-      const todayDateStr = getIndianTime().slice(0, 10);
-      const todayCheck = await executeQuery(
-        `SELECT 1 FROM filling_requests 
-         WHERE cid = ? AND status = 'Completed' AND payment_status = 0 
-         AND DATE(completed_date) = ?
-         LIMIT 1`,
-        [cl_id, todayDateStr]
-      );
-
-      const isTodayAlreadyCounted = todayCheck.length > 0;
-
-      let projectedDays = distinctDays;
-      if (!isTodayAlreadyCounted) {
-        projectedDays += 1;
-      }
-
-      console.log('📅 Day Limit Check (Distinct Dates):', {
-        distinctDays,
-        isTodayAlreadyCounted,
-        projectedDays,
+      console.log('📅 Day Limit Check (Distinct Days):', {
+        distinctDaysUsed,
         dayLimit,
-        isExceeded: projectedDays > dayLimit
+        canComplete: distinctDaysUsed < dayLimit
       });
 
-      if (projectedDays > dayLimit) {
-        console.log('❌ Day limit exceeded based on distinct dates count');
+      // Check if customer has exceeded their day limit (allow unlimited within limit)
+      if (distinctDaysUsed > dayLimit) {
+        console.log('❌ Day limit exceeded - all allowed days used');
 
         const totalUnpaidQuery = `
           SELECT SUM(COALESCE(totalamt, price * aqty)) as total_unpaid
@@ -750,7 +734,8 @@ async function checkBalanceLimit(cl_id, aqty, defaultPrice, fs_id, product_id, s
 
         return {
           sufficient: false,
-          message: `Day limit exceeded. You have used ${distinctDays} distinct days of credit (limit: ${dayLimit} days). Total unpaid amount: ₹${totalUnpaid.toFixed(2)}. Please clear the payment to continue.`,
+          title: 'Day Limit Exceeded',
+          message: `Day limit exceeded. You have used ${distinctDaysUsed} days of credit (limit: ${dayLimit} days). Please contact admin to increase limit or clear payment to continue. Total unpaid amount: ₹${totalUnpaid.toFixed(2)}.`,
           isDayLimitExpired: true,
           totalUnpaidAmount: totalUnpaid
         };

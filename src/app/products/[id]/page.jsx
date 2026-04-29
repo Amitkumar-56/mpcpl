@@ -61,7 +61,7 @@ function ProductViewContent({ params }) {
     }
 
     try {
-      const moduleName = 'Items & Products';
+      const moduleName = 'Products';
       const viewRes = await fetch(`/api/check-permissions?employee_id=${user.id}&module_name=${encodeURIComponent(moduleName)}&action=can_view`);
       const viewData = await viewRes.json();
 
