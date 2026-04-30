@@ -10,8 +10,8 @@ export async function POST(request) {
 
     // Ensure columns exist
     try {
-      await executeQuery("ALTER TABLE shipment_records ADD COLUMN IF NOT EXISTS lr_no VARCHAR(100) NULL");
-      await executeQuery("ALTER TABLE shipment_records ADD COLUMN IF NOT EXISTS remarks TEXT NULL");
+      await executeQuery("ALTER TABLE shipment_records ADD COLUMN lr_no VARCHAR(100) NULL");
+      await executeQuery("ALTER TABLE shipment_records ADD COLUMN remarks TEXT NULL");
     } catch (err) { console.log("Column check/add error (maybe already exists):", err.message); }
 
     // Extract all fields from the form data

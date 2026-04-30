@@ -134,8 +134,8 @@ async function ensurePaymentLogsTable() {
 
   // Ensure earning_id column exists
   try {
-    await executeQuery(`ALTER TABLE agent_payments ADD COLUMN IF NOT EXISTS earning_id INT DEFAULT NULL`);
-    await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN IF NOT EXISTS earning_id INT DEFAULT NULL`);
+    await executeQuery(`ALTER TABLE agent_payments ADD COLUMN earning_id INT DEFAULT NULL`);
+    await executeQuery(`ALTER TABLE agent_payment_logs ADD COLUMN earning_id INT DEFAULT NULL`);
   } catch (e) {
     console.log("earning_id column check error:", e.message);
   }

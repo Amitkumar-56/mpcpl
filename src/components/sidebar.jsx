@@ -17,6 +17,7 @@ import {
   FaHome,
   FaIndustry,
   FaMoneyBill,
+  FaPlus,
   FaShieldAlt,
   FaSignOutAlt,
   FaStickyNote,
@@ -154,6 +155,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
     { name: "Tank Master", icon: <FaWarehouse />, module: "manufacturing", path: "/manufacturing/tanks" },
+    { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/manufacturing/security-gate" },
     { name: "Rental Trips", icon: <FaTruck />, module: "rental_trips", path: "/rental-trips" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
 
@@ -219,6 +221,11 @@ const Sidebar = memo(function Sidebar({ onClose }) {
 
     // ✅ Roles 1 (Staff), 2 (Incharge), 3 (Team Leader), 4 (Accountant), 7 (Hard Operation), 8 (Security Guard) - Strictly Follow Permissions
     if ([1, 2, 3, 4, 7, 8].includes(userRole)) {
+      // Special case: Security Guard (Role 8) - Show ONLY gate items
+      if (userRole === 8) {
+        return menuItems.filter(item => item.path.includes('/manufacturing/security-gate'));
+      }
+
       return menuItems.filter((item) => {
         const backendModuleName = moduleMapping[item.module];
 

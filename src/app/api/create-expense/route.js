@@ -26,8 +26,8 @@ export async function POST(request) {
 
       // Ensure missing columns exist in expenses table (for existing tables)
       try {
-        await executeQuery(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS receiver_vendor_id INT NULL`);
-        await executeQuery(`ALTER TABLE expenses ADD COLUMN IF NOT EXISTS is_receiver_from_dropdown TINYINT(1) DEFAULT 0`);
+        await executeQuery(`ALTER TABLE expenses ADD COLUMN receiver_vendor_id INT NULL`);
+        await executeQuery(`ALTER TABLE expenses ADD COLUMN is_receiver_from_dropdown TINYINT(1) DEFAULT 0`);
       } catch (colError) {
         // Skip if columns already exist or MySQL version doesn't support IF NOT EXISTS in ALTER
         console.warn('Note: Could not add columns to expenses table automatically:', colError.message);
@@ -55,7 +55,7 @@ export async function POST(request) {
     // Ensure vendors table has amount column
     try {
       await executeQuery(`
-        ALTER TABLE vendors ADD COLUMN IF NOT EXISTS amount DECIMAL(10,2) DEFAULT 0.00
+        ALTER TABLE vendors ADD COLUMN amount DECIMAL(10,2) DEFAULT 0.00
       `);
     } catch (vendorColumnError) {
       // Ignore if column already exists or table doesn't exist yet
@@ -81,9 +81,9 @@ export async function POST(request) {
 
       // Ensure missing columns exist in vendor_transactions (for existing tables)
       try {
-        await executeQuery(`ALTER TABLE vendor_transactions ADD COLUMN IF NOT EXISTS transaction_type ENUM('credit', 'debit') NOT NULL DEFAULT 'debit'`);
-        await executeQuery(`ALTER TABLE vendor_transactions ADD COLUMN IF NOT EXISTS reverse_name VARCHAR(255)`);
-        await executeQuery(`ALTER TABLE vendor_transactions ADD COLUMN IF NOT EXISTS customer_name VARCHAR(255)`);
+        await executeQuery(`ALTER TABLE vendor_transactions ADD COLUMN transaction_type ENUM('credit', 'debit') NOT NULL DEFAULT 'debit'`);
+        await executeQuery(`ALTER TABLE vendor_transactions ADD COLUMN reverse_name VARCHAR(255)`);
+        await executeQuery(`ALTER TABLE vendor_transactions ADD COLUMN customer_name VARCHAR(255)`);
       } catch (colError) {
         console.warn('Note: Could not add columns to vendor_transactions automatically:', colError.message);
       }

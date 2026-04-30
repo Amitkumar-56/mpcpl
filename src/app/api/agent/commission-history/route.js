@@ -42,7 +42,7 @@ export async function GET(request) {
 
       // Migrating existing schema if payment_id is missing
       try {
-        await executeQuery(`ALTER TABLE agent_earnings ADD COLUMN IF NOT EXISTS payment_id INT`);
+        await executeQuery(`ALTER TABLE agent_earnings ADD COLUMN payment_id INT`);
       } catch (e) {
         // Silently ignore if already exists or other error
       }
