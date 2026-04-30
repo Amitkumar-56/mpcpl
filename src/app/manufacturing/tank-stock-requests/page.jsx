@@ -70,8 +70,8 @@ function TankStockRequestsContent() {
     }
   };
 
-  const filteredRequests = requests.filter(req => 
-    req.tank_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredRequests = (requests || []).filter(req => 
+    req?.tank_name?.toLowerCase()?.includes(searchTerm.toLowerCase())
   );
 
   // Pagination Logic

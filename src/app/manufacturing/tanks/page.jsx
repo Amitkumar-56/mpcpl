@@ -69,7 +69,9 @@ function TankMasterContent() {
     } finally { setIsSubmitting(false); }
   };
 
-  const filteredTanks = tanks.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
+  const filteredTanks = (tanks || []).filter(t => 
+    t?.name?.toLowerCase()?.includes(searchTerm.toLowerCase())
+  );
 
   const navItems = [
     { href: '/manufacturing/all-tank-stock', label: 'All Stock', icon: <FaWarehouse />, color: 'from-blue-600 to-indigo-600' },

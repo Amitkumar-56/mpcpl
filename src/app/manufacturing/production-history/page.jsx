@@ -43,9 +43,9 @@ function ProductionHistoryContent() {
     fetchBatches(); 
   }, [fetchBatches]);
 
-  const filteredBatches = batches.filter(batch => 
-    batch.from_tank_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    batch.batch_code?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredBatches = (batches || []).filter(batch => 
+    batch?.from_tank_name?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+    batch?.batch_code?.toLowerCase()?.includes(searchTerm.toLowerCase())
   );
 
   // Pagination Logic

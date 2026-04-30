@@ -40,8 +40,8 @@ function AllTankStockContent() {
     fetchStocks();
   }, []);
 
-  const filteredStocks = stocks.filter(stock => 
-    stock.tank_name.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredStocks = (stocks || []).filter(stock => 
+    stock?.tank_name?.toLowerCase()?.includes(searchTerm.toLowerCase())
   );
 
   // Pagination Logic
@@ -97,9 +97,9 @@ function AllTankStockContent() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                {[
                  { label: 'Total Tanks', value: stocks.length, icon: <FaWarehouse />, color: 'bg-blue-500' },
-                 { label: 'Raw Materials', value: stocks.filter(s => s.tank_name.toLowerCase().includes('raw')).length, icon: <FaBox />, color: 'bg-amber-500' },
-                 { label: 'Finished Goods', value: stocks.filter(s => s.tank_name.toLowerCase().includes('fg')).length, icon: <FaFlask />, color: 'bg-emerald-500' },
-                 { label: 'Alerts', value: stocks.filter(s => parseFloat(s.total_kg) < 100).length, icon: <FaShieldAlt />, color: 'bg-rose-500' },
+                 { label: 'Raw Materials', value: stocks.filter(s => s?.tank_name?.toLowerCase()?.includes('raw')).length, icon: <FaBox />, color: 'bg-amber-500' },
+                 { label: 'Finished Goods', value: stocks.filter(s => s?.tank_name?.toLowerCase()?.includes('fg')).length, icon: <FaFlask />, color: 'bg-emerald-500' },
+                 { label: 'Alerts', value: stocks.filter(s => parseFloat(s?.total_kg || 0) < 100).length, icon: <FaShieldAlt />, color: 'bg-rose-500' },
                ].map((stat, i) => (
                  <div key={i} className="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex items-center gap-4">
                     <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center text-white shadow-lg`}>
@@ -133,11 +133,11 @@ function AllTankStockContent() {
                         </div>
                         <div className="text-right">
                            <span className="px-3 py-1 rounded-full bg-slate-900 text-white text-[8px] font-black tracking-widest uppercase shadow-lg">
-                              {stock.unit || 'KG'}
+                              {stock?.unit || 'KG'}
                            </span>
                         </div>
                      </div>
-                     <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1 group-hover:text-blue-600 transition-colors">{stock.tank_name}</h3>
+                     <h3 className="text-lg font-black text-slate-800 tracking-tight mb-1 group-hover:text-blue-600 transition-colors">{stock?.tank_name || 'Unnamed Tank'}</h3>
                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Active Storage</p>
                   </div>
 
@@ -145,16 +145,16 @@ function AllTankStockContent() {
                      <div className="grid grid-cols-2 gap-4 mb-6">
                         <div>
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Weight</p>
-                           <p className="text-xl font-black text-slate-800">{parseFloat(stock.total_kg).toLocaleString()} <span className="text-[10px] text-slate-400">KG</span></p>
+                           <p className="text-xl font-black text-slate-800">{parseFloat(stock?.total_kg || 0).toLocaleString()} <span className="text-[10px] text-slate-400">KG</span></p>
                         </div>
                         <div>
                            <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume</p>
-                           <p className="text-xl font-black text-slate-800">{parseFloat(stock.total_litre).toLocaleString()} <span className="text-[10px] text-slate-400">LTR</span></p>
+                           <p className="text-xl font-black text-slate-800">{parseFloat(stock?.total_litre || 0).toLocaleString()} <span className="text-[10px] text-slate-400">LTR</span></p>
                         </div>
                      </div>
                      
                      <div className="flex gap-2">
-                        <Link href={`/manufacturing/tank-stock-requests?tankId=${stock.tank_id}`} className="flex-1 bg-white border border-slate-100 text-slate-600 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-sm hover:bg-slate-900 hover:text-white transition-all">
+                        <Link href={`/manufacturing/tank-stock-requests?tankId=${stock?.tank_id}`} className="flex-1 bg-white border border-slate-100 text-slate-600 py-3 rounded-xl text-[9px] font-black uppercase tracking-widest text-center shadow-sm hover:bg-slate-900 hover:text-white transition-all">
                            History
                         </Link>
                         <Link href="/manufacturing/tank-transfer" className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shadow-sm">

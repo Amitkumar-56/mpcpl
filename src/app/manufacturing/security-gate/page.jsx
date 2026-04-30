@@ -165,8 +165,8 @@ function SecurityGateContent() {
                         ) : currentItems.map((entry) => (
                            <tr key={entry.id} className="hover:bg-slate-50/30 transition-colors group">
                               <td className="px-6 py-6">
-                                 <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">#{entry.id.toString().padStart(5, '0')}</div>
-                                 <div className="text-[8px] font-bold text-slate-400 mt-1">{new Date(entry.entry_time).toLocaleDateString()}</div>
+                                 <div className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">#{entry?.id?.toString()?.padStart(5, '0') || '00000'}</div>
+                                 <div className="text-[8px] font-bold text-slate-400 mt-1">{entry?.entry_time ? new Date(entry.entry_time).toLocaleDateString() : 'N/A'}</div>
                               </td>
                               <td className="px-6 py-6">
                                  <div className="flex items-center gap-3">
@@ -201,9 +201,9 @@ function SecurityGateContent() {
                                        Mark Exit
                                     </button>
                                  ) : (
-                                    <div className="text-[9px] font-bold text-slate-300 italic">
-                                       Exited at {new Date(entry.exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                                    </div>
+                                     <div className="text-[9px] font-bold text-slate-300 italic">
+                                        Exited at {entry?.exit_time ? new Date(entry.exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                     </div>
                                  )}
                               </td>
                            </tr>

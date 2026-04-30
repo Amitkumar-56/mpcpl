@@ -65,9 +65,9 @@ function TankTransferHistoryContent() {
     }
   };
 
-  const filteredTransfers = transfers.filter(tr => 
-    tr.source_tank_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    tr.dest_tank_name?.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredTransfers = (transfers || []).filter(tr => 
+    tr?.source_tank_name?.toLowerCase()?.includes(searchTerm.toLowerCase()) ||
+    tr?.dest_tank_name?.toLowerCase()?.includes(searchTerm.toLowerCase())
   );
 
   // Pagination Logic

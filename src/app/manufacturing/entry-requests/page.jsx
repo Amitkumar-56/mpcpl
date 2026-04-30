@@ -306,7 +306,7 @@ function EntryRequestsContent() {
                        
                        <div className="flex gap-2 mt-auto">
                           {e.status === 'pending_approval' && isAdmin && (
-                            <button onClick={() => handleApprove(req)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-blue-100 active:scale-95 transition-all">Approve</button>
+                            <button onClick={() => handleApprove(e)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-blue-100 active:scale-95 transition-all">Approve</button>
                           )}
                           {e.status === 'pending' && (isSecurity || isAdmin) && (
                             <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-amber-100 active:scale-95 transition-all">Verify OTP</button>
