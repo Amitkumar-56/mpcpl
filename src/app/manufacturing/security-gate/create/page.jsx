@@ -66,7 +66,13 @@ function CreateGateEntryContent() {
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -9,13 +9,12 @@ import {
   FaVial, FaCheckCircle, FaSpinner, FaTools
 } from 'react-icons/fa';
 import { toast, Toaster } from 'react-hot-toast';
-import dynamic from 'next/dynamic';
+import Header from '@/components/Header';
+import Sidebar from '@/components/sidebar';
+import Footer from '@/components/Footer';
 
-const Header = dynamic(() => import('@/components/Header'), { ssr: false });
-const Sidebar = dynamic(() => import('@/components/sidebar'), { ssr: false });
-const Footer = dynamic(() => import('@/components/Footer'), { ssr: false });
-
-export default function TankMasterPage() {
+function TankMasterContent() {
+  const [mounted, setMounted] = useState(false);
   const [tanks, setTanks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [newTankName, setNewTankName] = useState('');
@@ -42,7 +41,10 @@ export default function TankMasterPage() {
     }
   }, []);
 
-  useEffect(() => { fetchTanks(); }, [fetchTanks]);
+  useEffect(() => { 
+    setMounted(true);
+    fetchTanks(); 
+  }, [fetchTanks]);
 
   const handleAddTank = async (e) => {
     e.preventDefault();
@@ -80,17 +82,23 @@ export default function TankMasterPage() {
     { href: '/manufacturing/security-gate', label: 'Security Gate', icon: <FaShieldAlt />, color: 'from-slate-800 to-black' },
   ];
 
-  return (
-    <div className="flex min-h-screen bg-[#FDFDFF]">
-      <Toaster position="top-right" />
-      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
-        <Sidebar activePage="Manufacturing" />
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
       </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">
+      <Toaster position="top-right" />
+      <Sidebar activePage="Manufacturing" />
       
-      <div className="lg:ml-64 flex flex-col flex-1 min-h-screen">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
         <Header />
         
-        <main className="flex-1 p-4 lg:p-10 relative overflow-hidden">
+        <main className="flex-1 overflow-y-auto no-scrollbar p-4 lg:p-10 relative">
           {/* Decorative Background Elements */}
           <div className="absolute top-0 right-0 w-96 h-96 bg-blue-50 rounded-full -mr-48 -mt-48 blur-3xl opacity-50"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-50 rounded-full -ml-48 -mb-48 blur-3xl opacity-50"></div>
@@ -147,10 +155,10 @@ export default function TankMasterPage() {
               ))}
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 pb-32">
               {/* Left Column: Create Tank */}
               <div className="lg:col-span-1">
-                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 p-8 sticky top-24">
+                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 p-8 sticky top-4">
                   <div className="flex items-center gap-3 mb-8">
                     <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shadow-inner">
                       <FaPlus />
@@ -238,10 +246,10 @@ export default function TankMasterPage() {
                     <table className="w-full text-left min-w-[500px]">
                       <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
                         <tr>
-                          <th className="px-8 py-5">#</th>
-                          <th className="px-8 py-5">Tank Identification</th>
-                          <th className="px-8 py-5">Tracking Unit</th>
-                          <th className="px-8 py-5">Onboarded On</th>
+                           <th className="px-8 py-5">#</th>
+                           <th className="px-8 py-5">Tank Identification</th>
+                           <th className="px-8 py-5">Tracking Unit</th>
+                           <th className="px-8 py-5">Onboarded On</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-50">
@@ -304,8 +312,19 @@ export default function TankMasterPage() {
           </div>
         </main>
         
-        <Footer />
+        {/* Fixed Footer */}
+        <div className="absolute bottom-0 left-0 right-0 z-30 bg-[#F8FAFF]">
+           <Footer />
+        </div>
       </div>
     </div>
+  );
+}
+
+export default function TankMasterPage() {
+  return (
+    <Suspense fallback={<div className="p-20 text-center animate-pulse"><FaSpinner className="animate-spin text-blue-600 text-4xl mx-auto" /></div>}>
+      <TankMasterContent />
+    </Suspense>
   );
 }

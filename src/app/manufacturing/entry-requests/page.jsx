@@ -224,7 +224,13 @@ function EntryRequestsContent() {
   const currentItems = entries.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(entries.length / itemsPerPage);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">
@@ -276,46 +282,46 @@ function EntryRequestsContent() {
                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No active protocols</p>
                     </div>
                  ) : currentItems.map(e => (
-                   <div key={e.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col hover:shadow-md transition-all">
-                      <div className="flex justify-between items-start mb-4">
-                         <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">{e.request_code}</div>
-                         <span className={`text-[8px] font-bold px-2 py-1 rounded-md uppercase tracking-widest ${
-                           e.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 
-                           e.status === 'processing' ? 'bg-blue-50 text-blue-600 border border-blue-100 animate-pulse' : 
-                           'bg-amber-50 text-amber-600'
-                         }`}>{e.status.replace('_', ' ')}</span>
-                      </div>
-                      
-                      <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">{e.vehicle_number}</h3>
-                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
-                         <FaUser size={8} className="text-slate-300" /> {e.driver_name || 'Anonymous'}
-                      </div>
+                    <div key={e.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col hover:shadow-md transition-all">
+                       <div className="flex justify-between items-start mb-4">
+                          <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">{e.request_code}</div>
+                          <span className={`text-[8px] font-bold px-2 py-1 rounded-md uppercase tracking-widest ${
+                            e.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 
+                            e.status === 'processing' ? 'bg-blue-50 text-blue-600 border border-blue-100 animate-pulse' : 
+                            'bg-amber-50 text-amber-600'
+                          }`}>{e.status.replace('_', ' ')}</span>
+                       </div>
+                       
+                       <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">{e.vehicle_number}</h3>
+                       <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
+                          <FaUser size={8} className="text-slate-300" /> {e.driver_name || 'Anonymous'}
+                       </div>
 
-                      <div className="space-y-2 mb-6 text-[9px] font-bold">
-                         <div className="flex justify-between border-b border-slate-50 pb-1">
-                            <span className="text-slate-300 uppercase">Material</span>
-                            <span className="text-slate-700 truncate max-w-[120px]">{e.material_name || 'N/A'}</span>
-                         </div>
-                      </div>
-                      
-                      <div className="flex gap-2 mt-auto">
-                         {e.status === 'pending_approval' && isAdmin && (
-                           <button onClick={() => handleApprove(e)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-blue-100 active:scale-95 transition-all">Approve</button>
-                         )}
-                         {e.status === 'pending' && (isSecurity || isAdmin) && (
-                           <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-amber-100 active:scale-95 transition-all">Verify OTP</button>
-                         )}
-                         {e.status === 'approved' && (isSecurity || isAdmin) && (
-                           <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-emerald-100 active:scale-95 transition-all">Confirm Entry</button>
-                         )}
-                         {e.status === 'processing' && (isSecurity || isAdmin) && (
-                           <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-rose-100 active:scale-95 transition-all">Confirm Exit</button>
-                         )}
-                         <button onClick={() => { setSelectedRequest(e); }} className="bg-slate-50 p-2.5 rounded-xl text-slate-400 hover:text-slate-900 transition-colors">
-                            <FaEye size={14} />
-                         </button>
-                      </div>
-                   </div>
+                       <div className="space-y-2 mb-6 text-[9px] font-bold">
+                          <div className="flex justify-between border-b border-slate-50 pb-1">
+                             <span className="text-slate-300 uppercase">Material</span>
+                             <span className="text-slate-700 truncate max-w-[120px]">{e.material_name || 'N/A'}</span>
+                          </div>
+                       </div>
+                       
+                       <div className="flex gap-2 mt-auto">
+                          {e.status === 'pending_approval' && isAdmin && (
+                            <button onClick={() => handleApprove(req)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-blue-100 active:scale-95 transition-all">Approve</button>
+                          )}
+                          {e.status === 'pending' && (isSecurity || isAdmin) && (
+                            <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-amber-100 active:scale-95 transition-all">Verify OTP</button>
+                          )}
+                          {e.status === 'approved' && (isSecurity || isAdmin) && (
+                            <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-emerald-100 active:scale-95 transition-all">Confirm Entry</button>
+                          )}
+                          {e.status === 'processing' && (isSecurity || isAdmin) && (
+                            <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-rose-100 active:scale-95 transition-all">Confirm Exit</button>
+                          )}
+                          <button onClick={() => { setSelectedRequest(e); }} className="bg-slate-50 p-2.5 rounded-xl text-slate-400 hover:text-slate-900 transition-colors">
+                             <FaEye size={14} />
+                          </button>
+                       </div>
+                    </div>
                  ))}
               </div>
 

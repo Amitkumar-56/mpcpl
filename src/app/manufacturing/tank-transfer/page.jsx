@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
   FaArrowLeft, FaExchangeAlt, FaWarehouse, FaClipboardList,
-  FaCheckCircle, FaClock, FaArrowRight, FaSpinner, FaTools
+  FaCheckCircle, FaClock, FaArrowRight, FaSpinner, FaTools, FaSync
 } from 'react-icons/fa';
 import { toast, Toaster } from 'react-hot-toast';
 import Header from '@/components/Header';
@@ -24,22 +24,23 @@ function TankTransferContent() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => { setMounted(true); }, []);
+  const fetchTanks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/manufacturing/tanks');
+      const data = await response.json();
+      setTanks(Array.isArray(data) ? data : []);
+    } catch (error) {
+      toast.error('Sync failed');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => {
-    const fetchTanks = async () => {
-      try {
-        const response = await fetch('/api/manufacturing/tanks');
-        const data = await response.json();
-        setTanks(data);
-      } catch (error) {
-        toast.error('Sync failed');
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (mounted) fetchTanks();
-  }, [mounted]);
+  useEffect(() => { 
+    setMounted(true);
+    fetchTanks(); 
+  }, [fetchTanks]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -72,7 +73,13 @@ function TankTransferContent() {
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">
@@ -95,9 +102,14 @@ function TankTransferContent() {
                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Internal Logistics</p>
                   </div>
                </div>
-               <Link href="/manufacturing/tank-transfer-history" className="flex items-center justify-center gap-2 bg-amber-50 text-amber-600 px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest border border-amber-100 shadow-sm">
-                  <FaClipboardList /> History
-               </Link>
+               <div className="flex gap-2">
+                 <Link href="/manufacturing/tank-transfer-history" className="flex items-center justify-center gap-2 bg-amber-50 text-amber-600 px-4 py-2.5 rounded-xl font-bold text-[10px] uppercase tracking-widest border border-amber-100 shadow-sm">
+                    <FaClipboardList /> History
+                 </Link>
+                 <button onClick={fetchTanks} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-blue-600 shadow-sm transition-all">
+                    <FaSync size={12} className={loading ? 'animate-spin' : ''} />
+                 </button>
+               </div>
             </div>
 
             <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">

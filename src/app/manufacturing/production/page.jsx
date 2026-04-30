@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   FaArrowLeft, FaFlask, FaWarehouse, FaClipboardList,
   FaCheckCircle, FaClock, FaPlus, FaTrash, FaBoxOpen,
-  FaVial, FaHistory, FaSpinner, FaMicrochip, FaTools
+  FaVial, FaHistory, FaSpinner, FaMicrochip, FaTools, FaSync
 } from 'react-icons/fa';
 import { toast, Toaster } from 'react-hot-toast';
 import Header from '@/components/Header';
@@ -26,22 +26,23 @@ function ProductionEntryContent() {
   const [loading, setLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => { setMounted(true); }, []);
+  const fetchTanks = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/manufacturing/tanks');
+      const data = await response.json();
+      setTanks(Array.isArray(data) ? data : []);
+    } catch (error) {
+      toast.error('Sync error');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  useEffect(() => {
-    const fetchTanks = async () => {
-      try {
-        const response = await fetch('/api/manufacturing/tanks');
-        const data = await response.json();
-        setTanks(data);
-      } catch (error) {
-        toast.error('Sync error');
-      } finally {
-        setLoading(false);
-      }
-    };
-    if (mounted) fetchTanks();
-  }, [mounted]);
+  useEffect(() => { 
+    setMounted(true);
+    fetchTanks(); 
+  }, [fetchTanks]);
 
   const addOutputField = () => {
     setOutputs([...outputs, { to_tank_id: '', kg_output: '', litre_output: '' }]);
@@ -83,7 +84,13 @@ function ProductionEntryContent() {
     }
   };
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">
@@ -101,9 +108,14 @@ function ProductionEntryContent() {
                   <h1 className="text-2xl font-black text-slate-900 tracking-tight">Production Entry</h1>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Conversion Protocol</p>
                </div>
-               <Link href="/manufacturing/production-history" className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100">
-                  <FaHistory /> Batch Logs
-               </Link>
+               <div className="flex gap-2">
+                 <Link href="/manufacturing/production-history" className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100">
+                    <FaHistory /> Batch Logs
+                 </Link>
+                 <button onClick={fetchTanks} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-blue-600 shadow-sm transition-all">
+                    <FaSync size={12} className={loading ? 'animate-spin' : ''} />
+                 </button>
+               </div>
             </div>
 
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-12">

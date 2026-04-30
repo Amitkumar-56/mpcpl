@@ -25,8 +25,6 @@ function TankTransferHistoryContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(12);
 
-  useEffect(() => { setMounted(true); }, []);
-
   const fetchTransfers = useCallback(async () => {
     try {
       setLoading(true);
@@ -41,7 +39,10 @@ function TankTransferHistoryContent() {
     }
   }, [activeTab]);
 
-  useEffect(() => { if (mounted) fetchTransfers(); }, [fetchTransfers, mounted]);
+  useEffect(() => { 
+    setMounted(true);
+    fetchTransfers(); 
+  }, [fetchTransfers]);
 
   const handleApproval = async (transferId, action) => {
     if (!window.confirm(`Confirm ${action}?`)) return;
@@ -75,7 +76,13 @@ function TankTransferHistoryContent() {
   const currentItems = filteredTransfers.slice(indexOfFirstItem, indexOfLastItem);
   const totalPages = Math.ceil(filteredTransfers.length / itemsPerPage);
 
-  if (!mounted) return null;
+  if (!mounted) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-white">
+        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">
@@ -194,9 +201,7 @@ function TankTransferHistoryContent() {
                                        <button onClick={() => handleApproval(tr.id, 'Rejected')} disabled={isProcessing} className="w-8 h-8 bg-rose-600 text-white rounded-lg flex items-center justify-center shadow-sm active:scale-90 transition-all"><FaTimes size={10} /></button>
                                     </div>
                                  ) : (
-                                    <button className="p-2 text-slate-300 hover:text-slate-900 transition-colors">
-                                       <FaChevronRight size={10} />
-                                    </button>
+                                    <div className="text-[10px] font-bold text-slate-300 italic">No actions</div>
                                  )}
                               </td>
                            </tr>
@@ -212,7 +217,7 @@ function TankTransferHistoryContent() {
                   <button 
                     onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                     disabled={currentPage === 1}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 disabled:opacity-30 active:scale-90 transition-all"
+                    className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 disabled:opacity-30 active:scale-90 transition-all shadow-sm"
                   >
                      <FaChevronLeft size={10} />
                   </button>
@@ -232,7 +237,7 @@ function TankTransferHistoryContent() {
                   <button 
                     onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                     disabled={currentPage === totalPages}
-                    className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 disabled:opacity-30 active:scale-90 transition-all"
+                    className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 disabled:opacity-30 active:scale-90 transition-all shadow-sm"
                   >
                      <FaChevronRight size={10} />
                   </button>
