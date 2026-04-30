@@ -1,241 +1,311 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect, Suspense } from 'react';
-import { 
-  FaPlus, FaEdit, FaTrash, FaSearch, FaSync, 
-  FaWarehouse, FaArrowRight, FaSpinner, FaChevronLeft, FaChevronRight
+import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import {
+  FaArrowLeft, FaPlus, FaTrash, FaSearch, FaWarehouse, FaClipboardList,
+  FaExchangeAlt, FaHistory, FaFlask, FaBoxOpen, FaShieldAlt, FaCog,
+  FaVial, FaCheckCircle, FaSpinner, FaTools
 } from 'react-icons/fa';
 import { toast, Toaster } from 'react-hot-toast';
-import Header from '@/components/Header';
-import Sidebar from '@/components/sidebar';
-import Footer from '@/components/Footer';
+import dynamic from 'next/dynamic';
 
-function TankMasterContent() {
-  const [mounted, setMounted] = useState(false);
+const Header = dynamic(() => import('@/components/Header'), { ssr: false });
+const Sidebar = dynamic(() => import('@/components/sidebar'), { ssr: false });
+const Footer = dynamic(() => import('@/components/Footer'), { ssr: false });
+
+export default function TankMasterPage() {
   const [tanks, setTanks] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [currentTank, setCurrentTank] = useState({ name: '', unit: 'KG' });
-  const [isEditing, setIsEditing] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
+  const [newTankName, setNewTankName] = useState('');
+  const [newTankUnit, setNewTankUnit] = useState('KG');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const router = useRouter();
 
-  // Pagination
-  const [currentPage, setCurrentPage] = useState(1);
-  const [itemsPerPage] = useState(10);
-
-  useEffect(() => { setMounted(true); }, []);
-
-  const fetchTanks = async () => {
+  const fetchTanks = useCallback(async () => {
     try {
       setLoading(true);
       const response = await fetch('/api/manufacturing/tanks');
-      const data = await response.json();
-      setTanks(data);
+      if (response.ok) {
+        const data = await response.json();
+        setTanks(data);
+      } else {
+        toast.error('Failed to fetch tanks');
+      }
     } catch (error) {
-      toast.error('Failed to load assets');
+      console.error('Error fetching tanks:', error);
+      toast.error('An error occurred while fetching tanks');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  useEffect(() => { if (mounted) fetchTanks(); }, [mounted]);
+  useEffect(() => { fetchTanks(); }, [fetchTanks]);
 
-  const handleSubmit = async (e) => {
+  const handleAddTank = async (e) => {
     e.preventDefault();
-    if (!currentTank.name) return toast.error('Name is required');
-
+    if (!newTankName.trim()) { toast.error('Please enter a tank name'); return; }
     try {
       setIsSubmitting(true);
-      const method = isEditing ? 'PUT' : 'POST';
       const response = await fetch('/api/manufacturing/tanks', {
-        method,
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(currentTank),
+        body: JSON.stringify({ name: newTankName, unit: newTankUnit }),
       });
-
       const data = await response.json();
-      if (data.success) {
-        toast.success(isEditing ? 'Updated' : 'Created');
-        setShowModal(false);
-        setCurrentTank({ name: '', unit: 'KG' });
-        setIsEditing(false);
-        fetchTanks();
-      } else toast.error(data.error || 'Operation failed');
+      if (response.ok) { 
+        toast.success('Tank created successfully!'); 
+        setNewTankName(''); 
+        fetchTanks(); 
+      } else {
+        toast.error(data.error || 'Failed to create tank');
+      }
     } catch (error) {
-      toast.error('Error');
-    } finally {
-      setIsSubmitting(false);
-    }
+      toast.error('Error creating tank');
+    } finally { setIsSubmitting(false); }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm('Delete this asset?')) return;
-    try {
-      const response = await fetch(`/api/manufacturing/tanks?id=${id}`, { method: 'DELETE' });
-      const data = await response.json();
-      if (data.success) {
-        toast.success('Deleted');
-        fetchTanks();
-      } else toast.error(data.error || 'Failed');
-    } catch (error) {
-      toast.error('Error');
-    }
-  };
+  const filteredTanks = tanks.filter(t => t.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  const filteredTanks = tanks.filter(tank => 
-    tank.name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const indexOfLastItem = currentPage * itemsPerPage;
-  const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentItems = filteredTanks.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(filteredTanks.length / itemsPerPage);
-
-  if (!mounted) return null;
+  const navItems = [
+    { href: '/manufacturing/all-tank-stock', label: 'All Stock', icon: <FaWarehouse />, color: 'from-blue-600 to-indigo-600' },
+    { href: '/manufacturing/add-tank-stock', label: 'Add Stock', icon: <FaPlus />, color: 'from-emerald-500 to-teal-600' },
+    { href: '/manufacturing/tank-stock-requests', label: 'Stock Requests', icon: <FaClipboardList />, color: 'from-violet-500 to-purple-600' },
+    { href: '/manufacturing/production', label: 'Production', icon: <FaFlask />, color: 'from-rose-500 to-pink-600' },
+    { href: '/manufacturing/production-history', label: 'Production Log', icon: <FaBoxOpen />, color: 'from-slate-600 to-slate-800' },
+    { href: '/manufacturing/tank-transfer', label: 'Internal Transfer', icon: <FaExchangeAlt />, color: 'from-orange-500 to-amber-600' },
+    { href: '/manufacturing/tank-transfer-history', label: 'Transfer Log', icon: <FaHistory />, color: 'from-cyan-500 to-blue-600' },
+    { href: '/manufacturing/security-gate', label: 'Security Gate', icon: <FaShieldAlt />, color: 'from-slate-800 to-black' },
+  ];
 
   return (
-    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden font-sans text-slate-900">
+    <div className="flex min-h-screen bg-[#FDFDFF]">
       <Toaster position="top-right" />
-      <Sidebar activePage="Manufacturing" />
-
-      <div className="flex-1 flex flex-col h-screen overflow-hidden relative">
+      <div className="hidden lg:block fixed left-0 top-0 h-screen z-50">
+        <Sidebar activePage="Manufacturing" />
+      </div>
+      
+      <div className="lg:ml-64 flex flex-col flex-1 min-h-screen">
         <Header />
+        
+        <main className="flex-1 p-4 lg:p-10 relative overflow-hidden">
+          {/* Decorative Background Elements */}
+          <div className="absolute top-0 right-0 w-96 h-96 bg-blue-50 rounded-full -mr-48 -mt-48 blur-3xl opacity-50"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-emerald-50 rounded-full -ml-48 -mb-48 blur-3xl opacity-50"></div>
 
-        <main className="flex-1 overflow-y-auto no-scrollbar p-4 sm:p-6 pb-48">
-          <div className="max-w-5xl mx-auto">
-            {/* Header Area */}
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
-               <div>
-                  <h1 className="text-xl font-black text-slate-900 tracking-tight text-center sm:text-left">Tank Master</h1>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center sm:text-left">Asset Registry Control</p>
-               </div>
-               <div className="flex gap-2">
-                  <button onClick={() => { setIsEditing(false); setCurrentTank({ name: '', unit: 'KG' }); setShowModal(true); }} className="bg-slate-900 text-white px-5 py-3 rounded-2xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-slate-200 flex items-center gap-2 active:scale-95 transition-all">
-                     <FaPlus /> Add New Asset
-                  </button>
-                  <button onClick={fetchTanks} className="p-3 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-slate-900 shadow-sm transition-all">
-                     <FaSync size={12} className={loading ? 'animate-spin' : ''} />
-                  </button>
-               </div>
+          <div className="max-w-6xl mx-auto relative z-10">
+            {/* Header Section */}
+            <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
+              <div>
+                <div className="flex items-center gap-2 text-blue-600 font-bold text-sm uppercase tracking-widest mb-2">
+                  <FaTools className="animate-pulse" />
+                  <span>Manufacturing Center</span>
+                </div>
+                <h1 className="text-4xl lg:text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                  Tank Master <span className="text-blue-600">Hub</span>
+                </h1>
+                <p className="text-slate-500 mt-3 max-w-lg font-medium leading-relaxed">
+                  Centrally manage manufacturing tanks, stock levels, and production workflows with automated lab verification.
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <div className="bg-white p-2 rounded-2xl shadow-xl shadow-slate-100 flex items-center gap-4 px-6 border border-slate-50">
+                   <div className="text-right">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Active Tanks</p>
+                      <p className="text-2xl font-black text-slate-900">{tanks.length}</p>
+                   </div>
+                   <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-blue-200">
+                      <FaWarehouse size={20} />
+                   </div>
+                </div>
+              </div>
             </div>
 
-            {/* Search Hub */}
-            <div className="mb-8 relative max-w-md mx-auto sm:mx-0">
-               <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-               <input 
-                 placeholder="Search registry..." 
-                 value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                 className="w-full pl-11 pr-4 py-3 bg-white border border-slate-100 rounded-2xl text-xs font-bold outline-none focus:ring-4 focus:ring-blue-50 transition-all shadow-sm"
-               />
-            </div>
-
-            {/* High-Density List */}
-            <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden mb-8">
-               <div className="overflow-x-auto">
-                  <table className="w-full text-left">
-                     <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100">
-                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Asset Name</th>
-                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Base Unit</th>
-                           <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
-                        </tr>
-                     </thead>
-                     <tbody className="divide-y divide-slate-50">
-                        {loading ? (
-                           Array.from({ length: 5 }).map((_, i) => <tr key={i} className="animate-pulse"><td colSpan="3" className="px-8 py-8"></td></tr>)
-                        ) : currentItems.length === 0 ? (
-                           <tr><td colSpan="3" className="px-8 py-20 text-center text-[10px] font-bold text-slate-400 uppercase tracking-widest">No assets registered</td></tr>
-                        ) : currentItems.map((tank) => (
-                           <tr key={tank.id} className="hover:bg-slate-50 transition-colors group">
-                              <td className="px-8 py-6">
-                                 <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-2xl bg-slate-50 text-slate-400 flex items-center justify-center font-black group-hover:bg-slate-900 group-hover:text-white transition-all shadow-inner">
-                                       <FaWarehouse size={14} />
-                                    </div>
-                                    <span className="text-xs font-black text-slate-800 uppercase tracking-tight">{tank.name}</span>
-                                 </div>
-                              </td>
-                              <td className="px-8 py-6 text-center">
-                                 <span className="px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[9px] font-black uppercase tracking-widest border border-blue-100">{tank.unit}</span>
-                              </td>
-                              <td className="px-8 py-6 text-right">
-                                 <div className="flex items-center justify-end gap-2">
-                                    <button onClick={() => { setIsEditing(true); setCurrentTank(tank); setShowModal(true); }} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 text-slate-400 hover:bg-slate-900 hover:text-white transition-all shadow-sm">
-                                       <FaEdit size={12} />
-                                    </button>
-                                    <button onClick={() => handleDelete(tank.id)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-rose-50 text-rose-400 hover:bg-rose-600 hover:text-white transition-all shadow-sm">
-                                       <FaTrash size={12} />
-                                    </button>
-                                 </div>
-                              </td>
-                           </tr>
-                        ))}
-                     </tbody>
-                  </table>
-               </div>
-            </div>
-
-            {/* Pagination Controls */}
-            {totalPages > 1 && (
-               <div className="flex items-center justify-center gap-2 pb-10">
-                  <button onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))} disabled={currentPage === 1} className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 disabled:opacity-30 active:scale-90 transition-all"><FaChevronLeft size={10} /></button>
-                  <div className="flex gap-1">
-                     {Array.from({ length: totalPages }).map((_, i) => (
-                        <button key={i} onClick={() => setCurrentPage(i + 1)} className={`w-10 h-10 rounded-xl text-[10px] font-bold transition-all ${currentPage === i + 1 ? 'bg-slate-900 text-white shadow-lg' : 'bg-white border border-slate-100 text-slate-400'}`}>{i + 1}</button>
-                     ))}
+            {/* Quick Actions Grid */}
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-4 gap-4 lg:gap-6 mb-12">
+              {navItems.map((item) => (
+                <Link key={item.href} href={item.href}
+                  className="group relative bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 hover:shadow-2xl hover:shadow-blue-200 transition-all duration-500 hover:-translate-y-2 overflow-hidden"
+                >
+                  <div className={`absolute top-0 right-0 w-24 h-24 bg-gradient-to-br ${item.color} opacity-0 group-hover:opacity-10 rounded-full -mr-12 -mt-12 transition-opacity duration-500`}></div>
+                  
+                  <div className={`w-14 h-14 bg-gradient-to-br ${item.color} rounded-2xl flex items-center justify-center text-white shadow-lg mb-6 group-hover:scale-110 transition-transform duration-500`}>
+                    {React.cloneElement(item.icon, { size: 24 })}
                   </div>
-                  <button onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))} disabled={currentPage === totalPages} className="w-10 h-10 rounded-xl bg-white border border-slate-100 flex items-center justify-center text-slate-400 disabled:opacity-30 active:scale-90 transition-all"><FaChevronRight size={10} /></button>
-               </div>
-            )}
+                  
+                  <h3 className="font-black text-slate-800 text-sm uppercase tracking-wider group-hover:text-blue-600 transition-colors">
+                    {item.label}
+                  </h3>
+                  
+                  <div className="mt-4 flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                    <span>Manage</span>
+                    <div className="h-[2px] flex-1 bg-slate-100 group-hover:bg-blue-100 transition-colors"></div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column: Create Tank */}
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 p-8 sticky top-24">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center shadow-inner">
+                      <FaPlus />
+                    </div>
+                    <h2 className="text-xl font-black text-slate-800">New Tank</h2>
+                  </div>
+                  
+                  <form onSubmit={handleAddTank} className="space-y-6">
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Tank Name / Identifier</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Storage Tank A1"
+                        className="w-full px-5 py-4 rounded-2xl border border-slate-100 bg-slate-50 focus:ring-4 focus:ring-blue-100 focus:border-blue-500 focus:bg-white outline-none transition-all font-bold text-slate-700"
+                        value={newTankName}
+                        onChange={(e) => setNewTankName(e.target.value)}
+                        disabled={isSubmitting}
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Stock Tracking Unit</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {['KG', 'Litre', 'Both'].map(unit => (
+                          <button
+                            key={unit}
+                            type="button"
+                            onClick={() => setNewTankUnit(unit)}
+                            className={`py-3 rounded-xl text-xs font-black transition-all ${
+                              newTankUnit === unit 
+                              ? 'bg-slate-900 text-white shadow-xl scale-105' 
+                              : 'bg-slate-50 text-slate-400 hover:bg-slate-100'
+                            }`}
+                          >
+                            {unit}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-blue-50 rounded-2xl border border-blue-100">
+                      <div className="flex items-center gap-3 text-blue-800 mb-2">
+                        <FaVial className="text-blue-500" />
+                        <span className="text-xs font-black uppercase tracking-widest">Lab Integration</span>
+                      </div>
+                      <p className="text-[10px] font-medium text-blue-600/80 leading-relaxed">
+                        Lab will automatically assign branch codes (RM, FG, OTH) during production entry for this tank.
+                      </p>
+                    </div>
+
+                    <button 
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-blue-200 flex items-center justify-center gap-3 active:scale-95 disabled:opacity-50"
+                    >
+                      {isSubmitting ? <FaSpinner className="animate-spin" /> : <FaCheckCircle />}
+                      <span>Initialize Tank</span>
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* Right Column: Tank List */}
+              <div className="lg:col-span-2">
+                <div className="bg-white rounded-[2.5rem] shadow-2xl shadow-slate-200 border border-slate-100 overflow-hidden">
+                  <div className="p-8 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-6">
+                    <div>
+                      <h2 className="text-xl font-black text-slate-800">Existing Tanks</h2>
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest mt-1">Live Asset Management</p>
+                    </div>
+                    
+                    <div className="relative group">
+                      <FaSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-blue-500 transition-colors" />
+                      <input 
+                        type="text" 
+                        placeholder="Quick search tanks..." 
+                        className="pl-12 pr-6 py-3.5 rounded-2xl border border-slate-50 bg-slate-50 focus:bg-white focus:ring-4 focus:ring-blue-50 focus:border-blue-500 outline-none transition-all text-sm font-bold w-full sm:w-64"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="overflow-x-auto scrollbar-none">
+                    <table className="w-full text-left min-w-[500px]">
+                      <thead className="bg-slate-50/50 text-slate-400 text-[10px] font-black uppercase tracking-[0.2em]">
+                        <tr>
+                          <th className="px-8 py-5">#</th>
+                          <th className="px-8 py-5">Tank Identification</th>
+                          <th className="px-8 py-5">Tracking Unit</th>
+                          <th className="px-8 py-5">Onboarded On</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {loading ? (
+                          <tr>
+                            <td colSpan="4" className="px-8 py-20 text-center">
+                              <FaSpinner className="animate-spin text-blue-600 mx-auto text-3xl mb-4" />
+                              <p className="font-black text-slate-400 uppercase tracking-widest text-xs">Synchronizing Assets...</p>
+                            </td>
+                          </tr>
+                        ) : filteredTanks.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" className="px-8 py-20 text-center">
+                              <FaWarehouse className="text-slate-100 mx-auto text-6xl mb-4" />
+                              <p className="font-black text-slate-300 uppercase tracking-widest text-xs">No active tanks detected</p>
+                            </td>
+                          </tr>
+                        ) : filteredTanks.map((tank, index) => (
+                          <tr key={tank.id} className="group hover:bg-blue-50/30 transition-colors">
+                            <td className="px-8 py-6 text-slate-300 font-black text-xs">{index + 1}</td>
+                            <td className="px-8 py-6">
+                              <div className="flex items-center gap-4">
+                                <div className="w-10 h-10 rounded-xl bg-slate-50 text-slate-400 group-hover:bg-blue-100 group-hover:text-blue-600 flex items-center justify-center font-black transition-colors shadow-inner">
+                                  {tank.name.charAt(0).toUpperCase()}
+                                </div>
+                                <div className="font-black text-slate-800 tracking-tight group-hover:text-blue-700 transition-colors">
+                                  {tank.name}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-8 py-6">
+                               <span className="px-3 py-1 rounded-lg bg-slate-900 text-white text-[10px] font-black tracking-widest uppercase shadow-lg shadow-slate-200">
+                                  {tank.unit || 'KG'}
+                               </span>
+                            </td>
+                            <td className="px-8 py-6">
+                              <div className="flex items-center gap-2 text-slate-400 text-xs font-bold">
+                                 <FaHistory className="text-[10px]" />
+                                 {new Date(tank.created_at).toLocaleDateString('en-IN', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    year: 'numeric'
+                                 })}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  
+                  <div className="bg-slate-50 p-6 flex items-center justify-center border-t border-slate-100">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] flex items-center gap-2">
+                       <FaShieldAlt /> Secured Asset Management System
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </main>
         
-        {/* Fixed Footer */}
-        <div className="absolute bottom-0 left-0 right-0 z-30 bg-[#F8FAFF]">
-           <Footer />
-        </div>
+        <Footer />
       </div>
-
-      {/* Modal - Modern & Simple */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-300">
-           <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white">
-              <h2 className="text-xl font-black text-slate-900 mb-6">{isEditing ? 'Refine Asset' : 'Register Asset'}</h2>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                 <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Asset Nomenclature</label>
-                    <input 
-                      value={currentTank.name} onChange={(e) => setCurrentTank({...currentTank, name: e.target.value})}
-                      className="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none outline-none font-bold text-sm focus:ring-4 focus:ring-blue-50 transition-all"
-                      placeholder="e.g. Tank Alpha"
-                    />
-                 </div>
-                 <div>
-                    <label className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Primary Metric</label>
-                    <div className="grid grid-cols-2 gap-3">
-                       <button type="button" onClick={() => setCurrentTank({...currentTank, unit: 'KG'})} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${currentTank.unit === 'KG' ? 'bg-slate-900 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>KG</button>
-                       <button type="button" onClick={() => setCurrentTank({...currentTank, unit: 'LTR'})} className={`py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest transition-all ${currentTank.unit === 'LTR' ? 'bg-slate-900 text-white shadow-xl' : 'bg-slate-50 text-slate-400'}`}>Litre</button>
-                    </div>
-                 </div>
-                 <div className="flex gap-3 pt-4">
-                    <button type="button" onClick={() => setShowModal(false)} className="flex-1 py-4 font-black text-[10px] uppercase tracking-widest text-slate-400 hover:text-slate-900 transition-all">Cancel</button>
-                    <button type="submit" disabled={isSubmitting} className="flex-[2] bg-slate-900 text-white py-4 rounded-3xl font-black text-[10px] uppercase tracking-widest shadow-xl shadow-slate-200 flex items-center justify-center gap-2 active:scale-95 transition-all">
-                       {isSubmitting ? <FaSpinner className="animate-spin" /> : <FaArrowRight />} {isEditing ? 'Save Changes' : 'Confirm Registry'}
-                    </button>
-                 </div>
-              </form>
-           </div>
-        </div>
-      )}
     </div>
-  );
-}
-
-export default function TankMasterPage() {
-  return (
-    <Suspense fallback={<div className="p-20 text-center animate-pulse"><FaSpinner className="animate-spin text-slate-900 text-4xl mx-auto" /></div>}>
-      <TankMasterContent />
-    </Suspense>
   );
 }
