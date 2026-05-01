@@ -83,8 +83,8 @@ export async function GET(request) {
     `;
     
     // Create a copy of params for the main query to avoid modifying the original
-    const mainQueryParams = [...params, limit.toString(), offset.toString()];
-    const trips = await executeQuery(query, mainQueryParams);
+    const queryWithPagination = query.replace('LIMIT ? OFFSET ?', `LIMIT ${limit} OFFSET ${offset}`);
+    const trips = await executeQuery(queryWithPagination, params);
     
     return NextResponse.json({
       success: true,

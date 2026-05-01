@@ -24,8 +24,8 @@ export async function GET(request) {
 
     // Get paginated data
     const customers = await executeQuery(
-      `SELECT * FROM rental_customers${whereClause} ORDER BY name ASC LIMIT ? OFFSET ?`,
-      [...params, limit.toString(), offset.toString()]
+      `SELECT * FROM rental_customers${whereClause} ORDER BY name ASC LIMIT ${limit} OFFSET ${offset}`,
+      params
     );
 
     return NextResponse.json({
