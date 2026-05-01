@@ -93,10 +93,11 @@ function RentalTripsContent() {
     try {
       const res = await fetch("/api/rental/rental-customers");
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      setRentalCustomers(data);
+      const result = await res.json();
+      setRentalCustomers(result.data || []);
     } catch (error) {
       console.error("Error fetching rental customers:", error);
+      setRentalCustomers([]);
     }
   };
 
@@ -284,7 +285,7 @@ function RentalTripsContent() {
   };
 
   const downloadPDF = () => {
-    alert("PDF download is currently unavailable.");
+    window.open(`/rental-receipt?download=true`, '_blank');
   };
 
   const handleSearchKeyDown = (e) => {
@@ -294,7 +295,7 @@ function RentalTripsContent() {
   };
 
   const downloadTripPDF = (trip) => {
-    alert("Trip PDF download is currently unavailable.");
+    window.open(`/rental-receipt?id=${trip.id}`, '_blank');
   };
 
 
@@ -351,15 +352,9 @@ function RentalTripsContent() {
                 </div>
               </div>
               <div className="grid grid-cols-2 md:flex gap-2 w-full lg:w-auto">
-                <button
-                  onClick={downloadPDF}
-                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm transition-all flex-1 md:flex-none justify-center"
-                >
-                  <FaDownload size={12} /> Download PDF
-                </button>
-                <button
+                                <button
                   onClick={() => router.push('/rental-customers')}
-                  className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-all flex-1 md:flex-none justify-center"
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 shadow-sm transition-all flex-1 md:flex-none justify-center"
                 >
                   <FaUserPlus size={12} /> Rental Customers
                 </button>
@@ -553,7 +548,7 @@ function RentalTripsContent() {
       {/* Open New Trip Modal */}
       {showOpenModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl overflow-hidden shadow-2xl m-auto animate-in fade-in zoom-in duration-200">
+          <div className="bg-white w-full max-w-lg max-h-[90vh] rounded-2xl overflow-hidden shadow-2xl m-auto animate-in fade-in zoom-in duration-200 flex flex-col">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-6 text-white flex justify-between items-start">
               <div>
                 <h2 className="text-xl font-bold">Open New Rental Trip</h2>
@@ -562,7 +557,7 @@ function RentalTripsContent() {
               <button onClick={() => setShowOpenModal(false)} className="text-white/60 hover:text-white text-2xl font-light">&times;</button>
             </div>
             
-            <form onSubmit={handleOpenTrip} className="p-6 space-y-5">
+            <form id="openTripForm" onSubmit={handleOpenTrip} className="p-6 space-y-5 overflow-y-auto flex-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 gap-y-4">
                 <div className="md:col-span-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Rental Customer</label>
@@ -606,17 +601,15 @@ function RentalTripsContent() {
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Source</label>
                   <input required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-gray-700" placeholder="Starting Point" value={newTrip.source} onChange={(e) => setNewTrip({ ...newTrip, source: e.target.value })} />
                 </div>
-                <div>
-                  <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Destination</label>
-                  <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-gray-700" placeholder="Ending Point" value={newTrip.destination} onChange={(e) => setNewTrip({ ...newTrip, destination: e.target.value })} />
-                </div>
-                <div className="md:col-span-2">
+                                <div className="md:col-span-2">
                   <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">State/Route Info</label>
                   <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-medium text-gray-700" placeholder="e.g. Maharashtra to Gujarat" value={newTrip.state} onChange={(e) => setNewTrip({ ...newTrip, state: e.target.value })} />
                 </div>
               </div>
-              
-              <div className="flex flex-col sm:flex-row gap-3 pt-2">
+            </form>
+            
+            <div className="p-6 pt-0 border-t border-gray-100">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <button 
                   type="button" 
                   onClick={() => setShowOpenModal(false)} 
@@ -626,12 +619,13 @@ function RentalTripsContent() {
                 </button>
                 <button 
                   disabled={submitting} 
+                  onClick={() => document.querySelector('#openTripForm').requestSubmit()}
                   className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-lg shadow-blue-500/30 disabled:opacity-50 transition-all order-1 sm:order-2"
                 >
                   {submitting ? "Opening..." : "Start Trip"}
                 </button>
               </div>
-            </form>
+            </div>
           </div>
         </div>
       )}

@@ -5,8 +5,21 @@ export async function GET(request) {
   try {
     // Ensure voucher_no column exists
     try {
-      await executeQuery("ALTER TABLE rental_trips ADD COLUMN voucher_no VARCHAR(100) AFTER state");
-    } catch (e) {}
+      // Check if column exists first
+      const columnCheck = await executeQuery(`
+        SELECT COLUMN_NAME 
+        FROM INFORMATION_SCHEMA.COLUMNS 
+        WHERE TABLE_SCHEMA = DATABASE() 
+        AND TABLE_NAME = 'rental_trips' 
+        AND COLUMN_NAME = 'voucher_no'
+      `);
+      
+      if (columnCheck.length === 0) {
+        await executeQuery("ALTER TABLE rental_trips ADD COLUMN voucher_no VARCHAR(100) AFTER state");
+      }
+    } catch (e) {
+      console.log('Column check or add failed:', e.message);
+    }
 
     const { searchParams } = new URL(request.url);
     const status = searchParams.get('status');
@@ -69,7 +82,9 @@ export async function GET(request) {
       LIMIT ? OFFSET ?
     `;
     
-    const trips = await executeQuery(query, [...params, limit, offset]);
+    // Create a copy of params for the main query to avoid modifying the original
+    const mainQueryParams = [...params, limit, offset];
+    const trips = await executeQuery(query, mainQueryParams);
     
     return NextResponse.json({
       success: true,
