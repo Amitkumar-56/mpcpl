@@ -8,6 +8,7 @@ import {
   FaSearch, FaSync, FaCalendarAlt, FaFlask, FaArrowRight,
   FaSpinner, FaChevronLeft, FaChevronRight
 } from 'react-icons/fa';
+import { useSearchParams } from 'next/navigation';
 import { toast, Toaster } from 'react-hot-toast';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
@@ -25,12 +26,19 @@ function TankStockRequestsContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(12);
 
+  const searchParams = useSearchParams();
+  const urlTankId = searchParams.get('tankId');
+
   useEffect(() => {
     setMounted(true);
     const fetchRequests = async () => {
       try {
         setLoading(true);
-        const response = await fetch(`/api/manufacturing/all-tank-stock/requests?status=${activeTab}`);
+        const params = new URLSearchParams();
+        params.set('status', activeTab);
+        if (urlTankId) params.set('tankId', urlTankId);
+        
+        const response = await fetch(`/api/manufacturing/all-tank-stock/requests?${params.toString()}`);
         const data = await response.json();
         if (data.success) {
           setRequests(data.data);
@@ -42,7 +50,7 @@ function TankStockRequestsContent() {
       }
     };
     fetchRequests();
-  }, [activeTab]);
+  }, [activeTab, urlTankId]);
 
   const handleApproval = async (requestId, action) => {
     if (!window.confirm(`Confirm ${action}?`)) return;
@@ -140,76 +148,130 @@ function TankStockRequestsContent() {
                </div>
             </div>
 
-            {/* High-Density Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
-               {loading ? (
-                  Array.from({ length: 6 }).map((_, i) => (
-                     <div key={i} className="h-48 bg-white rounded-2xl border border-slate-50 animate-pulse"></div>
-                  ))
-               ) : currentItems.length === 0 ? (
-                  <div className="col-span-full py-20 text-center bg-white rounded-3xl border border-dashed border-slate-200">
-                     <FaWarehouse className="text-slate-100 text-6xl mx-auto mb-4" />
-                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No requests found</p>
-                  </div>
-               ) : currentItems.map((req) => (
-                  <div key={req.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col hover:shadow-md transition-all group">
-                     <div className="flex justify-between items-start mb-4">
-                        <div className="text-[8px] font-black text-slate-300 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">ID: #{req.id}</div>
-                        <span className={`text-[8px] font-black px-2 py-1 rounded-md uppercase tracking-widest border ${
-                           req.status === 'Pending' ? 'bg-amber-50 text-amber-600 border-amber-100' :
-                           req.status === 'Approved' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-rose-50 text-rose-600 border-rose-100'
-                        }`}>{req.status}</span>
-                     </div>
-                     
-                     <div className="flex items-center gap-3 mb-4">
-                        <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center shadow-inner group-hover:bg-blue-600 group-hover:text-white transition-all">
-                           <FaFlask size={14} />
-                        </div>
-                        <div>
-                           <h3 className="text-sm font-black text-slate-800 tracking-tight">{req.tank_name}</h3>
-                           <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">{req.type}</p>
-                        </div>
-                     </div>
+             {/* Responsive View Switcher */}
+             <div className="mb-12">
+                {loading ? (
+                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                         <div key={i} className="h-64 bg-white rounded-[2.5rem] border border-slate-50 animate-pulse shadow-sm"></div>
+                      ))}
+                   </div>
+                ) : currentItems.length === 0 ? (
+                   <div className="py-24 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
+                      <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                         <FaWarehouse className="text-slate-200 text-3xl" />
+                      </div>
+                      <p className="text-slate-400 font-black uppercase tracking-[0.2em] text-[10px]">No active protocols detected</p>
+                   </div>
+                ) : (
+                   <>
+                      {/* Desktop List View (md and up) */}
+                      <div className="hidden md:block bg-white rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/40 overflow-hidden">
+                         <table className="w-full text-left border-collapse">
+                            <thead>
+                               <tr className="bg-slate-50/50 border-b border-slate-100">
+                                  <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Inbound Identity</th>
+                                  <th className="px-6 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest">Logistics</th>
+                                  <th className="px-6 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Net Weight</th>
+                                  <th className="px-6 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-right">Net Volume</th>
+                                  <th className="px-6 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
+                                  <th className="px-8 py-5 text-[9px] font-black text-slate-400 uppercase tracking-widest text-center">Protocol</th>
+                               </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-50">
+                               {currentItems.map((req) => (
+                                  <tr key={req.id} className="hover:bg-blue-50/30 transition-colors group">
+                                     <td className="px-8 py-5">
+                                        <div className="flex items-center gap-4">
+                                           <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center font-black text-sm group-hover:bg-blue-600 group-hover:text-white transition-all shadow-sm">
+                                              <FaFlask size={14} />
+                                           </div>
+                                           <div>
+                                              <p className="text-sm font-black text-slate-800 tracking-tight">{req.tank_name}</p>
+                                              <p className="text-[8px] font-bold text-slate-300 uppercase tracking-widest">ID: #{req.id}</p>
+                                           </div>
+                                        </div>
+                                     </td>
+                                     <td className="px-6 py-5">
+                                        <div className="space-y-0.5">
+                                           <p className="text-[10px] font-black text-slate-800 uppercase tracking-tight">Inv: {req.invoice_no || 'N/A'}</p>
+                                           <p className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{req.tanker_no || 'No Tanker'}</p>
+                                        </div>
+                                     </td>
+                                     <td className="px-6 py-5 text-right">
+                                        <p className="text-sm font-black text-slate-800">{parseFloat(req.kg_qty).toLocaleString()} <span className="text-[8px] text-slate-400">KG</span></p>
+                                     </td>
+                                     <td className="px-6 py-5 text-right">
+                                        <p className="text-sm font-black text-slate-800">{parseFloat(req.litre_qty).toLocaleString()} <span className="text-[8px] text-slate-400">LTR</span></p>
+                                     </td>
+                                     <td className="px-6 py-5 text-center">
+                                        <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                           req.status === 'Pending' ? 'bg-amber-500 text-white' :
+                                           req.status === 'Approved' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                                        }`}>{req.status}</span>
+                                     </td>
+                                     <td className="px-8 py-5">
+                                        <div className="flex items-center justify-center gap-2">
+                                           {activeTab === 'Pending' ? (
+                                              <>
+                                                 <button onClick={() => handleApproval(req.id, 'Approved')} className="p-2 bg-emerald-50 text-emerald-600 rounded-lg hover:bg-emerald-600 hover:text-white transition-all"><FaCheck size={10} /></button>
+                                                 <button onClick={() => handleApproval(req.id, 'Rejected')} className="p-2 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-600 hover:text-white transition-all"><FaTimes size={10} /></button>
+                                              </>
+                                           ) : (
+                                              <p className="text-[8px] font-bold text-slate-300 italic">{new Date(req.created_at).toLocaleDateString()}</p>
+                                           )}
+                                        </div>
+                                     </td>
+                                  </tr>
+                               ))}
+                            </tbody>
+                         </table>
+                      </div>
 
-                     <div className="grid grid-cols-2 gap-3 mb-6 bg-slate-50/50 p-3 rounded-xl border border-slate-50">
-                        <div>
-                           <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Weight</p>
-                           <p className="text-xs font-black text-slate-800">{parseFloat(req.kg_qty).toLocaleString()} <span className="text-[8px] text-slate-400">KG</span></p>
-                        </div>
-                        <div>
-                           <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest mb-0.5">Volume</p>
-                           <p className="text-xs font-black text-slate-800">{parseFloat(req.litre_qty).toLocaleString()} <span className="text-[8px] text-slate-400">LTR</span></p>
-                        </div>
-                     </div>
+                      {/* Mobile Card View (hidden on md and up) */}
+                      <div className="md:hidden grid grid-cols-1 gap-4">
+                         {currentItems.map((req) => (
+                            <div key={req.id} className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-lg shadow-slate-200/40">
+                               <div className="flex justify-between items-start mb-4">
+                                  <div className="px-2 py-1 bg-slate-50 text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-md">#{req.id}</div>
+                                  <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase tracking-widest ${
+                                     req.status === 'Pending' ? 'bg-amber-500 text-white' :
+                                     req.status === 'Approved' ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+                                  }`}>{req.status}</span>
+                               </div>
+                               <div className="flex justify-between items-center mb-4 bg-slate-50 p-3 rounded-xl">
+                                  <div className="space-y-1">
+                                     <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Invoice Details</p>
+                                     <p className="text-[10px] font-bold text-slate-800 tracking-tight">{req.invoice_no || 'N/A'}</p>
+                                  </div>
+                                  <div className="text-right space-y-1">
+                                     <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Tanker Info</p>
+                                     <p className="text-[10px] font-bold text-slate-800 tracking-tight">{req.tanker_no || 'N/A'}</p>
+                                  </div>
+                               </div>
 
-                     {activeTab === 'Pending' ? (
-                        <div className="flex gap-2 mt-auto">
-                           <button 
-                             onClick={() => handleApproval(req.id, 'Approved')}
-                             disabled={isProcessing}
-                             className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-emerald-100 active:scale-95 transition-all flex items-center justify-center gap-2"
-                           >
-                              <FaCheck /> Approve
-                           </button>
-                           <button 
-                             onClick={() => handleApproval(req.id, 'Rejected')}
-                             disabled={isProcessing}
-                             className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all flex items-center justify-center gap-2"
-                           >
-                              <FaTimes /> Reject
-                           </button>
-                        </div>
-                     ) : (
-                        <div className="mt-auto pt-2 border-t border-slate-50 flex items-center justify-between">
-                           <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 uppercase tracking-widest">
-                              <FaClock /> {new Date(req.created_at).toLocaleDateString()}
-                           </div>
-                           <p className="text-[8px] font-medium text-slate-400 italic truncate max-w-[120px]">{req.remarks || 'No remarks'}</p>
-                        </div>
-                     )}
-                  </div>
-               ))}
-            </div>
+                               <div className="grid grid-cols-2 gap-4 mb-6 bg-blue-50/50 p-4 rounded-xl border border-blue-50">
+                                  <div>
+                                     <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Weight</p>
+                                     <p className="text-sm font-black text-slate-800">{parseFloat(req.kg_qty).toLocaleString()} KG</p>
+                                  </div>
+                                  <div>
+                                     <p className="text-[7px] font-black text-slate-300 uppercase tracking-widest">Volume</p>
+                                     <p className="text-sm font-black text-slate-800">{parseFloat(req.litre_qty).toLocaleString()} LTR</p>
+                                  </div>
+                               </div>
+                               {activeTab === 'Pending' && (
+                                  <div className="flex gap-2">
+                                     <button onClick={() => handleApproval(req.id, 'Approved')} className="flex-1 bg-emerald-600 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-widest">Confirm</button>
+                                     <button onClick={() => handleApproval(req.id, 'Rejected')} className="flex-1 bg-rose-600 text-white py-3 rounded-xl text-[9px] font-black uppercase tracking-widest">Void</button>
+                                  </div>
+                               )}
+                            </div>
+                         ))}
+                      </div>
+                   </>
+                )}
+             </div>
 
             {/* Pagination Controls */}
             {totalPages > 1 && (

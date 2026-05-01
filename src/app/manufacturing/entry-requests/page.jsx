@@ -245,10 +245,30 @@ function EntryRequestsContent() {
                     <h1 className="text-xl font-black text-slate-900 tracking-tight">Entry Requests</h1>
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Protocol Monitor</p>
                  </div>
-                 <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 text-white px-4 py-3 rounded-xl text-[10px] font-bold uppercase tracking-widest shadow-lg shadow-blue-100 flex items-center gap-2 active:scale-95 transition-all">
-                    <FaPlus /> New Request
-                 </button>
-              </div>
+                  <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 text-white px-6 py-3.5 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-xl shadow-blue-100 flex items-center gap-2 active:scale-95 transition-all hover:bg-blue-700">
+                    <FaPlus size={10} /> New Protocol
+                  </button>
+               </div>
+
+               {/* Live Metrics Bar */}
+               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                  {[
+                    { label: 'Total Logs', value: entries.length, icon: <FaHistory />, color: 'bg-blue-600' },
+                    { label: 'Inside Plant', value: entries.filter(e => e.status === 'processing').length, icon: <FaMapMarkerAlt />, color: 'bg-emerald-600' },
+                    { label: 'Waiting OTP', value: entries.filter(e => e.status === 'pending').length, icon: <FaKey />, color: 'bg-amber-500' },
+                    { label: 'Completed', value: entries.filter(e => e.status === 'completed').length, icon: <FaCheckCircle />, color: 'bg-slate-900' },
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm flex items-center gap-4 hover:shadow-md transition-all duration-300">
+                       <div className={`w-10 h-10 ${stat.color} rounded-xl flex items-center justify-center text-white shadow-lg`}>
+                          {stat.icon}
+                       </div>
+                       <div>
+                          <p className="text-[9px] font-black text-slate-300 uppercase tracking-widest">{stat.label}</p>
+                          <p className="text-lg font-black text-slate-800">{stat.value}</p>
+                       </div>
+                    </div>
+                  ))}
+               </div>
 
               <div className="sticky top-0 z-20 bg-[#F8FAFF] pb-4">
                  <div className="bg-white p-2 rounded-2xl shadow-sm border border-slate-100 flex flex-col sm:flex-row gap-2">
@@ -282,43 +302,53 @@ function EntryRequestsContent() {
                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">No active protocols</p>
                     </div>
                  ) : currentItems.map(e => (
-                    <div key={e.id} className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col hover:shadow-md transition-all">
-                       <div className="flex justify-between items-start mb-4">
-                          <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-2 py-1 rounded-md">{e.request_code}</div>
-                          <span className={`text-[8px] font-bold px-2 py-1 rounded-md uppercase tracking-widest ${
-                            e.status === 'completed' ? 'bg-emerald-50 text-emerald-600' : 
-                            e.status === 'processing' ? 'bg-blue-50 text-blue-600 border border-blue-100 animate-pulse' : 
-                            'bg-amber-50 text-amber-600'
+                     <div key={e.id} className="group bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex flex-col hover:shadow-2xl hover:shadow-blue-200/40 transition-all duration-500 hover:-translate-y-1 overflow-hidden relative">
+                       <div className="flex justify-between items-start mb-6">
+                          <div className="px-3 py-1.5 bg-slate-50 text-slate-400 text-[8px] font-black uppercase tracking-widest rounded-lg border border-slate-100">{e.request_code}</div>
+                          <span className={`text-[8px] font-black px-3 py-1.5 rounded-lg uppercase tracking-widest shadow-sm ${
+                            e.status === 'completed' ? 'bg-emerald-500 text-white' : 
+                            e.status === 'processing' ? 'bg-blue-600 text-white animate-pulse' : 
+                            e.status === 'pending_approval' ? 'bg-rose-500 text-white' :
+                            'bg-amber-500 text-white'
                           }`}>{e.status.replace('_', ' ')}</span>
                        </div>
                        
-                       <h3 className="text-lg font-black text-slate-900 tracking-tight mb-1">{e.vehicle_number}</h3>
-                       <div className="flex items-center gap-2 text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-4">
-                          <FaUser size={8} className="text-slate-300" /> {e.driver_name || 'Anonymous'}
+                       <div className="mb-6">
+                          <h3 className="text-xl font-black text-slate-900 tracking-tight group-hover:text-blue-600 transition-colors mb-1">{e.vehicle_number}</h3>
+                          <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                             <div className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center">
+                                <FaUser size={8} className="text-slate-400" />
+                             </div>
+                             {e.driver_name || 'Anonymous'}
+                          </div>
                        </div>
 
-                       <div className="space-y-2 mb-6 text-[9px] font-bold">
-                          <div className="flex justify-between border-b border-slate-50 pb-1">
-                             <span className="text-slate-300 uppercase">Material</span>
-                             <span className="text-slate-700 truncate max-w-[120px]">{e.material_name || 'N/A'}</span>
+                       <div className="bg-slate-50/50 rounded-2xl p-4 mb-6 space-y-3">
+                          <div className="flex justify-between items-center">
+                             <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Purpose</span>
+                             <span className="text-[10px] font-black text-slate-700 truncate max-w-[120px]">{e.purpose || 'Material Entry'}</span>
+                          </div>
+                          <div className="flex justify-between items-center">
+                             <span className="text-[9px] font-black text-slate-300 uppercase tracking-widest">Material</span>
+                             <span className="text-[10px] font-black text-slate-700 truncate max-w-[120px] font-mono">{e.material_name || 'N/A'}</span>
                           </div>
                        </div>
                        
                        <div className="flex gap-2 mt-auto">
                           {e.status === 'pending_approval' && isAdmin && (
-                            <button onClick={() => handleApprove(e)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-blue-100 active:scale-95 transition-all">Approve</button>
+                            <button onClick={() => handleApprove(e)} className="flex-1 bg-blue-600 text-white py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-blue-100 active:scale-95 transition-all hover:bg-blue-700">Approve</button>
                           )}
                           {e.status === 'pending' && (isSecurity || isAdmin) && (
-                            <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="flex-1 bg-amber-500 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-amber-100 active:scale-95 transition-all">Verify OTP</button>
+                            <button onClick={() => { setSelectedRequest(e); setShowOtpModal(true); }} className="flex-1 bg-orange-500 text-white py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-orange-100 active:scale-95 transition-all hover:bg-orange-600">Verify OTP</button>
                           )}
                           {e.status === 'approved' && (isSecurity || isAdmin) && (
-                            <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="flex-1 bg-emerald-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-emerald-100 active:scale-95 transition-all">Confirm Entry</button>
+                            <button onClick={() => { setSelectedRequest(e); setPhotoMode('entry'); setShowPhotoModal(true); }} className="flex-1 bg-cyan-600 text-white py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-cyan-100 active:scale-95 transition-all hover:bg-cyan-700">Confirm Entry</button>
                           )}
                           {e.status === 'processing' && (isSecurity || isAdmin) && (
-                            <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="flex-1 bg-rose-600 text-white py-2.5 rounded-xl text-[9px] font-bold uppercase tracking-widest shadow-md shadow-rose-100 active:scale-95 transition-all">Confirm Exit</button>
+                            <button onClick={() => { setSelectedRequest(e); setPhotoMode('exit'); setShowPhotoModal(true); }} className="flex-1 bg-rose-600 text-white py-3.5 rounded-2xl text-[9px] font-black uppercase tracking-widest shadow-lg shadow-rose-100 active:scale-95 transition-all hover:bg-rose-700">Confirm Exit</button>
                           )}
-                          <button onClick={() => { setSelectedRequest(e); }} className="bg-slate-50 p-2.5 rounded-xl text-slate-400 hover:text-slate-900 transition-colors">
-                             <FaEye size={14} />
+                          <button onClick={() => { setSelectedRequest(e); }} className="w-12 h-12 bg-white border border-slate-100 rounded-2xl text-slate-400 hover:text-blue-600 hover:border-blue-100 transition-all shadow-sm flex items-center justify-center">
+                             <FaEye size={16} />
                           </button>
                        </div>
                     </div>
