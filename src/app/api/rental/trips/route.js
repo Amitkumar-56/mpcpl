@@ -83,7 +83,7 @@ export async function GET(request) {
     `;
     
     // Create a copy of params for the main query to avoid modifying the original
-    const mainQueryParams = [...params, limit, offset];
+    const mainQueryParams = [...params, limit.toString(), offset.toString()];
     const trips = await executeQuery(query, mainQueryParams);
     
     return NextResponse.json({
