@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { 
   FaPlus, FaSearch, FaHistory, FaWarehouse, FaSync, 
   FaClipboardList, FaSpinner, FaChevronLeft, FaChevronRight,
-  FaShieldAlt, FaFlask, FaExchangeAlt, FaHistory as FaHistoryIcon
+  FaShieldAlt, FaFlask, FaExchangeAlt, FaBox
 } from 'react-icons/fa';
 import { toast, Toaster } from 'react-hot-toast';
 import Header from '@/components/Header';
