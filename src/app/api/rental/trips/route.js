@@ -45,6 +45,7 @@ export async function GET(request) {
     if (search) {
       whereClauses.push(`(
         t.vehicle_no LIKE ? OR 
+        v.licence_plate LIKE ? OR
         t.driver_name LIKE ? OR 
         rc.name LIKE ? OR 
         rc.company_name LIKE ? OR 
@@ -53,7 +54,7 @@ export async function GET(request) {
         t.id LIKE ?
       )`);
       const searchPattern = `%${search}%`;
-      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
+      params.push(searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern, searchPattern);
     }
 
     const whereString = whereClauses.length > 0 ? ' WHERE ' + whereClauses.join(' AND ') : '';
@@ -67,6 +68,7 @@ export async function GET(request) {
         SUM(COALESCE(t.profit_loss, 0)) as totalProfit
       FROM rental_trips t
       JOIN rental_customers rc ON t.rental_customer_id = rc.id
+      LEFT JOIN vehicles v ON t.vehicle_id = v.id
       ${whereString}
     `;
     const stats = await executeQuery(statsQuery, params);
@@ -74,9 +76,10 @@ export async function GET(request) {
 
     // Get paginated results
     const query = `
-      SELECT t.*, rc.name as rental_customer_name, rc.company_name as rc_company_name
+      SELECT t.*, rc.name as rental_customer_name, rc.company_name as rc_company_name, v.licence_plate as current_vehicle_no
       FROM rental_trips t
       JOIN rental_customers rc ON t.rental_customer_id = rc.id
+      LEFT JOIN vehicles v ON t.vehicle_id = v.id
       ${whereString}
       ORDER BY t.created_at DESC
       LIMIT ? OFFSET ?

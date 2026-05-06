@@ -103,7 +103,7 @@ function RentalTripsContent() {
 
   const fetchVehicles = async () => {
     try {
-      const res = await fetch("/api/vehicles?limit=100");
+      const res = await fetch("/api/get-vehicles");
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
       setVehicles(data.vehicles || []);
@@ -414,7 +414,7 @@ function RentalTripsContent() {
                         </td>
                         <td className="px-4 py-4">
                           <div className="flex flex-col">
-                            <span className="text-sm font-bold text-blue-600">{trip.vehicle_no}</span>
+                            <span className="text-sm font-bold text-blue-600">{trip.current_vehicle_no || trip.vehicle_no}</span>
                             <span className="text-xs text-gray-500">{trip.driver_name}</span>
                           </div>
                         </td>

@@ -69,7 +69,10 @@ export function SessionProvider({ children }) {
       }
     } catch (error) {
       console.error('Status check failed:', error);
-      // Don't log out on API failure, just log error
+      // Optional: Retry after 3 seconds if it's a fetch error
+      if (error.message === 'Failed to fetch') {
+        setTimeout(checkUserStatus, 3000);
+      }
     }
   }, [user, loading, pathname]);
 

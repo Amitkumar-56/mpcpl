@@ -8,10 +8,27 @@ const ensureTables = async () => {
       id INT AUTO_INCREMENT PRIMARY KEY,
       name VARCHAR(255) NOT NULL UNIQUE,
       unit VARCHAR(50) DEFAULT 'KG/LTR',
+      capacity_kg DECIMAL(15, 2) DEFAULT 10000.00,
+      capacity_litre DECIMAL(15, 2) DEFAULT 10000.00,
+      tank_type VARCHAR(100) DEFAULT 'General',
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     );
   `);
+
+  // Migration for manufacturing_tanks
+  const tankColumns = await executeQuery(`SHOW COLUMNS FROM manufacturing_tanks`);
+  const tankColNames = tankColumns.map(c => c.Field);
+  
+  if (!tankColNames.includes('capacity_kg')) {
+    await executeQuery(`ALTER TABLE manufacturing_tanks ADD COLUMN capacity_kg DECIMAL(15, 2) DEFAULT 10000.00`);
+  }
+  if (!tankColNames.includes('capacity_litre')) {
+    await executeQuery(`ALTER TABLE manufacturing_tanks ADD COLUMN capacity_litre DECIMAL(15, 2) DEFAULT 10000.00`);
+  }
+  if (!tankColNames.includes('tank_type')) {
+    await executeQuery(`ALTER TABLE manufacturing_tanks ADD COLUMN tank_type VARCHAR(100) DEFAULT 'General'`);
+  }
 
   // Ensure the stock table exists
   await executeQuery(`
@@ -77,17 +94,36 @@ const ensureTables = async () => {
       await executeQuery(`ALTER TABLE manufacturing_tank_stock_requests ADD COLUMN ${col.name} ${col.type}`);
     }
   }
+  // Ensure the stock history table exists
+  await executeQuery(`
+    CREATE TABLE IF NOT EXISTS manufacturing_tank_stock_history (
+      id INT AUTO_INCREMENT PRIMARY KEY,
+      tank_id INT NOT NULL,
+      type ENUM('Addition', 'Deduction', 'Initial', 'Production_In', 'Production_Out') NOT NULL,
+      kg_qty DECIMAL(15, 2) DEFAULT 0.00,
+      litre_qty DECIMAL(15, 2) DEFAULT 0.00,
+      kg_before DECIMAL(15, 2) DEFAULT 0.00,
+      litre_before DECIMAL(15, 2) DEFAULT 0.00,
+      kg_after DECIMAL(15, 2) DEFAULT 0.00,
+      litre_after DECIMAL(15, 2) DEFAULT 0.00,
+      remarks TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+  `);
 };
 
 export async function GET() {
   try {
     await ensureTables();
 
-    // Fetch all tanks with their stocks
+    // Fetch all tanks with their stocks and capacities
     const query = `
       SELECT 
         t.id as tank_id,
         t.name as tank_name,
+        t.capacity_kg,
+        t.capacity_litre,
+        t.tank_type,
         COALESCE(s.kg_stock, 0) as kg_stock,
         COALESCE(s.litre_stock, 0) as litre_stock
       FROM manufacturing_tanks t

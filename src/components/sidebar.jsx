@@ -154,6 +154,9 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Deepo History", icon: <FaHistory />, module: "deepo_history", path: "/deepo-history" },
     { name: "Vouchers", icon: <FaFileInvoice />, module: "vouchers", path: "/voucher-wallet-driver" },
     { name: "Remarks", icon: <FaStickyNote />, module: "remarks", path: "/deepo-items" },
+    { name: "Tank Allocation", icon: <FaExchangeAlt />, module: "tanker_allocation", path: "/manufacturing/tank-allocation" },
+    { name: "Batch Production", icon: <FaIndustry />, module: "manufacturing_entry", path: "/manufacturing/production" },
+    { name: "Manufacturing Transfer", icon: <FaExchangeAlt />, module: "manufacturing_transfer", path: "/manufacturing/tank-to-station" },
     { name: "Tank Master", icon: <FaWarehouse />, module: "manufacturing", path: "/manufacturing/tanks" },
     { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/manufacturing/security-gate" },
     { name: "Rental Trips", icon: <FaTruck />, module: "rental_trips", path: "/rental-trips" },
@@ -195,7 +198,6 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     agent_management: "Agent Management",
     manufacturing: "Manufacturing",
     raw_materials: "Raw Materials",
-    finished_goods: "Finished Goods",
     tanker_stock: "Tank",
     filling_tank_stocks: "Filling Tank Stocks",
     tank_stock_caret: "Tank Stock Caret",
@@ -204,6 +206,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     manufacturing_process: "Manufacturing Process",
     security_gate: "Security Gate",
     manufacturing_entry: "Manufacturing Entry",
+    manufacturing_transfer: "Manufacturing Transfer",
     rental_customer: "Rental-Customer",
     rental_trips: "Rental Trips"
   }), []);
@@ -233,7 +236,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
         if (backendModuleName && user.permissions && typeof user.permissions === 'object') {
           // Special case: Manufacturing sidebar item shows if user has ANY manufacturing sub-module permission
           if (item.module === 'manufacturing') {
-            const mfgModules = ['Manufacturing', 'Raw Materials', 'Finished Goods', 'Tank', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Manufacturing Entry'];
+            const mfgModules = ['Manufacturing', 'Raw Materials', 'Tank', 'Tanker Allocation', 'Lab Testing', 'Manufacturing Process', 'Manufacturing Entry'];
             return mfgModules.some(mod => user.permissions[mod]?.can_view === true);
           }
           // Special case: SHIPMENT / Loading History

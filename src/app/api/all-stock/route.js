@@ -3,118 +3,74 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    // Fetch filling station names
-    const fsResult = await executeQuery(`
-      SELECT id, station_name 
-      FROM filling_stations
-    `);
-    
-    const fillingStations = {};
-    fsResult.forEach(row => {
-      fillingStations[row.id] = row.station_name;
+    // 1. Fetch all products to know their names
+    const productList = await executeQuery('SELECT id, pname FROM products');
+    const productsMap = {};
+    productList.forEach(p => productsMap[p.id] = p.pname);
+
+    // 2. Fetch all filling stations
+    const stationList = await executeQuery('SELECT id, station_name FROM filling_stations');
+    const stationsMap = {};
+    stationList.forEach(s => stationsMap[s.id] = s.station_name);
+
+    // 3. Fetch all stock records from filling_station_stocks
+    const stockRecords = await executeQuery('SELECT fs_id, product as product_id, stock FROM filling_station_stocks');
+
+    // 4. Fetch invoice numbers from stock table
+    const invoiceRecords = await executeQuery('SELECT DISTINCT fs_id, invoice_number FROM stock WHERE fs_id IS NOT NULL');
+    const invoicesMap = {};
+    invoiceRecords.forEach(inv => {
+      if (!invoicesMap[inv.fs_id]) invoicesMap[inv.fs_id] = [];
+      invoicesMap[inv.fs_id].push(inv.invoice_number);
     });
 
-    // Fetch product names
-    const productResult = await executeQuery(`
-      SELECT id, pname 
-      FROM products
-    `);
-    
-    const products = {};
-    productResult.forEach(row => {
-      products[row.id] = row.pname;
-    });
-
-    // Fetch stock data
-    const stockResult = await executeQuery(`
-      SELECT fs_id, product, stock 
-      FROM filling_station_stocks 
-      ORDER BY fs_id, product
-    `);
-
-    // Fetch invoice numbers for each fs_id (from stock table)
-    const invoiceResult = await executeQuery(`
-      SELECT DISTINCT fs_id, invoice_number
-      FROM stock
-      WHERE fs_id IS NOT NULL AND invoice_number IS NOT NULL
-      ORDER BY fs_id, invoice_number DESC
-    `);
-
-    const invoicesByStation = {};
-    invoiceResult.forEach(row => {
-      if (!invoicesByStation[row.fs_id]) {
-        invoicesByStation[row.fs_id] = [];
-      }
-      invoicesByStation[row.fs_id].push(row.invoice_number);
-    });
-
-    // Merge data based on fs_id and product (defensive, with logging)
+    // 5. Merge data dynamically
     const mergedData = {};
 
-    if (!Array.isArray(stockResult)) {
-      console.error('Unexpected stockResult:', stockResult);
-      return NextResponse.json({ success: false, error: 'Unexpected stock data format from DB' }, { status: 500 });
-    }
+    stockRecords.forEach(record => {
+      const fsId = record.fs_id;
+      const productId = record.product_id;
+      const stockVal = parseFloat(record.stock) || 0;
 
-    try {
-      stockResult.forEach((row, idx) => {
-        // Support alternate column names and guard against nulls
-        const fs_id = row.fs_id ?? row.station_id ?? null;
-        const product = row.product ?? row.product_id ?? null;
-        const stockNum = Number(row.stock) || 0;
+      if (!mergedData[fsId]) {
+        mergedData[fsId] = {
+          station_id: fsId,
+          station_name: stationsMap[fsId] || `Station ${fsId}`,
+          products: {}, // Dynamic product stocks
+          invoice_numbers: invoicesMap[fsId] || []
+        };
+      }
 
-        if (!fs_id || product === null || product === undefined) {
-          console.warn('Skipping invalid stock row at index', idx, row);
-          return; // skip this row
-        }
+      const pName = productsMap[productId] || `Product ${productId}`;
+      mergedData[fsId].products[productId] = {
+        id: productId,
+        name: pName,
+        stock: stockVal
+      };
+    });
 
-        // Initialize station entry
-        if (!mergedData[fs_id]) {
-          mergedData[fs_id] = {
-            station_id: fs_id,
-            station_name: fillingStations[fs_id] || 'Unknown Station',
-            industrial_oil_40: 0,
-            industrial_oil_60: 0,
-            def_loose: 0,
-            def_bucket: 0,
-            invoice_numbers: invoicesByStation[fs_id] || []
-          };
-        }
-
-        // Sum into correct product bucket
-        switch (Number(product)) {
-          case 2: // Industrial Oil 40
-            mergedData[fs_id].industrial_oil_40 += stockNum;
-            break;
-          case 3: // Industrial Oil 60
-            mergedData[fs_id].industrial_oil_60 += stockNum;
-            break;
-          case 4: // DEF Loose
-            mergedData[fs_id].def_loose += stockNum;
-            break;
-          case 5: // DEF Bucket
-            mergedData[fs_id].def_bucket += stockNum;
-            break;
-          default:
-            // Log unmapped product to help debugging but do not fail
-            console.warn('Unmapped product ID in stock row:', { index: idx, product, row });
-            break;
-        }
-      });
-    } catch (err) {
-      console.error('Error processing stockResult:', err);
-      return NextResponse.json({ success: false, error: 'Failed to process stock data: ' + err.message }, { status: 500 });
-    }
+    // Ensure all stations are included even if no stock
+    stationList.forEach(s => {
+      if (!mergedData[s.id]) {
+        mergedData[s.id] = {
+          station_id: s.id,
+          station_name: s.station_name,
+          products: {},
+          invoice_numbers: invoicesMap[s.id] || []
+        };
+      }
+    });
 
     return NextResponse.json({
       success: true,
-      data: Object.values(mergedData)
+      data: Object.values(mergedData),
+      allProducts: productList // Send all products for reference
     });
 
   } catch (error) {
-    console.error('Error fetching stock data:', error);
+    console.error('Error fetching dynamic stock data:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch stock data' },
+      { success: false, error: 'Failed to fetch stock data: ' + error.message },
       { status: 500 }
     );
   }

@@ -82,31 +82,18 @@ function AddStockModal({
   if (!show || !selectedStation) return null;
 
   const getProductName = (productId) => {
-    const productNames = {
-      2: 'Industrial Oil 40',
-      3: 'Industrial Oil 60',
-      4: 'DEF Loose',
-      5: 'DEF Bucket'
-    };
-    return productNames[productId] || 'Unknown Product';
+    const product = selectedStation.allProducts?.find(p => p.id === productId);
+    return product?.pname || 'Unknown Product';
   };
 
   const getCurrentStock = () => {
-    const productFieldMap = {
-      2: 'industrial_oil_40',
-      3: 'industrial_oil_60',
-      4: 'def_loose',
-      5: 'def_bucket'
-    };
-
-    const fieldName = productFieldMap[selectedProduct];
-    return selectedStation[fieldName] || 0;
+    return selectedStation.products[selectedProduct]?.stock || 0;
   };
 
   const getNewStockTotal = () => {
     const currentStock = getCurrentStock();
     const addedQuantity = parseInt(quantity) || 0;
-    return currentStock + addedQuantity;
+    return operationType === 'minus' ? Math.max(0, currentStock - addedQuantity) : currentStock + addedQuantity;
   };
 
   return (
@@ -205,8 +192,8 @@ function AddStockModal({
 
           {quantity && !formErrors.quantity && (
             <div className={`p-3 rounded-lg border ${operationType === 'minus'
-                ? 'bg-red-50 border-red-200'
-                : 'bg-blue-50 border-blue-200'
+              ? 'bg-red-50 border-red-200'
+              : 'bg-blue-50 border-blue-200'
               }`}>
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <div className={operationType === 'minus' ? 'text-red-600' : 'text-blue-600'}>
@@ -232,8 +219,8 @@ function AddStockModal({
             onClick={onConfirm}
             disabled={!isFormValid}
             className={`px-4 py-2 rounded-md transition-colors duration-200 flex items-center justify-center text-sm sm:text-base ${isFormValid
-                ? 'bg-blue-600 hover:bg-blue-700 text-white'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+              ? 'bg-blue-600 hover:bg-blue-700 text-white'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
               }`}
           >
             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -262,25 +249,12 @@ function ConfirmationModal({
   if (!show || !selectedStation) return null;
 
   const getProductName = (productId) => {
-    const productNames = {
-      2: 'Industrial Oil 40',
-      3: 'Industrial Oil 60',
-      4: 'DEF Loose',
-      5: 'DEF Bucket'
-    };
-    return productNames[productId] || 'Unknown Product';
+    const product = selectedStation.allProducts?.find(p => p.id === productId);
+    return product?.pname || 'Unknown Product';
   };
 
   const getCurrentStock = () => {
-    const productFieldMap = {
-      2: 'industrial_oil_40',
-      3: 'industrial_oil_60',
-      4: 'def_loose',
-      5: 'def_bucket'
-    };
-
-    const fieldName = productFieldMap[selectedProduct];
-    return selectedStation[fieldName] || 0;
+    return selectedStation.products[selectedProduct]?.stock || 0;
   };
 
   const getNewStockTotal = () => {
@@ -441,7 +415,9 @@ function AllStockContent() {
       }
 
       if (result.success) {
-        setStockData(result.data);
+        // Add allProducts to each station for reference in modals
+        const enrichedData = result.data.map(s => ({ ...s, allProducts: result.allProducts }));
+        setStockData(enrichedData);
       } else {
         throw new Error(result.error);
       }
@@ -488,19 +464,10 @@ function AllStockContent() {
     return Object.keys(errors).length === 0;
   };
 
-  const handleAddStock = (station, productType, operation = 'plus') => {
+  const handleAddStock = (station, productId, operation = 'plus') => {
     setSelectedStation(station);
     setOperationType(operation);
-
-    // Map product type to product ID
-    const productMap = {
-      'industrial_oil_40': 2,
-      'industrial_oil_60': 3,
-      'def_loose': 4,
-      'def_bucket': 5
-    };
-
-    setSelectedProduct(productMap[productType]);
+    setSelectedProduct(productId);
     setShowAddModal(true);
     setQuantity('');
     setRemarks('');
@@ -541,22 +508,22 @@ function AllStockContent() {
 
         // Optimistically update local state so UI reflects change immediately
         const qtyNum = parseInt(quantity) || 0;
-        const keyMap = {
-          2: 'industrial_oil_40',
-          3: 'industrial_oil_60',
-          4: 'def_loose',
-          5: 'def_bucket'
-        };
-        const key = keyMap[selectedProduct];
-
-        if (key) {
-          setStockData(prev => prev.map(s => {
-            if (s.station_id !== selectedStation.station_id) return s;
-            const cur = parseInt(s[key] || 0);
-            const updated = operationType === 'minus' ? Math.max(0, cur - qtyNum) : cur + qtyNum;
-            return { ...s, [key]: updated };
-          }));
-        }
+        
+        setStockData(prev => prev.map(s => {
+          if (s.station_id !== selectedStation.station_id) return s;
+          const products = { ...s.products };
+          const cur = parseFloat(products[selectedProduct]?.stock || 0);
+          const updated = operationType === 'minus' ? Math.max(0, cur - qtyNum) : cur + qtyNum;
+          
+          if (products[selectedProduct]) {
+            products[selectedProduct] = { ...products[selectedProduct], stock: updated };
+          } else {
+            // Should not happen if UI is consistent, but for safety:
+            products[selectedProduct] = { id: selectedProduct, name: getProductName(selectedProduct), stock: updated };
+          }
+          
+          return { ...s, products };
+        }));
 
         setSuccessMessage(`Stock ${actionText} successfully! ${quantity} units of ${getProductName(selectedProduct)} ${actionText} ${operationType === 'minus' ? 'from' : 'to'} ${selectedStation.station_name}`);
         setShowConfirmModal(false);
@@ -580,13 +547,8 @@ function AllStockContent() {
   };
 
   const getProductName = (productId) => {
-    const productNames = {
-      2: 'Industrial Oil 40',
-      3: 'Industrial Oil 60',
-      4: 'DEF Loose',
-      5: 'DEF Bucket'
-    };
-    return productNames[productId] || 'Unknown Product';
+    const product = stockData[0]?.allProducts?.find(p => p.id === productId);
+    return product?.pname || 'Unknown Product';
   };
 
   const isFormValid = () => {
@@ -698,18 +660,12 @@ function AllStockContent() {
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Station Name
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Industrial Oil 40
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    Industrial Oil 60
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    DEF Loose
-                  </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
-                    DEF Bucket
-                  </th>
+                  {/* Dynamic Headers based on all available products */}
+                  {stockData[0]?.allProducts?.map(product => (
+                    <th key={product.id} className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                      {product.pname}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody className="bg-white divide-y divide-gray-200">
@@ -722,133 +678,42 @@ function AllStockContent() {
                         </div>
                       </td>
 
-                      {/* Industrial Oil 40 */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_40 > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.industrial_oil_40}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_40', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_40', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Minus Stock (Shortage)"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Industrial Oil 60 */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_60 > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.industrial_oil_60}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_60', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_60', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Minus Stock (Shortage)"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* DEF Loose */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_loose > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.def_loose}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'def_loose', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'def_loose', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Minus Stock (Shortage)"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* DEF Bucket */}
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_bucket > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.def_bucket}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'def_bucket', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'def_bucket', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
-                              title="Minus Stock (Shortage)"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </td>
+                      {/* Dynamic Product Cells */}
+                      {station.allProducts?.map(product => {
+                        const stockObj = station.products[product.id] || { stock: 0 };
+                        return (
+                          <td key={product.id} className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center space-x-2">
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${stockObj.stock > 0
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                                }`}>
+                                {stockObj.stock}
+                              </span>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => handleAddStock(station, product.id, 'plus')}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                                  title="Add Stock"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleAddStock(station, product.id, 'minus')}
+                                  className="bg-red-500 hover:bg-red-600 text-white p-1 rounded text-xs transition-colors duration-200"
+                                  title="Minus Stock"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          </td>
+                        );
+                      })}
                     </tr>
                   ))
                 ) : (
@@ -879,145 +744,44 @@ function AllStockContent() {
                     </div>
 
                     <div className="space-y-3">
-                      {/* Industrial Oil 40 */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-700">Industrial Oil 40</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_40 > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.industrial_oil_40}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_40', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_40', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Minus Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
+                      {station.allProducts?.map(product => {
+                        const stockObj = station.products[product.id] || { stock: 0 };
+                        return (
+                          <div key={product.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-700">{product.pname}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${stockObj.stock > 0
+                                ? 'bg-green-100 text-green-800'
+                                : 'bg-red-100 text-red-800'
+                                }`}>
+                                {stockObj.stock}
+                              </span>
+                              <div className="flex items-center space-x-1">
+                                <button
+                                  onClick={() => handleAddStock(station, product.id, 'plus')}
+                                  className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded text-xs transition-colors"
+                                  title="Add Stock"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => handleAddStock(station, product.id, 'minus')}
+                                  className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded text-xs transition-colors"
+                                  title="Minus Stock"
+                                >
+                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                      </div>
-
-                      {/* Industrial Oil 60 */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-700">Industrial Oil 60</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.industrial_oil_60 > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.industrial_oil_60}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_60', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'industrial_oil_60', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Minus Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* DEF Loose */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-700">DEF Loose</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_loose > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.def_loose}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'def_loose', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'def_loose', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Minus Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* DEF Bucket */}
-                      <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-700">DEF Bucket</p>
-                        </div>
-                        <div className="flex items-center space-x-2">
-                          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${station.def_bucket > 0
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                            }`}>
-                            {station.def_bucket}
-                          </span>
-                          <div className="flex items-center space-x-1">
-                            <button
-                              onClick={() => handleAddStock(station, 'def_bucket', 'plus')}
-                              className="bg-blue-500 hover:bg-blue-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Add Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => handleAddStock(station, 'def_bucket', 'minus')}
-                              className="bg-red-500 hover:bg-red-600 text-white p-1.5 rounded text-xs transition-colors"
-                              title="Minus Stock"
-                            >
-                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                              </svg>
-                            </button>
-                          </div>
-                        </div>
-                      </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ))
