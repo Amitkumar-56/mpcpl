@@ -17,7 +17,9 @@ import {
   FaHome,
   FaIndustry,
   FaMoneyBill,
+  FaPaw,
   FaPlus,
+  FaFileMedical,
   FaShieldAlt,
   FaSignOutAlt,
   FaStickyNote,
@@ -27,7 +29,9 @@ import {
   FaUsers,
   FaUserPlus,
   FaUserTie,
-  FaWarehouse
+  FaWarehouse,
+  FaUserMd,
+  FaStethoscope
 } from "react-icons/fa";
 
 const Sidebar = memo(function Sidebar({ onClose }) {
@@ -161,6 +165,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/manufacturing/security-gate" },
     { name: "Rental Trips", icon: <FaTruck />, module: "rental_trips", path: "/rental-trips" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
+    { name: "Farming CRM", icon: <FaPaw />, module: "farming", path: "/farming" },
 
   ], []);
 
@@ -208,7 +213,8 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     manufacturing_entry: "Manufacturing Entry",
     manufacturing_transfer: "Manufacturing Transfer",
     rental_customer: "Rental-Customer",
-    rental_trips: "Rental Trips"
+    rental_trips: "Rental Trips",
+    farming: "Farming"
   }), []);
 
   // ✅ Role-based menu filtering
