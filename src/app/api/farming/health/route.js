@@ -25,8 +25,12 @@ export async function GET(request) {
       params.push(animal_id);
     }
 
-    query += ` ORDER BY h.treatment_date DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), parseInt(offset));
+    // Ensure parameters are integers and not NaN
+    const limitParam = Number.isInteger(limit) ? limit : 20;
+    const offsetParam = Number.isInteger(offset) ? offset : 0;
+    
+    // Use string interpolation for LIMIT/OFFSET to avoid parameter binding issues
+    query += ` ORDER BY h.treatment_date DESC LIMIT ${limitParam} OFFSET ${offsetParam}`;
 
     const records = await executeQuery(query, params);
 

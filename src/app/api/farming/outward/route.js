@@ -29,8 +29,16 @@ export async function GET(request) {
     if (from_date) { query += ` AND o.outward_date >= ?`; params.push(from_date); }
     if (to_date) { query += ` AND o.outward_date <= ?`; params.push(to_date); }
 
-    query += ` ORDER BY o.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(parseInt(limit), parseInt(offset));
+    // Ensure parameters are integers and not NaN
+    const limitParam = Number.isInteger(limit) ? limit : 20;
+    const offsetParam = Number.isInteger(offset) ? offset : 0;
+    
+    // Use string interpolation for LIMIT/OFFSET to avoid parameter binding issues
+    query += ` ORDER BY o.created_at DESC LIMIT ${limitParam} OFFSET ${offsetParam}`;
+
+    // Debug logging
+    console.log('Outward Query:', query);
+    console.log('Limit:', limit, 'Offset:', offset);
 
     const records = await executeQuery(query, params);
 
