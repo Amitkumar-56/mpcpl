@@ -13,9 +13,9 @@ export async function GET(request) {
     const type = searchParams.get('type');
     const from_date = searchParams.get('from_date');
     const to_date = searchParams.get('to_date');
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 20;
-    const offset = (page - 1) * limit;
+    const page = Math.max(1, parseInt(searchParams.get('page')) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
+    const offset = Math.max(0, (page - 1) * limit);
 
     let query = `
       SELECT i.*, 
@@ -32,8 +32,8 @@ export async function GET(request) {
     if (from_date) { query += ` AND i.inward_date >= ?`; params.push(from_date); }
     if (to_date) { query += ` AND i.inward_date <= ?`; params.push(to_date); }
 
-    query += ` ORDER BY i.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
-    // params already has the values, no need to push again
+    query += ` ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
+    params.push(parseInt(limit), parseInt(offset));
 
     const records = await executeQuery(query, params);
 

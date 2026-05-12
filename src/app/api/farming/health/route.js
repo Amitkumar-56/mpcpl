@@ -7,9 +7,9 @@ export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
     const animal_id = searchParams.get('animal_id');
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 20;
-    const offset = (page - 1) * limit;
+    const page = Math.max(1, parseInt(searchParams.get('page')) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
+    const offset = Math.max(0, (page - 1) * limit);
 
     let query = `
       SELECT h.*, a.tag_id as animal_tag, a.name as animal_name, d.name as doctor_name 
@@ -26,7 +26,7 @@ export async function GET(request) {
     }
 
     query += ` ORDER BY h.treatment_date DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    params.push(parseInt(limit), parseInt(offset));
 
     const records = await executeQuery(query, params);
 

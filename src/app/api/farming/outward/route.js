@@ -10,9 +10,9 @@ export async function GET(request) {
     const type = searchParams.get('type');
     const from_date = searchParams.get('from_date');
     const to_date = searchParams.get('to_date');
-    const page = parseInt(searchParams.get('page')) || 1;
-    const limit = parseInt(searchParams.get('limit')) || 20;
-    const offset = (page - 1) * limit;
+    const page = Math.max(1, parseInt(searchParams.get('page')) || 1);
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit')) || 20));
+    const offset = Math.max(0, (page - 1) * limit);
 
     let query = `
       SELECT o.*, 
@@ -30,7 +30,7 @@ export async function GET(request) {
     if (to_date) { query += ` AND o.outward_date <= ?`; params.push(to_date); }
 
     query += ` ORDER BY o.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    params.push(parseInt(limit), parseInt(offset));
 
     const records = await executeQuery(query, params);
 
