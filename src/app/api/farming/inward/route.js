@@ -1,6 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { sendGenericReportEmail } from "@/lib/email";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 // ... (GET logic stays same)
 export async function GET(request) {
@@ -30,16 +31,17 @@ export async function GET(request) {
 
     query += ` ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
-    
+
     const records = await executeQuery(query, params);
 
     // Get total count for pagination
     const countQuery = `SELECT COUNT(*) as total FROM farming_inward WHERE 1=1 ${type ? 'AND type = ?' : ''}`;
     const countParams = type ? [type] : [];
-    const [{ total }] = await executeQuery(countQuery, countParams);
+    const countResult = await executeQuery(countQuery, countParams);
+    const total = Number(countResult[0]?.total || 0);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data: records,
       pagination: {
         total,

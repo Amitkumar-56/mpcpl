@@ -1,6 +1,7 @@
 // src/app/api/farming/batches/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 // GET batches
 export async function GET(request) {
@@ -24,7 +25,12 @@ export async function GET(request) {
     }
 
     query += ` ORDER BY b.created_at DESC`;
-    const batches = await executeQuery(query, params);
+    const batchRecords = await executeQuery(query, params);
+    
+    const batches = batchRecords.map(b => ({
+      ...b,
+      current_count: Number(b.current_count || 0)
+    }));
 
     return NextResponse.json({ success: true, data: batches });
   } catch (error) {

@@ -1,6 +1,7 @@
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
 import { sendHealthReportEmail } from "@/lib/email";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 export async function GET(request) {
   try {
@@ -26,16 +27,17 @@ export async function GET(request) {
 
     query += ` ORDER BY h.treatment_date DESC LIMIT ? OFFSET ?`;
     params.push(limit, offset);
-    
+
     const records = await executeQuery(query, params);
 
     // Total count for pagination
     const countQuery = `SELECT COUNT(*) as total FROM farming_health WHERE 1=1 ${animal_id ? 'AND animal_id = ?' : ''}`;
     const countParams = animal_id ? [animal_id] : [];
-    const [{ total }] = await executeQuery(countQuery, countParams);
+    const countResult = await executeQuery(countQuery, countParams);
+    const total = Number(countResult[0]?.total || 0);
 
-    return NextResponse.json({ 
-      success: true, 
+    return NextResponse.json({
+      success: true,
       data: records,
       pagination: {
         total,
@@ -52,8 +54,8 @@ export async function GET(request) {
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { 
-      animal_id, type, doctor_id, treatment_type, disease_name, 
+    const {
+      animal_id, type, doctor_id, treatment_type, disease_name,
       medicine_name, dosage, cost, treatment_date, next_followup, symptoms, notes,
       temperature, blood_report, recipient_email
     } = body;
@@ -77,7 +79,7 @@ export async function POST(request) {
         (animal_id, type, doctor_id, treatment_type, disease_name, medicine_name, dosage, cost, treatment_date, next_followup, symptoms, notes, temperature, blood_report)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
-      animal_id, type, doctor_id || null, treatment_type, disease_name, 
+      animal_id, type, doctor_id || null, treatment_type, disease_name,
       medicine_name, dosage, cost || 0, treatment_date, next_followup || null, symptoms, notes,
       temperature || null, blood_report || null
     ]);
@@ -99,9 +101,9 @@ export async function POST(request) {
 
     // Update animal health status if sick or has fever
     if ((disease_name && disease_name !== '') || isFever) {
-        await executeQuery(`UPDATE farming_animals SET health_status = 'sick' WHERE id = ?`, [animal_id]);
+      await executeQuery(`UPDATE farming_animals SET health_status = 'sick' WHERE id = ?`, [animal_id]);
     } else {
-        await executeQuery(`UPDATE farming_animals SET health_status = 'healthy' WHERE id = ?`, [animal_id]);
+      await executeQuery(`UPDATE farming_animals SET health_status = 'healthy' WHERE id = ?`, [animal_id]);
     }
 
     // Send Email Notification (to custom recipient and CC admin)

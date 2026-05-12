@@ -60,6 +60,7 @@ function EditEmployeeContent() {
     "Lab Testing": { can_view: false, can_edit: false, can_create: false },
     "Manufacturing Process": { can_view: false, can_edit: false, can_create: false },
     "Security Gate": { can_view: false, can_edit: false, can_create: false },
+    "Farming CRM": { can_view: false, can_edit: false, can_create: false },
   });
   const modules = Object.keys(permissions);
 

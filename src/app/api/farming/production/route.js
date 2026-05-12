@@ -1,6 +1,7 @@
 // src/app/api/farming/production/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 // GET production records
 export async function GET(request) {
@@ -30,7 +31,6 @@ export async function GET(request) {
     query += ` ORDER BY p.production_date DESC, p.created_at DESC`;
     const records = await executeQuery(query, params);
 
-    // Get summary
     const summary = await executeQuery(`
       SELECT product_name, unit, SUM(quantity) as total_qty, COUNT(*) as entries
       FROM farming_production
@@ -40,8 +40,15 @@ export async function GET(request) {
       ${to_date ? 'AND production_date <= ?' : ''}
       GROUP BY product_name, unit
     `, [...(type ? [type] : []), ...(from_date ? [from_date] : []), ...(to_date ? [to_date] : [])]);
+    
+    // Cast BigInt to Number
+    const formattedSummary = summary.map(s => ({
+      ...s,
+      total_qty: Number(s.total_qty || 0),
+      entries: Number(s.entries || 0)
+    }));
 
-    return NextResponse.json({ success: true, data: records, summary });
+    return NextResponse.json({ success: true, data: records, summary: formattedSummary });
   } catch (error) {
     console.error("Production GET Error:", error);
     return NextResponse.json({ success: false, error: error.message }, { status: 500 });

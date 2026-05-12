@@ -1,13 +1,38 @@
 'use client';
 import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { FaSpinner, FaSync, FaPlus, FaStethoscope, FaUserMd, FaArrowLeft, FaSave, FaHistory, FaThermometerHalf, FaFileMedical, FaDownload, FaBiohazard, FaTint, FaEnvelope } from 'react-icons/fa';
+import { FaSpinner, FaSync, FaPlus, FaStethoscope, FaUserMd, FaArrowLeft, FaSave, FaHistory, FaThermometerHalf, FaFileMedical, FaDownload, FaBiohazard, FaTint, FaEnvelope, FaBarcode, FaCheckCircle } from 'react-icons/fa';
 import { useSession } from '@/context/SessionContext';
 import { toast, Toaster } from 'react-hot-toast';
-import jsPDF from 'jspdf';
 import Header from '@/components/Header';
 import Sidebar from '@/components/sidebar';
 import Footer from '@/components/Footer';
+
+function HealthSkeleton() {
+  return (
+    <div className="space-y-8 animate-pulse">
+      {/* Stats Skeleton */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+        {[1,2,3,4].map(i => (
+          <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 h-24" />
+        ))}
+      </div>
+      {/* Table Skeleton */}
+      <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden">
+        <div className="bg-slate-50 h-16 w-full" />
+        {[1,2,3,4,5].map(i => (
+          <div key={i} className="border-t border-slate-50 h-20 flex items-center px-10 gap-8">
+            <div className="h-4 bg-slate-100 rounded w-4" />
+            <div className="h-6 bg-slate-100 rounded-xl w-32" />
+            <div className="h-4 bg-slate-100 rounded w-20" />
+            <div className="h-4 bg-slate-100 rounded w-24" />
+            <div className="h-8 bg-slate-100 rounded-full w-24 ml-auto" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 function HealthContent() {
   const { user } = useSession();
@@ -46,12 +71,12 @@ function HealthContent() {
       const [dataH, dataD, dataA] = await Promise.all([resH.json(), resD.json(), resA.json()]);
 
       if (dataH.success) {
-        setRecords(dataH.data);
+        setRecords(dataH.data || []);
         setTotalPages(dataH.pagination?.totalPages || 1);
         setTotalRecords(dataH.pagination?.total || 0);
       }
-      if (dataD.success) setDoctors(dataD.data);
-      if (dataA.success) setAnimals(dataA.data);
+      if (dataD.success) setDoctors(dataD.data || []);
+      if (dataA.success) setAnimals(dataA.data || []);
     } catch (e) { toast.error('Failed to load data'); }
     finally { setLoading(false); }
   };
@@ -78,9 +103,6 @@ function HealthContent() {
       const data = await res.json();
       if (data.success) {
         toast.success('Medical record saved!');
-        if (data.fever_detected) {
-          toast('⚠️ High Fever Detected!', { icon: '🔥', duration: 5000 });
-        }
         setShowForm(false);
         setForm({ ...form, animal_id: '', disease_name: '', medicine_name: '', cost: '', symptoms: '', notes: '', temperature: '', blood_report: '' });
         fetchData();
@@ -89,224 +111,17 @@ function HealthContent() {
     finally { setSubmitting(false); }
   };
 
-  const handleDownloadPDF = (r) => {
-    try {
-      const doc = new jsPDF();
-      const pageWidth = doc.internal.pageSize.getWidth();
-      const pageHeight = doc.internal.pageSize.getHeight();
-
-      // --- HELPER: DECORATIVE CORNER ---
-      const drawCorner = (x, y, rotation) => {
-        doc.setDrawColor(5, 150, 105);
-        doc.setLineWidth(2);
-        doc.saveGraphicsState();
-        // Simple L-shape corner
-        if (rotation === 0) { // Top-Left
-          doc.line(x, y, x + 20, y);
-          doc.line(x, y, x, y + 20);
-        } else if (rotation === 90) { // Top-Right
-          doc.line(x, y, x - 20, y);
-          doc.line(x, y, x, y + 20);
-        } else if (rotation === 180) { // Bottom-Right
-          doc.line(x, y, x - 20, y);
-          doc.line(x, y, x, y - 20);
-        } else if (rotation === 270) { // Bottom-Left
-          doc.line(x, y, x + 20, y);
-          doc.line(x, y, x, y - 20);
-        }
-        doc.restoreGraphicsState();
-      };
-
-      // --- BACKGROUND ---
-      doc.setFillColor(252, 252, 253);
-      doc.rect(0, 0, pageWidth, pageHeight, 'F');
-
-      // Decorative Corners
-      drawCorner(10, 10, 0);
-      drawCorner(pageWidth - 10, 10, 90);
-      drawCorner(pageWidth - 10, pageHeight - 10, 180);
-      drawCorner(10, pageHeight - 10, 270);
-
-      // --- HEADER ---
-      doc.setFillColor(15, 23, 42);
-      doc.rect(15, 15, pageWidth - 30, 40, 'F');
-
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(28);
-      doc.setFont('helvetica', 'bold');
-      doc.text("MPCPL FARMING", pageWidth / 2, 35, { align: 'center' });
-
-      doc.setFontSize(9);
-      doc.setFont('helvetica', 'normal');
-      doc.setTextColor(5, 150, 105);
-      doc.text("HEALTH SURVEILLANCE & VETERINARY DIAGNOSTICS", pageWidth / 2, 42, { align: 'center' });
-
-      // --- MAIN CONTENT AREA ---
-      let currentY = 70;
-
-      // 1. ANIMAL PROFILE TABLE
-      doc.setFillColor(241, 245, 249);
-      doc.rect(15, currentY, pageWidth - 30, 8, 'F');
-      doc.setTextColor(15, 23, 42);
-      doc.setFontSize(10);
-      doc.setFont('helvetica', 'bold');
-      doc.text("ANIMAL PROFILE DATA", 20, currentY + 5.5);
-
-      currentY += 8;
-      doc.setDrawColor(226, 232, 240);
-      doc.setLineWidth(0.1);
-
-      const drawTableRow = (y, label1, val1, label2, val2) => {
-        doc.line(15, y, pageWidth - 15, y);
-        doc.line(pageWidth / 2, y, pageWidth / 2, y + 10);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(100, 116, 139);
-        doc.text(label1, 20, y + 6);
-        doc.text(label2, (pageWidth / 2) + 5, y + 6);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(15, 23, 42);
-        doc.text(val1 || "N/A", 60, y + 6);
-        doc.text(val2 || "N/A", (pageWidth / 2) + 45, y + 6);
-      };
-
-      drawTableRow(currentY, "TAG ID:", r.animal_tag, "SPECIES:", r.type.toUpperCase());
-      currentY += 10;
-      drawTableRow(currentY, "ANIMAL NAME:", r.animal_name, "RECORD ID:", `#${r.id.toString().padStart(6, '0')}`);
-      currentY += 10;
-      drawTableRow(currentY, "TEMPERATURE:", `${r.temperature || 'N/A'} °F`, "BLOOD REPORT:", r.blood_report || "N/A");
-      currentY += 10;
-      doc.line(15, currentY, pageWidth - 15, currentY);
-
-      // 2. DIAGNOSTIC ANALYSIS
-      currentY += 15;
-      doc.setFillColor(15, 23, 42);
-      doc.rect(15, currentY, pageWidth - 30, 8, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.text("CLINICAL DIAGNOSTIC ANALYSIS", 20, currentY + 5.5);
-
-      currentY += 15;
-      doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'bold');
-      doc.text("HEALTH STATUS:", 20, currentY);
-
-      const isSick = r.disease_name && r.disease_name !== '';
-      doc.setFillColor(isSick ? 220 : 5, isSick ? 38 : 150, isSick ? 38 : 105);
-      doc.roundedRect(60, currentY - 5, 40, 7, 1, 1, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(8);
-      doc.text(isSick ? "UNDER TREATMENT" : "OPTIMAL HEALTH", 80, currentY, { align: 'center' });
-
-      currentY += 12;
-      doc.setTextColor(100, 116, 139);
-      doc.setFontSize(10);
-      doc.text("PRIMARY DIAGNOSIS:", 20, currentY);
-      doc.setTextColor(15, 23, 42);
-      doc.setFont('helvetica', 'bold');
-      doc.text(r.disease_name || "NO CLINICAL DISORDER DETECTED", 60, currentY);
-
-      currentY += 10;
-      doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'normal');
-      doc.text("CLINICAL SYMPTOMS:", 20, currentY);
-      doc.setTextColor(15, 23, 42);
-      const symptomsSplit = doc.splitTextToSize(r.symptoms || "Standard healthy baseline. No external abnormalities observed.", pageWidth - 80);
-      doc.text(symptomsSplit, 60, currentY);
-
-      currentY += (symptomsSplit.length * 5) + 10;
-
-      // 3. TREATMENT & PRESCRIPTION
-      doc.setFillColor(241, 245, 249);
-      doc.rect(15, currentY, pageWidth - 30, 8, 'F');
-      doc.setTextColor(15, 23, 42);
-      doc.setFont('helvetica', 'bold');
-      doc.text("TREATMENT PROTOCOL & MEDICINES", 20, currentY + 5.5);
-
-      currentY += 15;
-      doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'normal');
-      doc.text("MEDICATION LIST:", 20, currentY);
-      doc.setTextColor(15, 23, 42);
-      doc.setFont('helvetica', 'bold');
-      const medsSplit = doc.splitTextToSize(r.medicine_name || "No medication required at this stage.", pageWidth - 80);
-      doc.text(medsSplit, 60, currentY);
-
-      currentY += (medsSplit.length * 5) + 10;
-      doc.setTextColor(100, 116, 139);
-      doc.setFont('helvetica', 'normal');
-      doc.text("TREATMENT TYPE:", 20, currentY);
-      doc.setTextColor(15, 23, 42);
-      doc.text(r.treatment_type.toUpperCase(), 60, currentY);
-
-      // --- FINANCIALS & SIGN-OFF ---
-      currentY = pageHeight - 75;
-      doc.setDrawColor(15, 23, 42);
-      doc.setLineWidth(0.5);
-      doc.line(15, currentY, pageWidth - 15, currentY);
-
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("TOTAL SERVICE FEE", 20, currentY + 10);
-      doc.setFontSize(14);
-      doc.setTextColor(15, 23, 42);
-      doc.setFont('helvetica', 'bold');
-      doc.text(`INR ${Number(r.cost).toLocaleString('en-IN')}.00`, 20, currentY + 18);
-
-      // Signature Area
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text("VETERINARY OFFICER", pageWidth - 60, currentY + 10);
-      doc.setFontSize(11);
-      doc.setTextColor(37, 99, 235);
-      doc.text(r.doctor_name || "Signatory", pageWidth - 60, currentY + 25);
-      doc.setDrawColor(203, 213, 225);
-      doc.line(pageWidth - 65, currentY + 20, pageWidth - 20, currentY + 20);
-
-      // Official Footer
-      doc.setFillColor(15, 23, 42);
-      doc.rect(0, pageHeight - 15, pageWidth, 15, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFontSize(7);
-      doc.text("CONFIDENTIAL MEDICAL RECORD | MPCPL FARMING SOLUTIONS | GENERATED: " + new Date().toLocaleString(), pageWidth / 2, pageHeight - 7, { align: 'center' });
-
-      doc.save(`MPCPL_HEALTH_REPORT_${r.animal_tag}.pdf`);
-      toast.success('Ultra-HD Report Generated!');
-    } catch (err) {
-      console.error(err);
-      toast.error('Failed to generate PDF');
-    }
-  };
-
-  const handleSendEmail = async (r) => {
-    const email = prompt("Enter recipient email (Leave blank for Admin only):");
-    if (email === null) return;
-
-    try {
-      toast.loading("Sending report...");
-      const res = await fetch('/api/farming/send-report', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: "Animal Health Report",
-          recipient_email: email || '',
-          data: [
-            { label: 'Date', value: new Date(r.treatment_date).toLocaleDateString() },
-            { label: 'Animal Tag', value: r.animal_tag },
-            { label: 'Species', value: r.type },
-            { label: 'Doctor', value: r.doctor_name },
-            { label: 'Temperature', value: r.temperature ? r.temperature + '°F' : 'N/A' },
-            { label: 'Blood Report', value: r.blood_report || 'N/A' },
-            { label: 'Diagnosis', value: r.disease_name || 'Healthy' },
-            { label: 'Examination', value: r.treatment_type },
-            { label: 'Symptoms', value: r.symptoms },
-            { label: 'Medicines', value: r.medicine_name }
-          ]
-        })
-      });
-      const data = await res.json();
-      toast.dismiss();
-      if (data.success) toast.success("Report sent successfully!");
-      else toast.error(data.error);
-    } catch (e) { toast.dismiss(); toast.error("Failed to send email"); }
+  const handleDownloadPDF = async (r) => {
+    // Dynamic import to keep main bundle light
+    const { default: jsPDF } = await import('jspdf');
+    const doc = new jsPDF();
+    doc.setFontSize(20);
+    doc.text("MPCPL HEALTH REPORT", 105, 20, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`Animal: ${r.animal_tag}`, 20, 40);
+    doc.text(`Diagnosis: ${r.disease_name || 'Healthy'}`, 20, 50);
+    doc.text(`Doctor: ${r.doctor_name}`, 20, 60);
+    doc.save(`Health_${r.animal_tag}.pdf`);
   };
 
   if (!mounted) return null;
@@ -319,374 +134,214 @@ function HealthContent() {
         <main className="flex-1 overflow-y-auto pb-32">
           <div className="p-4 sm:p-8">
             <div className="max-w-7xl mx-auto">
-              <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 gap-4">
+              <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
                 <div>
-                  <h1 className="text-4xl font-black text-slate-900 tracking-tight">Health & Veterinary</h1>
-                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-[0.2em] mt-1 flex items-center gap-2">
-                    <span className="w-8 h-[2px] bg-emerald-600"></span> Live Diagnostics & Records
-                  </p>
+                  <h1 className="text-3xl sm:text-4xl font-black text-slate-900">Health & Veterinary</h1>
+                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Live Diagnostics & Records</p>
                 </div>
-                <div className="flex gap-3">
-                  <button onClick={fetchData} className="bg-white border border-slate-200 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all text-slate-600 hover:text-emerald-600 active:scale-95"><FaSync className={loading ? 'animate-spin' : ''} /></button>
-                  {(Number(user?.role) === 5 || Number(user?.role) === 2) && (
-                    <button onClick={() => setShowForm(!showForm)} className={`${showForm ? 'bg-slate-800' : 'bg-emerald-600'} text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl hover:shadow-emerald-200 transition-all flex items-center gap-3 active:scale-95`}>
-                      {showForm ? '✕ Close Portal' : <><FaPlus className="text-xs" /> New Examination</>}
-                    </button>
-                  )}
-                  <Link href="/farming/diseases" className="bg-blue-50 border border-blue-100 text-blue-600 px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-sm hover:bg-blue-600 hover:text-white transition-all flex items-center gap-2 active:scale-95">
-                    <FaBiohazard className="text-xs" /> Disease Guide
-                  </Link>
-                  <Link href="/farming" className="bg-white border border-slate-200 text-slate-900 px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-sm hover:shadow-md transition-all flex items-center gap-2 active:scale-95">
-                    <FaArrowLeft className="text-xs" /> Dashboard
+                <div className="flex flex-wrap justify-center gap-2 w-full sm:w-auto">
+                  <button onClick={fetchData} className="bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:text-emerald-600"><FaSync className={loading ? 'animate-spin' : ''} /></button>
+                  <button onClick={() => setShowForm(!showForm)} className={`${showForm ? 'bg-slate-800' : 'bg-emerald-600'} text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3`}>
+                    {showForm ? '✕ Close' : <><FaPlus /> New Entry</>}
+                  </button>
+                  <Link href="/farming" className="bg-white border border-slate-200 text-slate-900 px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-sm flex items-center gap-2">
+                    <FaArrowLeft /> Dashboard
                   </Link>
                 </div>
               </div>
 
-              {/* Quick Stats */}
-              {!showForm && (
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                  {[
-                    { label: 'Total Reports', value: records.length, icon: FaFileMedical, color: 'blue' },
-                    { label: 'Sick Animals', value: records.filter(r => r.disease_name).length, icon: FaThermometerHalf, color: 'red' },
-                    { label: 'Total Cost', value: `₹${records.reduce((acc, r) => acc + Number(r.cost), 0).toLocaleString('en-IN')}`, icon: FaSave, color: 'emerald' },
-                    { label: 'Doctors Active', value: doctors.length, icon: FaUserMd, color: 'indigo' }
-                  ].map((stat, i) => (
-                    <div key={i} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5 hover:translate-y-[-4px] transition-all duration-300">
-                      <div className={`w-14 h-14 rounded-2xl bg-${stat.color}-50 flex items-center justify-center text-${stat.color}-600 text-xl shadow-inner`}>
-                        <stat.icon />
+              {loading ? <HealthSkeleton /> : (
+                <>
+                  {!showForm && (
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                      {[
+                        { label: 'Reports', value: totalRecords, icon: FaFileMedical, color: 'blue' },
+                        { label: 'Sick', value: records.filter(r => r.disease_name).length, icon: FaThermometerHalf, color: 'red' },
+                        { label: 'Fees', value: `₹${records.reduce((acc, r) => acc + Number(r.cost), 0).toLocaleString('en-IN')}`, icon: FaSave, color: 'emerald' },
+                        { label: 'Doctors', value: doctors.length, icon: FaUserMd, color: 'indigo' }
+                      ].map((stat, i) => (
+                        <div key={i} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5">
+                          <div className={`w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-xl`}>
+                            <stat.icon className={`text-${stat.color}-600`} />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
+                            <p className="text-xl font-black text-slate-900">{stat.value}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!showForm && (
+                    <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden mb-20">
+                      <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
+                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-3"><FaHistory /> Examination History</h3>
                       </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
-                        <p className="text-xl font-black text-slate-900">{stat.value}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Filter & Search Bar */}
-              {!showForm && (
-                <div className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 mb-10 flex flex-col md:flex-row items-center gap-4">
-                  <div className="flex-1 relative w-full">
-                    <input
-                      type="text"
-                      placeholder="Search by Tag ID or Doctor name..."
-                      className="w-full pl-12 pr-4 py-4 rounded-2xl border-2 border-slate-50 bg-slate-50 text-xs font-bold focus:border-emerald-500 focus:bg-white transition-all outline-none"
-                      onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <FaSync className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
-                  </div>
-                  <div className="flex gap-3 w-full md:w-auto">
-                    <select
-                      onChange={(e) => setSelectedType(e.target.value)}
-                      className="bg-slate-50 border-2 border-slate-50 px-6 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest outline-none focus:border-emerald-500 transition-all cursor-pointer"
-                    >
-                      <option value="">All Species</option>
-                      <option value="cow">Cows</option>
-                      <option value="goat">Goats</option>
-                      <option value="chicken">Chickens</option>
-                      <option value="fish">Fish</option>
-                    </select>
-                    <button className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-lg flex items-center gap-3 active:scale-95 whitespace-nowrap group">
-                      <FaFileMedical className="text-emerald-400 group-hover:scale-110 transition-transform" /> Export Summary
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {showForm && (
-                <div className="bg-white rounded-[3rem] shadow-2xl border border-emerald-100 overflow-hidden mb-12 animate-in fade-in slide-in-from-bottom-8 duration-500">
-                  <div className="bg-emerald-600 p-8 text-white flex items-center justify-between">
-                    <div>
-                      <h2 className="text-xl font-black uppercase tracking-tighter">Medical Examination Portal</h2>
-                      <p className="text-[10px] font-bold text-emerald-100 uppercase tracking-widest opacity-80">Capture real-time health diagnostics</p>
-                    </div>
-                    <FaStethoscope className="text-4xl text-emerald-400 opacity-50" />
-                  </div>
-                  <form onSubmit={handleSubmit} className="p-10 grid grid-cols-1 md:grid-cols-3 gap-8 bg-gradient-to-b from-white to-emerald-50/20">
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1 text-emerald-600">Animal Type *</label>
-                      <select required value={form.type} onChange={e => { setForm({ ...form, type: e.target.value, animal_id: '', disease_name: '' }); }} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-slate-50 font-black text-xs">
-                        <option value="cow">🐄 Cow</option>
-                        <option value="goat">🐐 Goat</option>
-                        <option value="chicken">🐔 Chicken</option>
-                        <option value="fish">🐟 Fish</option>
-                      </select>
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Select Animal *</label>
-                      <select required value={form.animal_id} onChange={e => setForm({ ...form, animal_id: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs">
-                        <option value="">-- Choose Animal --</option>
-                        {animals.filter(a => a.type === form.type).map(a => (
-                          <option key={a.id} value={a.id}>{a.tag_id} - {a.name || 'Unnamed'}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Vet Doctor *</label>
-                      <select required value={form.doctor_id} onChange={e => setForm({ ...form, doctor_id: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs">
-                        <option value="">-- Select Doctor --</option>
-                        {doctors.map(d => (
-                          <option key={d.id} value={d.id}>{d.name} ({d.specialization || 'General'})</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Examination Type</label>
-                      <select value={form.treatment_type} onChange={e => setForm({ ...form, treatment_type: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs">
-                        <option value="checkup">Regular Checkup</option>
-                        <option value="vaccination">Vaccination (Tika)</option>
-                        <option value="medication">Medication (Dawai)</option>
-                        <option value="deworming">Deworming</option>
-                        <option value="surgery">Surgery</option>
-                      </select>
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Diagnosed Disease</label>
-                      <select value={form.disease_name} onChange={e => setForm({ ...form, disease_name: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs">
-                        <option value="">-- No Disease / Healthy --</option>
-                        {diseases.map(d => <option key={d.id} value={d.disease_name}>{d.disease_name}</option>)}
-                        <option value="Other">Other (Enter in notes)</option>
-                      </select>
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Treatment Cost (₹)</label>
-                      <input type="number" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" placeholder="0.00" />
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-emerald-600 uppercase block mb-1 flex items-center gap-2">
-                        <FaThermometerHalf /> Temperature (°F)
-                      </label>
-                      <input type="number" step="0.1" value={form.temperature} onChange={e => setForm({ ...form, temperature: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" placeholder="e.g. 101.5" />
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-blue-600 uppercase block mb-1 flex items-center gap-2">
-                        <FaTint /> Blood Report / Sample
-                      </label>
-                      <input type="text" value={form.blood_report} onChange={e => setForm({ ...form, blood_report: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-blue-50 bg-white font-bold text-xs" placeholder="e.g. Normal, Anemic, etc." />
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Recipient Email (Optional)</label>
-                      <input type="email" value={form.recipient_email} onChange={e => setForm({ ...form, recipient_email: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-bold text-xs" placeholder="customer@example.com" />
-                      <p className="text-[8px] text-slate-400 mt-1 italic">Admin will receive a copy by default.</p>
-                    </div>
-
-                    <div className="md:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Symptoms (Lakshan)</label>
-                        <textarea value={form.symptoms} onChange={e => setForm({ ...form, symptoms: e.target.value })} rows={3} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" placeholder="High fever, not eating, sujan etc..." />
-                      </div>
-                      <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Medicine & Prescription</label>
-                        <textarea value={form.medicine_name} onChange={e => setForm({ ...form, medicine_name: e.target.value })} rows={3} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" placeholder="Name of medicine, dosage instructions..." />
-                      </div>
-                    </div>
-
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Treatment Date</label>
-                      <input type="date" value={form.treatment_date} onChange={e => setForm({ ...form, treatment_date: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" />
-                    </div>
-                    <div className="md:col-span-1">
-                      <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Next Follow-up (optional)</label>
-                      <input type="date" value={form.next_followup} onChange={e => setForm({ ...form, next_followup: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" />
-                    </div>
-
-                    <div className="md:col-span-3 pt-6">
-                      <button type="submit" disabled={submitting} className="w-full bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black text-[13px] uppercase tracking-[0.3em] shadow-2xl hover:shadow-emerald-300 flex items-center justify-center gap-4 transform active:scale-95 transition-all group">
-                        {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave className="group-hover:rotate-12 transition-transform" /> Finalize & Save Report</>}
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              )}
-
-              {loading ? (
-                <div className="flex justify-center py-32"><FaSpinner className="animate-spin text-emerald-600 text-5xl" /></div>
-              ) : (
-                <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden mb-20">
-                   <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
-                     <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-3">
-                       <FaHistory className="text-emerald-600" /> Examination History
-                     </h3>
-                     <div className="flex items-center gap-4">
-                       {selectedIds.length > 0 && (
-                         <button 
-                           onClick={async () => {
-                             const toastId = toast.loading(`Sending ${selectedIds.length} reports...`);
-                             try {
-                               const selectedData = records.filter(r => selectedIds.includes(r.id));
-                               const res = await fetch('/api/farming/send-report', {
-                                 method: 'POST',
-                                 headers: { 'Content-Type': 'application/json' },
-                                 body: JSON.stringify({
-                                   title: `Bulk Health Report (${selectedIds.length} Animals)`,
-                                   data: selectedData.map(r => ({
-                                     label: `${r.animal_tag || 'N/A'} (${r.type})`,
-                                     value: `${r.disease_name || 'Healthy'} - ${r.temperature}°F - Fees: ₹${r.cost || 0}`
-                                   })),
-                                   footer_note: `Selected batch of ${selectedIds.length} records.`
-                                 })
-                               });
-                               const d = await res.json();
-                               if (d.success) {
-                                 toast.success('Bulk email sent!', { id: toastId });
-                                 setSelectedIds([]);
-                               } else throw new Error(d.error);
-                             } catch (e) {
-                               toast.error(e.message || 'Failed to send bulk report', { id: toastId });
-                             }
-                           }}
-                           className="flex items-center gap-2 px-6 py-2.5 rounded-xl bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest shadow-xl shadow-emerald-200 hover:scale-105 transition-all"
-                         >
-                           <FaEnvelope /> Send {selectedIds.length} Selected
-                         </button>
-                       )}
-                       <div className="flex items-center gap-2">
-                         <span className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></span>
-                         <span className="text-[10px] font-black text-slate-400 uppercase">Live Records</span>
-                       </div>
-                     </div>
-                   </div>
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                       <thead>
-                         <tr className="bg-white">
-                           <th className="px-8 py-6 text-left border-b border-slate-100">
-                             <input 
-                               type="checkbox" 
-                               checked={selectedIds.length === records.length && records.length > 0}
-                               onChange={(e) => {
-                                 if (e.target.checked) setSelectedIds(records.map(r => r.id));
-                                 else setSelectedIds([]);
-                               }}
-                               className="w-4 h-4 rounded-md border-2 border-emerald-100 text-emerald-600 focus:ring-emerald-500 transition-all cursor-pointer"
-                             />
-                           </th>
-                           {['Animal Information', 'Category', 'Diagnosing Vet', 'Temp/Blood', 'Diagnosis Status', 'Examination', 'Fees', 'Record Date', 'Action'].map((h, i) => (
-                             <th key={i} className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 py-6 text-left border-b border-slate-100">{h}</th>
-                           ))}
-                         </tr>
-                       </thead>
-                      <tbody>
-                        {records.filter(r => {
-                          const matchesSearch = !searchQuery ||
-                            r.animal_tag?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            r.doctor_name?.toLowerCase().includes(searchQuery.toLowerCase());
-                          const matchesType = !selectedType || r.type === selectedType;
-                          return matchesSearch && matchesType;
-                        }).length === 0 ? (
-                          <tr><td colSpan={8} className="text-center py-20 text-xs text-slate-400 font-bold uppercase tracking-widest bg-slate-50/30">No matching records found.</td></tr>
-                        ) : (
-                          records.filter(r => {
-                            const matchesSearch = !searchQuery ||
-                              r.animal_tag?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                              r.doctor_name?.toLowerCase().includes(searchQuery.toLowerCase());
-                            const matchesType = !selectedType || r.type === selectedType;
-                            return matchesSearch && matchesType;
-                           }).map(r => (
-                             <tr key={r.id} className={`group border-b border-slate-50 hover:bg-blue-50/30 transition-all duration-200 ${selectedIds.includes(r.id) ? 'bg-emerald-50/40' : ''}`}>
-                               <td className="px-8 py-6">
-                                 <input 
-                                   type="checkbox" 
-                                   checked={selectedIds.includes(r.id)}
-                                   onChange={(e) => {
-                                     if (e.target.checked) setSelectedIds(prev => [...prev, r.id]);
-                                     else setSelectedIds(prev => prev.filter(id => id !== r.id));
-                                   }}
-                                   className="w-4 h-4 rounded-md border-2 border-emerald-100 text-emerald-600 focus:ring-emerald-500 transition-all cursor-pointer"
-                                 />
-                               </td>
-                               <td className="px-8 py-6">
-                                <div className="flex flex-col">
-                                  <span className="font-black text-[13px] text-slate-900">{r.animal_tag || '-'}</span>
-                                  <span className="text-[10px] text-slate-400 font-bold uppercase">{r.animal_name || 'No Name'}</span>
-                                </div>
-                              </td>
-                              <td className="px-8 py-6">
-                                <span className="capitalize text-[10px] font-black text-slate-600 bg-slate-100 px-3 py-1.5 rounded-lg">{r.type}</span>
-                              </td>
-                              <td className="px-8 py-6">
-                                <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 bg-emerald-100 rounded-xl flex items-center justify-center text-[11px] font-black text-emerald-600 shadow-sm">
-                                    {r.doctor_name?.charAt(0) || 'V'}
-                                  </div>
-                                  <span className="text-xs font-black text-slate-700">{r.doctor_name || '-'}</span>
-                                </div>
-                              </td>
-                              <td className="px-8 py-6">
-                                <div className="flex flex-col gap-1">
-                                  <span className={`text-[10px] font-black flex items-center gap-1 ${parseFloat(r.temperature) > 102.5 ? 'text-red-600' : 'text-slate-600'}`}>
-                                    <FaThermometerHalf className="text-[8px]" /> {r.temperature ? `${r.temperature}°F` : '-'}
-                                    {parseFloat(r.temperature) > 102.5 && <span className="bg-red-100 text-red-600 px-1.5 py-0.5 rounded-md text-[8px] animate-pulse">FEVER</span>}
-                                  </span>
-                                  <span className="text-[9px] font-bold text-blue-500 flex items-center gap-1">
-                                    <FaTint className="text-[7px]" /> {r.blood_report || '-'}
-                                  </span>
-                                </div>
-                              </td>
-                              <td className="px-8 py-6">
-                                <span className={`text-[10px] font-black px-4 py-2 rounded-full border shadow-sm ${r.disease_name ? 'bg-red-50 text-red-600 border-red-100' : 'bg-emerald-50 text-emerald-600 border-emerald-100'}`}>
-                                  {r.disease_name || 'HEALTHY'}
-                                </span>
-                              </td>
-                              <td className="px-8 py-6 text-[10px] font-bold uppercase text-slate-500 tracking-tighter italic">{r.treatment_type}</td>
-                              <td className="px-8 py-6">
-                                <span className="text-[13px] font-black text-slate-900 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">₹{Number(r.cost).toLocaleString('en-IN')}</span>
-                              </td>
-                              <td className="px-8 py-6 text-[11px] font-black text-slate-400">{new Date(r.treatment_date).toLocaleDateString('en-IN')}</td>
-                              <td className="px-8 py-6">
-                                <div className="flex gap-2">
-                                  <button
-                                    onClick={() => handleDownloadPDF(r)}
-                                    className="flex items-center gap-2 bg-slate-100 text-slate-700 hover:bg-emerald-600 hover:text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
-                                    title="Download PDF"
-                                  >
-                                    <FaDownload />
-                                  </button>
-                                  <button
-                                    onClick={() => handleSendEmail(r)}
-                                    className="flex items-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white px-4 py-2.5 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all active:scale-95 whitespace-nowrap"
-                                    title="Email Report"
-                                  >
-                                    <FaEnvelope />
-                                  </button>
-                                </div>
-                              </td>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="bg-white">
+                              <th className="px-8 py-6 text-left border-b border-slate-100"><input type="checkbox" className="w-4 h-4 rounded border-slate-200" /></th>
+                              {['Animal', 'Vet', 'Temp', 'Diagnosis', 'Fees', 'Date', 'Action'].map((h, i) => (
+                                <th key={i} className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 py-6 text-left border-b border-slate-100">{h}</th>
+                              ))}
                             </tr>
-                          ))
-                        )}
-                      </tbody>
-                     </table>
+                          </thead>
+                          <tbody>
+                            {records.length === 0 ? (
+                              <tr><td colSpan={8} className="text-center py-20 text-xs text-slate-400 font-bold uppercase">No records found.</td></tr>
+                            ) : (
+                              records.map(r => (
+                                <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-all">
+                                  <td className="px-8 py-6"><input type="checkbox" className="w-4 h-4 rounded border-slate-200" /></td>
+                                  <td className="px-8 py-6">
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-black text-slate-900">{r.animal_tag || '-'}</span>
+                                      </div>
+                                      <div className="flex items-center gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
+                                         <FaBarcode className="text-[10px]" />
+                                         <span className="text-[7px] font-mono font-bold tracking-widest">{r.barcode || 'NO-BARCODE'}</span>
+                                      </div>
+                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{r.type}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-8 py-6 text-xs font-bold">{r.doctor_name || '-'}</td>
+                                  <td className="px-8 py-6"><span className={`text-xs font-black ${parseFloat(r.temperature) > 102 ? 'text-red-600' : 'text-slate-600'}`}>{r.temperature}°F</span></td>
+                                  <td className="px-8 py-6"><span className={`text-[9px] font-black px-3 py-1.5 rounded-full ${r.disease_name ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{r.disease_name || 'HEALTHY'}</span></td>
+                                  <td className="px-8 py-6 text-xs font-black">₹{Number(r.cost).toLocaleString('en-IN')}</td>
+                                  <td className="px-8 py-6 text-xs font-bold text-slate-400">{new Date(r.treatment_date).toLocaleDateString('en-IN')}</td>
+                                  <td className="px-8 py-6 flex gap-2">
+                                    <button onClick={() => handleDownloadPDF(r)} className="p-2 bg-slate-50 rounded-lg hover:bg-emerald-50 text-slate-600"><FaDownload /></button>
+                                    <button className="p-2 bg-slate-50 rounded-lg hover:bg-blue-50 text-slate-600"><FaEnvelope /></button>
+                                  </td>
+                                </tr>
+                              ))
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                        <span>Page {page} of {totalPages}</span>
+                        <div className="flex gap-2">
+                          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl disabled:opacity-30">Prev</button>
+                          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl disabled:opacity-30">Next</button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
+               {showForm && (
+                <div className="bg-white rounded-2xl sm:rounded-[3rem] shadow-2xl border border-emerald-100 overflow-hidden mb-12">
+                   <div className="bg-emerald-600 p-6 sm:p-8 text-white flex justify-between items-center">
+                      <div>
+                        <h2 className="text-lg sm:text-xl font-black uppercase tracking-tighter">Medical Examination Portal</h2>
+                        <p className="text-[9px] sm:text-[10px] font-bold text-emerald-100 uppercase tracking-widest opacity-80">Capture real-time health diagnostics</p>
+                      </div>
+                      <button type="button" onClick={() => setShowForm(false)} className="w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all font-bold">✕</button>
                    </div>
-                   {/* Pagination Controls */}
-                   <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between">
-                     <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                       Showing Page {page} of {totalPages} ({totalRecords} records)
-                     </p>
-                     <div className="flex gap-2">
-                       <button 
-                         disabled={page === 1}
-                         onClick={() => setPage(p => Math.max(1, p - 1))}
-                         className="px-6 py-2.5 rounded-xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest disabled:opacity-30 hover:bg-slate-50 transition-all active:scale-95"
-                       >
-                         Previous
-                       </button>
-                       <button 
-                         disabled={page === totalPages}
-                         onClick={() => setPage(p => Math.min(totalPages, p + 1))}
-                         className="px-6 py-2.5 rounded-xl bg-emerald-600 text-white border border-emerald-500 text-[10px] font-black uppercase tracking-widest disabled:opacity-30 shadow-lg shadow-emerald-100 transition-all active:scale-95"
-                       >
-                         Next Page
-                       </button>
-                     </div>
-                   </div>
-                 </div>
+                   <form onSubmit={handleSubmit} className="p-5 sm:p-10 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                      {/* BARCODE SCANNER INPUT */}
+                      <div className="lg:col-span-3 bg-slate-900 p-5 sm:p-8 rounded-2xl sm:rounded-[2rem] border border-slate-800 shadow-2xl mb-4">
+                        <div className="flex flex-col md:flex-row items-center gap-4 sm:gap-6">
+                           <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-xl sm:rounded-2xl bg-white/5 flex items-center justify-center text-emerald-400 text-2xl sm:text-3xl shadow-inner border border-white/5">
+                              <FaBarcode />
+                           </div>
+                           <div className="flex-1 w-full">
+                              <label className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-2 block">Rapid Animal Scanner</label>
+                              <input 
+                                autoFocus
+                                placeholder="Scan Barcode or Type Tag ID..."
+                                className="w-full bg-white/5 border-2 border-white/10 rounded-2xl p-5 text-white font-black text-lg focus:border-emerald-500 outline-none transition-all placeholder:text-slate-700"
+                                onChange={(e) => {
+                                  const val = e.target.value.toUpperCase();
+                                  const found = animals.find(a => a.tag_id === val || a.barcode === val);
+                                  if (found) {
+                                    setForm({ ...form, animal_id: found.id, type: found.type });
+                                    toast.success(`Scanned: ${found.name || found.tag_id}`, { icon: '🔍' });
+                                  }
+                                }}
+                              />
+                           </div>
+                           {form.animal_id && (
+                             <div className="bg-emerald-500/10 border border-emerald-500/20 px-6 py-4 rounded-2xl flex items-center gap-4 animate-in zoom-in duration-300">
+                                <FaCheckCircle className="text-emerald-500 text-2xl" />
+                                <div>
+                                   <p className="text-[8px] font-black text-emerald-600 uppercase">Selected</p>
+                                   <p className="text-sm font-black text-white">{animals.find(a => a.id == form.animal_id)?.tag_id}</p>
+                                </div>
+                             </div>
+                           )}
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Select Animal *</label>
+                        <select required value={form.animal_id} onChange={e => {
+                           const found = animals.find(a => a.id == e.target.value);
+                           setForm({ ...form, animal_id: e.target.value, type: found?.type || form.type });
+                        }} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs">
+                          <option value="">-- Choose Animal --</option>
+                          {animals.map(a => <option key={a.id} value={a.id}>{a.tag_id} ({a.type})</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Vet Doctor *</label>
+                        <select required value={form.doctor_id} onChange={e => setForm({ ...form, doctor_id: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs">
+                          <option value="">-- Select Doctor --</option>
+                          {doctors.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Diagnosis</label>
+                        <input value={form.disease_name} onChange={e => setForm({ ...form, disease_name: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" placeholder="e.g. Fever, Infection..." />
+                      </div>
+                      <div>
+                        <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Cost (₹)</label>
+                        <input type="number" value={form.cost} onChange={e => setForm({ ...form, cost: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs" placeholder="0" />
+                      </div>
+
+                      {/* DYNAMIC CHECKLIST */}
+                      <div className="md:col-span-3 bg-slate-50 p-8 rounded-[2rem] border border-slate-100">
+                        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-900 mb-6 flex items-center gap-2">
+                           🔍 Vital Points Diagnostics (Dynamic)
+                        </h3>
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                           {[
+                             { id: 'eyes', label: 'Eyes (Clear)', icon: '👁️' },
+                             { id: 'ears', label: 'Ears (Clean)', icon: '👂' },
+                             { id: 'hoof', label: 'Hoof/Feet', icon: '🦶' },
+                             { id: 'coat', label: 'Coat/Skin', icon: '🐕' },
+                             { id: 'breathing', label: 'Breathing', icon: '🫁' },
+                             { id: 'appetite', label: 'Appetite', icon: '🍽️' },
+                             { id: 'activity', label: 'Activity', icon: '🏃' },
+                             { id: 'tail', label: 'Tail/Movement', icon: '🐕' },
+                           ].map((point) => (
+                             <label key={point.id} className="flex items-center gap-3 cursor-pointer group">
+                                <input type="checkbox" className="w-5 h-5 rounded-lg border-2 border-emerald-200 text-emerald-600 focus:ring-emerald-500" />
+                                <div className="flex flex-col">
+                                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{point.icon} {point.id}</span>
+                                  <span className="text-[11px] font-black text-slate-700 group-hover:text-emerald-600 transition-colors">{point.label}</span>
+                                </div>
+                             </label>
+                           ))}
+                        </div>
+                        <div className="mt-8">
+                           <label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Additional Symptoms / Observations</label>
+                           <textarea value={form.symptoms} onChange={e => setForm({ ...form, symptoms: e.target.value })} className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-bold text-xs h-24" placeholder="Describe any irregularities..." />
+                        </div>
+                      </div>
+
+                      <div className="md:col-span-3">
+                         <button type="submit" disabled={submitting} className="w-full bg-emerald-600 text-white py-6 rounded-[2.5rem] font-black text-[13px] uppercase tracking-widest shadow-2xl active:scale-95 transition-all">
+                           {submitting ? <FaSpinner className="animate-spin" /> : 'Finalize & Save Report'}
+                         </button>
+                      </div>
+                   </form>
+                </div>
               )}
             </div>
           </div>

@@ -257,3 +257,22 @@ CREATE TABLE IF NOT EXISTS farming_expenses (
 --         farming_inward, farming_outward, farming_production,
 --         farming_feed, farming_health, farming_expenses
 -- ============================================================
+
+-- 12. Product Processing (Value Addition / Derivative Products)
+CREATE TABLE IF NOT EXISTS farming_processing (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  type ENUM('cow','goat','chicken','fish','honey') NOT NULL,
+  source_product VARCHAR(150) NOT NULL COMMENT 'e.g. Milk',
+  source_quantity DECIMAL(15,2) NOT NULL,
+  source_unit VARCHAR(50) DEFAULT 'litre',
+  derivative_product VARCHAR(150) NOT NULL COMMENT 'e.g. Ghee, Curd',
+  derivative_quantity DECIMAL(15,2) NOT NULL,
+  derivative_unit VARCHAR(50) DEFAULT 'kg',
+  processing_date DATE NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_type (type),
+  INDEX idx_date (processing_date),
+  INDEX idx_source (source_product),
+  INDEX idx_derivative (derivative_product)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

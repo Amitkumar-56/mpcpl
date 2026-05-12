@@ -1,6 +1,7 @@
 // src/app/api/farming/feed/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 // GET feed records
 export async function GET(request) {
@@ -51,11 +52,11 @@ export async function POST(request) {
 
     const result = await executeQuery(`
       INSERT INTO farming_feed 
-        (type, animal_id, batch_id, feed_name, quantity, unit, cost_per_unit, total_cost, feed_date, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (type, animal_id, batch_id, feed_name, quantity, unit, total_cost, feed_date, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `, [
       type, animal_id || null, batch_id || null, feed_name,
-      quantity || 0, unit || 'kg', cost_per_unit || 0, computedTotal,
+      quantity || 0, unit || 'kg', computedTotal,
       feed_date || new Date().toISOString().split('T')[0], notes || ''
     ]);
 

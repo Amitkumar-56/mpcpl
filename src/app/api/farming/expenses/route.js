@@ -1,6 +1,7 @@
 // src/app/api/farming/expenses/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 // GET expenses
 export async function GET(request) {

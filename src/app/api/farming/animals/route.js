@@ -1,6 +1,7 @@
 // src/app/api/farming/animals/route.js
 import { executeQuery } from "@/lib/db";
 import { NextResponse } from "next/server";
+import { ensureFarmingTables } from "@/lib/farming_init";
 
 // GET all animals with filtering
 export async function GET(request) {
@@ -12,10 +13,14 @@ export async function GET(request) {
     const batch_id = searchParams.get('batch_id');
     const search = searchParams.get('search');
     const id = searchParams.get('id');
+    const tag_id_param = searchParams.get('tag_id');
     const parents_only = searchParams.get('parents_only');
 
-    // Single animal FULL detail
-    if (id) {
+    // Single animal FULL detail (by ID or Tag ID)
+    if (id || tag_id_param) {
+      const whereClause = id ? 'a.id = ?' : 'a.tag_id = ?';
+      const param = id || tag_id_param;
+
       const animal = await executeQuery(`
         SELECT a.*, 
           m.tag_id as mother_tag, m.name as mother_name, m.breed as mother_breed, m.id as mother_record_id,
@@ -25,8 +30,8 @@ export async function GET(request) {
         LEFT JOIN farming_animals m ON a.mother_id = m.id
         LEFT JOIN farming_animals f ON a.father_id = f.id
         LEFT JOIN farming_batches b ON a.batch_id = b.id
-        WHERE a.id = ?
-      `, [id]);
+        WHERE ${whereClause}
+      `, [param]);
 
       if (animal.length === 0) {
         return NextResponse.json({ success: false, error: 'Animal not found' }, { status: 404 });
@@ -43,7 +48,33 @@ export async function GET(request) {
         LEFT JOIN farming_animals op ON c.father_id = op.id
         WHERE c.mother_id = ? OR c.father_id = ?
         ORDER BY c.date_of_birth DESC
-      `, [id, id, id, id, id]);
+      `, [animal[0].id, animal[0].id, animal[0].id, animal[0].id, animal[0].id]);
+
+      // Get GRANDCHILDREN
+      const grandchildren = await executeQuery(`
+        SELECT g.id, g.tag_id, g.name, g.gender, g.breed, g.date_of_birth, g.status,
+          p.name as parent_name, p.tag_id as parent_tag
+        FROM farming_animals g
+        JOIN farming_animals p ON (g.mother_id = p.id OR g.father_id = p.id)
+        WHERE (p.mother_id = ? OR p.father_id = ?)
+        ORDER BY g.date_of_birth DESC
+      `, [animal[0].id, animal[0].id]);
+
+      // Get GREAT-GRANDCHILDREN
+      const great_grandchildren = await executeQuery(`
+        SELECT gg.id, gg.tag_id, gg.name, gg.gender, gg.breed, gg.date_of_birth, gg.status,
+          g.name as parent_name, g.tag_id as parent_tag
+        FROM farming_animals gg
+        JOIN farming_animals g ON (gg.mother_id = g.id OR gg.father_id = g.id)
+        JOIN farming_animals p ON (g.mother_id = p.id OR g.father_id = p.id)
+        WHERE (p.mother_id = ? OR p.father_id = ?)
+        ORDER BY gg.date_of_birth DESC
+      `, [animal[0].id, animal[0].id]);
+
+      // Get growth history
+      const growth = await executeQuery(`
+        SELECT * FROM farming_growth WHERE animal_id = ? ORDER BY recorded_date DESC
+      `, [animal[0].id]);
 
       // Get siblings (same mother or father)
       const siblings = await executeQuery(`
@@ -55,32 +86,32 @@ export async function GET(request) {
         )
         ORDER BY s.date_of_birth DESC
         LIMIT 20
-      `, [id, id, id]);
+      `, [animal[0].id, animal[0].id, animal[0].id]);
 
       // Get production records
       const production = await executeQuery(`
         SELECT * FROM farming_production WHERE animal_id = ? ORDER BY production_date DESC LIMIT 50
-      `, [id]);
+      `, [animal[0].id]);
 
       // Get health records
       const health = await executeQuery(`
         SELECT * FROM farming_health WHERE animal_id = ? ORDER BY treatment_date DESC LIMIT 30
-      `, [id]);
+      `, [animal[0].id]);
 
       // Get feed records
       const feed = await executeQuery(`
         SELECT * FROM farming_feed WHERE animal_id = ? ORDER BY feed_date DESC LIMIT 30
-      `, [id]);
+      `, [animal[0].id]);
 
       // Get inward history
       const inwardHistory = await executeQuery(`
         SELECT * FROM farming_inward WHERE animal_id = ? ORDER BY inward_date DESC
-      `, [id]);
+      `, [animal[0].id]);
 
       // Get outward history
       const outwardHistory = await executeQuery(`
         SELECT * FROM farming_outward WHERE animal_id = ? ORDER BY outward_date DESC
-      `, [id]);
+      `, [animal[0].id]);
 
       // Production summary
       const productionSummary = await executeQuery(`
@@ -88,26 +119,26 @@ export async function GET(request) {
           MAX(production_date) as last_date
         FROM farming_production WHERE animal_id = ?
         GROUP BY product_name, unit
-      `, [id]);
+      `, [animal[0].id]);
 
       // FINANCIAL CALCULATIONS
       // 1. Total Feed Cost
       const feedStats = await executeQuery(`
         SELECT SUM(total_cost) as total_feed_cost, COUNT(*) as feed_entries 
         FROM farming_feed WHERE animal_id = ?
-      `, [id]);
+      `, [animal[0].id]);
 
       // 2. Total Health Cost
       const healthStats = await executeQuery(`
         SELECT SUM(cost) as total_health_cost, COUNT(*) as health_entries
         FROM farming_health WHERE animal_id = ?
-      `, [id]);
+      `, [animal[0].id]);
 
       // 3. Outward Revenue (Sale of animal or specific products)
       const outwardStats = await executeQuery(`
         SELECT SUM(total_price) as total_outward_revenue, COUNT(*) as outward_entries
         FROM farming_outward WHERE animal_id = ?
-      `, [id]);
+      `, [animal[0].id]);
 
       // 4. Mates (Partners who fathered/mothered children with this animal)
       let mates = [];
@@ -117,14 +148,14 @@ export async function GET(request) {
           FROM farming_animals c
           JOIN farming_animals f ON c.father_id = f.id
           WHERE c.mother_id = ?
-        `, [id]);
+        `, [animal[0].id]);
       } else if (animal[0].gender === 'male') {
         mates = await executeQuery(`
           SELECT DISTINCT m.id, m.tag_id, m.name, m.breed
           FROM farming_animals c
           JOIN farming_animals m ON c.mother_id = m.id
           WHERE c.father_id = ?
-        `, [id]);
+        `, [animal[0].id]);
       }
 
       const stats = {
@@ -146,6 +177,11 @@ export async function GET(request) {
           ...animal[0],
           offspring,
           offspring_count: offspring.length,
+          grandchildren,
+          grandchildren_count: grandchildren.length,
+          great_grandchildren,
+          great_grandchildren_count: great_grandchildren.length,
+          growth,
           siblings,
           mates,
           production,
@@ -187,7 +223,13 @@ export async function GET(request) {
     if (parents_only === 'male') { query += ` AND a.gender = 'male'`; }
 
     query += ` ORDER BY a.created_at DESC`;
-    const animals = await executeQuery(query, params);
+    const animalRecords = await executeQuery(query, params);
+    
+    // Cast BigInt counts to Number for JSON safety
+    const animals = animalRecords.map(a => ({
+      ...a,
+      offspring_count: Number(a.offspring_count || 0)
+    }));
 
     return NextResponse.json({ success: true, data: animals });
   } catch (error) {
@@ -222,7 +264,7 @@ export async function POST(request) {
     const countResult = await executeQuery(
       `SELECT COUNT(*) as cnt FROM farming_animals WHERE type = ?`, [type]
     );
-    const nextNum = (countResult[0]?.cnt || 0) + 1;
+    const nextNum = Number(countResult[0]?.cnt || 0) + 1;
     const tag_id = `${prefix}-${genderCode}-${String(nextNum).padStart(4, '0')}`;
 
     // ===== AUTO-GENERATE BARCODE =====
