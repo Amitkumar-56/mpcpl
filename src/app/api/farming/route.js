@@ -6,6 +6,8 @@ import { ensureFarmingTables } from "@/lib/farming_init";
 // ============ GET - Dashboard Stats ============
 export async function GET(request) {
   try {
+    // Ensure farming tables exist
+    await ensureFarmingTables();
 
     const { searchParams } = new URL(request.url);
     const view = searchParams.get('view') || 'dashboard';

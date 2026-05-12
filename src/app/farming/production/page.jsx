@@ -17,7 +17,7 @@ const PRODUCTS_BY_TYPE = {
 
 function ProductionContent() {
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [summary, setSummary] = useState([]);
   const [showForm, setShowForm] = useState(false);
@@ -33,7 +33,6 @@ function ProductionContent() {
 
   const fetchRecords = async () => {
     try {
-      setLoading(true);
       let url = '/api/farming/production';
       if (filterType) url += `?type=${filterType}`;
       const res = await fetch(url);
@@ -48,8 +47,6 @@ function ProductionContent() {
       toast.error('Load Error');
       setRecords([]);
       setSummary([]);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -144,67 +141,83 @@ function ProductionContent() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <Header title="Farming CRM" />
         <main className="flex-1 overflow-y-auto pb-32">
-          <div className="p-4 sm:p-8"><div className="max-w-6xl mx-auto">
-            <div className="flex flex-col sm:flex-row items-center justify-between mb-10 gap-4">
-              <div className="text-center sm:text-left">
-                <h1 className="text-3xl font-black text-slate-900 tracking-tighter">📊 Daily Production</h1>
-                <p className="text-[10px] font-bold text-amber-600 uppercase tracking-[0.3em] mt-1">Yield & Resource Tracking</p>
+          <div className="p-4 sm:p-6"><div className="max-w-6xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">📊 Daily Production</h1>
+                <p className="text-sm text-gray-600">Track daily yield and production records</p>
               </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <button onClick={fetchRecords} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all"><FaSync className={loading ? 'animate-spin' : ''} /></button>
-                <Link href="/farming" className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+              <div className="flex gap-2">
+                <button onClick={fetchRecords} className="bg-white border border-gray-200 p-2.5 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"><FaSync /></button>
+                <Link href="/farming" className="bg-gray-600 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-700 transition-colors flex items-center gap-2">
                   <FaArrowLeft /> Back
                 </Link>
-                <button onClick={generateMasterReport} className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
-                  <FaFilePdf /> Master Report
+                <button onClick={generateMasterReport} className="bg-gray-800 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-900 transition-colors flex items-center gap-2">
+                  <FaFilePdf /> Report
                 </button>
-                <button onClick={() => setShowForm(!showForm)} className="bg-amber-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+                <button onClick={() => setShowForm(!showForm)} className="bg-amber-600 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-amber-700 transition-colors flex items-center gap-2">
                   <FaPlus /> Add Production
                 </button>
               </div>
             </div>
 
             {showForm && (
-              <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 mb-6">
-                <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">Record Production</h2>
+              <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-6">Record Production</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Type *</label>
-                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value, product_name: '' })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Type *</label>
+                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value, product_name: '' })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="cow">🐄 Cow</option><option value="goat">🐐 Goat</option><option value="chicken">🐔 Chicken</option><option value="fish">🐟 Fish</option><option value="honey">🍯 Honey</option>
-                    </select></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Product *</label>
-                    <select required value={form.product_name} onChange={e => setForm({ ...form, product_name: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold">
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Product *</label>
+                    <select required value={form.product_name} onChange={e => setForm({ ...form, product_name: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="">-- Select --</option>{(PRODUCTS_BY_TYPE[form.type] || []).map(p => <option key={p} value={p}>{p}</option>)}
-                    </select></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Animal (Optional)</label>
-                    <select value={form.animal_id} onChange={e => setForm({ ...form, animal_id: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold">
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Animal (Optional)</label>
+                    <select value={form.animal_id} onChange={e => setForm({ ...form, animal_id: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="">-- All / Batch --</option>{animals.filter(a => a.type === form.type).map(a => <option key={a.id} value={a.id}>{a.name || a.tag_id}</option>)}
-                    </select></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Quantity *</label>
-                    <input required type="number" step="0.01" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold" placeholder="0.00" /></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Unit</label>
-                    <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold">
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Quantity *</label>
+                    <input required type="number" step="0.01" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="0.00" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Unit</label>
+                    <select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="litre">Litre</option><option value="kg">KG</option><option value="pieces">Pieces</option><option value="grams">Grams</option><option value="ml">ML</option>
-                    </select></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Shift</label>
-                    <select value={form.shift} onChange={e => setForm({ ...form, shift: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold">
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Shift</label>
+                    <select value={form.shift} onChange={e => setForm({ ...form, shift: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="morning">Morning</option><option value="evening">Evening</option><option value="full_day">Full Day</option>
-                    </select></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Date</label>
-                    <input type="date" value={form.production_date} onChange={e => setForm({ ...form, production_date: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold" /></div>
-                  <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Quality</label>
-                    <select value={form.quality_grade} onChange={e => setForm({ ...form, quality_grade: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold">
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Date</label>
+                    <input type="date" value={form.production_date} onChange={e => setForm({ ...form, production_date: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Quality</label>
+                    <select value={form.quality_grade} onChange={e => setForm({ ...form, quality_grade: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="">-- Grade --</option><option value="A">A Grade</option><option value="B">B Grade</option><option value="C">C Grade</option>
-                    </select></div>
+                    </select>
+                  </div>
                   <div><label className="text-[9px] font-bold text-slate-400 uppercase block mb-1">Notes</label>
                     <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full p-3 rounded-xl border border-slate-200 text-xs font-bold" /></div>
                 </div>
-                <button type="submit" disabled={submitting} className="bg-amber-600 text-white px-8 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg disabled:opacity-50 flex items-center gap-2">
+                <button type="submit" disabled={submitting} className="w-full bg-amber-600 text-white py-3 rounded-lg font-medium text-sm hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
                   {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save Production</>}
                 </button>
               </form>

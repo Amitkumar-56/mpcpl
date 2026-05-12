@@ -171,209 +171,215 @@ function InwardContent() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <Header title="Farming CRM" />
         <main className="flex-1 overflow-y-auto pb-32">
-          <div className="p-4 sm:p-8"><div className="max-w-6xl mx-auto">
-            <div className="flex flex-col sm:flex-row items-center justify-between mb-10 gap-4">
-              <div className="text-center sm:text-left">
-                <h1 className="text-3xl font-black text-slate-900 tracking-tighter">⬇️ Inward Register</h1>
-                <p className="text-[10px] font-bold text-blue-600 uppercase tracking-[0.3em] mt-1">Stock & Animal Influx</p>
+          <div className="p-4 sm:p-6"><div className="max-w-7xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">📥 Inward Register</h1>
+                <p className="text-sm text-gray-600">Track stock and animal influx</p>
               </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <button onClick={fetchRecords} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all"><FaSync className={loading ? 'animate-spin' : ''} /></button>
-                <Link href="/farming" className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+              <div className="flex gap-2">
+                <button onClick={fetchRecords} className="bg-white border border-gray-200 p-2.5 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"><FaSync className={loading ? 'animate-spin' : ''} /></button>
+                <Link href="/farming" className="bg-gray-600 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-700 transition-colors flex items-center gap-2">
                   <FaArrowLeft /> Back
                 </Link>
-                <button onClick={generateMasterReport} className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
-                  <FaFilePdf /> Master Report
+                <button onClick={generateMasterReport} className="bg-gray-800 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-900 transition-colors flex items-center gap-2">
+                  <FaFilePdf /> Report
                 </button>
-                <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+                <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors flex items-center gap-2">
                   <FaPlus /> New Entry
                 </button>
               </div>
             </div>
             {showForm && (
-              <form onSubmit={handleSubmit} className="bg-white rounded-2xl sm:rounded-[2.5rem] shadow-xl border border-blue-100 p-5 sm:p-10 mb-8 animate-in slide-in-from-top duration-500">
-                <div className="flex items-center justify-between mb-8">
+              <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6 animate-in slide-in-from-top duration-300">
+                <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-xl font-black uppercase tracking-tighter text-slate-800">New Inward Entry</h2>
-                    <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest mt-1">Stock & Animal Reception</p>
+                    <h2 className="text-xl font-semibold text-gray-900">New Inward Entry</h2>
+                    <p className="text-sm text-gray-600">Record stock and animal reception</p>
                   </div>
-                  <button type="button" onClick={() => setShowForm(false)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all">✕</button>
+                  <button type="button" onClick={() => setShowForm(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">✕</button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Category *</label>
-                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all">
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Category *</label>
+                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="cow">🐄 Cow</option><option value="goat">🐐 Goat</option><option value="chicken">🐔 Chicken</option><option value="fish">🐟 Fish</option><option value="honey">🍯 Honey</option><option value="feed">🌿 Feed</option><option value="medicine">💊 Medicine</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Entry Type *</label>
-                    <select value={form.inward_type} onChange={e => setForm({ ...form, inward_type: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all">
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Entry Type *</label>
+                    <select value={form.inward_type} onChange={e => setForm({ ...form, inward_type: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="purchase">Purchase</option><option value="transfer">Internal Transfer</option><option value="return">Return</option><option value="donation">Donation</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Quantity *</label>
-                    <input required type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" placeholder="0" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Quantity *</label>
+                    <input required type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="0" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Total Weight (KG)</label>
-                    <input type="number" step="0.01" value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" placeholder="0.00" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Total Weight (KG)</label>
+                    <input type="number" step="0.01" value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="0.00" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Total Cost (₹) *</label>
-                    <input required type="number" value={form.total_price} onChange={e => setForm({ ...form, total_price: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" placeholder="0.00" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Total Cost (₹) *</label>
+                    <input required type="number" value={form.total_price} onChange={e => setForm({ ...form, total_price: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="0.00" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Supplier Name</label>
-                    <input value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" placeholder="Vendor / Source Name" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Supplier Name</label>
+                    <input value={form.supplier_name} onChange={e => setForm({ ...form, supplier_name: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Vendor / Source Name" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Inward Date</label>
-                    <input type="date" value={form.inward_date} onChange={e => setForm({ ...form, inward_date: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Inward Date</label>
+                    <input type="date" value={form.inward_date} onChange={e => setForm({ ...form, inward_date: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" />
                   </div>
 
                   <div className="lg:col-span-2">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Notes</label>
-                    <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-blue-500 transition-all" placeholder="Additional details..." />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Notes</label>
+                    <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500" placeholder="Add additional details..." />
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <button type="submit" disabled={submitting} className="flex-1 bg-blue-600 text-white py-4 rounded-xl sm:rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-blue-700 transition-all flex items-center justify-center gap-3">
-                    {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save Inward Record</>}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+                  <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                    {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Save Record</>}
                   </button>
-                  <button type="button" onClick={() => setShowForm(false)} className="px-10 py-4 rounded-xl sm:rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-slate-400 hover:bg-slate-50 transition-all">Cancel</button>
                 </div>
               </form>
             )}
 
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex gap-1 overflow-x-auto pb-2 sm:pb-0">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex gap-2 overflow-x-auto">
                 {[{ k: '', l: 'All' }, { k: 'cow', l: '🐄' }, { k: 'goat', l: '🐐' }, { k: 'chicken', l: '🐔' }, { k: 'fish', l: '🐟' }, { k: 'honey', l: '🍯' }].map(t => (
-                  <button key={t.k} onClick={() => { setFilterType(t.k); setPage(1); }} className={`px-3 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap ${filterType === t.k ? 'bg-blue-600 text-white' : 'bg-slate-50 text-slate-600'}`}>{t.l}</button>
+                  <button key={t.k} onClick={() => { setFilterType(t.k); setPage(1); }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filterType === t.k ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>{t.l}</button>
                 ))}
               </div>
             </div>
 
             {loading ? <TableSkeleton /> : (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
                 <div className="overflow-x-auto">
-                  <table className="w-full"><thead><tr className="bg-slate-50">
-                    <th className="px-3 py-3 text-left w-10">
-                      <input type="checkbox" className="w-3 h-3 rounded text-blue-600" />
-                    </th>
-                    {['Date', 'Type', 'Inward Details', 'Batch', 'Qty / Weight', 'Financials', 'Action'].map(h => <th key={h} className="text-[9px] font-black text-slate-400 uppercase px-6 py-5 text-left tracking-widest">{h}</th>)}
-                  </tr></thead><tbody>
-                      {records.length === 0 ? <tr><td colSpan={10} className="text-center py-20 text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">Inventory stream empty</td></tr> :
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-3 py-3 text-left w-10">
+                          <input type="checkbox" className="w-4 h-4 rounded text-blue-600" />
+                        </th>
+                        {['Date', 'Type', 'Inward Details', 'Batch', 'Qty / Weight', 'Financials', 'Action'].map(h => <th key={h} className="text-xs font-semibold text-gray-700 uppercase px-4 py-3 text-left">{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.length === 0 ? <tr><td colSpan={10} className="text-center py-12 text-sm text-gray-500">No records found</td></tr> :
                         records.map(r => (
-                          <tr key={r.id} className="border-t border-slate-50 hover:bg-blue-50/20 transition-all group">
-                            <td className="px-6 py-6"><input type="checkbox" className="w-4 h-4 rounded text-blue-600 border-slate-200" /></td>
-                            <td className="px-6 py-6 text-xs font-bold text-slate-400">{new Date(r.inward_date || r.created_at).toLocaleDateString('en-IN')}</td>
-                            <td className="px-6 py-6 text-xs font-black uppercase text-slate-900">{r.type}</td>
-                            <td className="px-6 py-6">
+                          <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3"><input type="checkbox" className="w-4 h-4 rounded text-blue-600 border-gray-300" /></td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{new Date(r.inward_date || r.created_at).toLocaleDateString('en-IN')}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900 uppercase">{r.type}</td>
+                            <td className="px-4 py-3">
                               <div className="flex flex-col gap-1">
-                                <span className="text-[10px] font-black uppercase bg-blue-100 text-blue-800 px-3 py-1 rounded-full w-fit">{r.inward_type}</span>
-                                <div className="flex items-center gap-2 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                                  <FaBarcode className="text-[12px] text-slate-900" />
-                                  <span className="text-[8px] font-mono font-black tracking-widest">INW-{String(r.id).padStart(5, '0')}</span>
+                                <span className="text-xs font-medium bg-blue-100 text-blue-800 px-2 py-1 rounded-full">{r.inward_type}</span>
+                                <div className="flex items-center gap-2 mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                  <FaBarcode className="text-xs text-gray-700" />
+                                  <span className="text-xs font-mono text-gray-700">INW-{String(r.id).padStart(5, '0')}</span>
                                 </div>
                               </div>
                             </td>
-                            <td className="px-6 py-6 text-xs font-bold text-slate-500">{r.batch_name || r.batch_code || '-'}</td>
-                            <td className="px-6 py-6">
-                              <p className="text-xs font-black text-slate-900">{r.quantity} Unit</p>
-                              <p className="text-[9px] text-slate-400 font-bold">{r.weight ? r.weight + ' KG Total' : '-'}</p>
+                            <td className="px-4 py-3 text-sm text-gray-600">{r.batch_name || r.batch_code || '-'}</td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-medium text-gray-900">{r.quantity} Unit</p>
+                              <p className="text-xs text-gray-500">{r.weight ? r.weight + ' KG Total' : '-'}</p>
                             </td>
-                            <td className="px-6 py-6">
-                              <p className="text-xs font-black text-emerald-600">₹{Number(r.total_price || 0).toLocaleString()}</p>
-                              <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Supplier: {r.supplier_name || 'N/A'}</p>
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-medium text-green-600">₹{Number(r.total_price || 0).toLocaleString()}</p>
+                              <p className="text-xs text-gray-500">Supplier: {r.supplier_name || 'N/A'}</p>
                             </td>
-                            <td className="px-6 py-6">
-                              <button onClick={() => setSel(r)} className="text-slate-400 hover:text-blue-600 p-3 bg-slate-50 rounded-xl transition-all shadow-sm"><FaQrcode /></button>
+                            <td className="px-4 py-3">
+                              <button onClick={() => setSel(r)} className="text-gray-400 hover:text-blue-600 p-2 bg-gray-50 rounded-lg transition-colors"><FaQrcode /></button>
                             </td>
                           </tr>
                         ))}
-                    </tbody></table></div>
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
-                  <div className="text-[9px] font-bold text-slate-400">Page {page} of {totalPages} ({totalRecords} records)</div>
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                  <div className="text-sm text-gray-600">Page {page} of {totalPages} ({totalRecords} records)</div>
                   <div className="flex gap-2">
-                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-[9px] font-bold disabled:opacity-50">Prev</button>
-                    <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage(p => p + 1)} className="px-3 py-1 bg-blue-600 text-white rounded-lg text-[9px] font-bold disabled:opacity-50">Next</button>
+                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                    <button disabled={page === totalPages || totalPages === 0} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
                   </div>
                 </div>
               </div>
             )}
             {/* DETAIL MODAL */}
             {sel && (
-              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[100] flex items-center justify-center p-4">
-                <div className="bg-white rounded-[3rem] w-full max-w-lg shadow-2xl overflow-hidden border border-white/20 animate-in fade-in zoom-in duration-300">
-                  <div className="bg-blue-600 p-8 text-white relative">
-                    <button onClick={() => setSel(null)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-all font-bold">×</button>
-                    <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-80 mb-2">Digital Record Entry</p>
-                    <h2 className="text-2xl font-black tracking-tighter">INW-{String(sel.id).padStart(5, '0')}</h2>
+              <div className="fixed inset-0 bg-gray-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+                <div className="bg-white rounded-xl w-full max-w-2xl shadow-2xl overflow-hidden animate-in fade-in duration-300">
+                  <div className="bg-blue-600 p-6 text-white relative">
+                    <button onClick={() => setSel(null)} className="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 flex items-center justify-center hover:bg-white/20 transition-colors font-bold">×</button>
+                    <p className="text-xs font-medium uppercase tracking-wider opacity-80 mb-1">Digital Record Entry</p>
+                    <h2 className="text-2xl font-bold tracking-tight">INW-{String(sel.id).padStart(5, '0')}</h2>
                   </div>
-                  <div className="p-10 space-y-8">
-                    <div className="grid grid-cols-2 gap-8 text-left">
+                  <div className="p-6 space-y-6">
+                    <div className="grid grid-cols-2 gap-6 text-left">
                       <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Inward Date</p>
-                        <p className="font-bold text-slate-900">{new Date(sel.inward_date || sel.created_at).toLocaleDateString('en-IN')}</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-1">Inward Date</p>
+                        <p className="font-semibold text-gray-900">{new Date(sel.inward_date || sel.created_at).toLocaleDateString('en-IN')}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Type / Category</p>
-                        <p className="font-black text-blue-600 uppercase italic">{sel.type}</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-1">Type / Category</p>
+                        <p className="font-semibold text-blue-600 uppercase">{sel.type}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Invoice No</p>
-                        <p className="font-bold text-slate-900">{sel.invoice_no || 'N/A'}</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-1">Invoice No</p>
+                        <p className="font-semibold text-gray-900">{sel.invoice_no || 'N/A'}</p>
                       </div>
                       <div>
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Vehicle No</p>
-                        <p className="font-bold text-slate-900">{sel.vehicle_no || 'N/A'}</p>
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-1">Vehicle No</p>
+                        <p className="font-semibold text-gray-900">{sel.vehicle_no || 'N/A'}</p>
                       </div>
                     </div>
 
-                    <div className="bg-slate-50 rounded-3xl p-6 border border-slate-100">
+                    <div className="bg-gray-50 rounded-xl p-6 border border-gray-200">
                       <div className="flex justify-between items-center mb-4">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Financial Summary</p>
-                        <span className="text-[10px] font-black bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full uppercase italic">Complete</span>
+                        <p className="text-xs font-medium text-gray-500 uppercase">Financial Summary</p>
+                        <span className="text-xs font-medium bg-green-100 text-green-800 px-3 py-1 rounded-full uppercase">Complete</span>
                       </div>
                       <div className="flex justify-between items-end">
                         <div className="text-left">
-                          <p className="text-[8px] font-bold text-slate-400 uppercase">Supplier Details</p>
-                          <p className="font-black text-slate-900">{sel.supplier_name || 'N/A'}</p>
-                          <p className="text-[10px] text-slate-400 font-bold">{sel.supplier_contact || ''}</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase">Supplier Details</p>
+                          <p className="font-semibold text-gray-900">{sel.supplier_name || 'N/A'}</p>
+                          <p className="text-xs text-gray-500">{sel.supplier_contact || ''}</p>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-black text-slate-900">₹{Number(sel.total_price || 0).toLocaleString()}</p>
-                          <p className="text-[10px] font-bold text-slate-400 tracking-widest uppercase">Qty: {sel.quantity}</p>
+                          <p className="text-2xl font-bold text-gray-900">₹{Number(sel.total_price || 0).toLocaleString()}</p>
+                          <p className="text-xs font-medium text-gray-500 uppercase">Qty: {sel.quantity}</p>
                         </div>
                       </div>
                     </div>
 
                     {sel.notes && (
                       <div className="text-left">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Internal Notes</p>
-                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 text-xs text-slate-600 font-medium italic leading-relaxed">
+                        <p className="text-xs font-medium text-gray-500 uppercase mb-2">Internal Notes</p>
+                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-200 text-sm text-gray-600 italic">
                           "{sel.notes}"
                         </div>
                       </div>
                     )}
 
-                    <button onClick={() => window.print()} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-[10px] uppercase tracking-[0.2em] shadow-xl hover:bg-slate-800 transition-all flex items-center justify-center gap-3">
-                      <FaDownload className="text-xs" /> Print Voucher
+                    <button onClick={() => window.print()} className="w-full bg-gray-800 text-white py-3 rounded-xl font-medium text-sm uppercase tracking-wider hover:bg-gray-900 transition-colors flex items-center justify-center gap-2">
+                      <FaDownload className="text-sm" /> Print Voucher
                     </button>
                   </div>
                 </div>

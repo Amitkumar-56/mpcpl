@@ -37,7 +37,7 @@ function HealthSkeleton() {
 function HealthContent() {
   const { user } = useSession();
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [animals, setAnimals] = useState([]);
@@ -61,7 +61,6 @@ function HealthContent() {
 
   const fetchData = async () => {
     try {
-      setLoading(true);
       const [resH, resD, resA] = await Promise.all([
         fetch(`/api/farming/health?page=${page}&limit=10`),
         fetch('/api/farming/doctors'),
@@ -78,7 +77,6 @@ function HealthContent() {
       if (dataD.success) setDoctors(dataD.data || []);
       if (dataA.success) setAnimals(dataA.data || []);
     } catch (e) { toast.error('Failed to load data'); }
-    finally { setLoading(false); }
   };
 
   const fetchDiseases = async (type) => {
@@ -127,7 +125,7 @@ function HealthContent() {
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex h-screen bg-gradient-to-br from-emerald-50 via-teal-50/30 to-green-50/20 overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
       <Sidebar />
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <Header title="Farming CRM" />
@@ -135,86 +133,91 @@ function HealthContent() {
           <div className="p-4 sm:p-8">
             <div className="max-w-7xl mx-auto">
               <div className="flex flex-col lg:flex-row lg:items-end justify-between mb-10 gap-6">
-                <div>
-                  <h1 className="text-3xl sm:text-4xl font-black text-slate-900">Health & Veterinary</h1>
-                  <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mt-1">Live Diagnostics & Records</p>
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">Health & Veterinary</h1>
+                  <p className="text-xs font-bold text-emerald-600 uppercase tracking-widest mt-2">Live Diagnostics & Records</p>
                 </div>
-                <div className="flex flex-wrap justify-center gap-2 w-full sm:w-auto">
-                  <button onClick={fetchData} className="bg-white border border-slate-200 p-3 rounded-2xl shadow-sm hover:text-emerald-600"><FaSync className={loading ? 'animate-spin' : ''} /></button>
-                  <button onClick={() => setShowForm(!showForm)} className={`${showForm ? 'bg-slate-800' : 'bg-emerald-600'} text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3`}>
+                <div className="flex flex-wrap justify-center gap-3 w-full sm:w-auto">
+                  <button onClick={fetchData} className="bg-white/80 backdrop-blur-sm border border-white/20 p-4 rounded-2xl shadow-lg hover:bg-white transition-all hover:scale-105"><FaSync className="text-emerald-600" /></button>
+                  <button onClick={() => setShowForm(!showForm)} className={`${showForm ? 'bg-gradient-to-r from-slate-700 to-slate-900' : 'bg-gradient-to-r from-emerald-600 to-teal-600'} text-white px-8 py-4 rounded-2xl font-bold text-sm uppercase tracking-wider shadow-xl flex items-center gap-3 hover:scale-105 transition-all`}>
                     {showForm ? '✕ Close' : <><FaPlus /> New Entry</>}
                   </button>
-                  <Link href="/farming" className="bg-white border border-slate-200 text-slate-900 px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-sm flex items-center gap-2">
+                  <Link href="/farming" className="bg-white/80 backdrop-blur-sm border border-white/20 text-slate-700 px-8 py-4 rounded-2xl font-bold text-sm uppercase tracking-wider shadow-lg flex items-center gap-2 hover:bg-white hover:scale-105 transition-all">
                     <FaArrowLeft /> Dashboard
                   </Link>
                 </div>
               </div>
 
-              {loading ? <HealthSkeleton /> : (
-                <>
-                  {!showForm && (
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-                      {[
-                        { label: 'Reports', value: totalRecords, icon: FaFileMedical, color: 'blue' },
-                        { label: 'Sick', value: records.filter(r => r.disease_name).length, icon: FaThermometerHalf, color: 'red' },
-                        { label: 'Fees', value: `₹${records.reduce((acc, r) => acc + Number(r.cost), 0).toLocaleString('en-IN')}`, icon: FaSave, color: 'emerald' },
-                        { label: 'Doctors', value: doctors.length, icon: FaUserMd, color: 'indigo' }
-                      ].map((stat, i) => (
-                        <div key={i} className="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-100 flex items-center gap-5">
-                          <div className={`w-14 h-14 rounded-2xl bg-slate-50 flex items-center justify-center text-xl`}>
-                            <stat.icon className={`text-${stat.color}-600`} />
-                          </div>
-                          <div>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{stat.label}</p>
-                            <p className="text-xl font-black text-slate-900">{stat.value}</p>
-                          </div>
-                        </div>
-                      ))}
+              {!showForm && (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                  {[
+                    { label: 'Reports', value: totalRecords, icon: FaFileMedical, color: 'blue' },
+                    { label: 'Sick', value: records.filter(r => r.disease_name).length, icon: FaThermometerHalf, color: 'red' },
+                    { label: 'Fees', value: `₹${records.reduce((acc, r) => acc + Number(r.cost), 0).toLocaleString('en-IN')}`, icon: FaSave, color: 'emerald' },
+                    { label: 'Doctors', value: doctors.length, icon: FaUserMd, color: 'indigo' }
+                  ].map((stat, i) => (
+                    <div key={i} className="bg-white/80 backdrop-blur-sm p-6 rounded-2xl shadow-lg border border-white/20 flex items-center gap-5 hover:scale-105 transition-all">
+                      <div className={`w-14 h-14 rounded-2xl bg-gradient-to-br from-${stat.color}-100 to-${stat.color}-50 flex items-center justify-center text-xl`}>
+                        <stat.icon className={`text-${stat.color}-600`} />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-slate-600 uppercase tracking-wider">{stat.label}</p>
+                        <p className="text-xl font-bold text-slate-900">{stat.value}</p>
+                      </div>
                     </div>
-                  )}
+                  ))}
+                </div>
+              )}
 
                   {!showForm && (
-                    <div className="bg-white rounded-[3rem] shadow-xl border border-slate-100 overflow-hidden mb-20">
-                      <div className="p-8 border-b border-slate-50 flex items-center justify-between bg-slate-50/50">
-                        <h3 className="text-sm font-black uppercase tracking-widest text-slate-900 flex items-center gap-3"><FaHistory /> Examination History</h3>
+                    <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/20 overflow-hidden mb-20">
+                      <div className="p-8 border-b border-white/20 flex items-center justify-between bg-gradient-to-r from-emerald-50/50 to-teal-50/50">
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-slate-900 flex items-center gap-3"><FaHistory /> Examination History</h3>
                       </div>
                       <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="bg-white">
-                              <th className="px-8 py-6 text-left border-b border-slate-100"><input type="checkbox" className="w-4 h-4 rounded border-slate-200" /></th>
+                              <th className="px-8 py-6 text-left border-b border-white/20"><input type="checkbox" className="w-4 h-4 rounded border-emerald-200" /></th>
                               {['Animal', 'Vet', 'Temp', 'Diagnosis', 'Fees', 'Date', 'Action'].map((h, i) => (
-                                <th key={i} className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-8 py-6 text-left border-b border-slate-100">{h}</th>
+                                <th key={i} className="text-xs font-bold text-slate-600 uppercase tracking-wider px-8 py-6 text-left border-b border-white/20">{h}</th>
                               ))}
                             </tr>
                           </thead>
                           <tbody>
                             {records.length === 0 ? (
-                              <tr><td colSpan={8} className="text-center py-20 text-xs text-slate-400 font-bold uppercase">No records found.</td></tr>
+                              <tr>
+                                <td colSpan={8} className="text-center py-20">
+                                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
+                                    <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">No records found</div>
+                                    <div className="text-xs text-slate-400 mt-2">Start adding health examinations</div>
+                                  </div>
+                                </td>
+                              </tr>
                             ) : (
                               records.map(r => (
-                                <tr key={r.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-all">
-                                  <td className="px-8 py-6"><input type="checkbox" className="w-4 h-4 rounded border-slate-200" /></td>
+                                <tr key={r.id} className="border-b border-white/10 hover:bg-gradient-to-r hover:from-emerald-50/30 hover:to-teal-50/30 transition-all">
+                                  <td className="px-8 py-6"><input type="checkbox" className="w-4 h-4 rounded border-emerald-200" /></td>
                                   <td className="px-8 py-6">
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-2">
-                                        <span className="font-black text-slate-900">{r.animal_tag || '-'}</span>
+                                        <span className="font-bold text-slate-900">{r.animal_tag || '-'}</span>
                                       </div>
-                                      <div className="flex items-center gap-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                                         <FaBarcode className="text-[10px]" />
-                                         <span className="text-[7px] font-mono font-bold tracking-widest">{r.barcode || 'NO-BARCODE'}</span>
+                                      <div className="flex items-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                         <FaBarcode className="text-xs" />
+                                         <span className="text-xs font-mono font-bold tracking-wider text-slate-500">{r.barcode || 'NO-BARCODE'}</span>
                                       </div>
-                                      <span className="text-[9px] text-slate-400 font-bold uppercase">{r.type}</span>
+                                      <span className="text-xs font-bold uppercase bg-gradient-to-r from-emerald-100 to-teal-100 px-2 py-1 rounded-lg text-emerald-700">{r.type}</span>
                                     </div>
                                   </td>
-                                  <td className="px-8 py-6 text-xs font-bold">{r.doctor_name || '-'}</td>
-                                  <td className="px-8 py-6"><span className={`text-xs font-black ${parseFloat(r.temperature) > 102 ? 'text-red-600' : 'text-slate-600'}`}>{r.temperature}°F</span></td>
-                                  <td className="px-8 py-6"><span className={`text-[9px] font-black px-3 py-1.5 rounded-full ${r.disease_name ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{r.disease_name || 'HEALTHY'}</span></td>
-                                  <td className="px-8 py-6 text-xs font-black">₹{Number(r.cost).toLocaleString('en-IN')}</td>
-                                  <td className="px-8 py-6 text-xs font-bold text-slate-400">{new Date(r.treatment_date).toLocaleDateString('en-IN')}</td>
+                                  <td className="px-8 py-6 text-sm font-semibold text-slate-700">{r.doctor_name || '-'}</td>
+                                  <td className="px-8 py-6"><span className={`text-sm font-bold ${parseFloat(r.temperature) > 102 ? 'text-red-600' : 'text-slate-600'}`}>{r.temperature}°F</span></td>
+                                  <td className="px-8 py-6"><span className={`text-xs font-bold px-3 py-2 rounded-lg ${r.disease_name ? 'bg-red-50 text-red-600' : 'bg-emerald-50 text-emerald-600'}`}>{r.disease_name || 'HEALTHY'}</span></td>
+                                  <td className="px-8 py-6 text-sm font-bold text-slate-900">₹{Number(r.cost).toLocaleString('en-IN')}</td>
+                                  <td className="px-8 py-6 text-sm font-bold text-slate-500">{new Date(r.treatment_date).toLocaleDateString('en-IN')}</td>
                                   <td className="px-8 py-6 flex gap-2">
-                                    <button onClick={() => handleDownloadPDF(r)} className="p-2 bg-slate-50 rounded-lg hover:bg-emerald-50 text-slate-600"><FaDownload /></button>
-                                    <button className="p-2 bg-slate-50 rounded-lg hover:bg-blue-50 text-slate-600"><FaEnvelope /></button>
+                                    <button onClick={() => handleDownloadPDF(r)} className="p-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-lg hover:bg-emerald-50 text-slate-600 transition-all hover:scale-105"><FaDownload /></button>
+                                    <button className="p-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-lg hover:bg-blue-50 text-slate-600 transition-all hover:scale-105"><FaEnvelope /></button>
                                   </td>
                                 </tr>
                               ))
@@ -222,17 +225,18 @@ function HealthContent() {
                           </tbody>
                         </table>
                       </div>
-                      <div className="p-8 bg-slate-50/50 border-t border-slate-100 flex items-center justify-between text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      <div className="p-8 bg-gradient-to-r from-emerald-50/50 to-teal-50/50 border-t border-white/20 flex items-center justify-between text-xs font-bold text-slate-600 uppercase tracking-wider">
                         <span>Page {page} of {totalPages}</span>
-                        <div className="flex gap-2">
-                          <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-6 py-2 bg-white border border-slate-200 rounded-xl disabled:opacity-30">Prev</button>
-                          <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-6 py-2 bg-emerald-600 text-white rounded-xl disabled:opacity-30">Next</button>
+                        <div className="flex items-center gap-4">
+                          <span className="text-slate-400">Last updated: {new Date().toLocaleTimeString('en-IN')}</span>
+                          <div className="flex gap-2">
+                            <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-6 py-2 bg-white/60 backdrop-blur-sm border border-white/20 rounded-xl disabled:opacity-30 hover:bg-white transition-all hover:scale-105">Prev</button>
+                            <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-6 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 text-white rounded-xl disabled:opacity-30 hover:scale-105 transition-all">Next</button>
+                          </div>
                         </div>
                       </div>
                     </div>
                   )}
-                </>
-              )}
 
                {showForm && (
                 <div className="bg-white rounded-2xl sm:rounded-[3rem] shadow-2xl border border-emerald-100 overflow-hidden mb-12">

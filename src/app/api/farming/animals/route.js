@@ -327,6 +327,19 @@ export async function POST(request) {
       ]);
     }
 
+    // Auto-create initial growth record if weight is provided
+    if (weight && parseFloat(weight) > 0) {
+      await executeQuery(`
+        INSERT INTO farming_growth (animal_id, weight, recorded_date, notes)
+        VALUES (?, ?, ?, ?)
+      `, [
+        animalId, 
+        parseFloat(weight), 
+        date_of_birth || new Date().toISOString().split('T')[0],
+        entry_type === 'birth' ? 'Initial weight at birth' : 'Initial weight at purchase'
+      ]);
+    }
+
     return NextResponse.json({
       success: true,
       message: 'Animal registered successfully',

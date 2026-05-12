@@ -95,101 +95,84 @@ function CreateGateEntryContent() {
                 </div>
              </div>
 
-             <form onSubmit={handleSubmit} className="space-y-6 pb-10">
-                {/* Vehicle & Driver Section */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                   <div className="flex items-center gap-2 mb-2">
-                      <FaTruck className="text-blue-600" />
-                      <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Basic Information</h2>
-                   </div>
+             <form onSubmit={handleSubmit} className="space-y-4 pb-10">
+                {/* Single Simple Form */}
+                <div className="bg-white p-6 rounded-xl border border-gray-200 shadow-sm">
+                   <h2 className="text-lg font-semibold text-gray-800 mb-6">Gate Entry Form</h2>
                    
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Vehicle Number</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Vehicle Number *</label>
                         <input 
                           name="vehicle_number" placeholder="MH12AB1234" value={form.vehicle_number} onChange={handleChange} required
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Driver Name</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Driver Name *</label>
                         <input 
-                          name="driver_name" placeholder="John Doe" value={form.driver_name} onChange={handleChange} required
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
+                          name="driver_name" placeholder="Enter driver name" value={form.driver_name} onChange={handleChange} required
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Driver Phone</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Driver Phone</label>
                         <input 
                           name="driver_phone" placeholder="9876543210" value={form.driver_phone} onChange={handleChange}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Purpose of Entry</label>
-                        <select name="purpose" value={form.purpose} onChange={handleChange} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none appearance-none focus:bg-white focus:border-blue-400">
-                           <option value="">-- Select Purpose --</option>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Purpose</label>
+                        <select name="purpose" value={form.purpose} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
+                           <option value="">Select purpose</option>
                            <option value="Raw Material Delivery">Raw Material Delivery</option>
                            <option value="Finished Goods Dispatch">Finished Goods Dispatch</option>
-                           <option value="Maintenance / Service">Maintenance / Service</option>
+                           <option value="Maintenance">Maintenance</option>
                            <option value="Others">Others</option>
                         </select>
                       </div>
-                   </div>
-                </div>
-
-                {/* Material Section */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
-                   <div className="flex items-center gap-2 mb-2">
-                      <FaBox className="text-emerald-600" />
-                      <h2 className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Cargo & Logistics</h2>
-                   </div>
-                   
-                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div className="sm:col-span-2">
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Material Description</label>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Material Description</label>
                         <input 
-                          name="material_name" placeholder="Item name, chemical type, etc." value={form.material_name} onChange={handleChange}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
+                          name="material_name" placeholder="Enter material name" value={form.material_name} onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Quantity</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Quantity</label>
                         <input 
                           type="number" name="quantity" placeholder="0.00" value={form.quantity} onChange={handleChange}
-                          className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                         />
                       </div>
                       <div>
-                        <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Unit</label>
-                        <select name="unit" value={form.unit} onChange={handleChange} className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-xs outline-none appearance-none focus:bg-white focus:border-blue-400">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Unit</label>
+                        <select name="unit" value={form.unit} onChange={handleChange} className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white">
                            <option value="KG">KG</option>
                            <option value="LITRE">LITRE</option>
                            <option value="TON">TON</option>
-                           <option value="NOS">NOS</option>
+                           <option value="NOS">PCS</option>
                         </select>
                       </div>
+                      <div className="md:col-span-2">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Remarks</label>
+                        <textarea 
+                          name="remarks" rows="3" placeholder="Enter additional notes..." value={form.remarks} onChange={handleChange}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                        ></textarea>
+                      </div>
                    </div>
-                </div>
 
-                {/* Remarks */}
-                <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-                   <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest ml-1 mb-1 block">Additional Remarks</label>
-                   <textarea 
-                     name="remarks" rows="3" placeholder="Any additional notes..." value={form.remarks} onChange={handleChange}
-                     className="w-full px-4 py-3 bg-slate-50 border border-slate-100 rounded-xl font-bold text-sm outline-none focus:bg-white focus:border-blue-400 transition-all"
-                   ></textarea>
-                </div>
-
-                {/* Final Submit Button */}
-                <div className="pt-4">
-                  <button 
-                    type="submit" 
-                    disabled={loading}
-                    className="w-full bg-slate-900 text-white py-5 rounded-3xl font-bold text-xs uppercase tracking-widest shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2 mb-12"
-                  >
-                    {loading ? <FaSpinner className="animate-spin" /> : <><FaCheckCircle /> Authorize & Create Entry</>}
-                  </button>
+                   <div className="mt-6 pt-6 border-t border-gray-200">
+                      <button 
+                        type="submit" 
+                        disabled={loading}
+                        className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {loading ? <FaSpinner className="animate-spin" /> : <><FaCheckCircle /> Create Entry</>}
+                      </button>
+                   </div>
                 </div>
              </form>
           </div>

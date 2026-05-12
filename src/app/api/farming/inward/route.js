@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 import { sendGenericReportEmail } from "@/lib/email";
 import { ensureFarmingTables } from "@/lib/farming_init";
 
+// Ensure farming tables exist on module load
+ensureFarmingTables();
+
 // ... (GET logic stays same)
 export async function GET(request) {
   try {
@@ -29,8 +32,8 @@ export async function GET(request) {
     if (from_date) { query += ` AND i.inward_date >= ?`; params.push(from_date); }
     if (to_date) { query += ` AND i.inward_date <= ?`; params.push(to_date); }
 
-    query += ` ORDER BY i.created_at DESC LIMIT ? OFFSET ?`;
-    params.push(limit, offset);
+    query += ` ORDER BY i.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
+    // params already has the values, no need to push again
 
     const records = await executeQuery(query, params);
 

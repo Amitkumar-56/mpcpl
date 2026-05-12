@@ -40,7 +40,7 @@ function FarmingDashboardContent() {
   const { user, loading: authLoading } = useSession();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [dashData, setDashData] = useState(null);
 
   useEffect(() => {
@@ -64,7 +64,6 @@ function FarmingDashboardContent() {
 
   const fetchDashboard = async () => {
     try {
-      setLoading(true);
       const res = await fetch('/api/farming?view=dashboard');
       if (!res.ok) throw new Error('Dashboard fetch failed');
       const data = await res.json();
@@ -73,7 +72,7 @@ function FarmingDashboardContent() {
     } catch (e) {
       console.error(e);
       toast.error('Network error - Dashboard');
-    } finally { setLoading(false); }
+    }
   };
 
   if (!mounted) return null;
@@ -107,7 +106,7 @@ function FarmingDashboardContent() {
                     </div>
                   </div>
                   <button onClick={fetchDashboard} className="bg-white border border-slate-100 p-3 rounded-xl shadow-sm hover:text-blue-600">
-                    <FaSync className={loading ? 'animate-spin' : ''} />
+                    <FaSync />
                   </button>
                 </div>
               </div>
@@ -122,65 +121,63 @@ function FarmingDashboardContent() {
                       </h2>
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mt-1">Real-time gap analysis</p>
                     </div>
-                    <div className="bg-red-50 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">
-                      Action Required
-                    </div>
+                    {dashData?.compliance?.missingHealth?.length > 0 || dashData?.compliance?.missingWeight?.length > 0 || dashData?.compliance?.missingFeed?.length > 0 || dashData?.compliance?.incompleteProfiles?.length > 0 ? (
+                      <div className="bg-red-50 text-red-600 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest animate-pulse">
+                        Action Required
+                      </div>
+                    ) : null}
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {loading ? (
-                       [1,2,3,4].map(i => <div key={i} className="h-20 bg-slate-50 animate-pulse rounded-2xl" />)
-                    ) : (
-                      <>
-                        <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100/50">
-                          <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <FaThermometerHalf /> Overdue Health Check ({dashData?.compliance?.missingHealth?.length || 0})
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {dashData?.compliance?.missingHealth?.map((a, i) => (
-                              <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-orange-100">{a.tag_id}</span>
-                            ))}
-                            {(!dashData?.compliance?.missingHealth || dashData?.compliance?.missingHealth.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">All healthy!</span>}
-                          </div>
+                    <>
+                      <div className="bg-orange-50/50 p-4 rounded-2xl border border-orange-100/50">
+                        <p className="text-[9px] font-black text-orange-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <FaThermometerHalf /> Overdue Health Check ({dashData?.compliance?.missingHealth?.length || 0})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dashData?.compliance?.missingHealth?.map((a, i) => (
+                            <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-orange-100">{a.tag_id}</span>
+                          ))}
+                          {(!dashData?.compliance?.missingHealth || dashData?.compliance?.missingHealth.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">All healthy!</span>}
                         </div>
+                      </div>
 
-                        <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
-                          <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <FaChartBar /> Weight Log Missing ({dashData?.compliance?.missingWeight?.length || 0})
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {dashData?.compliance?.missingWeight?.map((a, i) => (
-                              <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-blue-100">{a.tag_id}</span>
-                            ))}
-                            {(!dashData?.compliance?.missingWeight || dashData?.compliance?.missingWeight.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">Up to date!</span>}
-                          </div>
+                      <div className="bg-blue-50/50 p-4 rounded-2xl border border-blue-100/50">
+                        <p className="text-[9px] font-black text-blue-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <FaChartBar /> Weight Log Missing ({dashData?.compliance?.missingWeight?.length || 0})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dashData?.compliance?.missingWeight?.map((a, i) => (
+                            <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-blue-100">{a.tag_id}</span>
+                          ))}
+                          {(!dashData?.compliance?.missingWeight || dashData?.compliance?.missingWeight.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">All tracked!</span>}
                         </div>
+                      </div>
 
-                        <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50">
-                          <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <FaLeaf /> Feed Logs Today ({dashData?.compliance?.missingFeed?.length || 0} Batches)
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {dashData?.compliance?.missingFeed?.map((b, i) => (
-                              <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-emerald-100">{b.batch_code}</span>
-                            ))}
-                            {(!dashData?.compliance?.missingFeed || dashData?.compliance?.missingFeed.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">Fully Fed!</span>}
-                          </div>
+                      <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/50">
+                        <p className="text-[9px] font-black text-emerald-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <FaLeaf /> Feed Logs Today ({dashData?.compliance?.missingFeed?.length || 0} Batches)
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dashData?.compliance?.missingFeed?.map((b, i) => (
+                            <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-emerald-100">{b.batch_code}</span>
+                          ))}
+                          {(!dashData?.compliance?.missingFeed || dashData?.compliance?.missingFeed.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">Fully Fed!</span>}
                         </div>
+                      </div>
 
-                        <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100/50">
-                          <p className="text-[9px] font-black text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-2">
-                            <FaExclamationTriangle /> Incomplete Profiles ({dashData?.compliance?.incompleteProfiles?.length || 0})
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {dashData?.compliance?.incompleteProfiles?.map((a, i) => (
-                              <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-rose-100">{a.tag_id}</span>
-                            ))}
-                            {(!dashData?.compliance?.incompleteProfiles || dashData?.compliance?.incompleteProfiles.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">Perfect Data!</span>}
-                          </div>
+                      <div className="bg-rose-50/50 p-4 rounded-2xl border border-rose-100/50">
+                        <p className="text-[9px] font-black text-rose-600 uppercase tracking-widest mb-2 flex items-center gap-2">
+                          <FaExclamationTriangle /> Incomplete Profiles ({dashData?.compliance?.incompleteProfiles?.length || 0})
+                        </p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {dashData?.compliance?.incompleteProfiles?.map((a, i) => (
+                            <span key={i} className="bg-white px-2 py-1 rounded-lg text-[9px] font-bold text-slate-700 shadow-sm border border-rose-100">{a.tag_id}</span>
+                          ))}
+                          {(!dashData?.compliance?.incompleteProfiles || dashData?.compliance?.incompleteProfiles.length === 0) && <span className="text-[9px] font-bold text-emerald-600 uppercase">Perfect Data!</span>}
                         </div>
-                      </>
-                    )}
+                      </div>
+                    </>
                   </div>
                 </div>
 
@@ -206,33 +203,26 @@ function FarmingDashboardContent() {
 
               {/* Animal Type Cards - Lazy Loaded with Skeletons */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
-                {loading ? (
-                  Array(5).fill(0).map((_, i) => <SkeletonCard key={i} />)
-                ) : (
-                  ANIMAL_TYPES.map(t => {
-                    const c = getCount(t.key);
-                    return (
-                      <Link key={t.key} href={`/farming/animals?type=${t.key}`}
-                        className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer">
-                        <div className="flex items-center gap-3 mb-3">
-                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: t.bg }}>
-                            {t.icon}
-                          </div>
-                        </div>
-                        <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">{t.label}</h3>
-                        <div className="flex items-end gap-2 mt-2">
-                          <span className="text-3xl font-black" style={{ color: t.color }}>{Number(c.active || 0)}</span>
-                          <span className="text-[9px] text-slate-400 font-bold mb-1">ACTIVE</span>
-                        </div>
-                      </Link>
-                    );
-                  })
-                )}
+                {ANIMAL_TYPES.map(t => (
+                  <Link key={t.key} href={`/farming/animals?type=${t.key}`}
+                    className="bg-white rounded-2xl shadow-sm border border-slate-100 p-5 hover:shadow-lg transition-all hover:-translate-y-1 cursor-pointer">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl" style={{ background: t.bg }}>
+                        {t.icon}
+                      </div>
+                    </div>
+                    <h3 className="text-xs font-black text-slate-800 uppercase tracking-wide">{t.label}</h3>
+                    <div className="flex items-end gap-2 mt-2">
+                      <span className="text-3xl font-black" style={{ color: t.color }}>{Number(getCount(t.key).active || 0)}</span>
+                      <span className="text-[9px] text-slate-400 font-bold mb-1">ACTIVE</span>
+                    </div>
+                  </Link>
+                ))}
               </div>
 
               {/* Financials Card - Lazy Loaded with Suspense */}
-              {!loading && dashData && (
-                <Suspense fallback={<div className="h-64 bg-white rounded-[2rem] border border-slate-100 flex items-center justify-center animate-pulse text-slate-300 font-bold">Loading Financials...</div>}>
+              {dashData && (
+                <Suspense fallback={<div className="h-64 bg-white rounded-[2rem] border border-slate-100 flex items-center justify-center text-slate-300 font-bold">Loading...</div>}>
                   <FinancialsCard financials={dashData.financials} />
                 </Suspense>
               )}
@@ -260,45 +250,41 @@ function FarmingDashboardContent() {
 
               {/* Recent Activity Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {loading ? (
-                  Array(3).fill(0).map((_, i) => <div key={i} className="h-64 bg-white animate-pulse rounded-2xl border border-slate-100" />)
-                ) : (
-                  <>
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                      <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">⬇️ Recent Inward</h2>
-                      <div className="space-y-2">
-                        {dashData?.recentInward?.map((r, i) => (
-                          <div key={i} className="flex justify-between text-xs bg-blue-50 p-3 rounded-xl">
-                            <span className="font-bold text-slate-700">{r.type}</span>
-                            <span className="font-bold text-blue-600">Qty: {r.quantity}</span>
-                          </div>
-                        ))}
-                      </div>
+                <>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">⬇️ Recent Inward</h2>
+                    <div className="space-y-2">
+                      {dashData?.recentInward?.map((r, i) => (
+                        <div key={i} className="flex justify-between text-xs bg-blue-50 p-3 rounded-xl">
+                          <span className="font-bold text-slate-700">{r.type}</span>
+                          <span className="font-bold text-blue-600">Qty: {r.quantity}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                      <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">⬆️ Recent Outward</h2>
-                      <div className="space-y-2">
-                        {dashData?.recentOutward?.map((r, i) => (
-                          <div key={i} className="flex justify-between text-xs bg-red-50 p-3 rounded-xl">
-                            <span className="font-bold text-slate-700">{r.type}</span>
-                            <span className="font-bold text-red-600">Qty: {r.quantity}</span>
-                          </div>
-                        ))}
-                      </div>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">⬆️ Recent Outward</h2>
+                    <div className="space-y-2">
+                      {dashData?.recentOutward?.map((r, i) => (
+                        <div key={i} className="flex justify-between text-xs bg-red-50 p-3 rounded-xl">
+                          <span className="font-bold text-slate-700">{r.type}</span>
+                          <span className="font-bold text-red-600">Qty: {r.quantity}</span>
+                        </div>
+                      ))}
                     </div>
-                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
-                      <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">🔄 Recent Processing</h2>
-                      <div className="space-y-2">
-                        {dashData?.recentProcessing?.map((p, i) => (
-                          <div key={i} className="flex justify-between text-xs bg-indigo-50 p-3 rounded-xl">
-                            <span className="font-bold text-slate-700">{p.source_product}</span>
-                            <span className="font-black text-indigo-600">→ {p.derivative_product}</span>
-                          </div>
-                        ))}
-                      </div>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">🔄 Recent Processing</h2>
+                    <div className="space-y-2">
+                      {dashData?.recentProcessing?.map((p, i) => (
+                        <div key={i} className="flex justify-between text-xs bg-indigo-50 p-3 rounded-xl">
+                          <span className="font-bold text-slate-700">{p.source_product}</span>
+                          <span className="font-black text-indigo-600">→ {p.derivative_product}</span>
+                        </div>
+                      ))}
                     </div>
-                  </>
-                )}
+                  </div>
+                </>
               </div>
             </div>
           </div>

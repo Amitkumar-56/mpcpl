@@ -26,7 +26,7 @@ function TableSkeleton() {
 
 function OutwardContent() {
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [sel, setSel] = useState(null);
@@ -48,7 +48,6 @@ function OutwardContent() {
 
   const fetchRecords = async () => {
     try {
-      setLoading(true);
       let url = `/api/farming/outward?page=${page}&limit=10`;
       if (filterType) url += `&type=${filterType}`;
       const res = await fetch(url);
@@ -58,7 +57,7 @@ function OutwardContent() {
         setTotalPages(data.pagination?.totalPages || 1);
         setTotalRecords(data.pagination?.total || 0);
       }
-    } catch (e) { toast.error('Load Error'); } finally { setLoading(false); }
+    } catch (e) { toast.error('Load Error'); }
   };
 
   const handleSubmit = async (e) => {
@@ -144,157 +143,171 @@ function OutwardContent() {
   useEffect(() => {
     if (mounted) {
       fetchRecords();
+    }
+  }, [mounted, filterType, page]);
+
+  useEffect(() => {
+    if (mounted) {
       fetch('/api/farming/batches?status=active&limit=50').then(r => r.json()).then(d => { if (d.success) setBatches(d.data); });
       fetch('/api/farming/animals?status=active&limit=100').then(r => r.json()).then(d => { if (d.success) setAnimals(d.data); });
     }
-  }, [mounted, filterType, page]);
+  }, [mounted]);
 
   if (!mounted) return null;
 
   return (
-    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <Header title="Farming CRM" />
         <main className="flex-1 overflow-y-auto pb-32">
-          <div className="p-4 sm:p-8"><div className="max-w-6xl mx-auto">
-            <div className="flex flex-col sm:flex-row items-center justify-between mb-10 gap-4">
-              <div className="text-center sm:text-left">
-                <h1 className="text-3xl font-black text-slate-900 tracking-tighter">⬆️ Outward Register</h1>
-                <p className="text-[10px] font-bold text-rose-600 uppercase tracking-[0.3em] mt-1">Stock & Animal Departure</p>
+          <div className="p-4 sm:p-6"><div className="max-w-7xl mx-auto">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">📤 Outward Register</h1>
+                <p className="text-sm text-gray-600">Track stock and animal departures</p>
               </div>
-              <div className="flex flex-wrap justify-center gap-2">
-                <button onClick={fetchRecords} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm hover:shadow-md transition-all"><FaSync className={loading ? 'animate-spin' : ''} /></button>
-                <Link href="/farming" className="bg-slate-800 text-white px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+              <div className="flex gap-2">
+                <button onClick={fetchRecords} className="bg-white border border-gray-200 p-2.5 rounded-lg shadow-sm hover:bg-gray-50 transition-colors"><FaSync /></button>
+                <Link href="/farming" className="bg-gray-600 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-700 transition-colors flex items-center gap-2">
                   <FaArrowLeft /> Back
                 </Link>
-                <button onClick={generateMasterReport} className="bg-slate-900 text-white px-6 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
-                  <FaFilePdf /> Master Report
+                <button onClick={generateMasterReport} className="bg-gray-800 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-gray-900 transition-colors flex items-center gap-2">
+                  <FaFilePdf /> Report
                 </button>
-                <button onClick={() => setShowForm(!showForm)} className="bg-rose-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+                <button onClick={() => setShowForm(!showForm)} className="bg-red-600 text-white px-4 py-2.5 rounded-lg font-medium text-sm hover:bg-red-700 transition-colors flex items-center gap-2">
                   <FaPlus /> New Entry
                 </button>
               </div>
             </div>
             {showForm && (
-              <form onSubmit={handleSubmit} className="bg-white rounded-2xl sm:rounded-[2.5rem] shadow-xl border border-rose-100 p-5 sm:p-10 mb-8 animate-in slide-in-from-top duration-500">
-                <div className="flex items-center justify-between mb-8">
+              <form onSubmit={handleSubmit} className="bg-white rounded-lg shadow-lg border border-gray-200 p-6 mb-6 animate-in slide-in-from-top duration-300">
+                <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-xl font-black uppercase tracking-tighter text-slate-800">New Outward Entry</h2>
-                    <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mt-1">Stock & Animal Departure</p>
+                    <h2 className="text-xl font-semibold text-gray-900">New Outward Entry</h2>
+                    <p className="text-sm text-gray-600">Record stock and animal departures</p>
                   </div>
-                  <button type="button" onClick={() => setShowForm(false)} className="w-10 h-10 rounded-full bg-slate-50 flex items-center justify-center text-slate-400 hover:bg-red-50 hover:text-red-600 transition-all">✕</button>
+                  <button type="button" onClick={() => setShowForm(false)} className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 hover:bg-gray-200 transition-colors">✕</button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 sm:gap-8 mb-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Category *</label>
-                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all">
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Category *</label>
+                    <select value={form.type} onChange={e => setForm({ ...form, type: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500">
                       <option value="cow">🐄 Cow</option><option value="goat">🐐 Goat</option><option value="chicken">🐔 Chicken</option><option value="fish">🐟 Fish</option><option value="honey">🍯 Honey</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Sale Type *</label>
-                    <select value={form.outward_type} onChange={e => setForm({ ...form, outward_type: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all">
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Sale Type *</label>
+                    <select value={form.outward_type} onChange={e => setForm({ ...form, outward_type: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500">
                       <option value="sale">Direct Sale</option><option value="transfer">Internal Transfer</option><option value="deceased">Deceased</option><option value="return">Return to Supplier</option>
                     </select>
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Product / Item *</label>
-                    <input required value={form.product_type} onChange={e => setForm({ ...form, product_type: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" placeholder="e.g. Milk, Meat, etc." />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Product / Item *</label>
+                    <input required value={form.product_type} onChange={e => setForm({ ...form, product_type: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="e.g. Milk, Meat, Eggs, etc." />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Quantity *</label>
-                    <input required type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" placeholder="0" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Quantity *</label>
+                    <input required type="number" value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="0" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Total Weight (KG)</label>
-                    <input type="number" step="0.01" value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" placeholder="0.00" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Total Weight (KG)</label>
+                    <input type="number" step="0.01" value={form.weight} onChange={e => setForm({ ...form, weight: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="0.00" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Revenue (₹) *</label>
-                    <input required type="number" value={form.total_price} onChange={e => setForm({ ...form, total_price: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" placeholder="0.00" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Revenue (₹) *</label>
+                    <input required type="number" value={form.total_price} onChange={e => setForm({ ...form, total_price: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="0.00" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Buyer / Customer</label>
-                    <input value={form.buyer_name} onChange={e => setForm({ ...form, buyer_name: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" placeholder="Name / Shop Name" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Buyer / Customer</label>
+                    <input value={form.buyer_name} onChange={e => setForm({ ...form, buyer_name: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Name / Shop Name" />
                   </div>
 
                   <div>
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Outward Date</label>
-                    <input type="date" value={form.outward_date} onChange={e => setForm({ ...form, outward_date: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Outward Date</label>
+                    <input type="date" value={form.outward_date} onChange={e => setForm({ ...form, outward_date: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" />
                   </div>
 
                   <div className="lg:col-span-1">
-                    <label className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block mb-2">Notes</label>
-                    <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full bg-slate-50 border-2 border-slate-100 rounded-xl p-4 text-xs font-bold outline-none focus:border-rose-500 transition-all" placeholder="Sale details..." />
+                    <label className="text-sm font-medium text-gray-700 block mb-2">Notes</label>
+                    <input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} className="w-full p-2.5 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-red-500 focus:border-red-500" placeholder="Add sale details..." />
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row gap-4">
-                  <button type="submit" disabled={submitting} className="flex-1 bg-rose-600 text-white py-4 rounded-xl sm:rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-xl hover:bg-rose-700 transition-all flex items-center justify-center gap-3">
-                    {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Record Sale Departure</>}
+                <div className="flex gap-3">
+                  <button type="button" onClick={() => setShowForm(false)} className="px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Cancel</button>
+                  <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2">
+                    {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Record Sale</>}
                   </button>
-                  <button type="button" onClick={() => setShowForm(false)} className="px-10 py-4 rounded-xl sm:rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] text-slate-400 hover:bg-slate-50 transition-all">Cancel</button>
                 </div>
               </form>
             )}
 
-            <div className="flex items-center justify-between mb-4 overflow-x-auto pb-2">
-              <div className="flex gap-1">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex gap-2 overflow-x-auto">
                 {[{ k: '', l: 'All' }, { k: 'cow', l: '🐄' }, { k: 'goat', l: '🐐' }, { k: 'chicken', l: '🐔' }, { k: 'fish', l: '🐟' }, { k: 'honey', l: '🍯' }].map(t => (
-                  <button key={t.k} onClick={() => { setFilterType(t.k); setPage(1); }} className={`px-3 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap ${filterType === t.k ? 'bg-orange-600 text-white' : 'bg-slate-50 text-slate-600'}`}>{t.l}</button>
+                  <button key={t.k} onClick={() => { setFilterType(t.k); setPage(1); }} className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${filterType === t.k ? 'bg-red-600 text-white' : 'bg-white text-gray-600 border border-gray-300 hover:bg-gray-50'}`}>{t.l}</button>
                 ))}
               </div>
             </div>
 
             {loading ? <TableSkeleton /> : (
-              <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                <div className="overflow-x-auto"><table className="w-full"><thead><tr className="bg-slate-50">
-                  <th className="px-3 py-3 text-left w-10"><input type="checkbox" className="w-3 h-3 rounded" /></th>
-                  {['Date', 'Type', 'Outward Details', 'Product', 'Qty / Weight', 'Revenue', 'Action'].map(h => <th key={h} className="text-[9px] font-black text-slate-400 uppercase px-6 py-5 text-left tracking-widest">{h}</th>)}
-                </tr></thead><tbody>
-                    {records.length === 0 ? <tr><td colSpan={10} className="text-center py-20 text-[10px] font-bold text-slate-300 uppercase tracking-widest italic">Outward stream empty</td></tr> :
-                      records.map(r => (
-                        <tr key={r.id} className="border-t border-slate-50 hover:bg-rose-50/20 transition-all group">
-                          <td className="px-6 py-6"><input type="checkbox" className="w-4 h-4 rounded text-rose-600 border-slate-200" /></td>
-                          <td className="px-6 py-6 text-xs font-bold text-slate-400">{new Date(r.outward_date).toLocaleDateString('en-IN')}</td>
-                          <td className="px-6 py-6 text-xs font-black uppercase text-slate-900">{r.type}</td>
-                          <td className="px-6 py-6">
-                            <div className="flex flex-col gap-1">
-                              <span className="text-[10px] font-black uppercase bg-rose-100 text-rose-800 px-3 py-1 rounded-full w-fit">{r.outward_type}</span>
-                              <div className="flex items-center gap-2 mt-1 opacity-40 group-hover:opacity-100 transition-opacity">
-                                <FaBarcode className="text-[12px] text-slate-900" />
-                                <span className="text-[8px] font-mono font-black tracking-widest">OUT-{String(r.id).padStart(5, '0')}</span>
+              <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-3 py-3 text-left w-10">
+                          <input type="checkbox" className="w-4 h-4 rounded text-red-600 border-gray-300" />
+                        </th>
+                        {['Date', 'Type', 'Outward Details', 'Product', 'Qty / Weight', 'Revenue', 'Action'].map(h => <th key={h} className="text-xs font-semibold text-gray-700 uppercase px-4 py-3 text-left">{h}</th>)}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {records.length === 0 ? <tr><td colSpan={10} className="text-center py-12 text-sm text-gray-500">No records found</td></tr> :
+                        records.map(r => (
+                          <tr key={r.id} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                            <td className="px-4 py-3"><input type="checkbox" className="w-4 h-4 rounded text-red-600 border-gray-300" /></td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{new Date(r.outward_date).toLocaleDateString('en-IN')}</td>
+                            <td className="px-4 py-3 text-sm font-medium text-gray-900 uppercase">{r.type}</td>
+                            <td className="px-4 py-3">
+                              <div className="flex flex-col gap-1">
+                                <span className="text-xs font-medium bg-red-100 text-red-800 px-2 py-1 rounded-full">{r.outward_type}</span>
+                                <div className="flex items-center gap-2 mt-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                  <FaBarcode className="text-xs text-gray-700" />
+                                  <span className="text-xs font-mono text-gray-700">OUT-{String(r.id).padStart(5, '0')}</span>
+                                </div>
                               </div>
-                            </div>
-                          </td>
-                          <td className="px-6 py-6 text-xs font-bold text-slate-500">{r.product_type || '-'}</td>
-                          <td className="px-6 py-6">
-                            <p className="text-xs font-black text-slate-900">{r.quantity} Unit</p>
-                            <p className="text-[9px] text-slate-400 font-bold">{r.weight ? r.weight + ' KG Total' : '-'}</p>
-                          </td>
-                          <td className="px-6 py-6">
-                            <p className="text-xs font-black text-emerald-600">₹{Number(r.total_price || 0).toLocaleString()}</p>
-                            <p className="text-[8px] text-slate-400 font-bold uppercase tracking-tighter">Buyer: {r.buyer_name || 'Direct Sale'}</p>
-                          </td>
-                          <td className="px-6 py-6">
-                            <button onClick={() => setSel(r)} className="text-slate-400 hover:text-rose-600 p-3 bg-slate-50 rounded-xl transition-all shadow-sm"><FaQrcode /></button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody></table></div>
-                <div className="px-4 py-3 bg-slate-50 border-t border-slate-100 flex items-center justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest">
+                            </td>
+                            <td className="px-4 py-3 text-sm text-gray-600">{r.product_type || '-'}</td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-medium text-gray-900">{r.quantity} Unit</p>
+                              <p className="text-xs text-gray-500">{r.weight ? r.weight + ' KG Total' : '-'}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <p className="text-sm font-medium text-green-600">₹{Number(r.total_price || 0).toLocaleString()}</p>
+                              <p className="text-xs text-gray-500">Buyer: {r.buyer_name || 'Direct Sale'}</p>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button onClick={() => setSel(r)} className="text-gray-400 hover:text-red-600 p-2 bg-gray-50 rounded-lg transition-colors"><FaQrcode /></button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="px-4 py-3 bg-gray-50 border-t border-gray-200 flex items-center justify-between text-sm text-gray-600">
                   <span>Page {page} of {totalPages}</span>
                   <div className="flex gap-2">
-                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1 bg-white border border-slate-200 rounded-lg disabled:opacity-50">Prev</button>
-                    <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1 bg-red-600 text-white rounded-lg disabled:opacity-50">Next</button>
+                    <button disabled={page === 1} onClick={() => setPage(p => p - 1)} className="px-3 py-1.5 bg-white border border-gray-300 rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                    <button disabled={page === totalPages} onClick={() => setPage(p => p + 1)} className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
                   </div>
                 </div>
               </div>

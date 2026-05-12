@@ -151,6 +151,8 @@ export async function POST(request) {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 'Pending', ?)
     `, [requestCode, vehicle_number.toUpperCase(), driver_name, driver_phone, purpose, material_type, material_name, quantity || 0, unit || 'KG', remarks, otpCode, branchCode]);
 
+    console.log("Created entry with ID:", result.insertId, "and OTP:", otpCode);
+
     return NextResponse.json({
       success: true,
       message: "Entry request created successfully",
@@ -168,7 +170,7 @@ export async function PUT(request) {
   try {
     await ensureTable();
     const body = await request.json();
-    const { id, lab_verified, lab_remarks } = body;
+    const { id, lab_verified, lab_remarks, action } = body;
 
     if (!id) {
       return NextResponse.json({ success: false, error: "Request ID is required" }, { status: 400 });
@@ -178,6 +180,17 @@ export async function PUT(request) {
     if (lab_verified !== undefined) {
       await executeQuery(`UPDATE mfg_entry_requests SET lab_verified = ?, lab_remarks = ? WHERE id = ?`, [lab_verified, lab_remarks || '', id]);
       return NextResponse.json({ success: true, message: "Lab verification updated" });
+    }
+
+    // Simple exit action (fallback for backward compatibility)
+    if (action === 'exit' || !lab_verified) {
+      await executeQuery(
+        `UPDATE mfg_entry_requests 
+         SET status = 'Completed', exit_time = CURRENT_TIMESTAMP 
+         WHERE id = ? AND status = 'In-Plant'`,
+        [id]
+      );
+      return NextResponse.json({ success: true, message: "Exit marked successfully" });
     }
 
     return NextResponse.json({ success: false, error: "No valid action" }, { status: 400 });

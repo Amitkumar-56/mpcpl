@@ -271,35 +271,35 @@ function TankAllocationContent() {
   if (!mounted) {
     return (
       <div className="flex h-screen items-center justify-center bg-white">
-        <FaSpinner className="animate-spin text-blue-600 text-4xl" />
+        <div className="text-gray-400 text-xl">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFF] font-sans text-slate-900">
+    <div className="min-h-screen bg-gray-50 text-gray-900">
       <Toaster position="top-right" />
 
       {/* Top Navigation Bar */}
-      <div className="bg-white shadow-sm border-b border-slate-200 sticky top-0 z-50">
+      <div className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-4">
               <Link href="/" className="text-blue-600 hover:text-blue-800 font-semibold">
                 ← Home
               </Link>
-              <div className="border-l border-slate-200 h-8"></div>
-              <h1 className="text-xl font-bold text-slate-900">Tank Allocation</h1>
+              <div className="border-l border-gray-200 h-8"></div>
+              <h1 className="text-xl font-bold text-gray-900">Tank Allocation</h1>
             </div>
             <div className="flex items-center gap-4">
               <button onClick={fetchAllocations} className="p-2 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors">
-                <FaSync size={14} className={loading ? 'animate-spin' : ''} />
+                <FaSync size={14} />
               </button>
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
                   {user?.name?.charAt(0).toUpperCase() || 'U'}
                 </div>
-                <span className="text-sm font-medium text-slate-700">{user?.name || 'User'}</span>
+                <span className="text-sm font-medium text-gray-700">{user?.name || 'User'}</span>
               </div>
             </div>
           </div>
@@ -311,21 +311,21 @@ function TankAllocationContent() {
           {/* Header Area */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
             <div>
-              <h1 className="text-2xl font-black text-slate-900 tracking-tight">Tank Allocation</h1>
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Material Flow & Tank Management</p>
+              <h1 className="text-2xl font-bold text-gray-900">Tank Allocation</h1>
+              <p className="text-sm text-gray-600">Material Flow & Tank Management</p>
             </div>
             <div className="flex gap-2">
-              <Link href="/manufacturing/tank-transfer-history" className="flex items-center justify-center gap-2 bg-purple-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-purple-100">
+              <Link href="/manufacturing/tank-transfer-history" className="flex items-center justify-center gap-2 bg-purple-600 text-white px-5 py-3 rounded-lg font-medium shadow">
                 <FaHistory /> Transfer History
               </Link>
-              <Link href="/manufacturing/all-stock" className="flex items-center justify-center gap-2 bg-slate-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-slate-100">
+              <Link href="/manufacturing/all-tank-stock" className="flex items-center justify-center gap-2 bg-gray-600 text-white px-5 py-3 rounded-lg font-medium shadow">
                 <FaChartBar /> All Stock
               </Link>
-              <button onClick={() => setShowAddForm(true)} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest shadow-lg shadow-blue-100">
+              <button onClick={() => setShowAddForm(true)} className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-3 rounded-lg font-medium shadow">
                 <FaPlus /> New Allocation
               </button>
-              <button onClick={fetchAllocations} className="p-2.5 rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-blue-600 shadow-sm transition-all">
-                <FaSync size={12} className={loading ? 'animate-spin' : ''} />
+              <button onClick={fetchAllocations} className="p-2.5 rounded-lg bg-white border border-gray-300 text-gray-600 hover:text-blue-600 shadow-sm transition-all">
+                <FaSync size={12} />
               </button>
             </div>
           </div>
@@ -334,83 +334,83 @@ function TankAllocationContent() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <div
               onClick={() => setFilterType('all')}
-              className={`cursor-pointer bg-white rounded-[2rem] p-6 border-2 transition-all ${filterType === 'all' ? 'border-blue-500 shadow-lg shadow-blue-100' : 'border-transparent shadow-sm hover:shadow-md'}`}
+              className={`cursor-pointer bg-white rounded-lg p-6 border-2 transition-all ${filterType === 'all' ? 'border-blue-500 shadow-lg' : 'border-transparent shadow-sm hover:shadow-md'}`}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-blue-50 rounded-2xl flex items-center justify-center text-blue-600">
+                <div className="w-12 h-12 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
                   <FaWarehouse size={20} />
                 </div>
-                <span className="text-2xl font-black text-slate-900">{allocations.length}</span>
+                <span className="text-2xl font-bold text-gray-900">{allocations.length}</span>
               </div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Total Allocations</div>
-              <div className="text-xs font-bold text-blue-600 mt-1">View All Tanks</div>
+              <div className="text-sm font-medium text-gray-600">Total Allocations</div>
+              <div className="text-xs font-medium text-blue-600 mt-1">View All Tanks</div>
             </div>
 
             <div
               onClick={() => setFilterType('raw_material')}
-              className={`cursor-pointer bg-white rounded-[2rem] p-6 border-2 transition-all ${filterType === 'raw_material' ? 'border-blue-500 shadow-lg shadow-blue-100' : 'border-transparent shadow-sm hover:shadow-md'}`}
+              className={`cursor-pointer bg-white rounded-lg p-6 border-2 transition-all ${filterType === 'raw_material' ? 'border-blue-500 shadow-lg' : 'border-transparent shadow-sm hover:shadow-md'}`}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center text-indigo-600">
+                <div className="w-12 h-12 bg-indigo-50 rounded-lg flex items-center justify-center text-indigo-600">
                   <FaGasPump size={20} />
                 </div>
-                <span className="text-2xl font-black text-slate-900">
+                <span className="text-2xl font-bold text-gray-900">
                   {allocations.filter(a => a.allocation_type === 'raw_material').length}
                 </span>
               </div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Raw Materials</div>
-              <div className="text-xs font-bold text-indigo-600 mt-1">Input Tanks</div>
+              <div className="text-sm font-medium text-gray-600">Raw Materials</div>
+              <div className="text-xs font-medium text-indigo-600 mt-1">Input Tanks</div>
             </div>
 
             <div
               onClick={() => setFilterType('finished_good')}
-              className={`cursor-pointer bg-white rounded-[2rem] p-6 border-2 transition-all ${filterType === 'finished_good' ? 'border-blue-500 shadow-lg shadow-blue-100' : 'border-transparent shadow-sm hover:shadow-md'}`}
+              className={`cursor-pointer bg-white rounded-lg p-6 border-2 transition-all ${filterType === 'finished_good' ? 'border-blue-500 shadow-lg' : 'border-transparent shadow-sm hover:shadow-md'}`}
             >
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center text-green-600">
+                <div className="w-12 h-12 bg-green-50 rounded-lg flex items-center justify-center text-green-600">
                   <FaBoxOpen size={20} />
                 </div>
-                <span className="text-2xl font-black text-slate-900">
+                <span className="text-2xl font-bold text-gray-900">
                   {allocations.filter(a => a.allocation_type === 'finished_good').length}
                 </span>
               </div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Finished Goods</div>
-              <div className="text-xs font-bold text-green-600 mt-1">Output Tanks</div>
+              <div className="text-sm font-medium text-gray-600">Finished Goods</div>
+              <div className="text-xs font-medium text-green-600 mt-1">Output Tanks</div>
             </div>
 
-            <div className="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100">
+            <div className="bg-white rounded-lg p-6 shadow-sm border border-gray-200">
               <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 bg-orange-50 rounded-2xl flex items-center justify-center text-orange-600">
+                <div className="w-12 h-12 bg-orange-50 rounded-lg flex items-center justify-center text-orange-600">
                   <FaChartBar size={20} />
                 </div>
-                <span className="text-2xl font-black text-slate-900">
+                <span className="text-2xl font-bold text-gray-900">
                   {tanks.length - allocations.filter(a => a.status === 'active').length}
                 </span>
               </div>
-              <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Available Tanks</div>
-              <div className="text-xs font-bold text-orange-600 mt-1">Ready to Allocate</div>
+              <div className="text-sm font-medium text-gray-600">Available Tanks</div>
+              <div className="text-xs font-medium text-orange-600 mt-1">Ready to Allocate</div>
             </div>
           </div>
 
           {/* Filters Bar */}
-          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 p-4 sm:p-6 mb-6">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4 sm:p-6 mb-6">
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="relative">
-                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={14} />
+                <FaSearch className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
                 <input
                   type="text"
                   placeholder="Search allocations..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all"
+                  className="w-full pl-12 pr-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all"
                 />
               </div>
               <div className="relative">
-                <FaFilter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={14} />
+                <FaFilter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
                 <select
                   value={filterType}
                   onChange={(e) => setFilterType(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
+                  className="w-full pl-12 pr-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
                 >
                   <option value="all">All Types</option>
                   {allocationTypes.map(type => (
@@ -419,11 +419,11 @@ function TankAllocationContent() {
                 </select>
               </div>
               <div className="relative">
-                <FaFilter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={14} />
+                <FaFilter className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400" size={14} />
                 <select
                   value={filterStatus}
                   onChange={(e) => setFilterStatus(e.target.value)}
-                  className="w-full pl-12 pr-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
+                  className="w-full pl-12 pr-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
                 >
                   <option value="all">All Status</option>
                   {statusOptions.map(status => (
@@ -431,54 +431,48 @@ function TankAllocationContent() {
                   ))}
                 </select>
               </div>
-              <div className="flex items-center justify-center bg-slate-50 rounded-xl px-4">
-                <span className="text-sm font-bold text-slate-600">Total: {filteredAllocations.length} allocations</span>
+              <div className="flex items-center justify-center bg-gray-50 rounded-lg px-4">
+                <span className="text-sm font-medium text-gray-600">Total: {filteredAllocations.length} allocations</span>
               </div>
             </div>
           </div>
 
           {/* Professional Allocations Table */}
-          <div className="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50 border-b border-slate-100">
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Tank Info</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Allocation Type</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Physical Stock</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Utilization</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Status</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Actions</th>
+                  <tr className="bg-gray-50 border-b border-gray-200">
+                    <th className="px-6 py-4 text-xs font-medium text-gray-600 uppercase">Tank Info</th>
+                    <th className="px-6 py-4 text-xs font-medium text-gray-600 uppercase">Allocation Type</th>
+                    <th className="px-6 py-4 text-xs font-medium text-gray-600 uppercase">Physical Stock</th>
+                    <th className="px-6 py-4 text-xs font-medium text-gray-600 uppercase">Utilization</th>
+                    <th className="px-6 py-4 text-xs font-medium text-gray-600 uppercase">Status</th>
+                    <th className="px-6 py-4 text-xs font-medium text-gray-600 uppercase text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {loading ? (
-                    <tr>
-                      <td colSpan="6" className="px-6 py-12 text-center">
-                        <FaSpinner className="animate-spin text-blue-600 text-2xl mx-auto" />
-                      </td>
-                    </tr>
-                  ) : filteredAllocations.length > 0 ? (
+                <tbody className="divide-y divide-gray-200">
+                  {filteredAllocations.length > 0 ? (
                     filteredAllocations.map((allocation) => {
                       const tank = getTankInfo(allocation.tank_id) || { name: allocation.tank_name || 'Unknown Tank' };
                       const utilization = getTankUtilization(allocation.physical_kg_stock || allocation.current_quantity_kg, tank.capacity_kg);
 
                       return (
-                        <tr key={allocation.id} className="hover:bg-slate-50/50 transition-colors">
+                        <tr key={allocation.id} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
+                              <div className="w-10 h-10 bg-blue-50 rounded-lg flex items-center justify-center text-blue-600">
                                 <FaGasPump size={18} />
                               </div>
                               <div>
-                                <div className="font-bold text-slate-900">{tank.name || allocation.tank_name}</div>
-                                <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">ID: T-{allocation.tank_id}</div>
+                                <div className="font-bold text-gray-900">{tank.name || allocation.tank_name}</div>
+                                <div className="text-xs font-medium text-gray-500 uppercase">ID: T-{allocation.tank_id}</div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div>
-                              <span className={`inline-flex items-center px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider bg-${getTypeColor(allocation.allocation_type)}-100 text-${getTypeColor(allocation.allocation_type)}-700 border border-${getTypeColor(allocation.allocation_type)}-200`}>
+                              <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium uppercase bg-${getTypeColor(allocation.allocation_type)}-100 text-${getTypeColor(allocation.allocation_type)}-700 border border-${getTypeColor(allocation.allocation_type)}-200`}>
                                 {allocationTypes.find(t => t.value === allocation.allocation_type)?.label || 'Other'}
                               </span>
 
@@ -487,24 +481,24 @@ function TankAllocationContent() {
                           <td className="px-6 py-4">
                             <div className="flex flex-col gap-1">
                               <div className="flex items-center gap-2">
-                                <FaWeight size={10} className="text-slate-400" />
-                                <span className="text-sm font-bold text-slate-700">{(allocation.physical_kg_stock ?? allocation.current_quantity_kg) || 0}</span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase">KG</span>
+                                <FaWeight size={10} className="text-gray-400" />
+                                <span className="text-sm font-bold text-gray-700">{(allocation.physical_kg_stock ?? allocation.current_quantity_kg) || 0}</span>
+                                <span className="text-xs font-medium text-gray-500 uppercase">KG</span>
                               </div>
                               <div className="flex items-center gap-2">
-                                <FaTint size={10} className="text-slate-400" />
-                                <span className="text-sm font-bold text-slate-700">{(allocation.physical_litre_stock ?? allocation.current_quantity_litre) || 0}</span>
-                                <span className="text-[9px] font-bold text-slate-400 uppercase">LTR</span>
+                                <FaTint size={10} className="text-gray-400" />
+                                <span className="text-sm font-bold text-gray-700">{(allocation.physical_litre_stock ?? allocation.current_quantity_litre) || 0}</span>
+                                <span className="text-xs font-medium text-gray-500 uppercase">LTR</span>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
                             <div className="w-32">
                               <div className="flex justify-between mb-1">
-                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Usage</span>
-                                <span className="text-[9px] font-bold text-slate-700">{utilization}%</span>
+                                <span className="text-xs font-medium text-gray-500 uppercase">Usage</span>
+                                <span className="text-xs font-medium text-gray-700">{utilization}%</span>
                               </div>
-                              <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                              <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
                                 <div
                                   className={`h-full rounded-full bg-${parseFloat(utilization) > 80 ? 'red' : 'blue'}-500`}
                                   style={{ width: `${Math.min(utilization, 100)}%` }}
@@ -513,19 +507,19 @@ function TankAllocationContent() {
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-[9px] font-black uppercase tracking-wider bg-${getStatusColor(allocation.status)}-100 text-${getStatusColor(allocation.status)}-700 border border-${getStatusColor(allocation.status)}-200`}>
+                            <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium uppercase bg-${getStatusColor(allocation.status)}-100 text-${getStatusColor(allocation.status)}-700 border border-${getStatusColor(allocation.status)}-200`}>
                               {allocation.status}
                             </span>
                           </td>
                           <td className="px-6 py-4 text-right">
                             <div className="flex items-center justify-end gap-2">
-                              <button onClick={() => setShowHistoryModal(allocation)} title="View Logs" className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                              <button onClick={() => setShowHistoryModal(allocation)} title="View Logs" className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
                                 <FaHistory size={14} />
                               </button>
-                              <button onClick={() => handleEdit(allocation)} title="Edit" className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
+                              <button onClick={() => handleEdit(allocation)} title="Edit" className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition-all">
                                 <FaEdit size={14} />
                               </button>
-                              <button onClick={() => handleDelete(allocation.id)} title="Delete" className="p-2 rounded-lg bg-slate-50 text-slate-400 hover:text-red-600 hover:bg-red-50 transition-all">
+                              <button onClick={() => handleDelete(allocation.id)} title="Delete" className="p-2 rounded-lg bg-gray-50 text-gray-400 hover:text-red-600 hover:bg-red-50 transition-all">
                                 <FaTrash size={14} />
                               </button>
                             </div>
@@ -536,10 +530,10 @@ function TankAllocationContent() {
                   ) : (
                     <tr>
                       <td colSpan="6" className="px-6 py-20 text-center">
-                        <div className="text-slate-300 text-5xl mb-4">📭</div>
-                        <div className="text-slate-500 font-bold">No Allocations Found</div>
-                        <div className="text-slate-400 text-xs mt-1">Start by creating a new tank allocation</div>
-                        <button onClick={() => setShowAddForm(true)} className="mt-4 bg-blue-600 text-white px-6 py-2.5 rounded-xl font-bold text-xs uppercase tracking-widest hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                        <div className="text-gray-300 text-5xl mb-4">📭</div>
+                        <div className="text-gray-500 font-bold">No Allocations Found</div>
+                        <div className="text-gray-400 text-xs mt-1">Start by creating a new tank allocation</div>
+                        <button onClick={() => setShowAddForm(true)} className="mt-4 bg-blue-600 text-white px-6 py-2.5 rounded-lg font-medium text-xs uppercase hover:bg-blue-700 transition-all shadow">
                           Create Allocation
                         </button>
                       </td>
@@ -555,39 +549,39 @@ function TankAllocationContent() {
       {/* Add/Edit Modal */}
       {showAddForm && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 sm:p-8 w-full max-w-3xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">
+              <h2 className="text-xl font-bold text-gray-900">
                 {editingAllocation ? 'Edit Allocation' : 'Create New Allocation'}
               </h2>
-              <button onClick={resetForm} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+              <button onClick={resetForm} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
 
             {/* Selected Tank Physical Stock Info */}
             {formData.tank_id && (
-              <div className="mb-6 bg-blue-50/50 rounded-3xl p-6 border border-blue-100 flex items-center justify-between">
+              <div className="mb-6 bg-blue-50 rounded-lg p-6 border border-blue-200 flex items-center justify-between">
                 <div>
-                  <div className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Current Physical Stock</div>
+                  <div className="text-xs font-medium text-blue-600 uppercase mb-1">Current Physical Stock</div>
                   <div className="flex gap-4">
                     {(() => {
                       const selectedTank = tanks.find(t => t.id == formData.tank_id);
                       return (
                         <>
                           <div>
-                            <span className="text-xl font-black text-slate-900">{selectedTank?.current_kg_stock || 0}</span>
-                            <span className="text-[10px] font-bold text-slate-400 ml-1 uppercase">KG</span>
+                            <span className="text-xl font-bold text-gray-900">{selectedTank?.current_kg_stock || 0}</span>
+                            <span className="text-xs font-medium text-gray-500 ml-1 uppercase">KG</span>
                           </div>
-                          <div className="border-l border-blue-100 h-8 mx-2"></div>
+                          <div className="border-l border-blue-200 h-8 mx-2"></div>
                           <div>
-                            <span className="text-xl font-black text-slate-900">{selectedTank?.current_litre_stock || 0}</span>
-                            <span className="text-[10px] font-bold text-slate-400 ml-1 uppercase">LTR</span>
+                            <span className="text-xl font-bold text-gray-900">{selectedTank?.current_litre_stock || 0}</span>
+                            <span className="text-xs font-medium text-gray-500 ml-1 uppercase">LTR</span>
                           </div>
                         </>
                       );
                     })()}
                   </div>
                 </div>
-                <div className="p-3 bg-white rounded-2xl text-blue-600 shadow-sm">
+                <div className="p-3 bg-white rounded-lg text-blue-600 shadow-sm">
                   <FaWarehouse size={20} />
                 </div>
               </div>
@@ -596,12 +590,12 @@ function TankAllocationContent() {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 block">Tank *</label>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 ml-1 block">Tank *</label>
                   <select
                     name="tank_id"
                     value={formData.tank_id}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
                     required
                   >
                     <option value="">-- Select Tank --</option>
@@ -614,12 +608,12 @@ function TankAllocationContent() {
                 </div>
 
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 block">Allocation Type *</label>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 ml-1 block">Allocation Type *</label>
                   <select
                     name="allocation_type"
                     value={formData.allocation_type}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
                     required
                   >
                     {allocationTypes.map(type => (
@@ -628,16 +622,13 @@ function TankAllocationContent() {
                   </select>
                 </div>
 
-
-
-
                 <div>
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 block">Status</label>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 ml-1 block">Status</label>
                   <select
                     name="status"
                     value={formData.status}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all appearance-none"
                   >
                     {statusOptions.map(status => (
                       <option key={status.value} value={status.value}>{status.label}</option>
@@ -646,12 +637,12 @@ function TankAllocationContent() {
                 </div>
 
                 <div className="sm:col-span-2">
-                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1.5 ml-1 block">Remarks</label>
+                  <label className="text-xs font-medium text-gray-600 mb-1.5 ml-1 block">Remarks</label>
                   <textarea
                     name="remarks"
                     value={formData.remarks}
                     onChange={handleInputChange}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-100 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all resize-none"
+                    className="w-full px-4 py-3 rounded-lg bg-gray-50 border border-gray-300 font-medium text-sm focus:bg-white focus:border-blue-400 outline-none transition-all resize-none"
                     rows="3"
                     placeholder="Additional notes..."
                   />
@@ -659,10 +650,10 @@ function TankAllocationContent() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button type="button" onClick={resetForm} className="flex-1 px-6 py-3 border border-slate-300 text-slate-700 rounded-xl font-bold text-sm hover:bg-slate-50 transition-colors">
+                <button type="button" onClick={resetForm} className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg font-medium text-sm hover:bg-gray-50 transition-colors">
                   Cancel
                 </button>
-                <button type="submit" disabled={isSubmitting} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
+                <button type="submit" disabled={isSubmitting} className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg font-medium text-sm hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                   {isSubmitting ? <FaSpinner className="animate-spin" /> : null}
                   {editingAllocation ? 'Commit Update' : 'Confirm Allocation'}
                 </button>
@@ -675,21 +666,21 @@ function TankAllocationContent() {
       {/* History Modal */}
       {showHistoryModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4">
-          <div className="bg-white rounded-[2rem] p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-lg p-6 sm:p-8 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">Allocation History</h2>
-              <button onClick={() => setShowHistoryModal(null)} className="text-slate-400 hover:text-slate-600 text-2xl leading-none">×</button>
+              <h2 className="text-xl font-bold text-gray-900">Allocation History</h2>
+              <button onClick={() => setShowHistoryModal(null)} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">×</button>
             </div>
 
-            <div className="bg-slate-50 rounded-xl p-4 mb-6">
-              <div className="font-bold text-slate-900">{getTankInfo(showHistoryModal.tank_id)?.name || showHistoryModal.tank_name || 'Unknown Tank'}</div>
-              <div className="text-sm text-slate-600">{showHistoryModal.material_name || 'No material'}</div>
+            <div className="bg-gray-50 rounded-lg p-4 mb-6">
+              <div className="font-bold text-gray-900">{getTankInfo(showHistoryModal.tank_id)?.name || showHistoryModal.tank_name || 'Unknown Tank'}</div>
+              <div className="text-sm text-gray-600">{showHistoryModal.material_name || 'No material'}</div>
             </div>
 
             <div className="text-center py-8">
-              <div className="text-slate-400 text-4xl mb-4">📋</div>
-              <div className="text-slate-600 font-medium mb-2">No history available</div>
-              <div className="text-slate-400 text-sm">Transfer history will be shown here</div>
+              <div className="text-gray-400 text-4xl mb-4">📋</div>
+              <div className="text-gray-600 font-medium mb-2">No history available</div>
+              <div className="text-gray-400 text-sm">Transfer history will be shown here</div>
             </div>
           </div>
         </div>

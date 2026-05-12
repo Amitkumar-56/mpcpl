@@ -30,7 +30,7 @@ const PROCESSING_MAP = {
 
 function ProcessingContent() {
   const [mounted, setMounted] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [records, setRecords] = useState([]);
   const [showForm, setShowForm] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -50,7 +50,6 @@ function ProcessingContent() {
 
   const fetchRecords = async () => {
     try {
-      setLoading(true);
       let url = '/api/farming/processing';
       if (filterType) url += `?type=${filterType}`;
       const res = await fetch(url);
@@ -58,8 +57,6 @@ function ProcessingContent() {
       if (data.success) setRecords(data.data);
     } catch (e) {
       toast.error('Load Error');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -95,213 +92,260 @@ function ProcessingContent() {
   const derivatives = PROCESSING_MAP[form.type]?.[form.source_product] || [];
 
   return (
-    <div className="flex h-screen bg-[#F8FAFF] overflow-hidden" style={{ fontFamily: "'Inter', sans-serif" }}>
+    <div className="flex h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 overflow-hidden">
       <Sidebar />
       <div className="flex-1 flex flex-col relative overflow-hidden">
         <Header title="Farming CRM" />
         <main className="flex-1 overflow-y-auto pb-32">
-          <div className="p-4 sm:p-8">
-            <div className="max-w-6xl mx-auto">
-              <div className="flex flex-col sm:flex-row items-center justify-between mb-8 gap-4">
-                <div>
-                  <h1 className="text-3xl font-black text-slate-900 tracking-tight">Product Processing</h1>
-                  <p className="text-xs font-bold text-blue-600 uppercase tracking-widest mt-1">Value Addition & Conversion</p>
+          <div className="p-4 sm:p-6">
+            <div className="max-w-7xl mx-auto">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
+                <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">Product Processing</h1>
+                  <p className="text-sm text-gray-600 font-medium">Transform raw materials into premium finished products</p>
                 </div>
-                <div className="flex flex-wrap gap-3">
-                  <button onClick={fetchRecords} className="bg-white border border-slate-100 p-4 rounded-2xl shadow-sm"><FaSync className={loading ? 'animate-spin' : ''} /></button>
-                  <button onClick={() => setShowForm(!showForm)} className="bg-blue-600 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-xl flex items-center gap-3">
+                <div className="flex gap-2">
+                  <button onClick={fetchRecords} className="bg-white/80 backdrop-blur-sm border border-white/20 p-3 rounded-xl shadow-lg hover:bg-white transition-all hover:scale-105">
+                    <FaSync className="text-blue-600" />
+                  </button>
+                  <button onClick={() => setShowForm(!showForm)} className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2">
                     {showForm ? '✕ Close' : <><FaPlus /> New Processing</>}
                   </button>
-                  <Link href="/farming" className="bg-slate-900 text-white px-8 py-4 rounded-2xl font-black text-[11px] uppercase tracking-widest shadow-lg flex items-center gap-2">
+                  <Link href="/farming" className="bg-gradient-to-r from-gray-700 to-gray-900 text-white px-6 py-3 rounded-xl font-semibold text-sm hover:from-gray-800 hover:to-black transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center gap-2">
                     <FaArrowLeft /> Dashboard
                   </Link>
                 </div>
               </div>
 
               {showForm && (
-                <div className="bg-white rounded-[2.5rem] shadow-2xl border border-slate-100 overflow-hidden mb-12 animate-in fade-in slide-in-from-bottom-4">
-                  <div className="bg-gradient-to-r from-blue-600 to-indigo-700 p-8 text-white">
-                    <h2 className="text-xl font-black uppercase tracking-widest">Process New Product</h2>
-                    <p className="text-[10px] font-bold text-blue-100 opacity-80 uppercase tracking-[0.2em]">Convert raw materials into derivative products</p>
-                  </div>
-                  <form onSubmit={handleSubmit} className="p-8 sm:p-10 bg-slate-50/30">
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8 mb-8">
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Species Type</label>
-                        <select 
-                          value={form.type} 
-                          onChange={e => setForm({ ...form, type: e.target.value, source_product: '', derivative_product: '' })} 
-                          className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-black text-xs focus:border-blue-500 outline-none transition-all"
-                        >
-                          <option value="cow">🐄 Cow</option>
-                          <option value="goat">🐐 Goat</option>
-                          <option value="chicken">🐔 Chicken</option>
-                          <option value="honey">🍯 Honey</option>
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Source Product (Raw)</label>
-                        <select 
-                          required
-                          value={form.source_product} 
-                          onChange={e => setForm({ ...form, source_product: e.target.value, derivative_product: '' })} 
-                          className="w-full p-4 rounded-2xl border-2 border-blue-50 bg-white font-black text-xs focus:border-blue-500 outline-none transition-all"
-                        >
-                          <option value="">-- Select Source --</option>
-                          {sources.map(s => <option key={s} value={s}>{s}</option>)}
-                        </select>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Derivative Product (Final)</label>
-                        <select 
-                          required
-                          value={form.derivative_product} 
-                          onChange={e => setForm({ ...form, derivative_product: e.target.value })} 
-                          className="w-full p-4 rounded-2xl border-2 border-emerald-50 bg-white font-black text-xs focus:border-emerald-500 outline-none transition-all"
-                        >
-                          <option value="">-- Select Final --</option>
-                          {derivatives.map(d => <option key={d} value={d}>{d}</option>)}
-                        </select>
-                      </div>
-
-                      <div className="lg:col-span-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Source Quantity Used</label>
-                        <div className="flex">
-                          <input 
-                            required type="number" step="0.01" 
-                            value={form.source_quantity} 
-                            onChange={e => setForm({ ...form, source_quantity: e.target.value })} 
-                            className="flex-1 p-4 rounded-l-2xl border-2 border-r-0 border-slate-100 bg-white font-black text-xs focus:border-blue-500 outline-none"
-                            placeholder="0.00"
-                          />
-                          <select 
-                            value={form.source_unit} 
-                            onChange={e => setForm({ ...form, source_unit: e.target.value })}
-                            className="p-4 rounded-r-2xl border-2 border-slate-100 bg-slate-50 font-black text-[10px] uppercase outline-none"
-                          >
-                            <option value="litre">Litre</option>
-                            <option value="kg">KG</option>
-                            <option value="pieces">Pieces</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-center hidden lg:flex">
-                        <FaArrowRight className="text-slate-300 text-2xl" />
-                      </div>
-
-                      <div className="lg:col-span-1">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Final Quantity Produced</label>
-                        <div className="flex">
-                          <input 
-                            required type="number" step="0.01" 
-                            value={form.derivative_quantity} 
-                            onChange={e => setForm({ ...form, derivative_quantity: e.target.value })} 
-                            className="flex-1 p-4 rounded-l-2xl border-2 border-r-0 border-emerald-50 bg-white font-black text-xs focus:border-emerald-500 outline-none"
-                            placeholder="0.00"
-                          />
-                          <select 
-                            value={form.derivative_unit} 
-                            onChange={e => setForm({ ...form, derivative_unit: e.target.value })}
-                            className="p-4 rounded-r-2xl border-2 border-emerald-50 bg-emerald-50 font-black text-[10px] uppercase outline-none"
-                          >
-                            <option value="kg">KG</option>
-                            <option value="litre">Litre</option>
-                            <option value="grams">Grams</option>
-                            <option value="pieces">Pieces</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Processing Date</label>
-                        <input 
-                          type="date" 
-                          value={form.processing_date} 
-                          onChange={e => setForm({ ...form, processing_date: e.target.value })} 
-                          className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-black text-xs"
-                        />
-                      </div>
-
-                      <div className="sm:col-span-2 lg:col-span-3">
-                        <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-2">Process Notes</label>
-                        <textarea 
-                          value={form.notes} 
-                          onChange={e => setForm({ ...form, notes: e.target.value })} 
-                          className="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-black text-xs h-24"
-                          placeholder="Special instructions or quality details..."
-                        />
-                      </div>
+                <form onSubmit={handleSubmit} className="bg-white/80 backdrop-blur-sm rounded-2xl shadow-xl border border-white/20 p-8 mb-8">
+                  <div className="flex items-center gap-3 mb-8">
+                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
+                      <FaPlus className="text-white text-lg" />
                     </div>
-                    <button 
-                      type="submit" 
-                      disabled={submitting} 
-                      className="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-black text-[12px] uppercase tracking-[0.2em] shadow-2xl hover:bg-black active:scale-95 transition-all flex items-center justify-center gap-3"
-                    >
-                      {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Record Processing</>}
+                    <div>
+                      <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">Process New Product</h2>
+                      <p className="text-sm text-gray-600">Convert raw materials into finished goods</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
+                        Species Type
+                      </label>
+                      <select 
+                        value={form.type} 
+                        onChange={e => setForm({ ...form, type: e.target.value, source_product: '', derivative_product: '' })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all"
+                      >
+                        <option value="cow">🐄 Cow</option>
+                        <option value="goat">🐐 Goat</option>
+                        <option value="chicken">🐔 Chicken</option>
+                        <option value="honey">🍯 Honey</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                        Source Product (Raw)
+                      </label>
+                      <select 
+                        required
+                        value={form.source_product} 
+                        onChange={e => setForm({ ...form, source_product: e.target.value, derivative_product: '' })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all"
+                      >
+                        <option value="">-- Select Source --</option>
+                        {sources.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                        Source Quantity
+                      </label>
+                      <input 
+                        required
+                        type="number" 
+                        step="0.01" 
+                        value={form.source_quantity} 
+                        onChange={e => setForm({ ...form, source_quantity: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all" 
+                        placeholder="0.00" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                        Source Unit
+                      </label>
+                      <select 
+                        value={form.source_unit} 
+                        onChange={e => setForm({ ...form, source_unit: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all"
+                      >
+                        <option value="litre">Litre</option>
+                        <option value="kg">KG</option>
+                        <option value="pieces">Pieces</option>
+                        <option value="grams">Grams</option>
+                        <option value="ml">ML</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
+                        Derivative Product (Processed)
+                      </label>
+                      <select 
+                        required
+                        value={form.derivative_product} 
+                        onChange={e => setForm({ ...form, derivative_product: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all"
+                      >
+                        <option value="">-- Select Derivative --</option>
+                        {derivatives.map(d => <option key={d} value={d}>{d}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>
+                        Derivative Quantity
+                      </label>
+                      <input 
+                        required
+                        type="number" 
+                        step="0.01" 
+                        value={form.derivative_quantity} 
+                        onChange={e => setForm({ ...form, derivative_quantity: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all" 
+                        placeholder="0.00" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-pink-500 rounded-full"></span>
+                        Derivative Unit
+                      </label>
+                      <select 
+                        value={form.derivative_unit} 
+                        onChange={e => setForm({ ...form, derivative_unit: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all"
+                      >
+                        <option value="litre">Litre</option>
+                        <option value="kg">KG</option>
+                        <option value="pieces">Pieces</option>
+                        <option value="grams">Grams</option>
+                        <option value="ml">ML</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-orange-500 rounded-full"></span>
+                        Processing Date
+                      </label>
+                      <input 
+                        type="date" 
+                        value={form.processing_date} 
+                        onChange={e => setForm({ ...form, processing_date: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all" 
+                      />
+                    </div>
+                    <div>
+                      <label className="text-sm font-semibold text-gray-700 block mb-2 flex items-center gap-2">
+                        <span className="w-2 h-2 bg-teal-500 rounded-full"></span>
+                        Notes
+                      </label>
+                      <input 
+                        value={form.notes} 
+                        onChange={e => setForm({ ...form, notes: e.target.value })} 
+                        className="w-full p-3 rounded-xl border border-gray-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white/50 backdrop-blur-sm hover:bg-white transition-all" 
+                        placeholder="Add processing notes..." 
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-4 mt-8">
+                    <button type="button" onClick={() => setShowForm(false)} className="flex-1 px-6 py-3.5 bg-white/60 backdrop-blur-sm border border-gray-200 text-gray-700 rounded-xl font-semibold text-sm hover:bg-white transition-all hover:scale-105 shadow-md">Cancel</button>
+                    <button type="submit" disabled={submitting} className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-3.5 rounded-xl font-semibold text-sm hover:from-blue-700 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg hover:shadow-xl hover:scale-105 flex items-center justify-center gap-2">
+                      {submitting ? <FaSpinner className="animate-spin" /> : <><FaSave /> Process Now</>}
                     </button>
-                  </form>
-                </div>
+                  </div>
+                </form>
               )}
-
-              <div className="flex gap-2 mb-6 overflow-x-auto pb-2 scrollbar-hide">
+              <div className="flex gap-3 mb-8 overflow-x-auto pb-2 scrollbar-hide">
                 {[{ k: '', l: 'All' }, { k: 'cow', l: '🐄 Cow' }, { k: 'goat', l: '🐐 Goat' }, { k: 'chicken', l: '🐔 Chicken' }, { k: 'honey', l: '🍯 Honey' }].map(t => (
-                  <button key={t.k} onClick={() => setFilterType(t.k)} className={`px-6 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${filterType === t.k ? 'bg-blue-600 text-white shadow-lg' : 'bg-white text-slate-600 border border-slate-100'}`}>{t.l}</button>
+                  <button key={t.k} onClick={() => setFilterType(t.k)} className={`px-8 py-4 rounded-2xl text-xs font-bold uppercase tracking-wider transition-all whitespace-nowrap shadow-lg hover:scale-105 ${filterType === t.k ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl' : 'bg-white/80 backdrop-blur-sm text-slate-700 border border-white/20 hover:bg-white'}`}>{t.l}</button>
                 ))}
               </div>
 
               {loading ? (
-                <div className="flex justify-center py-20"><FaSpinner className="animate-spin text-blue-600 text-5xl" /></div>
+                <div className="flex justify-center py-20">
+                  <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-8 shadow-xl">
+                    <FaSpinner className="animate-spin text-blue-600 text-5xl" />
+                  </div>
+                </div>
               ) : (
-                <div className="bg-white rounded-[2rem] shadow-xl border border-slate-50 overflow-hidden">
+                <div className="bg-white/80 backdrop-blur-sm rounded-[2rem] shadow-xl border border-white/20 overflow-hidden">
                   <div className="overflow-x-auto">
                     <table className="w-full border-collapse">
                       <thead>
-                        <tr className="bg-slate-50/50 border-b border-slate-100">
+                        <tr className="bg-gradient-to-r from-blue-50/50 to-indigo-50/50 border-b border-white/20">
                           {['Date', 'Type', 'Conversion', 'Output', 'Input', 'Efficiency', 'Notes'].map(h => (
-                            <th key={h} className="text-[10px] font-black text-slate-400 uppercase tracking-widest px-6 py-6 text-left">{h}</th>
+                            <th key={h} className="text-xs font-bold text-slate-600 uppercase tracking-wider px-6 py-6 text-left">{h}</th>
                           ))}
                         </tr>
                       </thead>
                       <tbody>
                         {records.length === 0 ? (
-                          <tr><td colSpan={7} className="text-center py-20 text-xs text-slate-400 font-bold uppercase tracking-widest italic">No processing records found</td></tr>
+                          <tr>
+                            <td colSpan={7} className="text-center py-20">
+                              <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-8 border border-white/20">
+                                <div className="text-sm font-bold text-slate-400 uppercase tracking-wider">No processing records found</div>
+                                <div className="text-xs text-slate-400 mt-2">Start by adding your first processing batch</div>
+                              </div>
+                            </td>
+                          </tr>
                         ) : (
                           records.map(r => (
-                            <tr key={r.id} className="border-b border-slate-50 hover:bg-blue-50/20 transition-all group">
-                              <td className="px-6 py-6 text-xs font-black text-slate-400">{new Date(r.processing_date).toLocaleDateString('en-IN')}</td>
+                            <tr key={r.id} className="border-b border-white/10 hover:bg-gradient-to-r hover:from-blue-50/30 hover:to-indigo-50/30 transition-all group">
                               <td className="px-6 py-6">
-                                <span className="text-[10px] font-black uppercase bg-slate-100 px-3 py-1.5 rounded-lg text-slate-600">{r.type}</span>
+                                <div className="text-xs font-bold text-slate-600">{new Date(r.processing_date).toLocaleDateString('en-IN')}</div>
+                              </td>
+                              <td className="px-6 py-6">
+                                <span className="text-xs font-bold uppercase bg-gradient-to-r from-blue-100 to-indigo-100 px-4 py-2 rounded-xl text-blue-700">{r.type}</span>
                               </td>
                               <td className="px-6 py-6">
                                 <div className="flex items-center gap-3">
-                                  <span className="text-xs font-bold text-slate-500">{r.source_product}</span>
-                                  <FaArrowRight className="text-[10px] text-slate-300" />
-                                  <span className="text-xs font-black text-blue-600 uppercase">{r.derivative_product}</span>
+                                  <span className="text-xs font-semibold text-slate-600">{r.source_product}</span>
+                                  <FaArrowRight className="text-xs text-blue-400" />
+                                  <span className="text-xs font-bold text-blue-600 uppercase">{r.derivative_product}</span>
                                 </div>
                               </td>
                               <td className="px-6 py-6">
-                                <span className="text-sm font-black text-emerald-600">{Number(r.derivative_quantity).toFixed(2)} <span className="text-[9px] uppercase">{r.derivative_unit}</span></span>
+                                <span className="text-sm font-bold text-emerald-600">{Number(r.derivative_quantity).toFixed(2)} <span className="text-xs uppercase text-emerald-500">{r.derivative_unit}</span></span>
                               </td>
                               <td className="px-6 py-6">
-                                <span className="text-xs font-bold text-slate-400">{Number(r.source_quantity).toFixed(2)} {r.source_unit}</span>
+                                <span className="text-xs font-semibold text-slate-500">{Number(r.source_quantity).toFixed(2)} {r.source_unit}</span>
                               </td>
                               <td className="px-6 py-6">
-                                <span className="text-[10px] font-black text-indigo-600 bg-indigo-50 px-3 py-1 rounded-full">
+                                <span className="text-xs font-bold text-indigo-600 bg-gradient-to-r from-indigo-50 to-blue-50 px-3 py-1.5 rounded-full border border-indigo-100">
                                   {((r.derivative_quantity / (r.source_quantity || 1)) * 100).toFixed(1)}% Yield
                                 </span>
                               </td>
-                              <td className="px-6 py-6 text-[10px] text-slate-400 font-medium italic max-w-xs truncate">{r.notes || '-'}</td>
+                              <td className="px-6 py-6">
+                                <div className="text-xs text-slate-500 font-medium max-w-xs truncate">{r.notes || '-'}</div>
+                              </td>
                             </tr>
                           ))
                         )}
                       </tbody>
                     </table>
                   </div>
-                  <div className="p-6 bg-slate-50 text-[9px] font-black text-slate-400 uppercase tracking-widest border-t border-slate-100">
-                    Showing {records.length} processing batches
+                  <div className="p-6 bg-gradient-to-r from-blue-50/50 to-indigo-50/50 text-xs font-bold text-slate-600 uppercase tracking-wider border-t border-white/20">
+                    <div className="flex items-center justify-between">
+                      <span>Showing {records.length} processing batches</span>
+                      <span className="text-slate-400">Last updated: {new Date().toLocaleTimeString('en-IN')}</span>
+                    </div>
                   </div>
                 </div>
               )}
