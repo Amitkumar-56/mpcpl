@@ -164,6 +164,7 @@ const Sidebar = memo(function Sidebar({ onClose }) {
     { name: "Tank Master", icon: <FaWarehouse />, module: "manufacturing", path: "/manufacturing/tanks" },
     { name: "Security Gate", icon: <FaShieldAlt />, module: "security_gate", path: "/manufacturing/security-gate" },
     { name: "Rental Trips", icon: <FaTruck />, module: "rental_trips", path: "/rental-trips" },
+    { name: "Route History", icon: <FaHistory />, module: "rental_trips", path: "/rental-route-history" },
     { name: "Items", icon: <FaCog />, module: "items", path: "/items" },
     { name: "Farming CRM", icon: <FaPaw />, module: "farming", path: "/farming" },
 

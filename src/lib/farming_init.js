@@ -229,6 +229,22 @@ export async function ensureFarmingTables() {
       )
     `);
 
+    // 13. Labor/Worker Logs
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS farming_labor_logs (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        worker_name VARCHAR(100) NOT NULL,
+        food_inward_qty DECIMAL(10, 2) DEFAULT 0,
+        late_arrival ENUM('yes', 'no') DEFAULT 'no',
+        late_fine DECIMAL(10, 2) DEFAULT 0,
+        outside_food_qty DECIMAL(10, 2) DEFAULT 0,
+        outside_food_cost DECIMAL(10, 2) DEFAULT 0,
+        log_date DATE,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
     tablesEnsured = true;
     console.log("Farming tables initialized successfully.");
   } catch (error) {

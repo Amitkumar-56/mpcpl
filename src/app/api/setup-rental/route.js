@@ -28,6 +28,7 @@ export async function GET() {
         company_name VARCHAR(255),
         source VARCHAR(255),
         destination VARCHAR(255),
+        route_history TEXT,
         state VARCHAR(100),
         voucher_no VARCHAR(100),
         status ENUM('Open', 'Closed') DEFAULT 'Open',
@@ -43,6 +44,13 @@ export async function GET() {
       );
     `);
 
+    // Migration: Add route_history if not exists
+    try {
+      await executeQuery("ALTER TABLE rental_trips ADD COLUMN route_history TEXT AFTER destination");
+    } catch (e) {
+      // Column might already exist
+    }
+
     // 3. Rental Trip Expenses Table
     await executeQuery(`
       CREATE TABLE IF NOT EXISTS rental_trip_expenses (
@@ -51,6 +59,19 @@ export async function GET() {
         type ENUM('Fuel', 'DEF', 'Fastag', 'Others') NOT NULL,
         amount DECIMAL(15, 2) NOT NULL,
         description TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (trip_id) REFERENCES rental_trips(id) ON DELETE CASCADE
+      );
+    `);
+
+    // 4. Rental Trip Route History Table
+    await executeQuery(`
+      CREATE TABLE IF NOT EXISTS rental_trip_route_history (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        trip_id INT NOT NULL,
+        old_destination VARCHAR(255),
+        new_destination VARCHAR(255),
+        remarks TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (trip_id) REFERENCES rental_trips(id) ON DELETE CASCADE
       );

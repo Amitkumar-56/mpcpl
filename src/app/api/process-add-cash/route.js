@@ -32,31 +32,50 @@ export async function POST(request) {
     await executeQuery(insertItemSql, [voucher_id, item_details, amount]);
 
     // ✅ Sync with Rental Trip if selected
-    if (rental_trip_id && rental_trip_id !== "") {
+    if (rental_trip_id && rental_trip_id !== "" && rental_trip_id !== "null") {
       try {
+        const tripId = parseInt(rental_trip_id);
+        const amountNum = parseFloat(amount) || 0;
+
+        console.log(`[Rental Sync] Updating Trip ID: ${tripId} with Expense: ${amountNum}`);
+
         // 1. Insert into rental expenses log
         await executeQuery(
           'INSERT INTO rental_trip_expenses (trip_id, type, amount, description) VALUES (?, ?, ?, ?)',
-          [rental_trip_id, 'Others', amount, `Voucher ${voucher_no || 'N/A'}: ${item_details}`]
+          [tripId, 'Others', amountNum, `Voucher ${voucher_no || 'N/A'}: ${item_details}`]
         );
 
-        // Ensure voucher_no column exists
+        // Ensure voucher_no column exists (safe check)
         try {
-          await executeQuery("ALTER TABLE rental_trips ADD COLUMN voucher_no VARCHAR(100) AFTER state");
-        } catch (e) {}
+          const colCheck = await executeQuery(`
+            SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'rental_trips' AND COLUMN_NAME = 'voucher_no'
+          `);
+          if (colCheck.length === 0) {
+            await executeQuery("ALTER TABLE rental_trips ADD COLUMN voucher_no VARCHAR(100) AFTER state");
+          }
+        } catch (e) {
+          console.error('Error checking/adding voucher_no column:', e.message);
+        }
 
         // 2. Update total_expense and voucher_no in rental_trips
+        // Use COALESCE to ensure it doesn't set total_expense to NULL
         await executeQuery(
-          'UPDATE rental_trips SET total_expense = (SELECT SUM(amount) FROM rental_trip_expenses WHERE trip_id = ?), voucher_no = ? WHERE id = ?',
-          [rental_trip_id, voucher_no, rental_trip_id]
+          `UPDATE rental_trips 
+           SET total_expense = (SELECT COALESCE(SUM(amount), 0) FROM rental_trip_expenses WHERE trip_id = ?),
+               voucher_no = COALESCE(voucher_no, ?)
+           WHERE id = ?`,
+          [tripId, voucher_no, tripId]
         );
 
-        // 3. Recalculate profit_loss if trip is closed
-        const tripData = await executeQuery('SELECT status, received_amount, total_expense FROM rental_trips WHERE id = ?', [rental_trip_id]);
-        if (tripData.length > 0 && tripData[0].status === 'Closed') {
+        // 3. Recalculate profit_loss
+        const tripData = await executeQuery('SELECT received_amount, total_expense FROM rental_trips WHERE id = ?', [tripId]);
+        if (tripData.length > 0) {
           const profitLoss = (parseFloat(tripData[0].received_amount || 0) - parseFloat(tripData[0].total_expense || 0)) || 0;
-          await executeQuery('UPDATE rental_trips SET profit_loss = ? WHERE id = ?', [profitLoss, rental_trip_id]);
+          await executeQuery('UPDATE rental_trips SET profit_loss = ? WHERE id = ?', [profitLoss, tripId]);
         }
+
+        console.log(`[Rental Sync] Trip ${tripId} updated successfully`);
       } catch (rentalError) {
         console.error('Error syncing expense with rental trip:', rentalError);
       }

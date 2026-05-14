@@ -2,7 +2,7 @@
 import React, { useState, useEffect, Suspense } from 'react';
 import dynamic from 'next/dynamic';
 import Link from 'next/link';
-import { FaSpinner, FaSync, FaPaw, FaDrumstickBite, FaFish, FaLeaf, FaArrowDown, FaArrowUp, FaArrowRight, FaChartBar, FaBoxOpen, FaPlus, FaCloudSun, FaCheckCircle, FaExclamationTriangle, FaUserMd, FaStethoscope, FaFileMedical, FaThermometerHalf } from 'react-icons/fa';
+import { FaSpinner, FaSync, FaPaw, FaDrumstickBite, FaFish, FaLeaf, FaArrowDown, FaArrowUp, FaArrowRight, FaChartBar, FaBoxOpen, FaPlus, FaCloudSun, FaCheckCircle, FaExclamationTriangle, FaUserMd, FaStethoscope, FaFileMedical, FaThermometerHalf, FaUserAlt } from 'react-icons/fa';
 import { GiCow, GiGoat, GiChicken, GiHoneypot, GiFishingNet } from 'react-icons/gi';
 import { toast, Toaster } from 'react-hot-toast';
 import Header from '@/components/Header';
@@ -239,6 +239,7 @@ function FarmingDashboardContent() {
                   { label: 'Feed', href: '/farming/feed', icon: <FaLeaf />, color: '#059669' },
                   { label: 'Health', href: '/farming/health', icon: <FaStethoscope />, color: '#EC4899' },
                   { label: 'AI Diagnostic', href: '/farming/health/diagnostic', icon: <FaThermometerHalf />, color: '#F43F5E' },
+                  { label: 'Labor Log', href: '/farming/labor', icon: <FaUserAlt />, color: '#6366F1' },
                 ].map((a, i) => (
                   <Link key={i} href={a.href}
                     className="bg-white rounded-xl shadow-sm border border-slate-100 p-4 flex items-center gap-3 hover:shadow-md transition-all hover:-translate-y-0.5">
@@ -280,6 +281,17 @@ function FarmingDashboardContent() {
                         <div key={i} className="flex justify-between text-xs bg-indigo-50 p-3 rounded-xl">
                           <span className="font-bold text-slate-700">{p.source_product}</span>
                           <span className="font-black text-indigo-600">→ {p.derivative_product}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                    <h2 className="text-xs font-black uppercase tracking-widest text-slate-800 mb-4">👷 Recent Labor</h2>
+                    <div className="space-y-2">
+                      {dashData?.recentLabor?.map((l, i) => (
+                        <div key={i} className="flex justify-between text-xs bg-emerald-50 p-3 rounded-xl">
+                          <span className="font-bold text-slate-700">{l.worker_name}</span>
+                          <span className="font-black text-emerald-600">{l.late_arrival === 'yes' ? 'LATE' : 'ON TIME'}</span>
                         </div>
                       ))}
                     </div>

@@ -29,6 +29,7 @@ export async function GET(request) {
       const purchaseExpense = await executeQuery(`SELECT SUM(purchase_price) as total FROM farming_animals`);
       const deathLoss = await executeQuery(`SELECT SUM(purchase_price) as total FROM farming_animals WHERE status = 'deceased'`);
       const recentProcessing = await executeQuery(`SELECT * FROM farming_processing ORDER BY created_at DESC LIMIT 5`);
+      const recentLabor = await executeQuery(`SELECT * FROM farming_labor_logs ORDER BY created_at DESC LIMIT 5`);
 
       // NEW: Compliance & Missing Data Checks
       const missingHealth = await executeQuery(`
@@ -86,6 +87,7 @@ export async function GET(request) {
           monthlyExpenses,
           financials,
           recentProcessing,
+          recentLabor,
           compliance: {
             missingHealth,
             missingWeight,

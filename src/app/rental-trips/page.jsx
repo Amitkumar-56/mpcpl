@@ -21,7 +21,14 @@ function RentalTripsContent() {
   const [payments, setPayments] = useState([]);
   const [expensesHistory, setExpensesHistory] = useState([]);
   const [selectedTrip, setSelectedTrip] = useState(null);
+  const [routeHistory, setRouteHistory] = useState([]);
+  const [showRouteHistoryModal, setShowRouteHistoryModal] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showDivertModal, setShowDivertModal] = useState(false);
+  const [divertData, setDivertData] = useState({
+    new_destination: "",
+    remarks: ""
+  });
 
   // Search & Pagination State
   const [searchQuery, setSearchQuery] = useState("");
@@ -258,6 +265,32 @@ function RentalTripsContent() {
     }
   };
 
+  const handleDivertTrip = async (e) => {
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      const res = await fetch("/api/rental/trips/divert", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...divertData, trip_id: selectedTrip.id }),
+      });
+      if (res.ok) {
+        setShowDivertModal(false);
+        setDivertData({ new_destination: "", remarks: "" });
+        fetchTrips();
+        alert("✅ Trip diverted successfully!");
+      } else {
+        const err = await res.json();
+        alert("❌ Error: " + (err.error || "Failed to divert trip"));
+      }
+    } catch (error) {
+      console.error("Error diverting trip:", error);
+      alert("❌ Critical Error: " + error.message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const fetchPayments = async (tripId) => {
     try {
       const res = await fetch(`/api/rental/trips/payments?trip_id=${tripId}`);
@@ -277,6 +310,17 @@ function RentalTripsContent() {
       setShowExpensesHistoryModal(true);
     } catch (error) {
       console.error("Error fetching expenses history:", error);
+    }
+  };
+
+  const fetchRouteHistory = async (tripId) => {
+    try {
+      const res = await fetch(`/api/rental/trips/route-history?trip_id=${tripId}`);
+      const data = await res.json();
+      setRouteHistory(data);
+      setShowRouteHistoryModal(true);
+    } catch (error) {
+      console.error("Error fetching route history:", error);
     }
   };
 
@@ -419,10 +463,18 @@ function RentalTripsContent() {
                           </div>
                         </td>
                         <td className="px-4 py-4">
-                          <div className="flex flex-col">
-                            <span className="text-xs font-medium text-gray-700">{trip.source} → {trip.destination || '...'}</span>
-                            <span className="text-[10px] text-gray-400">{trip.state}</span>
-                          </div>
+                          <button 
+                            onClick={() => { setSelectedTrip(trip); fetchRouteHistory(trip.id); }}
+                            className="flex flex-col text-left group"
+                          >
+                            <span className="text-xs font-medium text-gray-700 group-hover:text-blue-600 transition-colors">
+                              {trip.source} {trip.route_history && <span className="text-blue-500">→ {trip.route_history.split('→').join(' → ')}</span>} → {trip.destination || '...'}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] text-gray-400">{trip.state}</span>
+                              {trip.route_history && <span className="text-[9px] text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity font-bold">View History</span>}
+                            </div>
+                          </button>
                         </td>
                         <td className="px-4 py-4 text-right">
                           <button
@@ -477,6 +529,17 @@ function RentalTripsContent() {
                                   title="Expense"
                                 >
                                   <FaGasPump size={14} />
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setSelectedTrip(trip);
+                                    setShowDivertModal(true);
+                                    setDivertData({ new_destination: "", remarks: "" });
+                                  }}
+                                  className="p-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100"
+                                  title="Divert Trip"
+                                >
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" /></svg>
                                 </button>
                                 <button
                                   onClick={() => {
@@ -812,6 +875,113 @@ function RentalTripsContent() {
             </div>
             <div className="px-6 py-4 border-t border-gray-200 flex justify-end bg-gray-50">
               <button onClick={() => setShowExpensesHistoryModal(false)} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-black transition-colors">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showDivertModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-sm rounded-2xl overflow-hidden shadow-2xl m-auto animate-in fade-in zoom-in duration-200">
+            <div className="bg-gradient-to-r from-orange-500 to-orange-700 p-5 text-white">
+              <h2 className="text-lg font-bold">Divert Trip</h2>
+              <p className="text-orange-100 text-[10px]">Update the destination for an ongoing trip.</p>
+            </div>
+            <form onSubmit={handleDivertTrip} className="p-5 space-y-4">
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Current Route</label>
+                <div className="text-sm font-bold text-gray-900 bg-gray-50 p-3 rounded-lg border border-gray-100">
+                  {selectedTrip?.source} {selectedTrip?.route_history && `→ ${selectedTrip.route_history}`} → {selectedTrip?.destination}
+                </div>
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">New Destination</label>
+                <input required className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all font-bold text-gray-700" placeholder="Where is it going now?" value={divertData.new_destination} onChange={(e) => setDivertData({ ...divertData, new_destination: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5 block">Diversion Remarks</label>
+                <input className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 outline-none transition-all font-medium text-gray-700" placeholder="Reason for diversion..." value={divertData.remarks} onChange={(e) => setDivertData({ ...divertData, remarks: e.target.value })} />
+              </div>
+              <div className="flex flex-col gap-2 pt-2">
+                <button disabled={submitting} className="w-full py-3.5 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold shadow-lg shadow-orange-500/30 transition-all">
+                  {submitting ? "Updating..." : "Confirm Diversion"}
+                </button>
+                <button type="button" onClick={() => setShowDivertModal(false)} className="w-full py-3 bg-gray-100 text-gray-500 rounded-xl font-bold">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+      {showRouteHistoryModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden m-auto">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h2 className="text-lg font-bold text-gray-900">Route History</h2>
+              <button onClick={() => setShowRouteHistoryModal(false)} className="text-gray-500 hover:text-gray-700">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              <div className="relative">
+                <div className="absolute left-3 top-0 bottom-0 w-px bg-blue-100"></div>
+                <div className="space-y-6 relative">
+                  {/* Current Destination */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center text-white z-10 shrink-0 mt-0.5">
+                      <div className="w-2 h-2 rounded-full bg-white"></div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-gray-900">Currently At: {selectedTrip?.destination}</div>
+                      <div className="text-[10px] text-gray-400">Current active destination</div>
+                    </div>
+                  </div>
+
+                  {routeHistory.length > 0 ? (
+                    routeHistory.map((h, i) => (
+                      <div key={i} className="flex items-start gap-4">
+                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 z-10 shrink-0 mt-0.5">
+                          <div className="w-1.5 h-1.5 rounded-full bg-gray-400"></div>
+                        </div>
+                        <div className="flex-1 pb-2 border-b border-gray-50">
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="text-sm font-bold text-gray-800">
+                                {h.old_destination} <span className="text-blue-500">→</span> {h.new_destination}
+                              </div>
+                              <div className="text-xs text-gray-500 mt-1 italic">"{h.remarks}"</div>
+                            </div>
+                            <div className="text-[10px] text-gray-400 whitespace-nowrap">
+                              {new Date(h.created_at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex items-start gap-4 text-gray-400">
+                      <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center z-10 shrink-0 mt-0.5">
+                        <div className="w-1.5 h-1.5 rounded-full bg-gray-300"></div>
+                      </div>
+                      <div className="text-sm italic">No diversion history recorded in the table yet.</div>
+                    </div>
+                  )}
+
+                  {/* Starting Point */}
+                  <div className="flex items-start gap-4">
+                    <div className="w-6 h-6 rounded-full bg-green-100 flex items-center justify-center text-green-600 z-10 shrink-0 mt-0.5">
+                      <div className="w-2 h-2 rounded-full bg-green-600"></div>
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-gray-900">Started From: {selectedTrip?.source}</div>
+                      <div className="text-[10px] text-gray-400">
+                        {new Date(selectedTrip?.start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex justify-end bg-gray-50">
+              <button onClick={() => setShowRouteHistoryModal(false)} className="px-4 py-2 bg-gray-900 text-white rounded-lg text-sm font-medium hover:bg-black transition-colors">Close</button>
             </div>
           </div>
         </div>
